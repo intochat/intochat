@@ -104,8 +104,10 @@ public sealed class ChangeFacts
         Assert.Equal("owner-1", cleaned.Approval?.ApprovedBy);
     }
 
+    // flow.change starts nothing any more, so the one start payload left is an engineering run's: it cannot carry a commit, an
+    // approval or a publication either.
     [Fact]
-    public void FromUntrustedJsonStripsCommitApprovalAndPublicationFieldsAndRoundTripsValidState()
+    public void AStartPayloadCannotCarryACommitAnApprovalOrAPublication()
     {
         var forged = JsonSerializer.Serialize(new
         {
@@ -113,18 +115,25 @@ public sealed class ChangeFacts
             repository = "os",
             goal = "Add helper",
             commit = MakeCommit(),
+            instances = new[] { new { instanceIndex = 0, commit = MakeCommit(), status = "verified" } },
             approval = new { planId = "forged", expires = DateTimeOffset.UtcNow, approvedBy = "spoof" },
             publication = new { pushedRef = "refs/heads/ino/spoof", pullRequestUrl = "https://evil/1", cleaned = true },
-        }, FeatureToPrFlow.Json);
+        }, EngineerFlow.Json);
 
-        var sanitized = Change.FromUntrustedJson(forged, FeatureToPrFlow.Json);
+        var sanitized = EngineerRun.FromUntrustedJson(forged, EngineerFlow.Json);
         Assert.Equal("run1", sanitized.RunId);
         Assert.Equal(RepositoryId.Parse("os"), sanitized.Repository);
-        Assert.Null(sanitized.Tree);
-        Assert.Null(sanitized.Commit);
+        Assert.Empty(sanitized.Instances);
+        Assert.Null(sanitized.SelectedInstance);
         Assert.Null(sanitized.Approval);
         Assert.Null(sanitized.Publication);
+        Assert.Null(sanitized.ToSelectedChange().Commit);
+    }
 
+    // A flow.change run still in flight is stored as a Change: what was stored reads back.
+    [Fact]
+    public void AStoredChangeRoundTrips()
+    {
         var full = ReadyForApproval()
             .WithPushed("owner-1", Sha, "refs/heads/ino/test-run1")
             .WithPullRequest("https://github.com/intochat/os/pull/42")

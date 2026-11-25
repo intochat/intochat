@@ -177,6 +177,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 services =>
                 {
                     AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+                    IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
                     foreach (var d in services.Where(d => d.ImplementationType?.Name is "FeatureBootLifecycle").ToList())
                     {
                         services.Remove(d);
@@ -194,6 +195,9 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                     [
                         typeof(RestoredKernelAppsTestModule),
                         typeof(AppsModule),
+                        typeof(IntoChat.OS.Modules.Runs.RunsModule),
+                        typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),
+                        typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule),
                         typeof(IdentityModule),
                         typeof(AuthorityPlainNeurons),
                         typeof(AIModule),

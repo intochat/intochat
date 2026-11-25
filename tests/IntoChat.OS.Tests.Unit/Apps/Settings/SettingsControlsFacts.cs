@@ -40,7 +40,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task Toggling_a_setting_through_its_ToggleSwitch_slot_updates_the_preference()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "desktop");
         Assert.True(settings.App.State.ShowOsBarClock);
 
@@ -54,7 +54,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task The_switch_draws_the_preference_from_its_props()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "notifications");
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
@@ -67,7 +67,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task A_toggle_updates_the_preference_without_anything_pushed_to_the_switch()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "notifications");
 
         await Send(settings, "notify-jobs", new Toggle());
@@ -89,7 +89,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task Choosing_a_bar_layout_through_its_ComboBox_slot_saves_it()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "desktop");
 
         await Send(settings, "bar-layout", new DigitalBrain.UI.Commands.Select("compact-pill"));
@@ -100,7 +100,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task Submitting_the_settings_form_stores_values()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "general");
 
         await Send(settings, "regional", new Submit(new Dictionary<string, string>
@@ -120,7 +120,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task Search_filters_only_on_submit()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "general");
 
         await Send(settings, "search", new Submit(new Dictionary<string, string> { ["query"] = "Ollama" }));
@@ -131,7 +131,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task A_managed_setting_is_drawn_disabled_and_refuses()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         await settings.Request("set-variable", new SettingsSetVariable(SettingsControls.ManagedVariable, "quiet-hours"));
         await settings.Request("navigate", new SettingsNavigate("notifications"));
@@ -145,7 +145,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task A_form_value_over_its_limit_is_refused()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "general");
 
         var refused = await Assert.ThrowsAsync<ActivationRefusedException>(
@@ -158,7 +158,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task TheAiSectionDrawsOneComboPerRole()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "models");
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
@@ -178,7 +178,7 @@ public sealed class SettingsControlsFacts
     [Fact]
     public async Task TheHearComboOffersOnlyHearCards()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "models");
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
@@ -200,7 +200,7 @@ public sealed class SettingsControlsFacts
         try
         {
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<RecordingSettingsModelCatalog>();
             var settings = await Settings(os, "models");
 

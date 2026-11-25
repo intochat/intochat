@@ -111,10 +111,11 @@ internal sealed partial class InoStudioNeuron
             StudioLogger.LogSwallowed(ex, $"reading existing sidecars for '{package.Alias}'");
         }
 
+        var verifier = services.GetRequiredService<IUnitVerifier>();
         IReadOnlyList<Scenario> mergedScenarios;
         try
         {
-            mergedScenarios = KeptScenarios.Merge(
+            mergedScenarios = verifier.Keep(
                 existingSidecars,
                 package.Scenarios,
                 $"Install {package.Alias} ({normalizedMode})");
@@ -135,8 +136,7 @@ internal sealed partial class InoStudioNeuron
         var verificationKey = ISynapseStudio.StepKey(package.Alias, files);
         if (!VerifiedPackages.TryGet(verificationKey, out var alreadyVerified) || !alreadyVerified)
         {
-            var verified = await BuilderTools.VerifyPackageAsync(
-                services,
+            var verified = await verifier.Verify(
                 package.Alias,
                 files,
                 mergedScenarios,
@@ -207,8 +207,8 @@ internal sealed partial class InoStudioNeuron
 
         var creatorUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "creator").Key}#{package.Alias}";
         var tasksUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "tasks").Key}#approvals";
-        var install = UnitDeploy.Install(deployed, package.Alias);
-        var cardStatus = UnitDeploy.IsLive(install.Status) ? "installed" : install.Status.ToString().ToLowerInvariant();
+        var install = deployed.InstallOf(package.Alias);
+        var cardStatus = UnitDeployResult.IsLive(install.Status) ? "installed" : install.Status.ToString().ToLowerInvariant();
 
         var card = new InoCard(
             Id: package.Alias,

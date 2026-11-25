@@ -207,6 +207,7 @@ public sealed partial class ModelPolicyFacts
         var aiDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\AI", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/AI", StringComparison.OrdinalIgnoreCase));
         var appsDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase));
         var catalogDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Catalog", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Catalog", StringComparison.OrdinalIgnoreCase));
+        var authoringDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Authoring", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Authoring", StringComparison.OrdinalIgnoreCase));
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
         var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
         var hostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Host", StringComparison.OrdinalIgnoreCase));
@@ -219,7 +220,7 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(appsDir, "Ino"),
             Path.Combine(appsDir, "Settings"),
             Path.Combine(catalogDir, "Ino"),
-            Path.Combine(catalogDir, "Authoring"),
+            authoringDir,
             Path.Combine(catalogDir, "Contracts", "System"),
             Path.Combine(catalogDir, "System"),
             Path.Combine(catalogDir, "Flows", "LocalLlmCoder.cs"),

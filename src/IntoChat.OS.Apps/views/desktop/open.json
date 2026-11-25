@@ -270,7 +270,7 @@
                   "launch": 0,
                   "dock": 4,
                   "appKind": "compiled",
-                  "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
+                  "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
                   "command": {
                     "target": ".",
                     "signal": "desktop.open",
@@ -572,7 +572,7 @@
               "launch": 0,
               "dock": 4,
               "appKind": "compiled",
-              "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
+              "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
               "command": {
                 "target": ".",
                 "signal": "desktop.open",

@@ -63,13 +63,11 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public const string SandboxConnectionId = "sandbox-test";
 
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<KernelCapabilityConnections>();
-    private readonly ConcurrentDictionary<string, LocalCloudStorage> _localClouds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, LocalCloudStorage> _sandboxStorages = new(StringComparer.Ordinal);
 
     private static NeuronId LocalDiskId(BrainId brain) => new(brain, "local-disk", "main");
     private static string LocalDiskConnectionKey(BrainId brain) => LocalDiskId(brain).ToString();
 
-    public static NeuronId LocalCloudId(BrainId brain) => new(brain, LocalCloudNeuron.TypeName, "main");
+    public static NeuronId LocalCloudId(BrainId brain) => new(brain, CloudModule.WorkspaceNeuronType, "main");
     public static string LocalCloudConnectionKey(BrainId brain) => LocalCloudId(brain).ToString();
 
     public static string SandboxConnectionKey(BrainId brain, string connector = "sandbox")
@@ -117,6 +115,20 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
                 _logger.LogDebug(error, "LocalDisk module is optional in isolated test hosts for {Brain}", brain.Value);
             }
         }
+        // Every brain has its workspace (the cloud module's local-cloud/main), listed after the brain's own connections.
+        var workspaceKey = LocalCloudConnectionKey(brain);
+        if (!list.Any(item => string.Equals(item.Key, workspaceKey, StringComparison.Ordinal)))
+        {
+            try
+            {
+                _ = await SiloNeurons.Get<StorageV1>(plain, LocalCloudId(brain)).Roots(ct).WaitAsync(ct).ConfigureAwait(false);
+                list.Add(new BrainConnection(workspaceKey, "Workspace", true, [Capability.Storage.V1], ConnectionStorage.Root(workspaceKey)));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogDebug(error, "The workspace (cloud module) is not hosted for {Brain}", brain.Value);
+            }
+        }
         return list;
     }
 
@@ -139,10 +151,11 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
         if (string.Equals(key, LocalCloudConnectionKey(brain), StringComparison.Ordinal) && typeof(TCapability) == typeof(StorageV1))
         {
+            var workspace = SiloNeurons.Get<StorageV1>(plain, LocalCloudId(brain));
             var localCloudStorage = new ConnectionStorage(
-                ResolveLocalCloud(brain),
+                workspace,
                 key,
-                null,
+                (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), LocalCloudId(brain)),
                 services.GetService<IStorageWriteAuthorizer>(),
                 badge,
                 Edge);
@@ -162,10 +175,12 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
             && typeof(TCapability) == typeof(StorageV1)
             && services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector) is null)
         {
+            // Isolated storage for a sandbox or test caller: a workspace of its own ({home}/brains/{brain}/sandbox/{connector}).
+            var sandboxId = new NeuronId(brain, CloudModule.WorkspaceNeuronType, CloudModule.SandboxKey(connector));
             var sandboxStorage = new ConnectionStorage(
-                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudStorage()),
+                SiloNeurons.Get<StorageV1>(plain, sandboxId),
                 key,
-                null,
+                (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), sandboxId),
                 services.GetService<IStorageWriteAuthorizer>(),
                 SandboxCredentialsBadge,
                 Edge);
@@ -216,18 +231,6 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
     private IConnectionRequests Requests(BrainId brain) => SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(brain.Value));
 
-    private StorageV1 ResolveLocalCloud(BrainId brain)
-    {
-        try
-        {
-            return SiloNeurons.Get<StorageV1>(plain, LocalCloudId(brain));
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            _logger.LogDebug(error, "Falling back to in-memory LocalCloudStorage for {Brain}", brain.Value);
-            return _localClouds.GetOrAdd(brain.Value, _ => new LocalCloudStorage());
-        }
-    }
 
     // A neuron implementing storage@1 is reached through its own contract (ConnectionStorage keeps streams host-local).
     private StorageV1 BindStorage(string key, string connector, string? sandboxBadge = null)

@@ -1,0 +1,1 @@
+{"shares":[{"id":"s1","account":"ben","path":"/work/trip","isFolder":true,"role":1,"sharedAt":"2026-01-02T03:04:05+00:00","broken":false},{"id":"s2","account":"eve","path":"/work/notes.txt","isFolder":false,"role":0,"sharedAt":"2026-01-03T03:04:05+00:00","broken":true}],"saves":[{"path":"/work/trip/day1/b.txt","account":"ben","at":"2026-01-02T05:04:05+00:00"}]}

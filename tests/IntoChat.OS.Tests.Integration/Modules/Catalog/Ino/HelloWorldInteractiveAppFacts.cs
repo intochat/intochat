@@ -32,11 +32,12 @@ public sealed class HelloWorldInteractiveAppFacts
 
     private sealed class LiveCreatorHelloFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(AIModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlutterModule), typeof(AIModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);
@@ -225,7 +226,7 @@ public sealed class HelloWorldInteractiveAppFacts
         var installs = runtime.Get<IInstalls>(new NeuronId(runtime.Brain, "synapse.installs", "default"));
 
         // 1. Import apps/helloworld via AppPackageArchive
-        var imported = await AppPackageArchive.ImportFromDirectoryAsync(LocateHelloWorldFolder(), studio, services: runtime.Services, ct: Ct);
+        var imported = await AppPackageArchive.ImportFromDirectoryAsync(LocateHelloWorldFolder(), new UnitVerifier(runtime.Services), studio, ct: Ct);
         Assert.True(imported.Succeeded, string.Join("\n", imported.Errors));
         Assert.Equal("helloworld", imported.Alias);
 
@@ -238,7 +239,7 @@ public sealed class HelloWorldInteractiveAppFacts
 
         // 3. Export deployed unit to ZIP and verify all 4 files round-trip
         var zipBytes = await AppPackageArchive.ExportZipAsync("helloworld", studio, Ct);
-        var verifiedCopy = await AppPackageArchive.ImportZipAsync(zipBytes, studio: null, services: runtime.Services, ct: Ct);
+        var verifiedCopy = await AppPackageArchive.ImportZipAsync(zipBytes, new UnitVerifier(runtime.Services), studio: null, ct: Ct);
         Assert.True(verifiedCopy.Succeeded, string.Join("\n", verifiedCopy.Errors));
         Assert.Equal(["HelloWorld.cs", "SKILL.md", "scenarios.json", "spec.md"], verifiedCopy.Files.Keys.Order(StringComparer.Ordinal).ToArray());
 

@@ -711,7 +711,7 @@ public sealed partial class SettingsApp
     {
         ArgumentNullException.ThrowIfNull(request);
         var brainId = TryCurrentBrainId();
-        var snapshot = await PortableBrainArchive.ExportAsync(brainId, UserSettings, Profile, SynapseStudio);
+        var snapshot = await PortableBrainArchive.ExportAsync(brainId, UserSettings, Profile, SynapseStudio, Posts);
         await UpdateAsync(State.RecordExportedArchive(PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
     }
 

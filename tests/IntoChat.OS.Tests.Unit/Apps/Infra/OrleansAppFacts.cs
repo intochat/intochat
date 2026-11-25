@@ -83,7 +83,7 @@ public sealed class OrleansAppFacts
     {
         using var person = EnterPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(OrleansApp).Assembly);
 
         var screen = os.Get<IScreen>(new NeuronId(TestBrain, "app.orleans", "default"));
@@ -163,7 +163,7 @@ public sealed class OrleansAppFacts
     {
         using var person = EnterPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(OrleansApp).Assembly);
 
         var orleans = os.Get<IScreen>(new NeuronId(TestBrain, "app.orleans", "default"));

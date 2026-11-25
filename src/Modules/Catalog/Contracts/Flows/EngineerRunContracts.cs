@@ -17,7 +17,8 @@ public sealed record EngineerStartRequest(
     [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
     [property: Id(8)] string[]? CleanupTargets = null,
     [property: Id(9)] EngineerTaskSlice[]? Slices = null,
-    [property: Id(10)] string? CircleBrainId = null)
+    [property: Id(10)] string? CircleBrainId = null,
+    [property: Id(11)] EngineerVerificationPolicy? Verification = null)
 {
     public EngineerStartRequest() : this("", "os", "", 1, null, null) { }
 
@@ -32,7 +33,7 @@ public sealed record EngineerStartRequest(
         ArgumentNullException.ThrowIfNull(flows);
         var effectiveTitle = string.IsNullOrWhiteSpace(title) ? Goal : title.Trim();
         var explicitKey = string.IsNullOrWhiteSpace(RunId) ? null : RunId.Trim();
-        return flows.Start(IFlows.EngineerFlow, effectiveTitle, parentFlowId, ToStartJson(), ct, flowId: explicitKey);
+        return flows.Start(IEngineerRuns.EngineerFlow, effectiveTitle, parentFlowId, ToStartJson(), ct, flowId: explicitKey);
     }
 }
 
@@ -48,7 +49,9 @@ public sealed record EngineerDelegationRequest(
     [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
     [property: Id(8)] string[]? CleanupTargets = null,
     [property: Id(9)] EngineerTaskSlice[]? Slices = null,
-    [property: Id(10)] string? CircleBrainId = null)
+    [property: Id(10)] string? CircleBrainId = null,
+    // Null runs every gate. Switching a gate off is refused unless a person or the kernel starts the run.
+    [property: Id(11)] EngineerVerificationPolicy? Verification = null)
 {
     public EngineerDelegationRequest() : this("os", "", 1, "LocalGit", null, null) { }
 }
@@ -113,5 +116,7 @@ public sealed record EngineerRunSummary(
     RatifiedPlan? RatifiedPlan = null,
     string[]? CleanupTargets = null,
     EngineerTaskSlice[]? Slices = null,
-    MissionCollaborator[]? Collaborators = null);
+    MissionCollaborator[]? Collaborators = null,
+    // The gates this run passes; null on a summary that has no run behind it.
+    EngineerVerificationPolicy? Verification = null);
 

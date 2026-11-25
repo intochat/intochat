@@ -8,11 +8,14 @@ using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
+using IntoChat.OS.Modules.Identity.Contracts.Keys;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -24,7 +27,13 @@ internal sealed class FriendsRecord
     public Friend[]? Friends { get; set; }
     public int Misses { get; set; }
     public DateTimeOffset MissesSince { get; set; }
+
+    // Where the invitations to friends' conversations were kept before they moved to the rooms index (IRooms). Nothing
+    // adds to it any more: a roster that still holds some hands them over on its next use and stores an empty list (OWED.md).
     public GroupInvite[] Groups { get; set; } = [];
+
+    // Where the brain's private keys were kept before they moved to the identity module (IBrainKeys). Nothing writes them any
+    // more: a roster that still holds them hands them over on its next use and stores null here (OWED.md).
     public byte[]? SigningKeyPkcs8 { get; set; }
     public byte[]? ExchangeKeyPkcs8 { get; set; }
 }
@@ -41,13 +50,18 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private IBrainOwners Owners => services.GetRequiredService<IBrainOwners>();
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
-    private IFileShares Door => Get<IFileShares>(FileSharesDefaults.Id(Id.Brain.Value));
+    private IBrainKeys Keys => Context.Get<IBrainKeys>(IBrainKeys.Id(Id.Brain));
+    private IRooms Rooms => Context.Get<IRooms>(new NeuronId(Id.Brain, "social.rooms", IRooms.DefaultKey));
+
+    // A host that carries the roster without the rooms index keeps the invitations in the roster, as before.
+    private bool RoomsHosted => Context.ClassOf("social.rooms") is not null;
     private IOffers Offers => Context.Offers;
 
     public async Task<Code> Mint()
     {
         await Owner();
         await EnsureImported();
+        await MoveGroupsToRooms();
         await EnsurePublicKeys();
         var now = Context.Time.GetUtcNow();
         var code = Code.New();
@@ -62,6 +76,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     {
         var owner = await Owner();
         await EnsureImported();
+        await MoveGroupsToRooms();
         var now = Context.Time.GetUtcNow();
         var misses = State.MissesSince != default && now - State.MissesSince < Code.Validity ? State.Misses : 0;
         var missesSince = misses == 0 ? now : State.MissesSince;
@@ -100,7 +115,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var account = await Owners.OwnerAccount(target.Brain) ?? throw PersonActs.Refused();
         var name = !string.IsNullOrWhiteSpace(theirs.Name) ? theirs.Name : account;
         var added = new Friend(new AccountId(account), target.Brain, name, now, theirs.PublicKeys);
-        await Store(With(friends: UpsertFriend(State.Friends ?? [], added)));
+        await Save(With(friends: UpsertFriend(State.Friends ?? [], added)), new FriendAdded(added.Account));
         return added;
     }
 
@@ -109,15 +124,14 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         await Owner();
         ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
         await EnsureImported();
+        await MoveGroupsToRooms();
         var existing = (State.Friends ?? []).FirstOrDefault(row => row.Account == friend);
         if (existing is null) { return; }
 
-        await Store(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != friend)]));
-        // IFriends.IsFriend is [Interleaves] and reads the already-stored roster, breaking the Door.Share <-> DropAccount cycle.
-#pragma warning disable DB0033
-        await Door.DropAccount(friend.Value);
+        // The roster states the fact and revokes the brain's offers; what a neuron kept for the friend (the file door's
+        // shares) that neuron drops when it hears the fact, and it asks IsFriend on every call until then.
+        await Save(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != friend)]), new FriendRemoved(friend));
         await Offers.RevokeAll(friend.Value);
-#pragma warning restore DB0033
         try { await Context.Get<IFriends>(new BindingTarget.Offered(existing.Brain, FriendsDefaults.Id(existing.Brain.Value))).Unfriended(); }
         catch (UnauthorizedAccessException refused)
         {
@@ -129,6 +143,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     {
         RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
+        await MoveGroupsToRooms();
         return State.Friends ?? [];
     }
 
@@ -160,7 +175,12 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var remaining = State.Pending.Where(pending => pending != match && pending.ExpiresAt > now).ToArray();
         var redeemerName = !string.IsNullOrWhiteSpace(name) ? name : account;
         var added = new Friend(new AccountId(account), brain, redeemerName, now, publicKeys);
-        await Store(With(pending: remaining, refused: 0, friends: UpsertFriend(State.Friends ?? [], added)));
+        // The caller is a person of another brain. The fact is published as this brain's own module: the silo refuses a
+        // nudge to a subscriber of this brain that carries a caller of another brain, and drops it without a word.
+        using (PersonActs.AsFilesModule(services, Id.Brain))
+        {
+            await Save(With(pending: remaining, refused: 0, friends: UpsertFriend(State.Friends ?? [], added)), new FriendAdded(added.Account));
+        }
         await Book.Spend(match.Hash);
 
         string myName;
@@ -181,20 +201,20 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         await EnsureImported();
 
         var target = new AccountId(account);
-        await Store(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != target)]));
+        // As this brain's own module, for the offers and for the fact (see Accepted).
         using var module = PersonActs.AsFilesModule(services, Id.Brain);
-        // IFriends.IsFriend is [Interleaves] and reads the already-stored roster, breaking the Door.Share <-> DropAccount cycle.
-#pragma warning disable DB0033
-        await Door.DropAccount(account);
+        if ((State.Friends ?? []).Any(row => row.Account == target))
+        {
+            await Save(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != target)]), new FriendRemoved(target));
+        }
         await Offers.RevokeAll(account);
-#pragma warning restore DB0033
     }
 
     public async Task<GroupInvite[]> Groups()
     {
         RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
-        return State.Groups;
+        return await GroupsNow();
     }
 
     public async Task GroupSay(GroupInvite group, string text)
@@ -202,7 +222,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         ArgumentNullException.ThrowIfNull(group);
         await Owner();
         await EnsureImported();
-        if (!State.Groups.Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
+        if (!(await GroupsNow()).Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
         {
             throw FriendRelay.Refused();
         }
@@ -215,7 +235,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         ArgumentNullException.ThrowIfNull(group);
         await Owner();
         await EnsureImported();
-        if (!State.Groups.Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
+        if (!(await GroupsNow()).Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
         {
             throw FriendRelay.Refused();
         }
@@ -238,8 +258,65 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             throw FriendRelay.Refused();
         }
 
-        var others = State.Groups.Where(existing => existing.Brain != group.Brain || existing.Conversation != group.Conversation);
-        await Store(With(groups: [.. others, group]));
+        if (!RoomsHosted)
+        {
+            var others = State.Groups.Where(existing => existing.Brain != group.Brain || existing.Conversation != group.Conversation);
+            await Store(With(groups: [.. others, group]));
+            return;
+        }
+
+        // The rooms index keeps the invitation; the roster only hands it on, as this brain's own module (the caller is a
+        // person of another brain).
+        await MoveGroupsToRooms();
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
+        await Rooms.InvitedToConversation(ToInvite(group));
+    }
+
+    private static ConversationInvite ToInvite(GroupInvite group) => new(group.Brain, group.Conversation, group.Title, group.By);
+
+    private static bool SameGroup(GroupInvite one, ConversationInvite other) => one.Brain == other.Brain && one.Conversation == other.Conversation;
+
+    // The invitations this person holds: those of the rooms index, and any the roster has not handed over yet, each once.
+    private async Task<GroupInvite[]> GroupsNow()
+    {
+        if (!RoomsHosted) { return State.Groups; }
+        await MoveGroupsToRooms();
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
+        var kept = await Rooms.Conversations();
+        return
+        [
+            .. kept.Select(static invite => new GroupInvite(invite.Brain, invite.Conversation, invite.Title, invite.By)),
+            .. State.Groups.Where(group => !kept.Any(invite => SameGroup(group, invite))),
+        ];
+    }
+
+    // A roster written by an earlier version still holds the invitations to friends' conversations. They are moved once, in
+    // two steps that may be interrupted between them: first the rooms index adopts them (one it already holds is left as it
+    // is, so a second attempt changes nothing) and what it now holds is read back; only when every one is there is the
+    // roster stored with an empty list. After an interruption both hold them, readers are answered from the rooms index,
+    // and the next call finishes. If the rooms index cannot be reached, the roster keeps its list and tries on a later call.
+    // Not run from IsFriend, Accepted or Unfriended: the rooms index asks IsFriend while it is in a call of its own.
+    private async Task MoveGroupsToRooms()
+    {
+        if (State.Groups.Length == 0 || !RoomsHosted) { return; }
+        try
+        {
+            using var module = PersonActs.AsFilesModule(services, Id.Brain);
+            await Rooms.AdoptConversations([.. State.Groups.Select(ToInvite)]);
+            var held = await Rooms.Conversations();
+            if (!State.Groups.All(group => held.Any(invite => SameGroup(group, invite))))
+            {
+                OsConsoleLog.For<FriendsNeuron>().LogWarning("The rooms index of {Brain} does not hold every invitation the roster handed over; the roster keeps its list.", Id.Brain.Value);
+                return;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<FriendsNeuron>().LogSwallowed(error, "the roster could not hand its conversation invitations to the rooms index; it keeps them and tries on a later call");
+            return;
+        }
+
+        await Store(With(groups: []));
     }
 
     [ReadOnlyCall]
@@ -250,24 +327,43 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         return await EnsurePublicKeys();
     }
 
+    // The brain's key pair lives in the identity module, sealed (IBrainKeys); the roster keeps no private key. The keys are
+    // asked for as this brain's own module: the call may run for a person of another brain (Accepted).
     private async Task<BrainPublicKeys> EnsurePublicKeys()
     {
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
         if (State.SigningKeyPkcs8 is { Length: > 0 } signingPkcs8
             && State.ExchangeKeyPkcs8 is { Length: > 0 } exchangePkcs8)
         {
-            using var signing = ECDsa.Create();
-            signing.ImportPkcs8PrivateKey(signingPkcs8, out _);
-            using var exchange = ECDiffieHellman.Create();
-            exchange.ImportPkcs8PrivateKey(exchangePkcs8, out _);
-            return new BrainPublicKeys(signing.ExportSubjectPublicKeyInfo(), exchange.ExportSubjectPublicKeyInfo());
+            return await MoveKeysToIdentity(signingPkcs8, exchangePkcs8);
         }
 
-        using var generated = BrainKeyPair.Generate();
-        var publicKeys = generated.ExportPublicKeys();
-        await Store(With(
-            signingKeyPkcs8: generated.SigningKey.ExportPkcs8PrivateKey(),
-            exchangeKeyPkcs8: generated.ExchangeKey.ExportPkcs8PrivateKey()));
-        return publicKeys;
+        return await Keys.Ensure();
+    }
+
+    // A roster written by an earlier version still holds the pair. It is moved once, in two steps that may be interrupted
+    // between them: first the identity neuron adopts the pair (only while it holds none, so a second attempt changes
+    // nothing) and what it now holds is read back; only when that is this very pair is the roster stored without it. After
+    // an interruption both hold the same pair, and the next call finds that and finishes. If the identity neuron holds
+    // another pair, that one is the brain's: the roster is left as it is and nothing is overwritten.
+    private async Task<BrainPublicKeys> MoveKeysToIdentity(byte[] signingPkcs8, byte[] exchangePkcs8)
+    {
+        using var signing = ECDsa.Create();
+        signing.ImportPkcs8PrivateKey(signingPkcs8, out _);
+        using var exchange = ECDiffieHellman.Create();
+        exchange.ImportPkcs8PrivateKey(exchangePkcs8, out _);
+        var mine = new BrainPublicKeys(signing.ExportSubjectPublicKeyInfo(), exchange.ExportSubjectPublicKeyInfo());
+
+        await Keys.Adopt(signingPkcs8, exchangePkcs8);
+        var held = await Keys.PublicKeys() ?? throw new InvalidOperationException("The brain's key pair was not kept; the roster still holds it.");
+        if (!held.SigningKey.AsSpan().SequenceEqual(mine.SigningKey) || !held.ExchangeKey.AsSpan().SequenceEqual(mine.ExchangeKey))
+        {
+            OsConsoleLog.For<FriendsNeuron>().LogWarning("The roster of {Brain} holds a key pair that is not the brain's; it is left in the roster record and not used.", Id.Brain.Value);
+            return held;
+        }
+
+        await Store(WithoutPrivateKeys());
+        return held;
     }
 
     private async Task EnsureImported()
@@ -300,7 +396,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private void RequireIsFriendCaller(AccountId account)
     {
         var caller = RequireCaller();
-        if (caller.Brain == Id.Brain || caller.Via?.Brain == Id.Brain) { return; }
+        if (IsSameBrainCaller() || caller.Via?.Brain == Id.Brain) { return; }
         if (caller.Actor is Actor.Person person && string.Equals(person.Account, account.Value, StringComparison.Ordinal)) { return; }
         throw PersonActs.Refused();
     }
@@ -314,9 +410,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         Friend[]? friends = null,
         int? misses = null,
         DateTimeOffset? missesSince = null,
-        GroupInvite[]? groups = null,
-        byte[]? signingKeyPkcs8 = null,
-        byte[]? exchangeKeyPkcs8 = null)
+        GroupInvite[]? groups = null)
         => new()
         {
             Pending = pending ?? State.Pending,
@@ -325,8 +419,20 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             Misses = misses ?? State.Misses,
             MissesSince = missesSince ?? State.MissesSince,
             Groups = groups ?? State.Groups,
-            SigningKeyPkcs8 = signingKeyPkcs8 ?? State.SigningKeyPkcs8,
-            ExchangeKeyPkcs8 = exchangeKeyPkcs8 ?? State.ExchangeKeyPkcs8,
+            // Carried while a roster of an earlier version still holds them; only WithoutPrivateKeys drops them.
+            SigningKeyPkcs8 = State.SigningKeyPkcs8,
+            ExchangeKeyPkcs8 = State.ExchangeKeyPkcs8,
+        };
+
+    private FriendsRecord WithoutPrivateKeys()
+        => new()
+        {
+            Pending = State.Pending,
+            Refused = State.Refused,
+            Friends = State.Friends,
+            Misses = State.Misses,
+            MissesSince = State.MissesSince,
+            Groups = State.Groups,
         };
 }
 

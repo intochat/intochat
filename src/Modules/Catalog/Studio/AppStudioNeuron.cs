@@ -10,7 +10,7 @@ namespace IntoChat.OS.Modules.Apps;
 // the background Builder to land, so a single routed call answers with the finished app.
 // A plain neuron (06-08).
 [DigitalBrain.Neurons.Neuron("apps.studio")]
-internal sealed class AppStudioNeuron(Creator creator, INeuronProxies proxies) : DigitalBrain.Neurons.Neuron, IAppStudio
+internal sealed class AppStudioNeuron(ICreator creator, INeuronProxies proxies) : DigitalBrain.Neurons.Neuron, IAppStudio
 {
     private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(500);

@@ -219,7 +219,7 @@ public sealed partial class EngineerApp
                 InstanceCount: basis.InstanceCount,
                 Backend: basis.BackendMode).ToStartJson();
 
-            var flowId = await flows.Start(IFlows.EngineerFlow, Truncate(basis.Goal, 52), null, payload);
+            var flowId = await flows.Start(IEngineerRuns.EngineerFlow, Truncate(basis.Goal, 52), null, payload);
             return basis with { ActiveFlowId = flowId };
         }
 #pragma warning disable CA1031
@@ -245,7 +245,7 @@ public sealed partial class EngineerApp
 
         try
         {
-            var recent = await flows.List(new FlowQuery(Type: IFlows.EngineerFlow, Limit: 1));
+            var recent = await flows.List(new FlowQuery(Type: IEngineerRuns.EngineerFlow, Limit: 1));
             if (recent.Length > 0)
             {
                 return await SyncFromLiveFlowAsync(basis, recent[0].FlowId);
@@ -270,10 +270,13 @@ public sealed partial class EngineerApp
 
         try
         {
-            var summary = await flows.InspectEngineerRun(flowId);
-            if (!string.IsNullOrWhiteSpace(summary.FlowId) && (summary.Ok || summary.Instances.Length > 0 || summary.Plan is not null))
+            if (EngineerRuns is { } runs)
             {
-                return ApplyLiveSummary(basis, summary, preserveActiveTab: false, preferredFilePath: null);
+                var summary = await runs.InspectEngineerRun(flowId);
+                if (!string.IsNullOrWhiteSpace(summary.FlowId) && (summary.Ok || summary.Instances.Length > 0 || summary.Plan is not null))
+                {
+                    return ApplyLiveSummary(basis, summary, preserveActiveTab: false, preferredFilePath: null);
+                }
             }
         }
 #pragma warning disable CA1031

@@ -7,12 +7,11 @@ import 'package:intochat_os_flutter_shell/src/widgets/neuron/ui_control_surface.
 
 void main() {
   testWidgets(
-    'UiMixButton renders exact C# UiStyleRef padding/radius via mix and emits WinForms pointer signals',
+    'UiMixButton renders exact style padding/radius via mix and reports a press',
     (tester) async {
-      final emitted = <String>[];
       var clicks = 0;
 
-      // Simulates C# UiStyleRef serialized over JSON.
+      // A style as it arrives over JSON.
       final styleFromCSharp = UiStyleData.fromJson({
         'tone': 'accent',
         'paddingX': 24,
@@ -34,10 +33,8 @@ void main() {
               child: UiMixButton(
                 label: 'Save',
                 style: styleFromCSharp,
-                eventMask: UiEventMask.all,
                 semanticsId: 'key:mix:save',
                 onPressed: () => clicks++,
-                onEmit: (method, _) async => emitted.add(method),
               ),
             ),
           ),
@@ -58,20 +55,16 @@ void main() {
       final center = tester.getCenter(find.text('Save'));
       await gesture.moveTo(center);
       await tester.pumpAndSettle();
-      expect(emitted, contains('OnPointerEnter'));
 
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(clicks, 1);
-      expect(emitted, contains('OnPointerDown'));
-      expect(emitted, contains('OnPointerUp'));
     },
   );
 
   testWidgets(
-    'UiMixToggle and UiMixExpander toggle state, render exact C# padding/gap, and emit WinForms pointer signals',
+    'UiMixToggle and UiMixExpander toggle state and render exact style padding/gap',
     (tester) async {
-      final emitted = <String>[];
       var isOn = false;
       var expanded = false;
 
@@ -87,18 +80,14 @@ void main() {
                     value: isOn,
                     label: 'Live Sync',
                     semanticsId: 'key:mix:toggle',
-                    eventMask: UiEventMask.all,
                     onChanged: (v) => setState(() => isOn = v),
-                    onEmit: (m, _) async => emitted.add('toggle:$m'),
                   ),
                   UiMixExpander(
                     header: 'Advanced Options',
                     subtitle: 'C# Mix Expander',
                     isExpanded: expanded,
                     semanticsId: 'key:mix:expander',
-                    eventMask: UiEventMask.all,
                     onExpandedChanged: (v) => setState(() => expanded = v),
-                    onEmit: (m, _) async => emitted.add('expander:$m'),
                     body: const Text('Expanded Details'),
                   ),
                 ],

@@ -81,7 +81,7 @@ public sealed class PresenceFacts
 
     private sealed class PresenceFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlutterModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(AIModule), typeof(FlutterModule), typeof(FlowsFactsModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {

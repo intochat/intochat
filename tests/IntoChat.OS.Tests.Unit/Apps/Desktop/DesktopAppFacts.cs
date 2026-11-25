@@ -30,7 +30,7 @@ public sealed class DesktopAppFacts
         using var person = Edge.AsPerson("test");
         await using var os = TestOS.Local();
         os.Register<DesktopRecordsNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.desktop", "default"));
         Assert.NotNull(await screen.Read());
@@ -217,7 +217,7 @@ public sealed class DesktopAppFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(DesktopApp).Assembly);
         os.Register<AgentContextNeuron>();

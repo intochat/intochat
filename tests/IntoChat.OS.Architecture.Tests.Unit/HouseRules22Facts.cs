@@ -929,7 +929,6 @@ public sealed class HouseRules22Facts
             "CreatorApp",
             "AggregateScreenBase",
             "IdentityDirectoryNeuron",
-            "LocalCloudNeuron",
         };
 
         var offenders = new List<string>();
@@ -1156,25 +1155,19 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.DeadLetterEntry",
             "IntoChat.OS.Modules.Apps.RetainedRequest",
             "IntoChat.OS.Modules.Apps.BrainGraph",
-            "IntoChat.OS.Modules.Apps.Debugger.ScenarioTranscripts",
             "IntoChat.OS.Modules.Apps.CompiledAppsRegistration",
             "IntoChat.OS.Modules.Apps.FeatureCatalog",
             "IntoChat.OS.Modules.Apps.FeatureLoader",
             "IntoChat.OS.Modules.Apps.Features.Module",
             "IntoChat.OS.Modules.Apps.ShippedInstall",
-            "IntoChat.OS.Modules.Apps.IFilesVfsService",
-            "IntoChat.OS.Modules.Apps.IWithFilesVfs",
-            "IntoChat.OS.Modules.Apps.WorkspaceFilesService",
             "IntoChat.OS.Modules.Apps.Flows.AgentInner",
             "IntoChat.OS.Modules.Apps.Flows.AgentFlow`1",
-            "IntoChat.OS.Modules.Apps.Flows.BuildInner",
             "IntoChat.OS.Modules.Apps.Flows.BuildFlow",
             "IntoChat.OS.Modules.Apps.Flows.PlanRelation",
             "IntoChat.OS.Modules.Apps.Flows.PlanSubtask",
             "IntoChat.OS.Modules.Apps.Flows.PlanInner",
             "IntoChat.OS.Modules.Apps.Flows.PlanFlow",
             "IntoChat.OS.Modules.Apps.ArtCraftEngineRunner",
-            "IntoChat.OS.Modules.Apps.InoLinks",
             "IntoChat.OS.Modules.Apps.DataAnalyticsEngine",
             "IntoChat.OS.Modules.Apps.InoDataCards",
             "IntoChat.OS.Modules.Apps.AppInstaller",
@@ -1186,10 +1179,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudState",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudEntry",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudNeuron",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudStorage",
         };
 
         var contractsDeclaredNames = new HashSet<string>(StringComparer.Ordinal);
@@ -1480,7 +1469,6 @@ public sealed class HouseRules22Facts
             "IGitHubInbound",
             "IGitHubRepositoryIndex",
             "IProblemReports",
-            "IPolicyModel",
             "IWebBrowserConnector",
             "ISandboxSignalRouter",
             "IGmailApi",
@@ -1496,8 +1484,6 @@ public sealed class HouseRules22Facts
             "IModelTurnRunner",
             "IToolRouter",
             "IMemoryEmbedder",
-            "IFilesVfsService",
-            "IWithFilesVfs",
             "ITypeTable",
             "IConditionallyAvailable",
             "IAiCredentials",
@@ -1530,6 +1516,7 @@ public sealed class HouseRules22Facts
             "IExternalTicketReplay",
             // App-internal UI seams & IntoChat.OS.UI root navigation lifecycle contracts
             "IGalleryLibrary",
+            "IWidgetbook",
             "ISecretVault",
             "INavigatedTo",
             "INavigatedFrom",
@@ -1714,6 +1701,7 @@ public sealed class HouseRules22Facts
     private static readonly HashSet<string> PrivilegedSiloNeuronModules = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI",
+        "IntoChat.OS.Modules.Authoring",
         "IntoChat.OS.Modules.Catalog",
         "IntoChat.OS.Modules.Devices",
         "IntoChat.OS.Modules.GitHub",

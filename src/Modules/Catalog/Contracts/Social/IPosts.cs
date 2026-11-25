@@ -9,7 +9,21 @@ public sealed record SharedSourceFile(string Path, string Content);
 /// <summary>A shareable app definition carrying only source files, title, and id (never author state, bindings, or secrets).</summary>
 public sealed record AppDefinitionShare(string AppId, string Title, SharedSourceFile[] Files);
 
-public sealed record PostDraft(string Text, string[] AudienceAccounts, AppDefinitionShare? SharedApp = null);
+// A post as its author hands it in. AudienceAccounts is the account list of the first version of this record: with no
+// Audience it is the audience, frozen; with one, the rule decides who sees the post and the list only names accounts to
+// offer the store to at once. Id publishes under a chosen id (an id the store holds is replaced); every member after
+// SharedApp is optional and absent in a draft written before it existed.
+public sealed record PostDraft(
+    string Text,
+    string[] AudienceAccounts,
+    AppDefinitionShare? SharedApp = null,
+    string? Id = null,
+    string? Title = null,
+    Audience? Audience = null,
+    PostEmbeddedApp[]? EmbeddedApps = null,
+    string? ForkedFrom = null,
+    DateTimeOffset? CreatedAt = null,
+    string? TemplateSource = null);
 
 public sealed record PostReaction(string Account, string Kind, DateTimeOffset At);
 
@@ -24,7 +38,14 @@ public sealed record SocialPost(
     PostComment[] Comments,
     long Sequence,
     DateTimeOffset CreatedAt,
-    AppDefinitionShare? SharedApp = null);
+    AppDefinitionShare? SharedApp = null,
+    // Added after the first version; a post stored or sent without them reads as null. A null Audience means the frozen
+    // AudienceAccounts list.
+    string? Title = null,
+    Audience? Audience = null,
+    PostEmbeddedApp[]? EmbeddedApps = null,
+    string? ForkedFrom = null,
+    string? TemplateSource = null);
 
 public sealed record PostPage(SocialPost[] Posts, long NextCursor);
 

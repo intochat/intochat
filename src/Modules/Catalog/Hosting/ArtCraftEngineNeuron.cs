@@ -16,8 +16,8 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neurons.Neuron("apps.artcraft-engine")]
 internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IArtCraftEngine
 {
-    private IFilesVfsService? _vfs;
-    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services ?? throw new InvalidOperationException("No services"), Id.Brain.Value);
+    // The brain's workspace, reached through the broker under the caller the runtime stamped on this call.
+    private BrainWorkspaceFiles? Workspace => services?.GetService<ICapabilityBroker>() is { } broker ? new BrainWorkspaceFiles(broker, Id.Brain) : null;
 
     public async Task<ArtCraftEngineResult> Execute(
         string app,
@@ -27,7 +27,7 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
         string executionMode)
     {
         await RequireAdmitted();
-        return await ArtCraftEngineRunner.ExecuteAsync(
+        return await ArtCraftEngineRunner.ExecuteOnWorkspaceAsync(
             app,
             instructionOrCommand,
             explicitParamsJson,
@@ -35,7 +35,7 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
             executionMode,
             TryGetArtCraftStudio(),
             TryGetMcpServer,
-            vfs: Vfs);
+            vfs: Workspace);
     }
 
     public Task<ArtCraftEngineResult> ExecutePhotoCraft(
@@ -86,11 +86,8 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
     private async Task RequireAdmitted()
     {
         var brain = Id.Brain.Value;
-        var caller = Context.Caller;
-        if (caller is null)
-        {
-            return;
-        }
+        // A call with no stamped caller is no one's: refused.
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("apps.artcraft-engine refuses a call with no caller.");
         if (caller.Actor is not Actor.App app)
         {
             if (caller.Actor is not Actor.Kernel && !string.Equals(caller.Brain.Value, brain, StringComparison.Ordinal))

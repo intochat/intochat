@@ -3,6 +3,7 @@ using DigitalBrain.Access;
 using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using DigitalBrain.Units;
+using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Social;
 
@@ -36,10 +37,27 @@ public interface IRoom
     Task Here(CancellationToken ct = default);
 }
 
+// A friend's conversation this person sits in as a guest: where it is, what it is called and who invited them.
+public sealed record ConversationInvite(BrainId Brain, ConversationId Conversation, string Title, AccountId By);
+
+// A person's index of the places they were invited to: rooms, and friends' conversations.
 [Shareable, NeuronAlias("social.rooms"), DefaultNeuronType("social.rooms")]
 public interface IRooms
 {
     const string DefaultKey = "default";
+
+    // A friend seated this person in a conversation. Taken from that conversation, in the brain of a friend who is the
+    // inviter, or from this brain's own roster handing on an invitation it took that way. Added after the first version
+    // of this contract: a brain that runs the first version does not serve it, so nothing sends it to another brain yet
+    // (OWED.md).
+    [Shared]
+    Task InvitedToConversation(ConversationInvite invite, CancellationToken ct = default);
+
+    // This brain's roster hands over the invitations it kept before they moved here. One the index holds is left as it is.
+    Task AdoptConversations(ConversationInvite[] invites, CancellationToken ct = default);
+
+    [ReadOnlyCall]
+    Task<ConversationInvite[]> Conversations(CancellationToken ct = default);
 
     [Shared]
     Task Invited(NeuronId room, CancellationToken ct = default);

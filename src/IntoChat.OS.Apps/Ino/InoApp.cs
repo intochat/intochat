@@ -35,7 +35,7 @@ namespace IntoChat.OS.Apps.Ino;
 
 [Neuron("app.ino")]
 [Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles, Category = "Intelligence", Dock = 1)]
-public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavigatedTo<InoNavArgs>, INavigatedFrom
+public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<InoNavArgs>, INavigatedFrom
 {
     private const string ApprovalsKey = "approvals/index", DataKey = "ino/data", ModelsKey = "main";
 
@@ -86,7 +86,6 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
     }
 
     public VoiceAbilities Voice { get; private set; } = VoiceAbilities.None;
-    public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
     public static AppBundle Bundle => InoModelSetup.BuildBundle(typeof(InoApp));
 
@@ -515,7 +514,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
         var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
         DataQueryResult result;
-        try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs, Context.Caller?.Brain ?? default); }
+        try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, brain: Context.Caller?.Brain ?? default); }
         catch (Exception error) when (error is not OperationCanceledException) { if (Logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); } await Commit(State with { Status = $"Could not run the query: {error.Message}" }); return; }
         if (Memory is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6)); }
         await Commit(InoModel.DecideQueryDbSuccess(State, result, database));

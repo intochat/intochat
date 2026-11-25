@@ -156,6 +156,7 @@ public sealed class RealModelAcceptanceJourney(ITestOutputHelper output)
             });
 
             AppsModule.ConfigureServices(services, configuration);
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, configuration);
 
             await using var provider = services.BuildServiceProvider();
 
@@ -215,7 +216,7 @@ public sealed class RealModelAcceptanceJourney(ITestOutputHelper output)
 
             await using var os = await JourneyOS.Start(
                 NeuronRuntimeKind.TestOS,
-                [typeof(AppsModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
+                [typeof(AppsModule), typeof(IntoChat.OS.Modules.Runs.RunsModule), typeof(IntoChat.OS.Modules.Authoring.AuthoringModule), typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
                 ct: Ct);
             var brain = os.Runtime.Brain;
             using var callerScope = os.Runtime.Edge.Enter(os.Runtime.Edge.Person("owner", "owner", brain, conversation: null));

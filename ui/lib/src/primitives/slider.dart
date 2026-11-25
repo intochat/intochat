@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
@@ -24,8 +22,6 @@ final class UiMixSlider extends StatefulWidget {
       tone: 'accent',
       motion: UiMotionPreset.standard,
     ),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -37,8 +33,6 @@ final class UiMixSlider extends StatefulWidget {
   final ValueChanged<double>? onChangeEnd;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -48,12 +42,6 @@ final class UiMixSlider extends StatefulWidget {
 class _UiMixSliderState extends State<UiMixSlider> {
   bool _hovered = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,16 +70,10 @@ class _UiMixSliderState extends State<UiMixSlider> {
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);
-        _emit(
-          UiEventMask.hover,
-          hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-          const [{}],
-        );
       },
       onFocusChange: (focused) {
         if (_focused == focused) return;
         setState(() => _focused = focused);
-        _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       builder: (context, state, _) {
         final fraction = state.visualPercentageAt(0).clamp(0.0, 1.0);

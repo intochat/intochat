@@ -151,32 +151,36 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.Equal("true", pinningElement.Value.Trim(), ignoreCase: true);
     }
 
+    // The simulation runtime is the deploy gate of generated units (their scenarios run on it). Unit authoring owns that gate, so
+    // the authoring module references it and the catalog no longer does.
     [Fact]
-    public void T1_F03_TC01_AppsModuleCsproj_ReferencesDigitalBrainSimulation()
+    public void T1_F03_TC01_AuthoringModuleCsproj_ReferencesDigitalBrainSimulation_AndTheCatalogDoesNot()
     {
-        var appsProj = FindCsprojFiles().FirstOrDefault(f => f.EndsWith("IntoChat.OS.Modules.Catalog.csproj", StringComparison.OrdinalIgnoreCase));
-        Assert.NotNull(appsProj);
-
-        var doc = XDocument.Load(appsProj);
-        var hasSim = doc.Descendants("ProjectReference")
-                .Any(p => Path.GetFileNameWithoutExtension((p.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/')) == "DigitalBrain.Simulation")
-            || doc.Descendants("PackageReference").Any(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
-        Assert.True(hasSim, "IntoChat.OS.Modules.Catalog.csproj must reference DigitalBrain.Simulation.");
+        Assert.True(References("IntoChat.OS.Modules.Authoring.csproj", "DigitalBrain.Simulation"),
+            "IntoChat.OS.Modules.Authoring.csproj must reference DigitalBrain.Simulation.");
+        Assert.False(References("IntoChat.OS.Modules.Catalog.csproj", "DigitalBrain.Simulation"),
+            "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Simulation; the deploy gate is the authoring module's.");
     }
 
     [Fact]
     public void T1_F03_TC02_AppsModuleCsproj_DoesNotReferenceDigitalBrainTesting()
     {
-        var appsProj = FindCsprojFiles().FirstOrDefault(f => f.EndsWith("IntoChat.OS.Modules.Catalog.csproj", StringComparison.OrdinalIgnoreCase));
-        Assert.NotNull(appsProj);
+        foreach (var project in (string[])["IntoChat.OS.Modules.Catalog.csproj", "IntoChat.OS.Modules.Authoring.csproj"])
+        {
+            Assert.False(References(project, "DigitalBrain.Testing", "DigitalBrain.Testing.Silo"),
+                $"{project} must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
+        }
+    }
 
-        var doc = XDocument.Load(appsProj);
-        var hasTesting = doc.Descendants("ProjectReference")
-                .Any(p => Path.GetFileNameWithoutExtension((p.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/'))
-                    is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo")
-            || doc.Descendants("PackageReference")
-                .Any(p => p.Attribute("Include")?.Value is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo");
-        Assert.False(hasTesting, "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
+    private static bool References(string projectFile, params string[] names)
+    {
+        var project = FindCsprojFiles().FirstOrDefault(f => f.EndsWith(projectFile, StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(project);
+
+        var doc = XDocument.Load(project);
+        return doc.Descendants("ProjectReference")
+                .Any(p => names.Contains(Path.GetFileNameWithoutExtension((p.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/'))))
+            || doc.Descendants("PackageReference").Any(p => p.Attribute("Include")?.Value is { } include && names.Contains(include));
     }
 
     [Fact]

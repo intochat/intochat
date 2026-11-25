@@ -25,7 +25,7 @@ public sealed class EngineerAppFacts
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> EngineerOperations
         => ScreenBaseline.Cases(typeof(EngineerApp), os =>
         {
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(UiModule).Assembly);
         });
 
@@ -106,7 +106,7 @@ public sealed class EngineerAppFacts
         var brain = new BrainId("engtest");
         await using var os = TestOS.Local();
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -240,12 +240,13 @@ public sealed class EngineerAppFacts
 
             await using var os = TestOS.Local(o => o.Services = services);
             using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(UiModule).Assembly);
             os.Register(typeof(EngineerApp).Assembly);
 
             var flows = os.Get<IntoChat.OS.Modules.Apps.Flows.IFlows>(IntoChat.OS.Modules.Apps.Flows.IFlows.Key(brain.Value));
-            var delegated = await flows.StartEngineerRun(
+            var runs = os.Get<IntoChat.OS.Modules.Apps.Flows.IEngineerRuns>(IntoChat.OS.Modules.Apps.Flows.IEngineerRuns.Key(brain.Value));
+            var delegated = await runs.StartEngineerRun(
                 new IntoChat.OS.Modules.Apps.Flows.EngineerDelegationRequest(
                     RepoSlug: "os",
                     Goal: "Add Subtract and Clamp helpers",
@@ -285,7 +286,7 @@ public sealed class EngineerAppFacts
             Assert.All((await kanban.Read()).Cards, static c => Assert.Equal("verified", c.ColumnId));
 
             // Candidate w1 (#0) is initially selected in ICodeEditor and ITable scoreboard!
-            var beforeSwitchSummary = await flows.InspectEngineerRun(delegated.FlowId, Ct);
+            var beforeSwitchSummary = await runs.InspectEngineerRun(delegated.FlowId, Ct);
             var sha0 = beforeSwitchSummary.Instances.Single(static i => i.InstanceIndex == 0).CommitSha!;
             var sha1 = beforeSwitchSummary.Instances.Single(static i => i.InstanceIndex == 1).CommitSha!;
             Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
@@ -301,7 +302,7 @@ public sealed class EngineerAppFacts
             Assert.Contains(updatedPrTable.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
             Assert.Contains(updatedPrTable.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
 
-            var afterTreePromote = await flows.InspectEngineerRun(delegated.FlowId, Ct);
+            var afterTreePromote = await runs.InspectEngineerRun(delegated.FlowId, Ct);
             Assert.Equal(1, afterTreePromote.SelectedCandidateIndex);
             Assert.Equal(sha1, afterTreePromote.WinningCommitSha);
             Assert.EndsWith(":" + sha1, afterTreePromote.ConfirmationPlanId!, StringComparison.Ordinal);
@@ -311,7 +312,7 @@ public sealed class EngineerAppFacts
             await screen.Activate(renderedView.Alias, renderedView.Generation, EngineerApp.CandidateSelectKey(0));
             await os.Idle();
             Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
-            var afterBtnPromote = await flows.InspectEngineerRun(delegated.FlowId, Ct);
+            var afterBtnPromote = await runs.InspectEngineerRun(delegated.FlowId, Ct);
             Assert.Equal(0, afterBtnPromote.SelectedCandidateIndex);
             Assert.Equal(sha0, afterBtnPromote.WinningCommitSha);
             Assert.EndsWith(":" + sha0, afterBtnPromote.ConfirmationPlanId!, StringComparison.Ordinal);
@@ -354,7 +355,7 @@ public sealed class EngineerAppFacts
 
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);

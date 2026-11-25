@@ -324,7 +324,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         await using var os = TestOS.Local(o => o.Services = services);
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner")));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key("owner"));
         var startJson = JsonSerializer.Serialize(new
@@ -335,7 +335,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             instanceCount = 2,
         }, EngineerFlow.Json);
 
-        var flowId = await flows.Start(IFlows.EngineerFlow, "Parallel Calculator Upgrade", null, startJson, Ct, flowId: "engflow01");
+        var flowId = await flows.Start(IEngineerRuns.EngineerFlow, "Parallel Calculator Upgrade", null, startJson, Ct, flowId: "engflow01");
         for (var i = 0; i < 60; i++)
         {
             await os.Idle();
@@ -445,6 +445,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await workTree.CleanupAsync(lease, Ct);
     }
 
+    // flow.change starts nothing any more: the run is one a brain already holds, stored as running, and it still finishes.
     [Fact]
     public async Task FeatureToPrFlowAdapterExecutesConsolidatedPipelineStagesEndToEndOnTestOS()
     {
@@ -464,14 +465,31 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         await using var os = TestOS.Local(o => o.Services = services);
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner")));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key("owner"));
         var startJson = JsonSerializer.Serialize(
             Change.Start("f2pr01", RepositoryId.Parse("os"), "Add Multiply via consolidated adapter"),
             FeatureToPrFlow.Json);
+        var refused = await Assert.ThrowsAsync<NotSupportedException>(
+            () => flows.Start(FeatureToPrFlow.Alias, "Consolidated Change Run", null, startJson, Ct, flowId: "refused01"));
+        Assert.Equal(FeatureToPrFlow.Retired, refused.Message);
 
-        var flowId = await flows.Start(FeatureToPrFlow.Alias, "Consolidated Change Run", null, startJson, Ct, flowId: "f2pr01");
+        var flowNeuron = new NeuronId(new BrainId("owner"), FeatureToPrFlow.Alias, "f2pr01");
+        var flowId = flowNeuron.ToString();
+        os.SeedStoredState(flowNeuron, JsonSerializer.Serialize(
+            new FlowState<Change>() with
+            {
+                FlowId = flowId,
+                Title = "Consolidated Change Run",
+                Owner = "owner",
+                TraceId = "trace-f2pr01",
+                Status = FlowStatus.Running,
+                Started = DateTimeOffset.UnixEpoch,
+                Inner = Change.Start("f2pr01", RepositoryId.Parse("os"), "Add Multiply via consolidated adapter"),
+            },
+            DigitalBrain.Invocation.RuntimeProtocol.Json));
+        _ = await os.Get<IFlowStarter>(flowNeuron).Head();
         for (var i = 0; i < 60; i++)
         {
             await os.Idle();
@@ -710,10 +728,11 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os = TestOS.Local(o => o.Services = services);
         var brain = new BrainId("owner");
         using var agentCaller = os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var started = await flows.StartEngineerRun(
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var started = await runs.StartEngineerRun(
             new EngineerDelegationRequest(
                 RepoSlug: "os",
                 Goal: "Add Subtract and Modulo via Ino delegation",
@@ -729,7 +748,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         for (var i = 0; i < 60; i++)
         {
             await os.Idle();
-            var check = await flows.InspectEngineerRun(started.FlowId, Ct);
+            var check = await runs.InspectEngineerRun(started.FlowId, Ct);
             if (check.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed)
             {
                 waiting = check;
@@ -843,10 +862,11 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         {
             var brain = new BrainId("owner");
             using var person = os1.Edge.Enter(os1.Edge.Person("owner", "owner", brain));
-            os1.Register(typeof(AppsModule).Assembly);
+            os1.RegisterCatalog();
 
             var flows1 = os1.Get<IFlows>(IFlows.Key(brain.Value));
-            var started1 = await flows1.StartEngineerRun(
+            var runs1 = os1.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+            var started1 = await runs1.StartEngineerRun(
                 new EngineerDelegationRequest("os", "Add Subtract variant", ParallelInstances: 2, Backend: "LocalGit", RunId: "tournfail1"),
                 Ct);
 
@@ -854,7 +874,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             for (var i = 0; i < 60; i++)
             {
                 await os1.Idle();
-                var snap = await flows1.InspectEngineerRun(started1.FlowId, Ct);
+                var snap = await runs1.InspectEngineerRun(started1.FlowId, Ct);
                 if (snap.Status is FlowStatus.Waiting or FlowStatus.Failed)
                 {
                     waiting1 = snap;
@@ -872,7 +892,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             Assert.EndsWith(":" + winnerW2Sha, waiting1.ConfirmationPlanId!, StringComparison.Ordinal);
 
             // Attempting to switch to failed candidate w1 (0) at approval-gate is refused!
-            await Assert.ThrowsAsync<InvalidOperationException>(() => flows1.SelectEngineerCandidate(started1.FlowId, 0, Ct));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => runs1.SelectEngineerCandidate(started1.FlowId, 0, Ct));
 
             await flows1.Cancel(started1.FlowId, "cleanup", Ct);
             await os1.Idle();
@@ -901,10 +921,11 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os2 = TestOS.Local(o => o.Services = sp2);
         var brain2 = new BrainId("owner");
         using var owner2 = os2.Edge.Enter(os2.Edge.Person("owner", "owner", brain2));
-        os2.Register(typeof(AppsModule).Assembly);
+        os2.RegisterCatalog();
 
         var flows2 = os2.Get<IFlows>(IFlows.Key(brain2.Value));
-        var started2 = await flows2.StartEngineerRun(
+        var runs2 = os2.Get<IEngineerRuns>(IEngineerRuns.Key(brain2.Value));
+        var started2 = await runs2.StartEngineerRun(
             new EngineerDelegationRequest("os", "Add Subtract tournament variants", ParallelInstances: 2, Backend: "LocalGit", RunId: "tournswitch1"),
             Ct);
 
@@ -912,7 +933,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         for (var i = 0; i < 60; i++)
         {
             await os2.Idle();
-            var snap = await flows2.InspectEngineerRun(started2.FlowId, Ct);
+            var snap = await runs2.InspectEngineerRun(started2.FlowId, Ct);
             if (snap.Status is FlowStatus.Waiting or FlowStatus.Failed)
             {
                 waiting2 = snap;
@@ -932,20 +953,20 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.EndsWith(":" + sha0, waiting2.ConfirmationPlanId!, StringComparison.Ordinal);
 
         // Switch 0 -> 1 -> 0 -> 1 while parked at approval-gate: each switch withdraws the prior plan and mints a fresh SHA-bound plan!
-        var switchedTo1 = await flows2.SelectEngineerCandidate(started2.FlowId, 1, Ct);
+        var switchedTo1 = await runs2.SelectEngineerCandidate(started2.FlowId, 1, Ct);
         await os2.Idle();
         Assert.Equal(1, switchedTo1.SelectedCandidateIndex);
         Assert.Equal(sha1, switchedTo1.WinningCommitSha);
         Assert.EndsWith(":" + sha1, switchedTo1.ConfirmationPlanId!, StringComparison.Ordinal);
         Assert.NotEqual(waiting2.ConfirmationPlanId, switchedTo1.ConfirmationPlanId);
 
-        var switchedBackTo0 = await flows2.SelectEngineerCandidate(started2.FlowId, 0, Ct);
+        var switchedBackTo0 = await runs2.SelectEngineerCandidate(started2.FlowId, 0, Ct);
         await os2.Idle();
         Assert.Equal(0, switchedBackTo0.SelectedCandidateIndex);
         Assert.Equal(sha0, switchedBackTo0.WinningCommitSha);
         Assert.EndsWith(":" + sha0, switchedBackTo0.ConfirmationPlanId!, StringComparison.Ordinal);
 
-        var finalPromoted1 = await flows2.SelectEngineerCandidate(started2.FlowId, 1, Ct);
+        var finalPromoted1 = await runs2.SelectEngineerCandidate(started2.FlowId, 1, Ct);
         await os2.Idle();
         Assert.Equal(1, finalPromoted1.SelectedCandidateIndex);
         Assert.Equal(sha1, finalPromoted1.WinningCommitSha);
@@ -961,7 +982,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         for (var i = 0; i < 60; i++)
         {
             await os2.Idle();
-            var snap = await flows2.InspectEngineerRun(started2.FlowId, Ct);
+            var snap = await runs2.InspectEngineerRun(started2.FlowId, Ct);
             if (snap.Status is FlowStatus.Completed or FlowStatus.Failed)
             {
                 done2 = snap;
@@ -1208,10 +1229,11 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os = TestOS.Local(o => o.Services = sp);
         var brain = new BrainId("owner");
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var started = await flows.StartEngineerRun(
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var started = await runs.StartEngineerRun(
             new EngineerDelegationRequest(
                 RepoSlug: "os",
                 Goal: "Delete DeadHelper and add Multiply to Calculator",
@@ -1227,7 +1249,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         for (var i = 0; i < 40; i++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(started.FlowId, Ct);
+            var snap = await runs.InspectEngineerRun(started.FlowId, Ct);
             if (snap.AwaitingPlanRatification)
             {
                 pausedAtPlan = snap;
@@ -1252,7 +1274,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             new EngineerTaskSlice("s2", "B", ["code/Calculator.cs"], []),
         };
         var overlapEx = await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(
-            () => flows.RatifyEngineerPlan(started.FlowId, ["code/DeadHelper.cs"], badSlices, Ct));
+            () => runs.RatifyEngineerPlan(started.FlowId, ["code/DeadHelper.cs"], badSlices, Ct));
         Assert.Contains("overlapping_file_slices", overlapEx.Rejected.Rules);
 
         // Ratify with clean disjoint slice + approved CleanupTargets -> advances to approval-gate!
@@ -1260,13 +1282,13 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         {
             new EngineerTaskSlice("s1-mul", "Add Multiply", ["code/Calculator.cs"], [], AssignedAgentKey: "ino.slice-1"),
         };
-        _ = await flows.RatifyEngineerPlan(started.FlowId, ["code/DeadHelper.cs"], validSlices, Ct);
+        _ = await runs.RatifyEngineerPlan(started.FlowId, ["code/DeadHelper.cs"], validSlices, Ct);
 
         EngineerRunSummary? atApprovalGate = null;
         for (var i = 0; i < 60; i++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(started.FlowId, Ct);
+            var snap = await runs.InspectEngineerRun(started.FlowId, Ct);
             if (snap.Status == FlowStatus.Waiting && snap.CurrentStage == "approval-gate")
             {
                 atApprovalGate = snap;
@@ -1624,7 +1646,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os = TestOS.Local();
         var brain = new BrainId("owner");
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 

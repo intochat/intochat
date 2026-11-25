@@ -2,24 +2,11 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.Units;
-using IntoChat.OS.Modules.Apps.Trace;
 
 namespace IntoChat.OS.Modules.Apps;
 
 public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
 {
-    [Fact]
-    public void TraceReaderRedactsBearerAndApiKeysInPayloads()
-    {
-        var raw = """{"auth":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9","openai":"sk-proj-1234567890abcdef","github":"ghp_9876543210abcdef","safe":"hello"}""";
-        var redacted = TraceReaderNeuron.Redact(raw);
-        Assert.DoesNotContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", redacted, StringComparison.Ordinal);
-        Assert.DoesNotContain("sk-proj-1234567890abcdef", redacted, StringComparison.Ordinal);
-        Assert.DoesNotContain("ghp_9876543210abcdef", redacted, StringComparison.Ordinal);
-        Assert.Contains("[REDACTED]", redacted, StringComparison.Ordinal);
-        Assert.Contains("\"safe\":\"hello\"", redacted, StringComparison.Ordinal);
-    }
-
     [Fact]
     public async Task PortableBrainArchiveRoundTripsSettingsProfileAndUnitsThroughJson()
     {
@@ -67,45 +54,6 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
 
         var restoredFiles = await dstStudio.SourceFiles("watch.web");
         Assert.Equal("// unit code", restoredFiles["WebWatch.cs"]);
-    }
-
-    [Fact]
-    public async Task BrainSnapshotArchiveRoundTripsSettingsProfileAndUnitsThroughJson()
-    {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var sourceOs = TestOS.Local();
-        sourceOs.Register<UserSettingsNeuron>();
-        sourceOs.Register<ProfileNeuron>();
-        sourceOs.Register<InMemoryStudio>();
-
-        var srcSettings = sourceOs.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
-        var srcProfile = sourceOs.Get<IProfile>(new NeuronId(new BrainId("local"), "os.profile", "profile"));
-        var srcStudio = sourceOs.Get<ISynapseStudio>(ISynapseStudio.Key("local"));
-
-        await srcSettings.SetProfile("Alan", "light", "claude-3.7");
-        await srcProfile.UpdateProfile("alan", "Alan Turing", "Universal Machine", ["creator"]);
-
-        var exported = await BrainSnapshotArchive.ExportAsync("local", srcSettings, srcProfile, srcStudio);
-        var json = BrainSnapshotArchive.ToJson(exported);
-        var parsed = BrainSnapshotArchive.FromJson(json);
-
-        await using var destOs = TestOS.Local();
-        destOs.Register<UserSettingsNeuron>();
-        destOs.Register<ProfileNeuron>();
-        destOs.Register<InMemoryStudio>();
-
-        var dstSettings = destOs.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
-        var dstProfile = destOs.Get<IProfile>(new NeuronId(new BrainId("local"), "os.profile", "profile"));
-        var dstStudio = destOs.Get<ISynapseStudio>(ISynapseStudio.Key("local"));
-
-        await BrainSnapshotArchive.ImportAsync(parsed, dstSettings, dstProfile, dstStudio);
-
-        var restoredSettings = await dstSettings.Read();
-        Assert.Equal("Alan", restoredSettings.DisplayName);
-        Assert.Equal("claude-3.7", restoredSettings.DefaultModel);
-
-        var restoredProfile = await dstProfile.Read();
-        Assert.Equal("alan", restoredProfile.Handle);
     }
 
     [Neuron("ino.synapses")]

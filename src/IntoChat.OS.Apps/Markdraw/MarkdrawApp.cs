@@ -5,7 +5,7 @@ Shipped: true
 Operations: open, read-canvas, sync-scene, patch-elements, from-data, save, export, ui.command
 
 Excalidraw-inspired interactive diagram, architecture, and data-flow canvas studio powered by the Flutter markdraw package.
-Persists .markdraw Markdown sketch files, .excalidraw JSON scenes, and .svg exports directly to IFilesVfsService (/work/*),
+Keeps the active .markdraw scene in its own state (this screen has no route to workspace files, see OWED.md),
 and exposes co-drawing operations (read-canvas, patch-elements, from-data, sync-scene) so both the user and Ino can inspect
 and mutate the exact same live canvas without overwriting hand-drawn strokes.
 */
@@ -46,16 +46,8 @@ public sealed record MarkdrawSave(string? Document = null, string? Content = nul
 public sealed record MarkdrawExport(string? Format = null, string? TargetPath = null) : Signal;
 
 [Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw", Icon = "pen-tool", Category = "Studio", Dock = 4)]
-public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesVfs
+public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
 {
-    public MarkdrawApp() : this(null) { }
-
-    [ActivatorUtilitiesConstructor]
-    public MarkdrawApp(IFilesVfsService? filesVfs = null)
-    {
-        FilesVfs = filesVfs;
-    }
-
     protected override Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -101,21 +93,20 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         ```
         """;
 
-    public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "markdraw";
 
     public static AppBundle Bundle => AppBundle.FromScreen<MarkdrawApp>(
         "markdraw", "1.0.0",
-        description: "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
+        description: "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
         operations:
         [
-            new("open", "Open a .markdraw or .excalidraw file from Files VFS or initialize an architecture/data-flow template."),
+            new("open", "Open a .markdraw or .excalidraw file or initialize an architecture/data-flow template."),
             new("read-canvas", "Inspect all shapes, nodes, text labels, and arrows currently on the active Markdraw canvas."),
-            new("sync-scene", "Synchronize interactive user canvas edits from the Flutter MarkdrawEditor widget and persist to Files VFS."),
+            new("sync-scene", "Synchronize interactive user canvas edits from the Flutter MarkdrawEditor widget."),
             new("patch-elements", "Co-draw on the active canvas by adding, updating, or connecting nodes and arrows without losing user strokes."),
             new("from-data", "Generate or update an interactive data-flow or schema diagram on the canvas from a dataset or SQL table."),
-            new("save", "Save the active .markdraw or .excalidraw document to the Files workspace (/work/*)."),
-            new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format in Files VFS."),
+            new("save", "Save the active .markdraw or .excalidraw document (kept in the screen's state)."),
+            new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format."),
             new(UiCommand.SignalAlias, "Dispatch a typed Markdraw aggregate command."),
         ],
         studio: true,
@@ -132,18 +123,6 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         var content = !string.IsNullOrWhiteSpace(request.Template) ? SelectTemplateContent(request.Template, doc) : State.Content;
         var drawings = State.WorkspaceDrawings;
 
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                await EnsureDefaultDrawingsSeededAsync();
-                if (string.IsNullOrWhiteSpace(request.Template) && await FilesVfs.ReadTextAsync(doc) is { Length: > 0 } existingText) { content = existingText; }
-                else { doc = (await FilesVfs.WriteTextAsync(doc, content)).VfsPath; }
-                drawings = await ListWorkspaceDrawingsAsync(doc);
-            }
-            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to initialize default templates in VFS."); }
-        }
-
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
         if (elements.Length == 0)
         {
@@ -159,7 +138,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     {
         ArgumentNullException.ThrowIfNull(request);
         var doc = ResolveTargetDoc(request.Document);
-        var content = await ReadVfsOrCurrentContentAsync(doc);
+        var content = State.Content;
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
         if (elements.Length == 0)
         {
@@ -184,7 +163,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         }
 
         var format = NormalizeSceneFormat(request.Format, doc, rawContent);
-        var (savedDoc, drawings) = await PersistSceneAsync(doc, rawContent);
+        var (savedDoc, drawings) = (doc, State.WorkspaceDrawings);
         var nextRev = State.Revision + 1;
         await Show(State with
         {
@@ -204,7 +183,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     {
         ArgumentNullException.ThrowIfNull(request);
         var doc = ResolveTargetDoc(request.Document);
-        var (mergedContent, mutationSummary) = MarkdrawSceneEngine.ApplyCoDrawingPatch(await ReadVfsOrCurrentContentAsync(doc), request.Prompt, request.AddOrUpdateDsl, request.RemoveIdsCsv);
+        var (mergedContent, mutationSummary) = MarkdrawSceneEngine.ApplyCoDrawingPatch(State.Content, request.Prompt, request.AddOrUpdateDsl, request.RemoveIdsCsv);
         var elements = MarkdrawSceneEngine.ParseSceneElements(mergedContent);
         if (Decision.Check("patch-elements", MarkdrawAppState.NonEmptyDiagramSceneRule(mergedContent, elements)) is { } rejected)
         {
@@ -212,7 +191,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
             return;
         }
 
-        var (savedDoc, drawings) = await PersistSceneAsync(doc, mergedContent);
+        var (savedDoc, drawings) = (doc, State.WorkspaceDrawings);
         var nextRev = State.Revision + 1;
         await Show(State with
         {
@@ -238,7 +217,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         var sourceUri = string.IsNullOrWhiteSpace(request.SourceUri) ? "neuron://local/postgres/main" : request.SourceUri.Trim();
 
         var generated = MarkdrawSceneEngine.BuildDataLineageMarkdraw(title, cols, rowsSummary, sourceUri);
-        var (savedDoc, drawings) = await PersistSceneAsync(doc, generated);
+        var (savedDoc, drawings) = (doc, State.WorkspaceDrawings);
         var elements = MarkdrawSceneEngine.ParseSceneElements(generated);
         var nextRev = State.Revision + 1;
         var summary = $"Generated data-flow diagram '{title}' ({elements.Length} elements) in {savedDoc}";
@@ -258,7 +237,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
             return;
         }
 
-        var (savedDoc, drawings) = await PersistSceneAsync(doc, content);
+        var (savedDoc, drawings) = (doc, State.WorkspaceDrawings);
         await Show(State with { ActiveDocument = savedDoc, Format = InferFormat(savedDoc, content), Content = content, Elements = elements, WorkspaceDrawings = drawings, Status = $"Saved {savedDoc} ({elements.Length} element(s), rev {State.Revision})" });
     }
 
@@ -287,15 +266,6 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         };
 
         var drawings = State.WorkspaceDrawings;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                targetPath = (await FilesVfs.WriteTextAsync(targetPath, payload)).VfsPath;
-                drawings = await ListWorkspaceDrawingsAsync(State.ActiveDocument);
-            }
-            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to export canvas to VFS."); }
-        }
 
         await Show(decision.Next with
         {
@@ -376,7 +346,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                             .. state.WorkspaceDrawings.Select(path => MutedText(path).Tabular().ToNode()),
                         ])
                     ],
-                    !string.IsNullOrWhiteSpace(state.LastExportPath) ? Card("Last Export", state.LastExportPath)[MutedText("Persisted to Files VFS")].ToNode() : null
+                    !string.IsNullOrWhiteSpace(state.LastExportPath) ? Card("Last Export", state.LastExportPath)[MutedText("Kept in this canvas")].ToNode() : null
                 ],
                 trailing: VStack(Space.Md)[
                     MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
@@ -411,58 +381,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
             ? DefaultPipelineScene
             : DefaultArchitectureScene;
 
-    private async Task EnsureDefaultDrawingsSeededAsync()
-    {
-        if (FilesVfs is null) { return; }
-        try
-        {
-            if (await FilesVfs.ResolveFileAsync("/work/architecture.markdraw") is null) { await FilesVfs.WriteTextAsync("/work/architecture.markdraw", DefaultArchitectureScene); }
-            if (await FilesVfs.ResolveFileAsync("/work/pipeline-flow.markdraw") is null) { await FilesVfs.WriteTextAsync("/work/pipeline-flow.markdraw", DefaultPipelineScene); }
-        }
-        catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to seed demo drawings into VFS."); }
-    }
 
-    private async Task<string> ReadVfsOrCurrentContentAsync(string docPath)
-    {
-        if (FilesVfs is not null)
-        {
-            try { if (await FilesVfs.ReadTextAsync(docPath) is { Length: > 0 } text) { return text; } }
-            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to read drawing document from VFS."); }
-        }
-        return State.Content;
-    }
-
-    private async Task<(string SavedPath, string[] Drawings)> PersistSceneAsync(string docPath, string content)
-    {
-        var saved = docPath;
-        var drawings = State.WorkspaceDrawings;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                saved = (await FilesVfs.WriteTextAsync(docPath, content)).VfsPath;
-                drawings = await ListWorkspaceDrawingsAsync(saved);
-            }
-            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to persist canvas scene to VFS."); }
-        }
-        return (saved, drawings);
-    }
-
-    private async Task<string[]> ListWorkspaceDrawingsAsync(string activePath)
-    {
-        var results = string.IsNullOrWhiteSpace(activePath) ? new List<string>() : [activePath];
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                results.AddRange((await FilesVfs.ListFilesAsync())
-                    .Where(f => Path.GetExtension(f.Name).ToLowerInvariant() is ".markdraw" or ".excalidraw")
-                    .Select(f => f.VfsPath));
-            }
-            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to list workspace drawings from VFS."); }
-        }
-        return [.. results.Distinct(StringComparer.OrdinalIgnoreCase)];
-    }
 
     private static string UnescapeIncomingScene(string content)
     {
@@ -484,18 +403,8 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         docPath.EndsWith(".excalidraw", StringComparison.OrdinalIgnoreCase) || content.TrimStart().StartsWith('{') ? "excalidraw" : "markdraw";
 
     internal static string NormalizeDocumentPath(string raw)
-    {
-        var clean = WorkspaceFilesService.ExtractCleanFileName(raw);
-        if (string.IsNullOrWhiteSpace(clean)) { return "/work/architecture.markdraw"; }
-        if (!Path.HasExtension(clean)) { clean += ".markdraw"; }
-        return clean.StartsWith('/') ? clean : $"/work/{clean}";
-    }
+        => IntoChat.OS.Apps.Data.DataStudioDecisions.StoredPath(raw, "/work/architecture.markdraw", ".markdraw");
 
     private static string NormalizeExportPath(string raw, string defaultFormat)
-    {
-        var clean = WorkspaceFilesService.ExtractCleanFileName(raw);
-        if (string.IsNullOrWhiteSpace(clean)) { return $"/work/architecture.{defaultFormat}"; }
-        if (!Path.HasExtension(clean)) { clean += $".{defaultFormat}"; }
-        return clean.StartsWith('/') ? clean : $"/work/{clean}";
-    }
+        => IntoChat.OS.Apps.Data.DataStudioDecisions.StoredPath(raw, $"/work/architecture.{defaultFormat}", $".{defaultFormat}");
 }

@@ -19,7 +19,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
@@ -56,7 +56,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
@@ -95,7 +95,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
@@ -126,7 +126,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
@@ -148,7 +148,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
     {
         using var person = Edge.AsPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(CalculatorApp).Assembly);
 
         var calc = await os.Install<CalculatorApp>();
@@ -178,7 +178,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
     {
         using var person = Edge.AsPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(CalculatorApp).Assembly);
 
         var calc = await os.Install<CalculatorApp>();
@@ -204,7 +204,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
     {
         using var person = Edge.AsPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(CalculatorApp).Assembly);
 
         var calc = await os.Install<CalculatorApp>();
@@ -230,7 +230,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
     {
         using var person = Edge.AsPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(CalculatorApp).Assembly);
 
         var calc = await os.Install<CalculatorApp>();

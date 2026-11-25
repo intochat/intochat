@@ -1,16 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
-import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` (`NakedButton`) + `mix` IconButton control with
-/// hover/press/focus states, optional tooltip, and [UiEventMask] signals.
+/// hover/press/focus states and an optional tooltip.
 final class UiMixIconButton extends StatefulWidget {
   const UiMixIconButton({
     super.key,
@@ -22,8 +19,6 @@ final class UiMixIconButton extends StatefulWidget {
     this.size = 30,
     this.enabled = true,
     this.style = const UiStyleData(tone: 'subtle', paddingX: 6, paddingY: 6),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -35,8 +30,6 @@ final class UiMixIconButton extends StatefulWidget {
   final double size;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -47,12 +40,6 @@ class _UiMixIconButtonState extends State<UiMixIconButton> {
   bool _hovered = false;
   bool _pressed = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,25 +69,14 @@ class _UiMixIconButtonState extends State<UiMixIconButton> {
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);
-        _emit(
-          UiEventMask.hover,
-          hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-          const [{}],
-        );
       },
       onPressChange: (pressed) {
         if (_pressed == pressed) return;
         setState(() => _pressed = pressed);
-        _emit(
-          UiEventMask.press,
-          pressed ? 'OnPointerDown' : 'OnPointerUp',
-          const [{}],
-        );
       },
       onFocusChange: (focused) {
         if (_focused == focused) return;
         setState(() => _focused = focused);
-        _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       child: AnimatedScale(
         scale: _pressed && isInteractive ? 0.94 : 1.0,

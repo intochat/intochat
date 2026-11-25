@@ -21,7 +21,6 @@ public static class ShippedGrants
             Grant.Tuple($"brain:{brain}", $"app:{assistantKey}", "*", GrantRelations.View),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"agent/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"chat/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"files.vfs/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"ui.workspace/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"person/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"textfield/{brain}/*", GrantRelations.Run),

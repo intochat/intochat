@@ -616,93 +616,6 @@
           },
           {
             "kind": "button",
-            "key": "nav:toggle",
-            "label": "Toggle (IToggle)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "toggle"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
-            },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:toggle",
-            "style": "ghost",
-            "icon": "toggle-right",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:checkbox",
-            "label": "CheckBox (ICheckBox)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "checkbox"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
-            },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:checkbox",
-            "style": "ghost",
-            "icon": "check-square",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:select",
-            "label": "Select (ISelect)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "select"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
-            },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:select",
-            "style": "ghost",
-            "icon": "chevrons-up-down",
-            "small": true
-          },
-          {
-            "kind": "button",
             "key": "nav:buttons",
             "label": "Buttons & actions",
             "command": {
@@ -762,7 +675,7 @@
           {
             "kind": "button",
             "key": "nav:winui-inputs",
-            "label": "WinUI 3 Inputs (5)",
+            "label": "WinUI 3 Inputs (1)",
             "command": {
               "target": ".",
               "signal": "ui.command",
@@ -823,64 +736,6 @@
           },
           {
             "kind": "button",
-            "key": "nav:expander",
-            "label": "Expander (IExpander)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "expander"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
-            },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:expander",
-            "style": "ghost",
-            "icon": "chevron-down",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:listbox",
-            "label": "ListBox (IListBox)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "listbox"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
-            },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:listbox",
-            "style": "ghost",
-            "icon": "list",
-            "small": true
-          },
-          {
-            "kind": "button",
             "key": "nav:dialog",
             "label": "Dialog (IDialog)",
             "command": {
@@ -911,7 +766,7 @@
           {
             "kind": "button",
             "key": "nav:winui-nav",
-            "label": "WinUI 3 Nav & Status (5)",
+            "label": "WinUI 3 Nav (2)",
             "command": {
               "target": ".",
               "signal": "ui.command",
@@ -939,37 +794,8 @@
           },
           {
             "kind": "button",
-            "key": "nav:datetime",
-            "label": "Date & Time (3)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "datetime"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
-            },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:datetime",
-            "style": "ghost",
-            "icon": "calendar",
-            "small": true
-          },
-          {
-            "kind": "button",
             "key": "nav:media",
-            "label": "Menus, Grid & Media (4)",
+            "label": "Menus, Grid & Media (3)",
             "command": {
               "target": ".",
               "signal": "ui.command",
@@ -998,7 +824,7 @@
           {
             "kind": "button",
             "key": "nav:workspace",
-            "label": "Workspace Kit (6)",
+            "label": "Workspace Kit (3)",
             "command": {
               "target": ".",
               "signal": "ui.command",
@@ -1027,7 +853,7 @@
           {
             "kind": "button",
             "key": "nav:wave3",
-            "label": "WinUI 3 Wave 3 (8)",
+            "label": "WinUI 3 Wave 3 (3)",
             "command": {
               "target": ".",
               "signal": "ui.command",
@@ -1227,7 +1053,7 @@
                         "children": [
                           {
                             "kind": "tagPill",
-                            "label": "42 live UI neurons",
+                            "label": "18 live UI neurons",
                             "tone": "done",
                             "icon": "check"
                           },
@@ -1517,13 +1343,13 @@
                   },
                   {
                     "kind": "card",
-                    "title": "Basic Input Neurons",
-                    "body": "IToggle, ICheckBox, ISelect, and guarded Buttons with domain invariants.",
+                    "title": "Basic Input",
+                    "body": "Button tones, compact sizing, and guarded Buttons with domain invariants.",
                     "children": [
                       {
                         "kind": "button",
-                        "key": "home:open:toggle",
-                        "label": "Open Basic Input Neurons",
+                        "key": "home:open:buttons",
+                        "label": "Open Basic Input",
                         "command": {
                           "target": ".",
                           "signal": "ui.command",
@@ -1531,7 +1357,7 @@
                             "target": "state",
                             "method": "SelectPage",
                             "args": [
-                              "toggle"
+                              "buttons"
                             ],
                             "valueIndex": null,
                             "value": null,
@@ -1544,9 +1370,9 @@
                         "tone": "accent",
                         "tooltip": null,
                         "visible": true,
-                        "automationName": "home:open:toggle",
+                        "automationName": "home:open:buttons",
                         "style": "primary",
-                        "icon": "toggle-right",
+                        "icon": "mouse-pointer-click",
                         "small": true
                       }
                     ],
@@ -1594,7 +1420,7 @@
                   {
                     "kind": "card",
                     "title": "Navigation & Layout",
-                    "body": "ITabs, IExpander, IListBox, AppShell, SplitPane, and responsive grids.",
+                    "body": "ITabs, AppShell, SplitPane, and responsive grids.",
                     "children": [
                       {
                         "kind": "button",

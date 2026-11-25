@@ -20,8 +20,6 @@ internal sealed partial class InoStudioNeuron(IServiceProvider services) : Digit
     // Bounded well below Orleans' default 30s grain RPC ResponseTimeout so contention still returns a tracking card cleanly.
     private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan MakePollInterval = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan ProposePollBudget = TimeSpan.FromSeconds(18);
-    private static readonly TimeSpan ProposePollInterval = TimeSpan.FromMilliseconds(250);
 
     private string CurrentBrainId
     {
@@ -48,8 +46,8 @@ internal sealed partial class InoStudioNeuron(IServiceProvider services) : Digit
         string flowId;
         try
         {
-            var inner = JsonSerializer.Serialize(new BuildInner { Goal = text }, BuildFlow.Json);
-            flowId = await Get<IFlows>(IFlows.Key(brainId)).Start(BuildFlow.Alias, title, null, inner);
+            var inner = JsonSerializer.Serialize(new BuildInner { Goal = text }, BuildInner.Json);
+            flowId = await Get<IFlows>(IFlows.Key(brainId)).Start(BuildInner.Flow, title, null, inner);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -101,7 +99,7 @@ internal sealed partial class InoStudioNeuron(IServiceProvider services) : Digit
                 try
                 {
                     var head = await Get<IFlowStarter>(flowNeuronId).Head().ConfigureAwait(true);
-                    built = JsonSerializer.Deserialize<BuildInner>(head.InnerJson, BuildFlow.Json);
+                    built = JsonSerializer.Deserialize<BuildInner>(head.InnerJson, BuildInner.Json);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

@@ -21,7 +21,7 @@ internal sealed record AppPackageImportResult(
 /// <summary>
 /// Exports and imports portable micro-app folders and <c>.zip</c> archives (<c>F-APP-05</c>) preserving
 /// <c>{*.cs, scenarios.json, SKILL.md, spec.md}</c>, enforcing path-confinement, Roslyn closed-world boundary
-/// verification, and <see cref="BuilderTools.Check"/> scenario execution before deployment.
+/// verification, and <see cref="IUnitVerifier.Verify"/> scenario execution before deployment.
 /// </summary>
 internal static partial class AppPackageArchive
 {
@@ -126,13 +126,14 @@ internal static partial class AppPackageArchive
 
     public static async Task<AppPackageImportResult> ImportZipAsync(
         byte[] archiveBytes,
+        IUnitVerifier verifier,
         ISynapseStudio? studio = null,
         string? aliasOverride = null,
         IReadOnlyDictionary<string, string>? bindings = null,
-        IServiceProvider? services = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(archiveBytes);
+        ArgumentNullException.ThrowIfNull(verifier);
 
         if (archiveBytes.Length == 0 || archiveBytes.Length > MaxArchiveBytes)
         {
@@ -142,25 +143,26 @@ internal static partial class AppPackageArchive
         Dictionary<string, string> extracted;
         try
         {
-            extracted = ExtractZipEntries(archiveBytes);
+            extracted = ExtractZipEntries(archiveBytes, verifier.MaxSidecarChars);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or ArgumentException)
         {
             return new AppPackageImportResult(false, aliasOverride ?? "", new Dictionary<string, string>(), [ex.Message]);
         }
 
-        return await VerifyAndDeployFilesAsync(extracted, studio, aliasOverride, bindings, services, ct).ConfigureAwait(false);
+        return await VerifyAndDeployFilesAsync(extracted, verifier, studio, aliasOverride, bindings, ct).ConfigureAwait(false);
     }
 
     public static async Task<AppPackageImportResult> ImportFromDirectoryAsync(
         string directoryPath,
+        IUnitVerifier verifier,
         ISynapseStudio? studio = null,
         string? aliasOverride = null,
         IReadOnlyDictionary<string, string>? bindings = null,
-        IServiceProvider? services = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
+        ArgumentNullException.ThrowIfNull(verifier);
 
         var fullDir = Path.GetFullPath(directoryPath);
         if (!Directory.Exists(fullDir))
@@ -179,27 +181,28 @@ internal static partial class AppPackageArchive
             }
 
             var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct).ConfigureAwait(false);
-            if (content.Length > BuilderTools.MaxSidecarChars)
+            if (content.Length > verifier.MaxSidecarChars)
             {
-                return new AppPackageImportResult(false, aliasOverride ?? "", new Dictionary<string, string>(), [$"File '{name}' exceeds the {BuilderTools.MaxSidecarChars}-character cap."]);
+                return new AppPackageImportResult(false, aliasOverride ?? "", new Dictionary<string, string>(), [$"File '{name}' exceeds the {verifier.MaxSidecarChars}-character cap."]);
             }
 
             files[CanonicalSidecarOrCodeName(name)] = content;
         }
 
         var defaultAlias = aliasOverride ?? Path.GetFileName(fullDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        return await VerifyAndDeployFilesAsync(files, studio, defaultAlias, bindings, services, ct).ConfigureAwait(false);
+        return await VerifyAndDeployFilesAsync(files, verifier, studio, defaultAlias, bindings, ct).ConfigureAwait(false);
     }
 
     public static async Task<AppPackageImportResult> VerifyAndDeployFilesAsync(
         IReadOnlyDictionary<string, string> rawFiles,
+        IUnitVerifier verifier,
         ISynapseStudio? studio = null,
         string? aliasOverride = null,
         IReadOnlyDictionary<string, string>? bindings = null,
-        IServiceProvider? services = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(rawFiles);
+        ArgumentNullException.ThrowIfNull(verifier);
 
         var files = FilterPortableFiles(rawFiles);
         var code = UnitFiles.Code(files);
@@ -238,7 +241,7 @@ internal static partial class AppPackageArchive
             }
         }
 
-        var check = await BuilderTools.VerifyPackageAsync(services, alias, files, scenarios, ct).ConfigureAwait(false);
+        var check = await verifier.Verify(alias, files, scenarios, ct).ConfigureAwait(false);
         if (!check.Passed)
         {
             var errors = check.Diagnostics
@@ -290,7 +293,7 @@ internal static partial class AppPackageArchive
         return files;
     }
 
-    private static Dictionary<string, string> ExtractZipEntries(byte[] archiveBytes)
+    private static Dictionary<string, string> ExtractZipEntries(byte[] archiveBytes, int maxSidecarChars)
     {
         using var ms = new MemoryStream(archiveBytes, writable: false);
         using var archive = new ZipArchive(ms, ZipArchiveMode.Read, leaveOpen: false);
@@ -343,7 +346,7 @@ internal static partial class AppPackageArchive
                 throw new InvalidDataException($"Disallowed file '{safePath}' in unit package archive. Only .cs, scenarios.json, SKILL.md, and spec.md are permitted.");
             }
 
-            if (entry.Length > BuilderTools.MaxSidecarChars * 4L)
+            if (entry.Length > maxSidecarChars * 4L)
             {
                 throw new InvalidDataException($"Archive entry '{entry.FullName}' exceeds maximum allowed size.");
             }
@@ -351,9 +354,9 @@ internal static partial class AppPackageArchive
             using var stream = entry.Open();
             using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             var text = reader.ReadToEnd();
-            if (text.Length > BuilderTools.MaxSidecarChars)
+            if (text.Length > maxSidecarChars)
             {
-                throw new InvalidDataException($"Archive entry '{entry.FullName}' exceeds {BuilderTools.MaxSidecarChars} characters.");
+                throw new InvalidDataException($"Archive entry '{entry.FullName}' exceeds {maxSidecarChars} characters.");
             }
 
             files[CanonicalSidecarOrCodeName(safePath)] = text;

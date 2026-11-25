@@ -14,7 +14,7 @@ public sealed class MarkdrawAppFacts
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> MarkdrawOperations
         => ScreenBaseline.Cases(
             typeof(MarkdrawApp),
-            os => os.Register(typeof(AppsModule).Assembly));
+            os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(MarkdrawOperations))]
     public Task MarkdrawBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -24,23 +24,19 @@ public sealed class MarkdrawAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(MarkdrawApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.markdraw", "default"));
         Assert.NotNull(await screen.Read());
     }
 
     [Fact]
-    public async Task MarkdrawCoDrawingAndFilesVfsPersistencePreservesUserStrokesAndExports()
+    public async Task MarkdrawCoDrawingPreservesUserStrokesAndExports()
     {
-        var ct = TestContext.Current.CancellationToken;
-        using var vfsRoot = new TempDirectory("intochat-vfs-markdraw-");
-        var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var markdraw = await os.Install<MarkdrawApp>();
-        markdraw.App.FilesVfs = vfs;
 
         await markdraw.Request("open", new MarkdrawOpen("/work/architecture.markdraw"));
         Assert.Equal("/work/architecture.markdraw", markdraw.App.State.ActiveDocument);
@@ -66,60 +62,14 @@ public sealed class MarkdrawAppFacts
         Assert.Contains(markdraw.App.State.Elements, e => e.Id == "vector-store" && e.Label == "Vector Store");
         Assert.Contains(markdraw.App.State.Elements, e => e.Kind == "arrow" && e.FromId == "data-engine" && e.ToId == "vector-store");
 
-        var diskMarkdraw = await vfs.ReadTextAsync("/work/architecture.markdraw", ct);
-        Assert.NotNull(diskMarkdraw);
-        Assert.Contains("freedraw id=user-sketch-1", diskMarkdraw, StringComparison.Ordinal);
-        Assert.Contains("id=vector-store", diskMarkdraw, StringComparison.Ordinal);
+        Assert.Contains("freedraw id=user-sketch-1", markdraw.App.State.Content, StringComparison.Ordinal);
+        Assert.Contains("id=vector-store", markdraw.App.State.Content, StringComparison.Ordinal);
 
-        // Export to .excalidraw JSON and .svg in Files VFS
-        await markdraw.Request("export", new MarkdrawExport("excalidraw", "/work/architecture.excalidraw"));
-        Assert.Equal("/work/architecture.excalidraw", markdraw.App.State.LastExportPath);
-        var excalidrawJson = await vfs.ReadTextAsync("/work/architecture.excalidraw", ct);
-        Assert.NotNull(excalidrawJson);
-        Assert.Contains("\"type\": \"excalidraw\"", excalidrawJson, StringComparison.Ordinal);
-        Assert.Contains("\"vector-store\"", excalidrawJson, StringComparison.Ordinal);
-
+        // A nested export path keeps its folder (the old files service flattened it to the file name).
+        await markdraw.Request("export", new MarkdrawExport("excalidraw", "/work/diagrams/architecture.excalidraw"));
+        Assert.Equal("/work/diagrams/architecture.excalidraw", markdraw.App.State.LastExportPath);
         await markdraw.Request("export", new MarkdrawExport("svg", "/work/architecture.svg"));
         Assert.Equal("/work/architecture.svg", markdraw.App.State.LastExportPath);
-        var svgText = await vfs.ReadTextAsync("/work/architecture.svg", ct);
-        Assert.NotNull(svgText);
-        Assert.Contains("<svg", svgText, StringComparison.Ordinal);
-        Assert.Contains("Vector Store", svgText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task InoAndMarkdrawUnifiedDataAnalysisAndCoDrawingWorkflow()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        using var vfsRoot = new TempDirectory("intochat-vfs-markdraw-");
-        var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
-        await vfs.WriteTextAsync(
-            "/work/q4_revenue.csv",
-            """
-            Region,Segment,Revenue
-            Nordics,Enterprise,240000
-            Nordics,MidMarket,110000
-            DACH,Enterprise,185000
-            DACH,SMB,65000
-            UKI,Enterprise,140000
-            """,
-            ct);
-
-        await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
-
-        var ino = await os.Install<InoApp>();
-        ino.App.FilesVfs = vfs;
-
-        // 1. Query real CSV dataset from Files VFS with GROUP BY aggregation
-        await ino.Request("query-db", new InoQueryDb("SELECT Region, Revenue FROM /work/q4_revenue.csv GROUP BY Region"));
-        var tableCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "table");
-        var chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
-        Assert.Equal($"neuron://{vfs.BrainId}/local-disk.files/q4_revenue.csv", tableCard.SourceNeuronUri);
-        Assert.NotNull(chartCard.ChartPoints);
-        Assert.Equal(3, chartCard.ChartPoints!.Length);
-        Assert.Equal("Nordics", chartCard.ChartPoints[0].Label);
-        Assert.Equal(350000, chartCard.ChartPoints[0].Value);
     }
 
     [Fact]
@@ -200,7 +150,7 @@ public sealed class MarkdrawAppFacts
         Assert.True(emptyExport.IsRefused);
         Assert.Contains("canvas_empty", emptyExport.Rejection!.Rules);
 
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var markdraw = await os.Install<MarkdrawApp>();
         var baselineElementsCount = markdraw.App.State.Elements.Length;
 

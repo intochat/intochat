@@ -69,7 +69,7 @@ internal sealed class PolicyWriter(
             PolicyDraft draft;
             try
             {
-                draft = Creator.Parse<PolicyDraft>(reply);
+                draft = ModelReply.Parse<PolicyDraft>(reply);
             }
             catch (Exception ex) when (ex is JsonException or InvalidDataException)
             {

@@ -19,7 +19,7 @@ public sealed class InoAppAdversarialChallengeFacts
     public async Task InoAppHandlesEmptyAndWhitespacePromptsWithoutCrashing()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var ino = await os.Install<InoApp>();
 
@@ -37,7 +37,7 @@ public sealed class InoAppAdversarialChallengeFacts
     public async Task InoAppHandlesExtremelyLongPromptSafely()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var ino = await os.Install<InoApp>();
         var longPrompt = new string('A', 50000);
@@ -51,7 +51,7 @@ public sealed class InoAppAdversarialChallengeFacts
     public async Task InoAppHandlesMalformedSlashCommandsSafely()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var ino = await os.Install<InoApp>();
 
@@ -69,7 +69,7 @@ public sealed class InoAppAdversarialChallengeFacts
     public async Task InoAppHandlesAdversarialInputsWithoutExceptions()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var ino = await os.Install<InoApp>();
 

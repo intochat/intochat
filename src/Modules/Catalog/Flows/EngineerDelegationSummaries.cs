@@ -185,6 +185,16 @@ internal static class EngineerDelegationSummaries
             engineerUri,
             view?.Detail);
 
+        // A gate that did not check the commit (switched off, or live-verify not available) is said wherever the run's status
+        // is: the text the model gets, the card and the diagnostics.
+        if (run.Verification.LeavesUnchecked)
+        {
+            var skippedLine = run.Verification.Describe();
+            summaryText = summaryText + "\n" + skippedLine;
+            card = card with { Summary = card.Summary + " " + skippedLine };
+            traces = [skippedLine, .. traces];
+        }
+
         return new EngineerRunSummary(
             Ok: ok,
             FlowId: flowId,
@@ -215,7 +225,8 @@ internal static class EngineerDelegationSummaries
             RatifiedPlan: run.RatifiedPlan,
             CleanupTargets: effectiveCleanup,
             Slices: effectiveSlices,
-            Collaborators: collaborators);
+            Collaborators: collaborators,
+            Verification: run.Verification);
     }
 
     private static string[] CollectDiagnosticsAndTraces(
@@ -428,6 +439,13 @@ internal static class EngineerDelegationSummaries
         var runningText = string.Create(
             CultureInfo.InvariantCulture,
             $"IntoChat-Engineer run `{flowId}` is {status.ToString().ToLowerInvariant()} at stage `{currentStage}` ({completedStages.Length}/{head.Steps.Length} stages complete across {parallelInstances} `{backend}` worktree(s)). Workbench: `{engineerUri}`.");
+        if (status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(viewDetail))
+        {
+            // A run that waits without asking for approval says what it waits for.
+            runningText = runningText + "\n" + viewDetail;
+            runningCard = runningCard with { Summary = runningCard.Summary + " " + viewDetail };
+        }
+
         return (true, runningText, runningCard);
     }
 }

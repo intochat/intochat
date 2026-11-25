@@ -142,7 +142,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         var profile = await Profile.Read();
         var roster = await TryReadRosterAsync();
         var scope = FriendsAppState.NormalizeScope(request.Scope, State.SelectedScope);
-        var opened = State.ApplyProfile(profile, $"@{profile.Handle} · {roster.Length} friends · {profile.Posts.Length} app-posts", scope, roster);
+        var feed = await LoadSocialFeedAsync(roster);
+        var opened = State.ApplyProfile(profile, $"@{profile.Handle} · {roster.Length} friends · {feed.Length} posts", scope, roster) with { SocialFeed = feed };
         await Show(await WithShares(opened));
     }
 
@@ -164,21 +165,35 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         var embedded = ParseEmbeddedApps(request.EmbeddedAppIds, CurrentBrainId());
         var (unitSource, unitFiles) = await TryReadUnitTemplateAsync(templateAppId);
 
-        var updated = await Profile.PublishAppPost(new ProfilePostItem(
-            Id: id,
-            Content: content,
-            CreatedAt: NowUtc(),
-            Circle: "",
-            Title: request.Title ?? "",
-            TemplateAppId: templateAppId,
-            TemplateSource: unitSource,
-            UnitFiles: unitFiles,
-            EmbeddedApps: embedded)
+        await Attempt("publish that post", async () =>
         {
-            Audience = audience,
-        });
+            if (SocialPosts is not { } posts)
+            {
+                return State with { Status = "Posts are unavailable." };
+            }
 
-        await Show(State.ApplyProfile(updated, $"Published app-post {id} ({scope}) with {embedded.Length} embedded app(s)."));
+            // The post goes to the brain's post store with the audience chosen here; that store shows it to friends by
+            // that rule.
+            var title = string.IsNullOrWhiteSpace(request.Title) ? content : request.Title.Trim();
+            var files = (unitFiles ?? new Dictionary<string, string>()).OrderBy(static kv => kv.Key, StringComparer.Ordinal).Select(static kv => new SharedSourceFile(kv.Key, kv.Value)).ToArray();
+            await posts.Publish(new PostDraft(
+                content,
+                [],
+                new AppDefinitionShare(templateAppId, title, files),
+                Id: id,
+                Title: title,
+                Audience: audience,
+                EmbeddedApps: embedded,
+                CreatedAt: NowUtc(),
+                TemplateSource: files.Any(static file => file.Path.EndsWith(".cs", StringComparison.Ordinal)) || string.IsNullOrWhiteSpace(unitSource) ? null : unitSource));
+            var roster = await TryReadRosterAsync();
+            return State with
+            {
+                Roster = roster,
+                SocialFeed = await LoadSocialFeedAsync(roster),
+                Status = $"Published app-post {id} ({scope}) with {embedded.Length} embedded app(s).",
+            };
+        });
     }
 
     [On]
@@ -259,7 +274,10 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             await Friends.Unfriend(new IntoChat.OS.Modules.Identity.Contracts.AccountId(request.Account));
             var profile = await Profile.Read();
             var roster = await TryReadRosterAsync();
-            return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.", roster: roster) with { Opened = null });
+            var next = await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.", roster: roster) with { Opened = null });
+            // The door drops the friend's shares when it hears of the removal, a turn later, and refuses them until then;
+            // the screen does not wait for that turn.
+            return next with { SharedByMe = [.. (next.SharedByMe ?? []).Where(share => !string.Equals(share.Account, request.Account, StringComparison.Ordinal))] };
         });
     }
 
@@ -370,11 +388,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
-        var post = (await Profile.Read()).Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase));
+        var post = await OwnPostAsync(postId);
         if (post is null) { await Show(State with { Status = $"Post {postId} not found to fork." }); return; }
 
-        var alias = post.TemplateAppId;
-        var files = post.UnitFiles ?? ShippedUnits.Files(alias);
+        var alias = post.SharedApp?.AppId ?? "friends.post-template";
+        var files = FilesOf(post) is { Count: > 0 } shared ? shared : ShippedUnits.Files(alias);
         if (files.Count == 0) { await Show(State with { Status = $"Post {postId} has no unit files to install into Creator." }); return; }
 
         if (SynapseStudio is not { } studio)
@@ -395,14 +413,66 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         }
     }
 
+    // One of this person's own posts, read from the post store.
+    private async Task<SocialPost?> OwnPostAsync(string postId)
+        => SocialPosts is { } posts
+            ? (await posts.Since(0)).Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    private static Dictionary<string, string> FilesOf(SocialPost post)
+    {
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var file in post.SharedApp?.Files ?? []) { files[file.Path] = file.Content; }
+        return files;
+    }
+
+    // A remix of one of this person's own posts: the unit files go to Creator, and the remix is published to the post
+    // store for its owner only.
     [On]
-    public async Task ForkPost(FriendsForkPost request)
+    public Task ForkPost(FriendsForkPost request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
         var newId = string.IsNullOrWhiteSpace(request.NewPostId) ? $"post-fork-{Guid.NewGuid():N}" : request.NewPostId.Trim();
-        var updated = await Profile.ForkPost(postId, newId, request.RemixTitle);
-        await Show(State.ApplyProfile(updated, $"Forked and remixed app-post {postId} as {newId}."));
+        return Attempt("fork that post", async () =>
+        {
+            if (SocialPosts is not { } posts) { return State with { Status = "Posts are unavailable." }; }
+            if (await OwnPostAsync(postId) is not { } source) { return State with { Status = $"Post {postId} not found to fork." }; }
+
+            var files = FilesOf(source);
+            if (source.SharedApp is { } app && files.Keys.Any(static path => path.EndsWith(".cs", StringComparison.Ordinal)))
+            {
+                if (SynapseStudio is { } studio)
+                {
+                    try { await studio.DeployFiles(app.AppId, files, new Dictionary<string, string>(StringComparer.Ordinal)); }
+                    catch (Exception error) when (error is not OperationCanceledException)
+                    {
+                        OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "The forked post's unit files could not be deployed to Synapse Studio.");
+                    }
+                }
+            }
+
+            var remix = string.IsNullOrWhiteSpace(request.RemixTitle) ? null : request.RemixTitle.Trim();
+            var title = remix ?? $"Remix · {source.Title ?? source.Text}";
+            await posts.Publish(new PostDraft(
+                remix is null ? $"{source.Text} (Forked App Template)" : $"{remix} — {source.Text}",
+                [],
+                source.SharedApp is null ? null : source.SharedApp with { Title = title },
+                Id: newId,
+                Title: title,
+                Audience: new Audience.Only([]),
+                EmbeddedApps: source.EmbeddedApps,
+                ForkedFrom: $"@{State.Handle}/{source.Id}",
+                CreatedAt: NowUtc(),
+                TemplateSource: source.TemplateSource));
+            var roster = await TryReadRosterAsync();
+            return State with
+            {
+                Roster = roster,
+                SocialFeed = await LoadSocialFeedAsync(roster),
+                Status = $"Forked and remixed app-post {postId} as {newId}.",
+            };
+        });
     }
 
     [On]
@@ -437,7 +507,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
-            await posts.Publish(new PostDraft(text.Trim(), audience));
+            await posts.Publish(new PostDraft(text.Trim(), audience, Audience: new Audience.Friends()));
             var feed = await LoadSocialFeedAsync(roster);
             return State with
             {
@@ -621,7 +691,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 var page = await ownPosts.Since(0);
                 foreach (var post in page.Posts)
                 {
-                    items.Add(new SocialFeedItem(ownBrain, post.Id, post.Author, post.Text, post.Reactions, post.Comments, post.Sequence, post.CreatedAt));
+                    items.Add(FeedItem(ownBrain, post, mine: true));
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -643,7 +713,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 var page = await friendPosts.Since(0);
                 foreach (var post in page.Posts)
                 {
-                    items.Add(new SocialFeedItem(friend.Brain.Value, post.Id, post.Author, post.Text, post.Reactions, post.Comments, post.Sequence, post.CreatedAt));
+                    items.Add(FeedItem(friend.Brain.Value, post, mine: false));
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -657,6 +727,22 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             .ThenByDescending(static p => p.Sequence)
             .ToArray();
     }
+
+    private static SocialFeedItem FeedItem(string ownerBrain, SocialPost post, bool mine) => new(
+        ownerBrain,
+        post.Id,
+        post.Author,
+        post.Text,
+        post.Reactions,
+        post.Comments,
+        post.Sequence,
+        post.CreatedAt,
+        post.Title,
+        post.Audience is { } audience ? AudienceLabel(audience) : "only",
+        post.SharedApp?.AppId,
+        post.EmbeddedApps,
+        post.ForkedFrom,
+        mine);
 
     public Task PublishQuickPostAsync() => Publish(new FriendsPublish("Interactive revenue & sketch board", "friends"));
     public Task ForkAndInstallPostAsync(string postId) => ForkApp(new FriendsForkApp(postId));
@@ -713,11 +799,12 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     protected override Node Render(FriendsAppState state)
     {
         var roster = state.Roster ?? [];
-        var allPosts = state.Posts ?? [];
+        // One list of posts: this person's own and their friends', all read from the post stores.
+        var allPosts = state.SocialFeed ?? [];
         var visiblePosts = state.SelectedScope switch
         {
-            "public" => allPosts.Where(static p => p.Seen is Audience.Public).ToArray(),
-            "friends" => allPosts.Where(static p => p.Seen is Audience.Friends).ToArray(),
+            "public" => allPosts.Where(static p => p.Audience == "public").ToArray(),
+            "friends" => allPosts.Where(static p => p.Audience == "friends").ToArray(),
             _ => allPosts,
         };
 
@@ -739,7 +826,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     "Section",
                     state.ActiveTab,
                     Option("all", "Overview").Key("friends-tab:all").OnSelect<FriendsAppState>(x => x.SelectTab("all")),
-                    Option("feed", "App-Posts").Key("friends-tab:feed").OnSelect<FriendsAppState>(x => x.SelectTab("feed")),
+                    Option("feed", "Posts").Key("friends-tab:feed").OnSelect<FriendsAppState>(x => x.SelectTab("feed")),
                     Option("roster", "Roster").Key("friends-tab:roster").OnSelect<FriendsAppState>(x => x.SelectTab("roster")),
                     Option("shared", "Shared").Key("friends-tab:shared").OnSelect<FriendsAppState>(x => x.SelectTab("shared"))),
                 FlexSpacer(),
@@ -750,41 +837,36 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     Tab("friends", "Friends", "users").Key("friends-scope:friends").OnSelect<FriendsAppState>(x => x.SelectScope("friends")))
             ],
             Grid(3, Space.Sm)[
-                StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
+                StatCard("kpi-friends-posts", "Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
                 StatCard("kpi-friends-count", "Friends", $"{roster.Length}", "Confirmed", BadgeTone.Done, "users"),
                 StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{(state.PinnedApps ?? []).Length} Pinned", BadgeTone.Accent, "cpu")
             ],
             showRoster ? RenderFriends(state, roster) : null,
-            showFeed ? RenderSocialFeed(state) : null,
+            showFeed ? RenderFeed(state, visiblePosts) : null,
             showRoster || showFeed ? RenderFriendRoom(state) : null,
             showShared ? RenderSharedByMe(state) : null,
-            showShared ? RenderSharedWithMe(state) : null,
-            showFeed
-                ? (visiblePosts.Length == 0
-                    ? Empty("No App-Posts in this scope", "Publish an interactive App-Post or switch feed scope.")
-                    : VStack(Space.Md, [.. visiblePosts.Select(post => RenderPostCard(state, post))]).ToNode())
-                : null
+            showShared ? RenderSharedWithMe(state) : null
         ];
     }
 
-    private Node RenderSocialFeed(FriendsAppState state)
+    private Node RenderFeed(FriendsAppState state, SocialFeedItem[] feed)
     {
-        var feed = state.SocialFeed ?? [];
         var postRows = feed.Select(item =>
         {
             var reactionsSummary = item.Reactions is { Length: > 0 }
                 ? $" · {item.Reactions.Length} reaction(s)"
                 : "";
-            return (Node)HStack(Space.Sm)[
+            var line = (Node)HStack(Space.Sm)[
                 Text($"{item.Author}: {item.Text}{reactionsSummary}"),
                 Button("Like", "heart")
                     .Key($"btn:react-like:{item.OwnerBrain}:{item.PostId}")
                     .Small()
                     .Sends(Sends(new ReactToPost(item.OwnerBrain, item.PostId, "like")))
             ];
-        });
+            return item.HasApp ? (Node)VStack(Space.Sm, [line, RenderPostCard(item)]) : line;
+        }).ToArray();
 
-        return Card("Social Feed", "Publish updates to your friends and pull their latest posts.")[
+        return Card("Posts", "Publish to your friends and read what they posted.")[
             VStack(Space.Sm,
             [
                 HStack(Space.Sm)[
@@ -801,7 +883,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                         .Small()
                         .Sends(Sends(new RefreshFeed()))
                 ],
-                .. postRows,
+                .. postRows.Length == 0
+                    ? [Empty("No posts in this scope", "Publish a post or switch feed scope.")]
+                    : postRows,
             ])
         ];
     }
@@ -931,37 +1015,46 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         _ => "only",
     };
 
-    private Node RenderPostCard(FriendsAppState state, ProfilePostItem post)
+    // A post that carries an app. Forking and the embedded apps are for this person's own posts: a friend's post names
+    // apps of the friend's brain.
+    private Node RenderPostCard(SocialFeedItem post)
     {
-        var audience = AudienceLabel(post.Seen);
+        var audience = string.IsNullOrEmpty(post.Audience) ? "only" : post.Audience;
         var embedded = post.EmbeddedApps ?? [];
+        var template = post.AppId ?? "";
         RecordFieldNode[] fields =
         [
-            new("Author", $"@{state.Handle}"),
+            new("Author", post.Author),
             new("Audience", audience),
-            new("App Template", post.TemplateAppId),
-            new("Summary", post.Content),
+            new("App Template", template),
+            new("Summary", post.Text),
             .. !string.IsNullOrWhiteSpace(post.ForkedFrom) ? [new RecordFieldNode("Forked From", post.ForkedFrom)] : Array.Empty<RecordFieldNode>(),
             .. embedded.Select(child => new RecordFieldNode($"Embedded [{child.Slot}]", $"{child.Title} ({child.TargetNeuronUri})")),
         ];
 
-        return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.Id}" : post.Title, $"@{state.Handle} · [{audience}] · {post.TemplateAppId}")[
+        return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.PostId}" : post.Title, $"{post.Author} · [{audience}] · {template}")[
             VStack(Space.Sm,
             [
-                Text(post.Content),
-                new RecordCardNode(
-                    $"App-Post · {audience}",
-                    post.Id,
-                    fields,
-                    Subtitle: post.Content,
-                    LinkLabel: "Fork App-Post",
-                    Open: Button("Fork App-Post").Key($"fork-{post.Id}").OnClick(() => ForkPostTemplateAsync(post.Id))),
-                .. embedded.Select(child => (Node)Kit.Slot(child.TargetNeuronUri)),
-                HStack(Space.Sm)[
-                    Button("Fork & Install", "download").Key($"fork-and-install:{post.Id}").Small().OnClick(() => ForkAndInstallPostAsync(post.Id)),
-                    Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.Id}").Small().OnClick(() => ForkPostTemplateAsync(post.Id)),
-                    GhostButton("Open in Creator", "wand-sparkles").Key($"open-in-creator:{post.Id}").Small().WithIntent(IntentKind.OpenWindow, "creator")
-                ],
+                post.Mine
+                    ? new RecordCardNode(
+                        $"App-Post · {audience}",
+                        post.PostId,
+                        fields,
+                        Subtitle: post.Text,
+                        LinkLabel: "Fork App-Post",
+                        Open: Button("Fork App-Post").Key($"fork-{post.PostId}").OnClick(() => ForkPostTemplateAsync(post.PostId)))
+                    : new RecordCardNode($"App-Post · {audience}", post.PostId, fields, Subtitle: post.Text),
+                .. post.Mine ? embedded.Select(child => (Node)Kit.Slot(child.TargetNeuronUri)) : [],
+                .. post.Mine
+                    ? new Node[]
+                    {
+                        HStack(Space.Sm)[
+                            Button("Fork & Install", "download").Key($"fork-and-install:{post.PostId}").Small().OnClick(() => ForkAndInstallPostAsync(post.PostId)),
+                            Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.PostId}").Small().OnClick(() => ForkPostTemplateAsync(post.PostId)),
+                            GhostButton("Open in Creator", "wand-sparkles").Key($"open-in-creator:{post.PostId}").Small().WithIntent(IntentKind.OpenWindow, "creator")
+                        ],
+                    }
+                    : [],
             ])
         ];
     }

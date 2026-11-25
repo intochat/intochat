@@ -187,4 +187,29 @@ public sealed class CrossBrainAccessFacts(PlainNeuronCallFilterFacts.FilterSiloF
         var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => host.InspectState(TestContext.Current.CancellationToken));
         Assert.Contains("Cross-brain security violation", error.Message, StringComparison.Ordinal);
     }
+
+    // Three host grains implement INeuronHost: the observer names the neuron's own host grain, so the read reaches it, and
+    // the wall above then decides who gets the state.
+    [Fact]
+    public async Task The_observer_reads_a_neurons_state_for_its_own_brain_and_refuses_another_brain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var victim = fixture.NewBrain("observed-victim");
+        var attacker = fixture.NewBrain("observed-attacker");
+        var id = SiloNeurons.IdOf(typeof(ITestUserSettings), $"{victim}/main");
+        var observer = fixture.Services.GetRequiredService<DigitalBrain.Kernel.IBrainObserver>();
+
+        using (As(victim))
+        {
+            await SiloNeurons.Get<ITestUserSettings>(fixture.Services, id).SetProfile("ada");
+            var state = await observer.State(id, ct);
+            Assert.Contains("ada", state!.Value.GetRawText(), StringComparison.Ordinal);
+        }
+
+        using (As(attacker))
+        {
+            var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => observer.State(id, ct));
+            Assert.Contains("Cross-brain security violation", error.Message, StringComparison.Ordinal);
+        }
+    }
 }

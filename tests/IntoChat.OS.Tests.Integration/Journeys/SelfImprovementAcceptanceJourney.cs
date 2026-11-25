@@ -154,7 +154,7 @@ public sealed class SelfImprovementAcceptanceJourney
 
             await using var os = await JourneyOS.Start(
                 kind,
-                [typeof(AppsModule), typeof(AspireModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
+                [.. CatalogFamily.Modules, typeof(AspireModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
                 f => f.Configure(services =>
                 {
                     services.AddLogging();
@@ -191,7 +191,7 @@ public sealed class SelfImprovementAcceptanceJourney
                 instanceCount = 1,
             }, EngineerFlow.Json);
 
-            var flowId = await flows.Start(IFlows.EngineerFlow, "Acceptance Self-Improvement", null, startJson, Ct, flowId: runId);
+            var flowId = await flows.Start(IEngineerRuns.EngineerFlow, "Acceptance Self-Improvement", null, startJson, Ct, flowId: runId);
             var waiting = await EventuallyAsync(
                 () => flows.Read(flowId, Ct),
                 v => v is { Status: FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed });

@@ -73,6 +73,7 @@
   <Project Path="src/Modules/AI/Generators/IntoChat.OS.Modules.AI.Generators.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
   <Project Path="src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+  <Project Path="src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
   <Project Path="src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
   <Project Path="src/Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
   <Project Path="src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
@@ -80,6 +81,7 @@
   <Project Path="src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
   <Project Path="src/Modules/Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
   <Project Path="src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
+  <Project Path="src/Modules/Diagnostics/IntoChat.OS.Modules.Diagnostics.csproj" />
   <Project Path="src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
   <Project Path="src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
   <Project Path="src/Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
@@ -91,6 +93,7 @@
   <Project Path="src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
   <Project Path="src/Modules/Roslyn/Contracts/IntoChat.OS.Modules.Roslyn.Contracts.csproj" />
   <Project Path="src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
+  <Project Path="src/Modules/Runs/IntoChat.OS.Modules.Runs.csproj" />
   <Project Path="src/Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
   <Project Path="src/Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
   <Project Path="src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />

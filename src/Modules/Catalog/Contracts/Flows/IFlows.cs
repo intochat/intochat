@@ -11,15 +11,6 @@ public interface IFlows
 {
     const string DefaultKey = "flows/index";
 
-    // The flow type of a single-instance feature-to-PR change run (FeatureToPrFlow adapter over EngineerPipelineStages).
-    const string ChangeFlow = "flow.change";
-
-    // The canonical flow type of an autonomous multi-stage engineering run across 1..N worktrees (EngineerFlow).
-    const string EngineerFlow = "flow.engineer";
-
-    // The durable PR review pipeline flow type (PrReviewFlow).
-    const string PrReviewFlow = "flow.pr-review";
-
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "flows", "flows/index");
 
     [DigitalBrain.Contracts.ReadOnlyCall]
@@ -47,24 +38,4 @@ public interface IFlows
 
     [DigitalBrain.Contracts.Interleaves]
     Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default);
-
-    [DigitalBrain.Contracts.Interleaves]
-    Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
-        => throw new NotSupportedException("StartEngineerRun is not supported by this IFlows implementation.");
-
-    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
-    Task<EngineerRunSummary> InspectEngineerRun(string? flowId = null, CancellationToken ct = default)
-        => throw new NotSupportedException("InspectEngineerRun is not supported by this IFlows implementation.");
-
-    [DigitalBrain.Contracts.Interleaves]
-    Task<EngineerRunSummary> SelectEngineerCandidate(string flowId, int candidateIndex, CancellationToken ct = default)
-        => throw new NotSupportedException("SelectEngineerCandidate is not supported by this IFlows implementation.");
-
-    [DigitalBrain.Contracts.Interleaves]
-    Task<EngineerRunSummary> RatifyEngineerPlan(
-        string flowId,
-        string[]? approvedCleanupTargets = null,
-        EngineerTaskSlice[]? slices = null,
-        CancellationToken ct = default)
-        => throw new NotSupportedException("RatifyEngineerPlan is not supported by this IFlows implementation.");
 }

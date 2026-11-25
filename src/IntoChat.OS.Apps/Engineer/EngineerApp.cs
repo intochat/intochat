@@ -93,6 +93,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     private const string FlowsKey = "flows/index";
 
     [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = "connection/github/main", Required = false)] private partial IRepository? MainRepository { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
     [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
@@ -285,11 +286,11 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         ArgumentNullException.ThrowIfNull(request);
         if (State.AwaitingPlanRatification
             && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
-            && Flows is { } flows)
+            && EngineerRuns is { } runs)
         {
             try
             {
-                var ratified = await flows.RatifyEngineerPlan(
+                var ratified = await runs.RatifyEngineerPlan(
                     State.ActiveFlowId!,
                     State.EffectiveCleanupTargets,
                     State.EffectiveSlices);
@@ -461,11 +462,11 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         await ApplyDecisionAsync(decision);
         if (decision.IsAccepted
             && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
-            && Flows is { } flows)
+            && EngineerRuns is { } runs)
         {
             try
             {
-                var summary = await flows.SelectEngineerCandidate(State.ActiveFlowId!, request.CandidateIndex);
+                var summary = await runs.SelectEngineerCandidate(State.ActiveFlowId!, request.CandidateIndex);
                 if (!string.IsNullOrWhiteSpace(summary.FlowId))
                 {
                     var synced = ApplyLiveSummary(State, summary, preserveActiveTab: true, preferredFilePath: request.FilePath);
@@ -603,7 +604,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         }
 
         var matchesActive = State.ActiveFlowId is { } active && string.Equals(changed.FlowId, active, StringComparison.Ordinal);
-        var isEngineerFlow = changed.FlowId.Contains("/" + IFlows.EngineerFlow + "/", StringComparison.Ordinal);
+        var isEngineerFlow = changed.FlowId.Contains("/" + IEngineerRuns.EngineerFlow + "/", StringComparison.Ordinal);
         if (matchesActive || isEngineerFlow)
         {
             var synced = await SyncFromLiveFlowAsync(State, changed.FlowId);
@@ -689,7 +690,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     }
 
 
-    private static EngineerWorkspaceState ApplyLiveSummary(
+    internal static EngineerWorkspaceState ApplyLiveSummary(
         EngineerWorkspaceState basis,
         EngineerRunSummary summary,
         bool preserveActiveTab,
@@ -793,6 +794,10 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
                 CultureInfo.InvariantCulture,
                 $"Promoted candidate w{selectedIdx + 1} ({activeCandidate.StrategyLabel}) · Score {activeCandidate.TotalScore} · Commit {shortSha} · Plan {summary.ConfirmationPlanId ?? "pending"}")
             : $"Live flow {summary.FlowId} · {summary.Status} ({stage}) · Candidate w{selectedIdx + 1}";
+        if (summary.Verification is { LeavesUnchecked: true } skippedGates)
+        {
+            banner = $"{banner} · {skippedGates.Describe()}";
+        }
 
         return basis with
         {
@@ -809,7 +814,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             SelectedLanguage = selectedLang,
             HasPlan = summary.Plan is not null || basis.HasPlan,
             PlanApproved = summary.CompletedStages.Contains("prepare-worktree", StringComparer.Ordinal) || basis.PlanApproved,
-            VerificationPassed = summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) || basis.VerificationPassed,
+            VerificationPassed = (summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) && summary.Verification is not { LeavesUnchecked: true }) || basis.VerificationPassed,
             PrPublished = summary.Status == FlowStatus.Completed || !string.IsNullOrWhiteSpace(summary.PushedRef),
             WorktreesCleaned = summary.CompletedStages.Contains("clean", StringComparer.Ordinal),
             Tasks = summary.Plan?.Tasks is { Length: > 0 } planTasks ? planTasks : basis.Tasks,

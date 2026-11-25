@@ -599,7 +599,7 @@ internal sealed partial class AppNeuron(
         next.BuildAttempt = Guid.NewGuid();
         next.BuildStartedAt = clock.GetUtcNow();
         // The build flow's id is known before the flow starts, so its FlowDone, however early, is this attempt's.
-        next.BuildFlowId = new DigitalBrain.NeuronId(Id.Brain, Flows.BuildFlow.Alias, BuildFlowKey(next.BuildAttempt)).ToString();
+        next.BuildFlowId = new DigitalBrain.NeuronId(Id.Brain, Flows.BuildInner.Flow, BuildFlowKey(next.BuildAttempt)).ToString();
         await Context.Wires.EnsureBrainWide(typeof(DigitalBrain.Flows.FlowDone));
         next.Activity = string.IsNullOrWhiteSpace(instruction) ? ["build started"] : ["build started: " + instruction.Trim()];
         await Persist(next);

@@ -17,29 +17,29 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed partial class InoStudioNeuron
 {
     public Task<InoToolResult> ProposeChange(string repository, string goal, CancellationToken ct = default)
-        => StartFeatureToPrAsync(repository, goal, baseBranch: null, ct);
+        => StartEngineerRunAsync(repository, goal, baseBranch: null, ct);
 
     public Task<InoToolResult> ProposeChangeOnBranch(string repository, string goal, string baseBranch, CancellationToken ct = default)
-        => StartFeatureToPrAsync(repository, goal, baseBranch, ct);
+        => StartEngineerRunAsync(repository, goal, baseBranch, ct);
 
     public async Task<InoToolResult> ChangeStatus(string flowId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(flowId);
         var brainId = CurrentBrainId;
         var trimmed = flowId.Trim();
-        if (trimmed.Contains($"/{IFlows.EngineerFlow}/", StringComparison.Ordinal))
+        if (trimmed.Contains($"/{IEngineerRuns.EngineerFlow}/", StringComparison.Ordinal))
         {
-            var engSummary = await Get<IFlows>(IFlows.Key(brainId)).InspectEngineerRun(trimmed, ct).ConfigureAwait(true);
+            var engSummary = await Get<IEngineerRuns>(IEngineerRuns.Key(brainId)).InspectEngineerRun(trimmed, ct).ConfigureAwait(true);
             return new InoToolResult(engSummary.SummaryText, engSummary.Card, Ok: engSummary.Ok);
         }
 
         if (!trimmed.Contains('/', StringComparison.Ordinal))
         {
-            var candidateEngId = new NeuronId(Id.Brain, IFlows.EngineerFlow, trimmed).ToString();
+            var candidateEngId = new NeuronId(Id.Brain, IEngineerRuns.EngineerFlow, trimmed).ToString();
             var existingEng = await Get<IFlows>(IFlows.Key(brainId)).Read(candidateEngId, ct).ConfigureAwait(true);
             if (existingEng is not null)
             {
-                var engSummary = await Get<IFlows>(IFlows.Key(brainId)).InspectEngineerRun(candidateEngId, ct).ConfigureAwait(true);
+                var engSummary = await Get<IEngineerRuns>(IEngineerRuns.Key(brainId)).InspectEngineerRun(candidateEngId, ct).ConfigureAwait(true);
                 return new InoToolResult(engSummary.SummaryText, engSummary.Card, Ok: engSummary.Ok);
             }
         }
@@ -66,7 +66,11 @@ internal sealed partial class InoStudioNeuron
         return Task.FromResult(new InoToolResult("Allowlisted repositories:\n" + string.Join("\n", lines)));
     }
 
-    private async Task<InoToolResult> StartFeatureToPrAsync(
+    // A change Ino proposes is an engineering run (flow.engineer) with every verification gate on: plan, one worktree, build and
+    // test, live verification, then the person's approval of the exact commit. The call goes through the engineering door with
+    // this call's stamped caller, so the run is recorded for the conversation and the person that asked. Ino starts no
+    // flow.change: that flow type only finishes runs already in flight (ChangeStatus still reads them).
+    private async Task<InoToolResult> StartEngineerRunAsync(
         string repository,
         string goal,
         string? baseBranch,
@@ -78,7 +82,6 @@ internal sealed partial class InoStudioNeuron
         var brainId = CurrentBrainId;
         var cleanRepo = repository.Trim();
         var cleanGoal = goal.Trim();
-        var title = cleanGoal.Length <= 56 ? cleanGoal : cleanGoal[..56];
         var runKey = Guid.NewGuid().ToString("N")[..12];
 
         // Fail fast with clear guidance if repository is not in the allowlist
@@ -93,41 +96,23 @@ internal sealed partial class InoStudioNeuron
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(ex, $"resolving repository '{cleanRepo}' for Feature-to-PR");
-            return new InoToolResult($"Could not start Feature-to-PR on '{cleanRepo}': {ex.Message}", Ok: false);
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(ex, $"resolving repository '{cleanRepo}' for a proposed change");
+            return new InoToolResult($"Could not start the change on '{cleanRepo}': {ex.Message}", Ok: false);
         }
 
-        string flowId;
-        try
-        {
-            var innerJson = JsonSerializer.Serialize(
-                Change.Start(runKey, parsedRepo, cleanGoal, parsedBase),
-                FeatureToPrFlow.Json);
-
-            flowId = await Get<IFlows>(IFlows.Key(brainId))
-                .Start(FeatureToPrFlow.Alias, title, null, innerJson, ct, flowId: runKey)
-                .ConfigureAwait(true);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"starting Feature-to-PR flow '{title}'");
-            return new InoToolResult($"Could not start Feature-to-PR '{title}': {error.Message}", Ok: false);
-        }
-
-        // Poll briefly (within 18s grain-safe budget) so fast local runs immediately return the SHA-bound confirmation card & diff!
-        var deadline = Context.Time.GetUtcNow() + ProposePollBudget;
-        while (Context.Time.GetUtcNow() < deadline && !ct.IsCancellationRequested)
-        {
-            var view = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId, ct).ConfigureAwait(true);
-            if (view is not null && view.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
-            {
-                return await FormatChangeStatusAsync(brainId, flowId, ct).ConfigureAwait(true);
-            }
-
-            await Task.Delay(ProposePollInterval, ct).ConfigureAwait(true);
-        }
-
-        return await FormatChangeStatusAsync(brainId, flowId, ct).ConfigureAwait(true);
+        // StartEngineerRun answers with the run's next settled stage, or with why it did not start; it does not throw for either.
+        var summary = await Get<IEngineerRuns>(IEngineerRuns.Key(brainId))
+            .StartEngineerRun(
+                new EngineerDelegationRequest(
+                    RepoSlug: parsedRepo.Value,
+                    Goal: cleanGoal,
+                    ParallelInstances: 1,
+                    RequestedBaseBranch: parsedBase?.Value,
+                    RunId: runKey,
+                    Verification: EngineerVerificationPolicy.Full),
+                ct)
+            .ConfigureAwait(true);
+        return new InoToolResult(summary.SummaryText, summary.Card, Ok: summary.Ok);
     }
 
     private async Task<InoToolResult> FormatChangeStatusAsync(string brainId, string flowId, CancellationToken ct)
@@ -150,6 +135,7 @@ internal sealed partial class InoStudioNeuron
             return new InoToolResult($"Could not read Feature-to-PR flow '{flowId}': {ex.Message}", Ok: false);
         }
 
+        // Only a flow.change run started before that flow type was retired is read here.
         var change = JsonSerializer.Deserialize<Change>(head.InnerJson, FeatureToPrFlow.Json) ?? new Change();
         var status = view?.Status ?? head.Status;
         var tasksUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), "tasks").Key}#{flowId}";

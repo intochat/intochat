@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
@@ -10,8 +8,8 @@ import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` + `mix` Expander control with smooth spring chevron
-/// rotation, animated body reveal, exact C# [UiStyleData] padding/radius
-/// parity, and WinForms-style [UiEventMask] signals.
+/// rotation, animated body reveal, and exact C# [UiStyleData] padding/radius
+/// parity.
 final class UiMixExpander extends StatefulWidget {
   const UiMixExpander({
     super.key,
@@ -28,8 +26,6 @@ final class UiMixExpander extends StatefulWidget {
       radius: 10,
       motion: UiMotionPreset.standard,
     ),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -40,8 +36,6 @@ final class UiMixExpander extends StatefulWidget {
   final Widget body;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -51,12 +45,6 @@ final class UiMixExpander extends StatefulWidget {
 class _UiMixExpanderState extends State<UiMixExpander> {
   bool _hovered = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,16 +70,10 @@ class _UiMixExpanderState extends State<UiMixExpander> {
             onHoverChange: (hovered) {
               if (_hovered == hovered) return;
               setState(() => _hovered = hovered);
-              _emit(
-                UiEventMask.hover,
-                hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-                const [{}],
-              );
             },
             onFocusChange: (focused) {
               if (_focused == focused) return;
               setState(() => _focused = focused);
-              _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
             },
             child: Row(
               children: [

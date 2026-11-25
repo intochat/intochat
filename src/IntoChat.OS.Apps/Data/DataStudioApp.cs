@@ -5,7 +5,7 @@ Shipped: true
 Operations: open, query, group-by, switch-chart, export-csv, to-markdraw
 
 Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization studio Neuron (apps/data).
-Powered by DataAnalyticsEngine and IFilesVfsService (/work/*.csv, /work/*.tsv, /work/*.json, and relational tables),
+Powered by DataAnalyticsEngine (inline data and relational tables; this screen has no route to workspace files, see OWED.md),
 and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
 using IntoChat.OS.Host.Apps;
@@ -88,7 +88,7 @@ public sealed record DataStudioAppState(
 }
 
 [Neuron("app.data"), Screen("app.data", Title = "Data Studio", Icon = "bar-chart-2", Category = "Studio", Dock = 3)]
-public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFilesVfs
+public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>
 {
     protected override Task OnActivate(CancellationToken cancellationToken)
     {
@@ -96,7 +96,6 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
         return base.OnActivate(cancellationToken);
     }
 
-    public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "data";
 
     public static AppBundle Bundle => AppBundle.FromScreen<DataStudioApp>(
@@ -105,11 +104,11 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
         description: "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
         operations:
         [
-            new("open", "Open a CSV, TSV, JSON dataset from Files VFS or a connected PostgreSQL table."),
+            new("open", "Open a CSV, TSV or JSON dataset by its workspace path or a connected PostgreSQL table."),
             new("query", "Run a SQL or natural-language analytical query (WHERE, GROUP BY, SUM/AVG/COUNT/MIN/MAX, ORDER BY, LIMIT)."),
             new("group-by", "Aggregate the active dataset by a column using SUM, AVG, COUNT, MIN, or MAX."),
             new("switch-chart", "Switch the active chart visualization between bar, line, and pie."),
-            new("export-csv", "Export the current filtered or aggregated table to a CSV file in Files VFS (/work/*.csv)."),
+            new("export-csv", "Export the current filtered or aggregated table as CSV (kept in the screen; it is not written to the workspace)."),
             new("to-markdraw", "Generate a live Markdraw data-lineage diagram from the active dataset and chart."),
         ],
         studio: true,
@@ -181,7 +180,6 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
         ArgumentNullException.ThrowIfNull(request);
         var stem = Path.GetFileNameWithoutExtension(State.ActiveSource.Replace("postgres:", string.Empty, StringComparison.OrdinalIgnoreCase));
         var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{(string.IsNullOrWhiteSpace(stem) ? "analytics-export" : stem)}-export.csv" : DataStudioDecisions.NormalizeCsvExportPath(request.TargetPath);
-        targetPath = await TryWriteVfsTextAsync(targetPath, DataAnalyticsEngine.SerializeToCsv(State.Columns, State.Rows));
         await Show(DataStudioDecisions.DecideExportCsv(State, targetPath, await ListWorkspaceDatasetsAsync(State.ActiveSource)));
     }
 
@@ -190,8 +188,6 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
     {
         ArgumentNullException.ThrowIfNull(request);
         var docPath = string.IsNullOrWhiteSpace(request.Document) ? "/work/data-lineage.markdraw" : MarkdrawApp.NormalizeDocumentPath(request.Document);
-        var summary = $"{State.Rows.Length} rows · Total €{State.Total:N0} · Avg €{State.Average:N0}";
-        docPath = await TryWriteVfsTextAsync(docPath, MarkdrawSceneEngine.BuildDataLineageMarkdraw(State.ChartTitle, State.Columns, summary, State.SourceNeuronUri));
         await Show(DataStudioDecisions.DecideToMarkdraw(State, docPath));
     }
 
@@ -201,12 +197,6 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
 
     protected override Node Render(DataStudioAppState state) => DataStudioViewRenderer.RenderNode(state);
 
-    private async Task<string> TryWriteVfsTextAsync(string path, string content)
-    {
-        if (FilesVfs is null) { return path; }
-        try { return (await FilesVfs.WriteTextAsync(path, content)).VfsPath; }
-        catch (Exception ex) { OsConsoleLog.For<DataStudioApp>().LogSwallowed(ex, "Failed to write text to VFS path."); return path; }
-    }
 
     private async Task RunAndSetQueryResultAsync(string source, string queryText, string preferredChartKind)
     {
@@ -216,23 +206,10 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
             ? $"{queryText} FROM {source}"
             : queryText;
 
-        var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, filesVfs: FilesVfs, brain: Context.Caller?.Brain ?? default);
+        var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, brain: Context.Caller?.Brain ?? default);
         await Show(DataStudioDecisions.DecideQueryResult(State, source, queryText, preferredChartKind, result, await ListWorkspaceDatasetsAsync(source), CurrentBrainId));
     }
 
-    private async Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
-    {
-        var list = string.IsNullOrWhiteSpace(activeSource) ? new List<string>() : [activeSource];
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                list.AddRange((await FilesVfs.ListFilesAsync())
-                    .Where(f => Path.GetExtension(f.Name).ToLowerInvariant() is ".csv" or ".tsv" or ".json")
-                    .Select(f => f.VfsPath));
-            }
-            catch (Exception ex) { OsConsoleLog.For<DataStudioApp>().LogSwallowed(ex, "Failed to list VFS files for data sources."); }
-        }
-        return [.. list.Distinct(StringComparer.OrdinalIgnoreCase)];
-    }
+    private static Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
+        => Task.FromResult<string[]>(string.IsNullOrWhiteSpace(activeSource) ? [] : [activeSource]);
 }

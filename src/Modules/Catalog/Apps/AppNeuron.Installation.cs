@@ -318,31 +318,6 @@ internal sealed partial class AppNeuron
         await kernel.LoadFeature(BrainId(), feature, []);
     }
 
-    // The program reads brain.Setting("App") to find this neuron, brain.Setting(name) for each
-    // setting and brain.Setting("Account__" + slot) for each connected account.
-    private Dictionary<string, string> Configuration(AppState state)
-    {
-        var values = new Dictionary<string, string>(state.Settings, StringComparer.Ordinal);
-        foreach (var (slot, id) in state.Connections) { values[AppRuntimeConfiguration.AccountBindingKey(slot)] = id; }
-        values["App"] = Key;
-        values["Brain"] = state.BrainScopeId ?? "";
-        values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
-        var configuration = ServiceProvider?.GetService<IConfiguration>();
-        values["PublicOrigin"] = configuration?[DigitalBrain.Modules.Configuration.ModuleConfiguration.ConnectionsPublicOriginKey] ?? "";
-        // Cloud sign-in contributes an account surface. The literal matches AuthIdentityProvider.AccountSurfaceSetting (view|surface).
-        if (WritesAccountSurface(Name(), configuration?["IntoChatOS:Topology"]))
-        {
-            values["AccountSurface"] = "view|surface";
-        }
-        return values;
-    }
-
-    // The settings app on a cloud host mounts auth's account neuron. Other apps and a local host leave the setting unset.
-    internal static bool WritesAccountSurface(string appName, string? topology) =>
-        string.Equals(appName, ShippedApps.Settings, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
-
     private Task ValidateInstallation(string operation, AppBundle bundle, AppOrigin? origin, AppInstallReceipt installation)
     {
         if (Context.Caller is not { For.Account: var account } caller || account != installation.AccountId
@@ -413,7 +388,4 @@ internal sealed partial class AppNeuron
             return;
         }
     }
-
-
-    public Task<RetainedRequest[]> RetainedRequests() => Task.FromResult(State.RequestRetention);
 }

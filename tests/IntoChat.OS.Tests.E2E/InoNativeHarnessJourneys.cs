@@ -20,7 +20,7 @@ namespace IntoChat.OS.Tests.E2E;
 
 /// <summary>
 /// Live in-process OS end-to-end journey proving <c>InoNativeHarness</c> (#1 primary engineering engine):
-/// pre-flight <see cref="IWorkingMemory"/> brief hydration (&lt; 3 KB), plan ratification (<see cref="IFlows.RatifyEngineerPlan"/>),
+/// pre-flight <see cref="IWorkingMemory"/> brief hydration (&lt; 3 KB), plan ratification (<see cref="IEngineerRuns.RatifyEngineerPlan"/>),
 /// <c>CleanupTargets</c> dead-file deletion, 2-level parallelism (<c>2</c> isolated worktrees × <c>2</c> parallel intra-worktree
 /// Roslyn AST slices via <c>Task.WhenAll</c>), real <c>dotnet build -c Release</c>, <see cref="ISessionJournal"/> writeback,
 /// and human SHA-bound bare Git remote publication.
@@ -138,7 +138,10 @@ public sealed class InoNativeHarnessJourneys
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AIModule).Assembly);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
+        os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -154,7 +157,8 @@ public sealed class InoNativeHarnessJourneys
 
         // 2. Start a 2-worktree InoNative mission with RequirePlanRatification = true.
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var started = await flows.StartEngineerRun(
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var started = await runs.StartEngineerRun(
             new EngineerDelegationRequest(
                 RepoSlug: "os",
                 Goal: "Delete LegacyObsoleteMath and implement Subtract on Calculator plus Dot on Vector2Int",
@@ -171,7 +175,7 @@ public sealed class InoNativeHarnessJourneys
         for (var poll = 0; poll < 80; poll++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            var snap = await runs.InspectEngineerRun(flowId, Ct);
             if (snap.AwaitingPlanRatification)
             {
                 awaitingRatification = snap;
@@ -210,7 +214,7 @@ public sealed class InoNativeHarnessJourneys
                 Instructions: "Add Dot to Vector2Int"),
         ];
 
-        _ = await flows.RatifyEngineerPlan(
+        _ = await runs.RatifyEngineerPlan(
             flowId,
             approvedCleanupTargets: ["modules/MathKit/LegacyObsoleteMath.cs"],
             slices: approvedSlices,
@@ -221,7 +225,7 @@ public sealed class InoNativeHarnessJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            var snap = await runs.InspectEngineerRun(flowId, Ct);
             if (snap.Status == FlowStatus.Waiting && snap.CurrentStage == "approval-gate")
             {
                 waitingAtGate = snap;
@@ -274,7 +278,7 @@ public sealed class InoNativeHarnessJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            var snap = await runs.InspectEngineerRun(flowId, Ct);
             if (snap.Status is FlowStatus.Completed or FlowStatus.Failed)
             {
                 completed = snap;
@@ -365,7 +369,10 @@ public sealed class InoNativeHarnessJourneys
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AIModule).Assembly);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
+        os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -379,7 +386,8 @@ public sealed class InoNativeHarnessJourneys
 
         // Start mission WITHOUT hardcoded Slices or CleanupTargets: EngineerPlanner synthesizes both from live CodeGraph + repo:os brief!
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var started = await flows.StartEngineerRun(
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var started = await runs.StartEngineerRun(
             new EngineerDelegationRequest(
                 RepoSlug: "os",
                 Goal: "Delete LegacyObsoleteMath and implement Subtract on Calculator plus Dot on Vector2Int",
@@ -395,7 +403,7 @@ public sealed class InoNativeHarnessJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            var snap = await runs.InspectEngineerRun(flowId, Ct);
             if (snap.Status == FlowStatus.Waiting && snap.CurrentStage == "approval-gate")
             {
                 waitingAtGate = snap;
@@ -452,7 +460,7 @@ public sealed class InoNativeHarnessJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            var snap = await runs.InspectEngineerRun(flowId, Ct);
             if (snap.Status is FlowStatus.Completed or FlowStatus.Failed)
             {
                 completed = snap;

@@ -14,7 +14,19 @@ public sealed record SocialFeedItem(
     PostReaction[] Reactions,
     PostComment[] Comments,
     long Sequence,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    // What a post with an app carries, and whether it is this person's own post. Absent in a feed stored before the app
+    // showed one list of posts.
+    string? Title = null,
+    string Audience = "",
+    string? AppId = null,
+    PostEmbeddedApp[]? EmbeddedApps = null,
+    string? ForkedFrom = null,
+    bool Mine = false)
+{
+    [JsonIgnore]
+    public bool HasApp => Title is not null || AppId is not null || EmbeddedApps is { Length: > 0 };
+}
 
 public sealed record ActiveFriendRoom(
     string OwnerBrain,
@@ -42,6 +54,7 @@ public sealed record FriendsAppState(
     string DisplayName,
     string Bio,
     string[] PinnedApps,
+    // Not filled any more: the screen shows one list of posts, SocialFeed, read from the post store (OWED.md).
     ProfilePostItem[] Posts,
     string SelectedScope,
     string Status,
@@ -243,9 +256,6 @@ public sealed record FriendsAppState(
         ArgumentNullException.ThrowIfNull(profile);
         var cleanHandle = IsValidHandleFormat(profile.Handle) ? NormalizeHandleToken(profile.Handle) : "user";
         var cleanDisplay = string.IsNullOrWhiteSpace(profile.DisplayName) ? cleanHandle : profile.DisplayName;
-        var validPosts = (profile.Posts ?? [])
-            .Where(static p => !string.IsNullOrWhiteSpace(p.Id))
-            .ToArray();
         var dedupedRoster = roster is null
             ? Roster ?? []
             : roster
@@ -260,7 +270,7 @@ public sealed record FriendsAppState(
             DisplayName = cleanDisplay,
             Bio = profile.Bio ?? "",
             PinnedApps = profile.PinnedApps ?? [],
-            Posts = validPosts,
+            Posts = [],
             Roster = dedupedRoster,
             SelectedScope = NormalizeScope(selectedScope, SelectedScope),
             Status = status,

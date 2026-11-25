@@ -105,7 +105,10 @@ public sealed class EngineerDogfoodJourneys
         var brain = new BrainId($"dogfood-{Guid.NewGuid():N}");
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
+        os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -122,7 +125,7 @@ public sealed class EngineerDogfoodJourneys
         await os.Idle();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var activeFlows = await flows.List(new FlowQuery(Type: IFlows.EngineerFlow), Ct);
+        var activeFlows = await flows.List(new FlowQuery(Type: IEngineerRuns.EngineerFlow), Ct);
         var startedFlow = Assert.Single(activeFlows);
         var flowId = startedFlow.FlowId;
 

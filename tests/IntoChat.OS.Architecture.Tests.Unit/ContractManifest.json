@@ -8,8 +8,7 @@
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
-    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
-    "IntoChat.OS.Modules.Apps.DataAnalyticsWorker": "dataanalyticsworker"
+    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable"
   },
   "GrainInterfaces": {
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
@@ -17,8 +16,7 @@
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
     "IntoChat.OS.Connections.Platform.Integrations.IIntegration": "integration.registration",
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
-    "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table",
-    "IntoChat.OS.Modules.Apps.IDataAnalyticsWorker": "ino.data-analytics-worker"
+    "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table"
   },
   "Contracts": {
     "IntoChat.OS.Apps.Gallery.GalleryLibraryState": "os.gallery.library; Category=0, Search=1, SelectedId=2, Count=3",
@@ -80,7 +78,6 @@
     "IntoChat.OS.Modules.Apps.InstalledModule": "apps.installed-module; Id=0, Name=1, Capabilities=2",
     "IntoChat.OS.Modules.Apps.OperationReceipt": "apps.operation-receipt; OperationId=0, RequestHash=1, Result=2",
     "IntoChat.OS.Modules.Apps.RetainedRequest": "apps.retained-request; Sequence=0, Request=1",
-    "IntoChat.OS.Modules.Apps.VfsState": "apps.vfs-state; Revision=0",
     "IntoChat.OS.Modules.ArtCraft.ArtCraftSession": "artcraft.session; App=0, Title=1, McpKey=2, WebUrl=3",
     "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnectionState": "clickhouse.connection-state; ",
     "IntoChat.OS.Modules.Flutter.Viewport.ViewportStorage": "ui.viewport-storage; Revision=0, Target=1",
@@ -262,6 +259,8 @@
     "IntoChat.OS.Modules.AI.SystemOne.Signals.SystemOneDecided": "SystemOneDecided",
     "IntoChat.OS.Modules.AI.Testing.Signals.TestSuiteVerified": "TestSuiteVerified",
     "IntoChat.OS.Modules.Apps.FilesWorkspaceChanged": "FilesWorkspaceChanged",
+    "IntoChat.OS.Modules.Apps.FriendAdded": "FriendAdded",
+    "IntoChat.OS.Modules.Apps.FriendRemoved": "FriendRemoved",
     "IntoChat.OS.Modules.Apps.ProfileChanged": "ProfileChanged",
     "IntoChat.OS.Modules.Apps.Signals.AppActivity": "AppActivity",
     "IntoChat.OS.Modules.Apps.Signals.AppChanged": "AppChanged",
@@ -285,6 +284,7 @@
     "IntoChat.OS.Modules.Flutter.Workspace.ProblemReported": "ProblemReported",
     "IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged": "WorkspaceChanged",
     "IntoChat.OS.Modules.Google.Gmail.MailReceived": "MailReceived",
+    "IntoChat.OS.Modules.LocalDisk.BrainWorkspaceChanged": "BrainWorkspaceChanged",
     "IntoChat.OS.Modules.LocalDisk.LocalDiskRootsChanged": "LocalDiskRootsChanged",
     "IntoChat.OS.Modules.Mcp.McpServerChanged": "McpServerChanged",
     "IntoChat.OS.Modules.Mcp.McpToolRan": "McpToolRan",

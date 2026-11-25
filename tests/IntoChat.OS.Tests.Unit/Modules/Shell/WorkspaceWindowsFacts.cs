@@ -160,7 +160,7 @@ public sealed class WorkspaceWindowsFacts
             .BuildServiceProvider();
         await using var os = TestOS.Local(options => options.Services = services);
         os.Register<DesktopRecordsNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(FlutterModule).Assembly);
         os.Register(typeof(DesktopApp).Assembly);
 

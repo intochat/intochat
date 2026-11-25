@@ -238,7 +238,7 @@ public static class CreatorView
         // 3. Active Flows (Vertical list covering EngineerFlow, ChangeFlow, and BuildFlow)
         children.Add(SectionHeader("Active Flows"));
         var activeFlows = flows
-            .Where(f => f.Type is IFlows.EngineerFlow or IFlows.ChangeFlow or BuildFlow.Alias)
+            .Where(f => f.Type is IEngineerRuns.EngineerFlow or IEngineerRuns.ChangeFlow or BuildInner.Flow)
             .OrderByDescending(f => f.Started)
             .Take(10)
             .ToArray();

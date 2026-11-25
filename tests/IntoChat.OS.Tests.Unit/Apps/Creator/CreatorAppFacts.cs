@@ -251,11 +251,12 @@ public sealed class CreatorAppFacts
     }
 
     [Fact]
-    public async Task SharePublishesInspectedUnitAsAppPostToProfile()
+    public async Task SharePublishesInspectedUnitAsAppPostToThePostStore()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         os.Register<ProfileNeuron>();
+        os.Register<IntoChat.OS.Modules.Apps.Social.PostsNeuron>();
         FakeSynapses.Files = new() { ["ctr.cs"] = "// the counter source" };
         FakeSynapses.SidecarFiles = new() { ["spec.md"] = "Counts bumps." };
         var creator = await os.Install<CreatorApp>();
@@ -266,14 +267,14 @@ public sealed class CreatorAppFacts
 
         await creator.Request("share", new CreatorShare("ctr"));
 
-        var profile = await os.Get<IProfile>(NeuronId.Parse("local/os.profile/profile")).Read();
-        var post = Assert.Single(profile.Posts);
+        var post = Assert.Single((await os.Get<IntoChat.OS.Modules.Apps.Social.IPosts>(NeuronId.Parse("local/social.posts/default")).Since(0, TestContext.Current.CancellationToken)).Posts);
         Assert.Equal("post-ctr", post.Id);
-        Assert.Equal("ctr", post.TemplateAppId);
-        Assert.Equal("// the counter source", post.TemplateSource);
-        Assert.Equal("Counts bumps.", post.Content);
-        Assert.NotNull(post.UnitFiles);
-        Assert.Equal("// the counter source", post.UnitFiles!["ctr.cs"]);
+        Assert.Equal("ctr", post.SharedApp!.AppId);
+        Assert.Equal("Counts bumps.", post.Text);
+        Assert.Equal("// the counter source", post.SharedApp.Files.Single(static file => file.Path == "ctr.cs").Content);
+        // For its owner only, as when the profile kept it; the profile's own list is not written.
+        Assert.Empty(Assert.IsType<Audience.Only>(post.Audience).Accounts);
+        Assert.Empty((await os.Get<IProfile>(NeuronId.Parse("local/os.profile/profile")).Read()).Posts);
     }
 
     [Fact]

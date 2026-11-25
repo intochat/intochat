@@ -668,6 +668,8 @@ public sealed class GitHubIssueWebhookTriageJourneys
                 services =>
                 {
                     GitHubModule.ConfigureServices(services, configuration);
+                    // The issue-triage install keeps its scenarios through the authoring module's unit verifier.
+                    IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, configuration);
                     services.AddSingleton<IModuleIntegrations<GitHubModule>>(integrations);
                     services.AddSingleton(registration);
                     services.AddSingleton(tokens);
@@ -696,6 +698,9 @@ public sealed class GitHubIssueWebhookTriageJourneys
                         typeof(TriageHostTestModule),
                         typeof(GitHubModule),
                         typeof(AppsModule),
+                        typeof(IntoChat.OS.Modules.Runs.RunsModule),
+                        typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),
+                        typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule),
                         typeof(ShippedShellAppsModule),
                         typeof(AuthorityPlainNeurons),
                         typeof(AIModule),

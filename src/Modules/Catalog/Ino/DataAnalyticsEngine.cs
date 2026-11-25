@@ -38,35 +38,32 @@ public static partial class DataAnalyticsEngine
         return CreateEmptyResult(resolvedBrain, database, chartKind);
     }
 
-    public static async Task<DataQueryResult> ExecuteAsync(
+    // A screen has no route to the workspace: it runs on inline data and relational tables only.
+    public static Task<DataQueryResult> ExecuteAsync(string queryOrPrompt, string database, DigitalBrain.BrainId brain = default)
+        => ExecuteOnWorkspaceAsync(queryOrPrompt, database, workspace: null, brain);
+
+    internal static async Task<DataQueryResult> ExecuteOnWorkspaceAsync(
         string queryOrPrompt,
         string database,
-        IFilesVfsService? filesVfs = null,
+        BrainWorkspaceFiles? workspace,
         DigitalBrain.BrainId brain = default)
     {
         var chartKind = InferChartKind(queryOrPrompt);
         var resolvedBrain = ResolveBrain(brain);
 
-        if (filesVfs is not null && TryExtractDatasetFileToken(queryOrPrompt) is { } fileToken)
+        // A dataset is a file of the workspace at the path the query names ("sales.csv", "reports/q4.csv", or the stored
+        // form "/work/q4.csv"); a name without an extension is tried as a .csv file at the same path.
+        if (workspace is not null && TryExtractDatasetFileToken(queryOrPrompt) is { } fileToken)
         {
-            var resolved = await filesVfs.ResolveFileAsync(fileToken)
-                ?? (!Path.HasExtension(fileToken) ? await filesVfs.ResolveFileAsync($"/work/{fileToken}.csv") : null)
-                ?? (!Path.HasExtension(fileToken) ? await filesVfs.ResolveFileAsync($"{fileToken}.csv") : null);
-
-            var path = resolved?.VfsPath ?? fileToken;
-            var text = await filesVfs.ReadTextAsync(path);
-            if (!string.IsNullOrWhiteSpace(text))
+            var located = await workspace.Located(fileToken)
+                ?? (!Path.HasExtension(fileToken) ? await workspace.Located(fileToken + ".csv") : null);
+            var bytes = located is null ? null : await workspace.Read(located);
+            if (located is not null && bytes is { Length: > 0 })
             {
-                var vfsPath = resolved?.VfsPath ?? $"/work/{WorkspaceFilesService.ExtractCleanFileName(fileToken)}";
-                var parsedDataset = ParseFileDataset(vfsPath, text);
+                var parsedDataset = ParseFileDataset(located, System.Text.Encoding.UTF8.GetString(bytes));
                 if (parsedDataset.Rows.Count > 0)
                 {
-                    return RunRelationalPipeline(
-                        parsedDataset,
-                        queryOrPrompt,
-                        chartKind,
-                        vfsPath,
-                        resolved?.NeuronUri ?? BuildDatasetUri(resolvedBrain, vfsPath));
+                    return RunRelationalPipeline(parsedDataset, queryOrPrompt, chartKind, located, BuildDatasetUri(resolvedBrain, located));
                 }
             }
         }
@@ -477,7 +474,7 @@ public static partial class DataAnalyticsEngine
             ? $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
             : value;
 
-    [GeneratedRegex(@"(?<file>(?:/work/)?[a-zA-Z0-9_\-\.]+\.(?:csv|tsv|json))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    [GeneratedRegex(@"(?<file>(?:/work/)?(?:[a-zA-Z0-9_\-\.]+/)*[a-zA-Z0-9_\-\.]+\.(?:csv|tsv|json))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex DatasetFileRegex();
 
     [GeneratedRegex(@"\b(?:FROM|OF|FOR)\s+(?<table>[a-zA-Z0-9_\-\./]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]

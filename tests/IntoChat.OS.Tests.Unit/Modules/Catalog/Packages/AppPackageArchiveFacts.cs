@@ -8,6 +8,9 @@ public sealed class AppPackageArchiveFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // The verifier of a host with no compiler of its own: the default reference set.
+    private static readonly IUnitVerifier Verifier = new UnitVerifier();
+
     private static string LocateHelloWorldFolder()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -30,7 +33,7 @@ public sealed class AppPackageArchiveFacts
         var studio = new RecordingSynapseStudio();
 
         // 1. Import from apps/helloworld folder (verifies Roslyn + PE boundary + scenarios before deploy)
-        var folderImport = await AppPackageArchive.ImportFromDirectoryAsync(helloDir, studio, ct: Ct);
+        var folderImport = await AppPackageArchive.ImportFromDirectoryAsync(helloDir, Verifier, studio, ct: Ct);
         Assert.True(folderImport.Succeeded, string.Join("\n", folderImport.Errors));
         Assert.Equal("helloworld", folderImport.Alias);
         Assert.NotNull(folderImport.Skill);
@@ -46,7 +49,7 @@ public sealed class AppPackageArchiveFacts
 
         // 3. Re-import ZIP into a fresh studio and verify identical files + deployment
         var freshStudio = new RecordingSynapseStudio();
-        var zipImport = await AppPackageArchive.ImportZipAsync(zipBytes, freshStudio, ct: Ct);
+        var zipImport = await AppPackageArchive.ImportZipAsync(zipBytes, Verifier, freshStudio, ct: Ct);
         Assert.True(zipImport.Succeeded, string.Join("\n", zipImport.Errors));
         Assert.Equal("helloworld", zipImport.Alias);
         Assert.Equal(1, freshStudio.DeployCount);
@@ -65,7 +68,7 @@ public sealed class AppPackageArchiveFacts
             Assert.True(File.Exists(Path.Combine(tempDir, "SKILL.md")));
             Assert.True(File.Exists(Path.Combine(tempDir, "spec.md")));
 
-            var reimported = await AppPackageArchive.ImportFromDirectoryAsync(tempDir, ct: Ct);
+            var reimported = await AppPackageArchive.ImportFromDirectoryAsync(tempDir, Verifier, ct: Ct);
             Assert.True(reimported.Succeeded, string.Join("\n", reimported.Errors));
             Assert.Equal("helloworld", reimported.Alias);
         }
@@ -85,13 +88,13 @@ public sealed class AppPackageArchiveFacts
 
         // 1. ZipSlip path traversal entry rejected
         var zipSlipBytes = BuildRawZip(("../evil.cs", "// traversal"));
-        var zipSlipResult = await AppPackageArchive.ImportZipAsync(zipSlipBytes, studio, ct: Ct);
+        var zipSlipResult = await AppPackageArchive.ImportZipAsync(zipSlipBytes, Verifier, studio, ct: Ct);
         Assert.False(zipSlipResult.Succeeded);
         Assert.Equal(0, studio.DeployCount);
 
         // 2. Disallowed executable file rejected
         var exeZipBytes = BuildRawZip(("payload.exe", "MZ"), ("Unit.cs", "[DigitalBrain.State(\"bad\")] public record S;"));
-        var exeResult = await AppPackageArchive.ImportZipAsync(exeZipBytes, studio, ct: Ct);
+        var exeResult = await AppPackageArchive.ImportZipAsync(exeZipBytes, Verifier, studio, ct: Ct);
         Assert.False(exeResult.Succeeded);
         Assert.Equal(0, studio.DeployCount);
 
@@ -100,7 +103,7 @@ public sealed class AppPackageArchiveFacts
         {
             ["Broken.cs"] = "using DigitalBrain; [State(\"broken\")] public sealed record BrokenState( { syntax error",
         });
-        var badCsResult = await AppPackageArchive.ImportZipAsync(badCsZip, studio, ct: Ct);
+        var badCsResult = await AppPackageArchive.ImportZipAsync(badCsZip, Verifier, studio, ct: Ct);
         Assert.False(badCsResult.Succeeded);
         Assert.NotEmpty(badCsResult.Errors);
         Assert.Equal(0, studio.DeployCount);
@@ -122,7 +125,7 @@ public sealed class AppPackageArchiveFacts
                 ]
                 """,
         });
-        var redResult = await AppPackageArchive.ImportZipAsync(redScenarioZip, studio, ct: Ct);
+        var redResult = await AppPackageArchive.ImportZipAsync(redScenarioZip, Verifier, studio, ct: Ct);
         Assert.False(redResult.Succeeded);
         Assert.Contains(redResult.Errors, e => e.Contains("wrong-expectation", StringComparison.Ordinal));
         Assert.Equal(0, studio.DeployCount);

@@ -158,8 +158,9 @@ public sealed class FriendsFacts
         {
             await world.Friends(Ada).Unfriend(new AccountId(Ben));
             Assert.Empty(await world.Friends(Ada).List());
-            Assert.Empty(await world.Door(Ada).Shares());
         }
+        // The door drops the shares when it hears of the removal; the visitor is refused before that (FriendRemovalDoorFacts).
+        await world.NoSharesLeft(Ada);
 
         using (As(Ben))
         {
@@ -177,9 +178,8 @@ public sealed class FriendsFacts
 
         using (As(Ben)) { await world.Friends(Ben).Unfriend(new AccountId(Ada)); }
 
-        using var ada = As(Ada);
-        Assert.Empty(await world.Friends(Ada).List());
-        Assert.Empty(await world.Door(Ada).Shares());
+        using (As(Ada)) { Assert.Empty(await world.Friends(Ada).List()); }
+        await world.NoSharesLeft(Ada);
     }
 
     [Fact]

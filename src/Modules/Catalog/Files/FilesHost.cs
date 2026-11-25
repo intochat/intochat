@@ -88,6 +88,10 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
     internal static async Task EnsureDefaultLocalRootsAsync(IServiceProvider services, string brain)
     {
         var logger = services.GetService<ILoggerFactory>()?.CreateLogger<FilesHost>() ?? OsConsoleLog.For<FilesHost>();
+        // The files module of this brain seeds the default folder, whoever's request led here (the local disk takes root
+        // changes only from the person of the brain or the host).
+        var edge = services.GetService<EdgeAuthority>();
+        using var module = edge?.Enter(edge.Module("apps.files", new BrainId(brain)));
         try
         {
             var disk = SiloNeurons.Get<ILocalDisk>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "local-disk", "main"));

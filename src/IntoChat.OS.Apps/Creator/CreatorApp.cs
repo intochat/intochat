@@ -80,13 +80,14 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     private readonly ILogger _logger;
     private readonly TimeProvider? _time;
 
-    public CreatorApp() : this(null, null) { }
+    public CreatorApp() : this(null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public CreatorApp(ILogger<CreatorApp>? logger = null, TimeProvider? time = null)
+    public CreatorApp(ILogger<CreatorApp>? logger = null, TimeProvider? time = null, IUnitVerifier? verifier = null)
     {
         _logger = (ILogger?)logger ?? ConsoleLogger;
         _time = time;
+        RunScenarios = verifier is null ? NoScenarioRuns : verifier.Transcript;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<StudioNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -278,7 +279,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     [Slot(Key = IDebuggerReads.DefaultKey, Required = false)] private partial IDebuggerReads? DebuggerReads { get; }
     [Slot(Key = ITraceReader.DefaultKey, Required = false)] private partial ITraceReader? TraceReader { get; }
     [Slot(Key = IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector.DefaultKey, Required = false)] private partial IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector? UiIntrospector { get; }
-    [Slot(Key = "profile", Required = false)] private partial IProfile? Profile { get; }
+    [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Social.IPosts? Posts { get; }
     [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
     [Slot(Key = CreatorView.InspectorTabsKey, Required = false)] private partial ITabs? InspectorTabs { get; }
     [Slot(Key = CreatorView.ReplaySliderKey, Required = false)] private partial ISlider? ReplaySlider { get; }
@@ -307,7 +308,11 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
     public TimeSpan ScenarioBudget { get; set; } = TimeSpan.FromSeconds(30);
 
-    public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; } = ScenarioTranscripts.Run;
+    // The host's unit verifier runs the scenarios; a host without one says so.
+    public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; }
+
+    private static Task<string> NoScenarioRuns(string alias, IReadOnlyDictionary<string, string> files, string? scenario, CancellationToken ct)
+        => Task.FromResult("Scenario runs are not available in this brain.");
 
     public const string AppName = ShippedApps.Creator;
 
@@ -515,28 +520,27 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             var embeddedTarget = BrainId.IsValid(brainId) && IntoChat.OS.Host.Primitives.UnitAlias.TryParse(alias, out var parsedAlias)
                 ? parsedAlias.StateNeuron(new BrainId(brainId)).ToString()
                 : alias;
-            var post = new ProfilePostItem(
-                Id: $"post-{alias}",
-                Content: summary,
-                CreatedAt: NowUtc(),
-                Circle: "",
-                Title: alias,
-                TemplateAppId: alias,
-                TemplateSource: csSource,
-                EmbeddedApps: [new("main", alias, alias, embeddedTarget)],
-                UnitFiles: files.Count > 0 ? files : null,
-                AuthorBrainId: brainId)
+            if (Posts is not { } posts)
             {
-                Audience = new Audience.Public(),
-            };
-
-            if (Profile is not { } profile)
-            {
-                await Show(State with { Status = $"Could not share {alias}: profile neuron unavailable." });
+                await Show(State with { Status = $"Could not share {alias}: the post store is unavailable." });
                 return;
             }
 
-            await profile.PublishAppPost(post);
+            // The post goes to the brain's post store for its owner only, as it was when the profile kept it: it carries
+            // the unit's source, and showing it to friends is a choice made in the Friends app.
+            await posts.Publish(new IntoChat.OS.Modules.Apps.Social.PostDraft(
+                summary,
+                [],
+                new IntoChat.OS.Modules.Apps.Social.AppDefinitionShare(
+                    alias,
+                    alias,
+                    [.. files.OrderBy(static kv => kv.Key, StringComparer.Ordinal).Select(static kv => new IntoChat.OS.Modules.Apps.Social.SharedSourceFile(kv.Key, kv.Value))]),
+                Id: $"post-{alias}",
+                Title: alias,
+                Audience: new Audience.Only([]),
+                EmbeddedApps: [new("main", alias, alias, embeddedTarget)],
+                CreatedAt: NowUtc(),
+                TemplateSource: files.Keys.Any(static path => path.EndsWith(".cs", StringComparison.Ordinal)) || string.IsNullOrWhiteSpace(csSource) ? null : csSource));
             await Show(State with { Status = $"Shared {alias} as App-Post post-{alias}" });
         }
         catch (Exception error) when (error is not OperationCanceledException)

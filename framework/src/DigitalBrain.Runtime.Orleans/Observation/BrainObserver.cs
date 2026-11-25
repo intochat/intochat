@@ -61,7 +61,11 @@ internal sealed class ClusterBrainObserver(IGrainFactory grains, IServiceProvide
 
     public async Task<System.Text.Json.JsonElement?> State(NeuronId id, CancellationToken cancellationToken = default)
     {
-        var host = grains.GetGrain<Hosting.INeuronHost>(id.ToString());
+        // Three host grains implement INeuronHost, so the grain is named by the neuron's hosting policy, never by the interface alone.
+        var grainType = services.GetService<Hosting.NeuronTypeRegistry>() is { } types && types.TryGetRegistration(id.Type, out var registration)
+            ? Hosting.NeuronTypeRegistry.GrainTypeOf(registration.Policy)
+            : Hosting.NeuronTypeRegistry.AffineGrainType;
+        var host = grains.GetGrain<Hosting.INeuronHost>(global::Orleans.Runtime.GrainId.Create(grainType, id.ToString()));
         return await host.InspectState(cancellationToken).ConfigureAwait(false);
     }
 

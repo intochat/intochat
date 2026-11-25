@@ -1,10 +1,12 @@
 using DigitalBrain.Modules;
+using DigitalBrain.Runtime.Http.Surface;
+using Microsoft.AspNetCore.Routing;
 
 namespace IntoChat.OS.Modules.UI;
 
 // Unified stateful UI component neurons (Chart, Toggle, CheckBox, Select, Tabs, Expander, ListBox, Table).
 [DigitalBrain.Modules.Module(UiModule.ModuleName)]
-public sealed class UiModule : DigitalBrain.Modules.Module
+public sealed class UiModule : DigitalBrain.Modules.Module, IHttpModule
 {
     internal const string ModuleName = "ui";
 
@@ -16,4 +18,11 @@ public sealed class UiModule : DigitalBrain.Modules.Module
         Needs: [],
         Settings: [],
         Secrets: []);
+
+    // The Widgetbook static site at /widgetbook, beside the widgetbook neuron.
+    public void Configure(IEndpointRouteBuilder endpoints)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        Widgetbook.WidgetbookWebEndpoints.Map(endpoints);
+    }
 }

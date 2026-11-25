@@ -15,58 +15,6 @@ void main() {
     );
   }
 
-  testWidgets('ToggleWidget reads IToggle state and invokes Toggle on tap', (
-    tester,
-  ) async {
-    var isOn = false;
-    final calls = <String>[];
-    final controller = StreamController<void>.broadcast();
-
-    Future<Map<String, dynamic>?> callNeuron(
-      String contract,
-      String key,
-      String method,
-      List<Object?> args,
-    ) async {
-      calls.add('$contract.$method');
-      if (method == 'Toggle') {
-        isOn = !isOn;
-        controller.add(null);
-      }
-      return {
-        'version': calls.length,
-        'label': 'Live telemetry',
-        'isOn': isOn,
-        'isEnabled': true,
-        'onLabel': 'Active',
-        'offLabel': 'Paused',
-      };
-    }
-
-    await tester.pumpWidget(
-      wrap(
-        buildUiNeuronWidget(
-          kind: 'ui.toggle',
-          neuronKey: 'gallery/toggles/wifi',
-          callNeuron: callNeuron,
-          watch: (_, _) => controller.stream,
-        )!,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Live telemetry'), findsOneWidget);
-    expect(find.text('Paused'), findsOneWidget);
-
-    await tester.tap(find.byType(UiMixToggle));
-    await tester.pumpAndSettle();
-
-    expect(calls, contains('IntoChat.OS.Modules.UI.Toggle.IToggle.Toggle'));
-    expect(find.text('Active'), findsOneWidget);
-
-    await controller.close();
-  });
-
   testWidgets(
     'ChartWidget reads IChart state, renders docs and selected point',
     (tester) async {
@@ -230,587 +178,302 @@ void main() {
     },
   );
 
-  testWidgets(
-    'NumberBoxWidget and TreeViewWidget invoke typed neuron methods',
-    (tester) async {
-      final calls = <String>[];
+  testWidgets('TreeViewWidget invokes typed neuron methods', (tester) async {
+    final calls = <String>[];
 
-      Future<Map<String, dynamic>?> callNeuron(
-        String contract,
-        String key,
-        String method,
-        List<Object?> args,
-      ) async {
-        calls.add('$contract.$method');
-        if (contract.endsWith('INumberBox')) {
-          return {
-            'version': 1,
-            'label': 'Spend Cap',
-            'value': method == 'Increment' ? 60.0 : 50.0,
-            'min': 10.0,
-            'max': 500.0,
-            'step': 10.0,
-            'isEnabled': true,
-            'prefix': '\$',
-          };
-        }
+    Future<Map<String, dynamic>?> callNeuron(
+      String contract,
+      String key,
+      String method,
+      List<Object?> args,
+    ) async {
+      calls.add('$contract.$method');
+      return {
+        'version': 1,
+        'expandedIds': ['src'],
+        'selectedId': method == 'Select' ? args.first : 'src',
+        'nodes': [
+          {'id': 'src', 'label': 'src', 'parentId': null, 'isFolder': true},
+          {
+            'id': 'chart',
+            'label': 'ChartNeuron.cs',
+            'parentId': 'src',
+            'isFolder': false,
+          },
+        ],
+      };
+    }
+
+    await tester.pumpWidget(
+      wrap(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildUiNeuronWidget(
+              kind: 'ui.tree-view',
+              neuronKey: 'gallery/tree-view/demo',
+              callNeuron: callNeuron,
+            )!,
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('ChartNeuron.cs'), findsOneWidget);
+    await tester.tap(find.text('ChartNeuron.cs'));
+    await tester.pumpAndSettle();
+    expect(calls, contains('IntoChat.OS.Modules.UI.TreeView.ITreeView.Select'));
+  });
+
+  testWidgets('Tier 2/3 GridView and ImageViewer invoke gRPC methods', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    var rotation = 0;
+
+    Future<Map<String, dynamic>?> callNeuron(
+      String contract,
+      String key,
+      String method,
+      List<Object?> args,
+    ) async {
+      calls.add('$contract.$method');
+      if (contract.endsWith('IGridView')) {
         return {
-          'version': 1,
-          'expandedIds': ['src'],
-          'selectedId': method == 'Select' ? args.first : 'src',
-          'nodes': [
-            {'id': 'src', 'label': 'src', 'parentId': null, 'isFolder': true},
+          'version': calls.length,
+          'title': 'Assets',
+          'selectedId': method == 'Select' ? args.first : 'arch',
+          'columns': 2,
+          'items': [
             {
-              'id': 'chart',
-              'label': 'ChartNeuron.cs',
-              'parentId': 'src',
-              'isFolder': false,
+              'id': 'arch',
+              'title': 'architecture.md',
+              'subtitle': '14 KB',
+              'badge': 'DOC',
+            },
+            {
+              'id': 'hero',
+              'title': 'hero-banner.png',
+              'subtitle': '1.2 MB',
+              'badge': 'IMG',
             },
           ],
         };
       }
-
-      await tester.pumpWidget(
-        wrap(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              buildUiNeuronWidget(
-                kind: 'ui.number-box',
-                neuronKey: 'gallery/number/demo',
-                callNeuron: callNeuron,
-              )!,
-              buildUiNeuronWidget(
-                kind: 'ui.tree-view',
-                neuronKey: 'gallery/tree-view/demo',
-                callNeuron: callNeuron,
-              )!,
-            ],
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('\$50'), findsOneWidget);
-      await tester.tap(find.byTooltip('Increment'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.NumberBox.INumberBox.Increment'),
-      );
-      expect(find.text('\$60'), findsOneWidget);
-
-      expect(find.text('ChartNeuron.cs'), findsOneWidget);
-      await tester.tap(find.text('ChartNeuron.cs'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.TreeView.ITreeView.Select'),
-      );
-    },
-  );
-
-  testWidgets(
-    'Tier 2/3 CalendarView, GridView, ImageViewer and MediaPlayer invoke gRPC methods',
-    (tester) async {
-      final calls = <String>[];
-      var playing = false;
-      var rotation = 0;
-
-      Future<Map<String, dynamic>?> callNeuron(
-        String contract,
-        String key,
-        String method,
-        List<Object?> args,
-      ) async {
-        calls.add('$contract.$method');
-        if (contract.endsWith('ICalendarView')) {
-          return {
-            'version': calls.length,
-            'title': 'Sprint',
-            'year': 2026,
-            'month': 11,
-            'selectedDates': ['2026-11-19'],
-            'multiSelect': true,
-          };
-        }
-        if (contract.endsWith('IGridView')) {
-          return {
-            'version': calls.length,
-            'title': 'Assets',
-            'selectedId': method == 'Select' ? args.first : 'arch',
-            'columns': 2,
-            'items': [
-              {
-                'id': 'arch',
-                'title': 'architecture.md',
-                'subtitle': '14 KB',
-                'badge': 'DOC',
-              },
-              {
-                'id': 'hero',
-                'title': 'hero-banner.png',
-                'subtitle': '1.2 MB',
-                'badge': 'IMG',
-              },
-            ],
-          };
-        }
-        if (contract.endsWith('IImageViewer')) {
-          if (method == 'Rotate') rotation = (rotation + 90) % 360;
-          return {
-            'version': calls.length,
-            'title': 'Preview',
-            'sourceUrl': '',
-            'zoom': 1.0,
-            'rotationDegrees': rotation,
-            'fitMode': 'contain',
-          };
-        }
-        if (contract.endsWith('IMediaPlayer')) {
-          if (method == 'Play') playing = true;
-          if (method == 'Pause') playing = false;
-          return {
-            'version': calls.length,
-            'title': 'Ambient Focus',
-            'artist': 'Neural Audio',
-            'playing': playing,
-            'positionSeconds': 15.0,
-            'durationSeconds': 180.0,
-            'volume': 0.8,
-            'muted': false,
-          };
-        }
-        return {'version': 1};
+      if (contract.endsWith('IImageViewer')) {
+        if (method == 'Rotate') rotation = (rotation + 90) % 360;
+        return {
+          'version': calls.length,
+          'title': 'Preview',
+          'sourceUrl': '',
+          'zoom': 1.0,
+          'rotationDegrees': rotation,
+          'fitMode': 'contain',
+        };
       }
+      return {'version': 1};
+    }
 
-      await tester.pumpWidget(
-        wrap(
-          SingleChildScrollView(
-            child: SizedBox(
-              width: 560,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildUiNeuronWidget(
-                    kind: 'ui.calendar',
-                    neuronKey: 'gallery/calendar/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.grid-view',
-                    neuronKey: 'gallery/grid-view/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.image-viewer',
-                    neuronKey: 'gallery/image-viewer/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.media-player',
-                    neuronKey: 'gallery/media-player/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                ],
-              ),
+    await tester.pumpWidget(
+      wrap(
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildUiNeuronWidget(
+                  kind: 'ui.grid-view',
+                  neuronKey: 'gallery/grid-view/demo',
+                  callNeuron: callNeuron,
+                )!,
+                buildUiNeuronWidget(
+                  kind: 'ui.image-viewer',
+                  neuronKey: 'gallery/image-viewer/demo',
+                  callNeuron: callNeuron,
+                )!,
+              ],
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('hero-banner.png'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.GridView.IGridView.Select'),
-      );
+    await tester.tap(find.text('hero-banner.png'));
+    await tester.pumpAndSettle();
+    expect(calls, contains('IntoChat.OS.Modules.UI.GridView.IGridView.Select'));
 
-      await tester.tap(find.byIcon(Icons.rotate_right));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.ImageViewer.IImageViewer.Rotate'),
-      );
+    await tester.tap(find.byIcon(Icons.rotate_right));
+    await tester.pumpAndSettle();
+    expect(
+      calls,
+      contains('IntoChat.OS.Modules.UI.ImageViewer.IImageViewer.Rotate'),
+    );
+  });
 
-      await tester.ensureVisible(find.byIcon(Icons.play_arrow));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.play_arrow));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.MediaPlayer.IMediaPlayer.Play'),
-      );
-    },
-  );
+  testWidgets('Wave 2 CommandBar invokes gRPC methods', (tester) async {
+    final calls = <String>[];
 
-  testWidgets(
-    'Wave 2 CommandBar, SplitButton, PersonPicture and TeachingTip invoke gRPC methods',
-    (tester) async {
-      final calls = <String>[];
-      var tipOpen = true;
-
-      Future<Map<String, dynamic>?> callNeuron(
-        String contract,
-        String key,
-        String method,
-        List<Object?> args,
-      ) async {
-        calls.add('$contract.$method');
-        if (contract.endsWith('ICommandBar')) {
-          return {
-            'version': calls.length,
-            'items': [
-              {'id': 'run', 'label': 'Run', 'icon': 'play', 'primary': true},
-            ],
-            'lastInvokedId': method == 'Invoke' ? args.first : null,
-            'invokeCount': method == 'Invoke' ? 1 : 0,
-          };
-        }
-        if (contract.endsWith('ISplitButton')) {
-          return {
-            'version': calls.length,
-            'primaryLabel': 'Build & Test',
-            'primaryIcon': 'play',
-            'options': [
-              {'id': 'build-test', 'label': 'Build & Test'},
-            ],
-            'invokeCount': method == 'InvokePrimary' ? 1 : 0,
-          };
-        }
-        if (contract.endsWith('IPersonPicture')) {
-          return {
-            'version': 1,
-            'displayName': 'Ada Lovelace',
-            'initials': 'AL',
-            'presence': 'online',
-            'subtitle': 'Architect',
-          };
-        }
-        if (contract.endsWith('ITeachingTip')) {
-          if (method == 'InvokeAction' || method == 'Dismiss') tipOpen = false;
-          return {
-            'version': calls.length,
-            'title': 'Direct gRPC Neurons',
-            'subtitle': 'All 34 UI controls are live.',
-            'isOpen': tipOpen,
-            'actionLabel': 'Explore Charts',
-            'actionCount': method == 'InvokeAction' ? 1 : 0,
-          };
-        }
-        return {'version': 1};
+    Future<Map<String, dynamic>?> callNeuron(
+      String contract,
+      String key,
+      String method,
+      List<Object?> args,
+    ) async {
+      calls.add('$contract.$method');
+      if (contract.endsWith('ICommandBar')) {
+        return {
+          'version': calls.length,
+          'items': [
+            {'id': 'run', 'label': 'Run', 'icon': 'play', 'primary': true},
+          ],
+          'lastInvokedId': method == 'Invoke' ? args.first : null,
+          'invokeCount': method == 'Invoke' ? 1 : 0,
+        };
       }
+      return {'version': 1};
+    }
 
-      await tester.pumpWidget(
-        wrap(
-          SingleChildScrollView(
-            child: SizedBox(
-              width: 560,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildUiNeuronWidget(
-                    kind: 'ui.command-bar',
-                    neuronKey: 'gallery/command-bar/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.split-button',
-                    neuronKey: 'gallery/split-button/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.person-picture',
-                    neuronKey: 'gallery/person/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.teaching-tip',
-                    neuronKey: 'gallery/teaching-tip/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                ],
-              ),
+    await tester.pumpWidget(
+      wrap(
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildUiNeuronWidget(
+                  kind: 'ui.command-bar',
+                  neuronKey: 'gallery/command-bar/demo',
+                  callNeuron: callNeuron,
+                )!,
+              ],
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Run'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.CommandBar.ICommandBar.Invoke'),
-      );
+    await tester.tap(find.text('Run'));
+    await tester.pumpAndSettle();
+    expect(
+      calls,
+      contains('IntoChat.OS.Modules.UI.CommandBar.ICommandBar.Invoke'),
+    );
+  });
 
-      await tester.tap(find.text('Build & Test'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains(
-          'IntoChat.OS.Modules.UI.SplitButton.ISplitButton.InvokePrimary',
-        ),
-      );
+  testWidgets('Wave 3 Stepper, PropertyGrid and Kanban invoke gRPC methods', (
+    tester,
+  ) async {
+    final calls = <String>[];
 
-      expect(find.text('Ada Lovelace'), findsOneWidget);
-
-      await tester.tap(find.text('Explore Charts'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains(
-          'IntoChat.OS.Modules.UI.TeachingTip.ITeachingTip.InvokeAction',
-        ),
-      );
-    },
-  );
-
-  testWidgets(
-    'Wave 3 Stepper, PropertyGrid, PipsPager, InfoBadge, Toast, FilePicker, ToggleSplitButton and Kanban invoke gRPC methods',
-    (tester) async {
-      final calls = <String>[];
-
-      Future<Map<String, dynamic>?> callNeuron(
-        String contract,
-        String key,
-        String method,
-        List<Object?> args,
-      ) async {
-        calls.add('$contract.$method');
-        if (contract.endsWith('IStepper')) {
-          return {
-            'version': calls.length,
-            'title': 'Engineer Pipeline',
-            'activeStepId': 'code',
-            'allowInteractiveSelection': true,
-            'steps': [
-              {'id': 'plan', 'title': 'Plan', 'status': 'done'},
-              {'id': 'code', 'title': 'Implement', 'status': 'active'},
-            ],
-          };
-        }
-        if (contract.endsWith('IPropertyGrid')) {
-          return {
-            'version': calls.length,
-            'title': 'Live State',
-            'readOnly': true,
-            'filter': '',
-            'expandedPaths': const <String>[],
-            'entries': [
-              {
-                'path': 'version',
-                'name': 'version',
-                'value': '3',
-                'valueKind': 'number',
-                'depth': 0,
-                'hasChildren': false,
-              },
-            ],
-          };
-        }
-        if (contract.endsWith('IPipsPager')) {
-          return {
-            'version': calls.length,
-            'pageCount': 4,
-            'selectedIndex': method == 'Next' ? 1 : 0,
-            'maxVisiblePips': 4,
-            'orientation': 'horizontal',
-            'showPrevNext': true,
-          };
-        }
-        if (contract.endsWith('IInfoBadge')) {
-          return {
-            'version': 1,
-            'label': 'Reviews',
-            'value': 7,
-            'severity': 'attention',
-            'kind': 'count',
-            'isVisible': true,
-          };
-        }
-        if (contract.endsWith('INotificationToast')) {
-          return {
-            'version': calls.length,
-            'isOpen': method != 'InvokeAction',
-            'items': method == 'InvokeAction'
-                ? const []
-                : [
-                    {
-                      'id': 't1',
-                      'title': 'Build Ready',
-                      'message': 'All green',
-                      'severity': 'success',
-                      'actionLabel': 'Open Report',
-                    },
-                  ],
-          };
-        }
-        if (contract.endsWith('IFilePicker')) {
-          return {
-            'version': calls.length,
-            'title': 'Pick File',
-            'mode': 'open',
-            'currentPath': '/workspace',
-            'activeFilter': '*',
-            'filters': ['*', '.cs'],
-            'selectedPaths': ['/workspace/App.cs'],
-            'entries': [
-              {
-                'path': '/workspace/App.cs',
-                'name': 'App.cs',
-                'isDirectory': false,
-                'sizeBytes': 2048,
-              },
-            ],
-          };
-        }
-        if (contract.endsWith('IToggleSplitButton')) {
-          return {
-            'version': calls.length,
-            'label': 'Live Watch',
-            'isChecked': method == 'Toggle',
-            'isEnabled': true,
-            'options': [
-              {'id': 'all', 'label': 'Watch All'},
-            ],
-          };
-        }
-        if (contract.endsWith('IKanbanBoard')) {
-          return {
-            'version': calls.length,
-            'title': 'Sprint Board',
-            'selectedCardId': 'c1',
-            'columns': [
-              {'id': 'todo', 'title': 'Backlog'},
-              {'id': 'done', 'title': 'Done'},
-            ],
-            'cards': [
-              {
-                'id': 'c1',
-                'columnId': method == 'MoveCard' ? 'done' : 'todo',
-                'title': 'Wire Stepper',
-                'order': 0,
-              },
-            ],
-          };
-        }
-        return {'version': 1};
+    Future<Map<String, dynamic>?> callNeuron(
+      String contract,
+      String key,
+      String method,
+      List<Object?> args,
+    ) async {
+      calls.add('$contract.$method');
+      if (contract.endsWith('IStepper')) {
+        return {
+          'version': calls.length,
+          'title': 'Engineer Pipeline',
+          'activeStepId': 'code',
+          'allowInteractiveSelection': true,
+          'steps': [
+            {'id': 'plan', 'title': 'Plan', 'status': 'done'},
+            {'id': 'code', 'title': 'Implement', 'status': 'active'},
+          ],
+        };
       }
+      if (contract.endsWith('IPropertyGrid')) {
+        return {
+          'version': calls.length,
+          'title': 'Live State',
+          'readOnly': true,
+          'filter': '',
+          'expandedPaths': const <String>[],
+          'entries': [
+            {
+              'path': 'version',
+              'name': 'version',
+              'value': '3',
+              'valueKind': 'number',
+              'depth': 0,
+              'hasChildren': false,
+            },
+          ],
+        };
+      }
+      if (contract.endsWith('IKanbanBoard')) {
+        return {
+          'version': calls.length,
+          'title': 'Sprint Board',
+          'selectedCardId': 'c1',
+          'columns': [
+            {'id': 'todo', 'title': 'Backlog'},
+            {'id': 'done', 'title': 'Done'},
+          ],
+          'cards': [
+            {
+              'id': 'c1',
+              'columnId': method == 'MoveCard' ? 'done' : 'todo',
+              'title': 'Wire Stepper',
+              'order': 0,
+            },
+          ],
+        };
+      }
+      return {'version': 1};
+    }
 
-      await tester.pumpWidget(
-        wrap(
-          SingleChildScrollView(
-            child: SizedBox(
-              width: 680,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildUiNeuronWidget(
-                    kind: 'ui.stepper',
-                    neuronKey: 'gallery/stepper/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.property-grid',
-                    neuronKey: 'gallery/property-grid/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.pips-pager',
-                    neuronKey: 'gallery/pips-pager/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.info-badge',
-                    neuronKey: 'gallery/info-badge/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.toast',
-                    neuronKey: 'gallery/toast/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.file-picker',
-                    neuronKey: 'gallery/file-picker/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.toggle-split-button',
-                    neuronKey: 'gallery/toggle-split-button/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                  buildUiNeuronWidget(
-                    kind: 'ui.kanban',
-                    neuronKey: 'gallery/kanban/demo',
-                    callNeuron: callNeuron,
-                  )!,
-                ],
-              ),
+    await tester.pumpWidget(
+      wrap(
+        SingleChildScrollView(
+          child: SizedBox(
+            width: 680,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildUiNeuronWidget(
+                  kind: 'ui.stepper',
+                  neuronKey: 'gallery/stepper/demo',
+                  callNeuron: callNeuron,
+                )!,
+                buildUiNeuronWidget(
+                  kind: 'ui.property-grid',
+                  neuronKey: 'gallery/property-grid/demo',
+                  callNeuron: callNeuron,
+                )!,
+                buildUiNeuronWidget(
+                  kind: 'ui.kanban',
+                  neuronKey: 'gallery/kanban/demo',
+                  callNeuron: callNeuron,
+                )!,
+              ],
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Advance'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.Stepper.IStepper.Advance'),
-      );
+    await tester.tap(find.text('Advance'));
+    await tester.pumpAndSettle();
+    expect(calls, contains('IntoChat.OS.Modules.UI.Stepper.IStepper.Advance'));
 
-      expect(find.text('Reviews'), findsOneWidget);
-      expect(find.text('7'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Next page'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.PipsPager.IPipsPager.Next'),
-      );
-
-      await tester.tap(find.text('Open Report'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains(
-          'IntoChat.OS.Modules.UI.NotificationToast.INotificationToast.InvokeAction',
-        ),
-      );
-
-      await tester.ensureVisible(find.text('Open'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.FilePicker.IFilePicker.Confirm'),
-      );
-
-      await tester.ensureVisible(find.text('Live Watch'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Live Watch'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains(
-          'IntoChat.OS.Modules.UI.ToggleSplitButton.IToggleSplitButton.Toggle',
-        ),
-      );
-
-      await tester.ensureVisible(find.text('Done'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Done'));
-      await tester.pumpAndSettle();
-      expect(
-        calls,
-        contains('IntoChat.OS.Modules.UI.KanbanBoard.IKanbanBoard.MoveCard'),
-      );
-    },
-  );
+    await tester.ensureVisible(find.text('Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(
+      calls,
+      contains('IntoChat.OS.Modules.UI.KanbanBoard.IKanbanBoard.MoveCard'),
+    );
+  });
 
   test('re_highlight builds light/dark themes for all 7 languages and uiIconCatalog resolves every category', () {
     const langs = [

@@ -8,7 +8,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.PhotoCraft;
 public sealed class PhotoCraftAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> PhotoCraftOperations
-        => ScreenBaseline.Cases(typeof(PhotoCraftApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(PhotoCraftApp), os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(PhotoCraftOperations))]
     public Task PhotoCraftStudioBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -18,7 +18,7 @@ public sealed class PhotoCraftAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(PhotoCraftApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.photocraft", "default"));
         var initial = await screen.Read();
@@ -33,7 +33,7 @@ public sealed class PhotoCraftAppFacts
     public async Task PhotoCraftWithoutConnectedMcpFailsHonestlyWithoutProceduralPngOrFakeCli()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         var installed = await os.Install<PhotoCraftApp>();
 
         Assert.Equal("wasm-ui", installed.App.State.ExecutionMode);

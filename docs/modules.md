@@ -20,11 +20,13 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | --- | --- | --- |
 | `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients). Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
+| `Authoring` | `authoring` | Unit authoring: the Creator's Author and Builder, the build flow (`BuildFlow`), the synapse studio (`ISynapseStudio`) and the deploy gate that runs a unit's scenarios (`IUnitVerifier`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`, and it reads the Author and Builder models from the `apps` options. |
 | `Azure` | `azure` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager, and Pulumi stacks. |
-| `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |
+| `Catalog` | `apps` | App manifests, install, versions, approvals and flows. Units are built by the `Authoring` module. |
 | `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
 | `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |
+| `Diagnostics` | `diagnostics` | The read side of diagnostics: the Creator's reads of the running brain (`IDebuggerReads`: a unit's state, view, signals and failures, and the topology) and the trace reader (`ITraceReader`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
 | `GitHub` | `github` | GitHub repository connection neurons. |
 | `Google` | `google-auth`, `google-drive`, `gmail` | Google sign-in shared by Drive and Gmail; Drive as storage; Gmail. |
 | `Mcp` | `mcp`, `tools` | Any Streamable-HTTP MCP server as a tool source, and the per-brain registry of tool sources. |
@@ -32,9 +34,10 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | `Playwright` | `playwright` | Browser sessions and page tools. |
 | `Postgres` | `postgres` | Read-only PostgreSQL queries, schema discovery and table neurons. Needs a container. |
 | `Roslyn` | `roslyn` | A Roslyn workspace over a solution: symbols, references, diagnostics and checked edits. |
+| `Runs` | `runs` | The runs read model: the runs index of a brain (`IRuns`) and its synapse definitions (`ISynapseDefinitions`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
 | `Salesforce` | `salesforce` | One org connection: bounded queries and confirmed record writes. |
 | `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. Its contracts assembly (`IntoChat.OS.Modules.Shell.Contracts`) lives in `src/Modules/Shell/Contracts`. |
-| `Storage` | `local-disk` | Local disks as storage: allowed roots, volume quota and confined file access. |
+| `Storage` | `local-disk`, `cloud` | Local disks as storage (allowed roots, volume quota, confined file access) and each brain's workspace, a confined folder at `{home}/brains/{brain}/workspace`. |
 | `Time` | `time` | Timers and persistent periodic reminders. |
 | `Web` | `webtools` | Web search and vetted public web page reading. Its contracts assembly (`IntoChat.OS.Modules.Web.Contracts`) lives in `src/Modules/Web/Contracts`. |
 | `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |

@@ -87,3 +87,12 @@ public interface ILiveVerifier
         IReadOnlyList<string> changedFiles,
         CancellationToken ct = default);
 }
+
+// Whether this installation has a live environment that live-verify can check a change against. The registered ILiveVerifier
+// answers by implementing it. A registered verifier that does not implement it is an environment someone wired, and counts as
+// configured. Where none is configured, an engineering run records live-verify as not available and goes on to the approval;
+// where one is configured but cannot be reached, the run waits at live-verify.
+public interface ILiveEnvironment
+{
+    bool Configured { get; }
+}

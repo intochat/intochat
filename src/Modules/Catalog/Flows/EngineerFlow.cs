@@ -6,6 +6,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.Apps.Flows.Rules;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.Configuration;
@@ -31,14 +32,20 @@ internal sealed class EngineerFlow(
     IWorktreeRoslyn? roslyn = null,
     IConfirmationRequests? confirmationRequests = null,
     IEngineeringHarness? engineeringHarness = null,
-    IServiceProvider? services = null) : Flow<EngineerRun>, IFlowStarter
+    IServiceProvider? services = null) : Flow<EngineerRun>, IFlowStarter, IEngineerFlow
 {
-    public const string Alias = IFlows.EngineerFlow;
+    public const string Alias = IEngineerRuns.EngineerFlow;
     public const string ConfirmationKind = "engineer.publish";
     public const int MaxBuildRepairRounds = 3;
     private const string PlanPrefix = "app:engineer";
 
     public static readonly TimeSpan ApprovalWindow = EngineerPipelineStages.DefaultApprovalWindow;
+
+    // How long a run waits at live-verify before it looks again for a live environment.
+    public static readonly TimeSpan LiveEnvironmentRecheck = TimeSpan.FromMinutes(30);
+
+    public const string LiveVerifyNotAvailableReason =
+        "live-verify not available: no live environment is configured on this installation (no candidate verifier and no live endpoint), so the change was NOT live-verified; build-and-test still gated it and a person still approves it.";
 
     public static readonly string[] Names =
     [
@@ -87,8 +94,19 @@ internal sealed class EngineerFlow(
         ?? services?.GetService(typeof(IConfirmationRequests)) as IConfirmationRequests
         ?? Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
 
-    public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
-        => Start(title, owner, parentFlowId, EngineerRun.FromUntrustedJson(innerJson, Json));
+    // Every gate is on unless the payload switches one off, and only a person or the kernel may do that: the run then records who.
+    public async Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
+    {
+        var run = EngineerRun.FromUntrustedJson(innerJson, Json);
+        var caller = Context.Caller;
+        await Check("Start", new PersonSwitchesVerificationOff(run.Verification, caller)).ConfigureAwait(true);
+        if (run.Verification.SkipsAny)
+        {
+            run = run.WithVerificationSkippedBy(DigitalBrain.Access.CallerRules.ActsFor(caller) ?? "kernel");
+        }
+
+        await Start(title, owner, parentFlowId, run).ConfigureAwait(true);
+    }
 
     public Task<FlowHead> Head() => Task.FromResult(EngineerPipelineStages.BuildHead(
         Names,
@@ -302,14 +320,26 @@ internal sealed class EngineerFlow(
             ? existing
             : BuildPlanId(EffectiveRunId(inner), verifiedCommit.Value);
 
-        return EngineerPipelineStages.BuildConfirmationPlan(
+        var plan = EngineerPipelineStages.BuildConfirmationPlan(
             planId,
             ConfirmationKind,
             "Discard Worktrees",
             ApprovalWindow,
             inner.ToSelectedChange(),
             verifiedCommit);
+
+        // The person who approves reads first what was not checked.
+        return inner.Verification.LeavesUnchecked ? plan with { Body = inner.Verification.Describe() + "\n\n" + plan.Body } : plan;
     }
+
+    // A gate the run's policy switches off is done as a skipped step: journaled with the reason, never run.
+    private static StepResult<EngineerRun>? SkippedByPolicy(string gate, EngineerRun inner)
+        => inner.Verification.Runs(gate)
+            ? null
+            : new StepResult<EngineerRun>(
+                inner,
+                Disposition: StepDisposition.Skip,
+                Reason: $"{gate} switched off by {inner.Verification.SkippedBy ?? "the starter"} when the run was started; this gate did not run.");
 
     public static string BuildPlanId(string runId, string commitSha)
         => EngineerPipelineStages.BuildPlanId(PlanPrefix, runId, commitSha);
@@ -877,6 +907,11 @@ internal sealed class EngineerFlow(
 
     private async Task<StepResult<EngineerRun>> BuildAndTestStepAsync(EngineerRun inner, CancellationToken ct)
     {
+        if (SkippedByPolicy(EngineerVerificationPolicy.BuildAndTestGate, inner) is { } skipped)
+        {
+            return skipped;
+        }
+
         var verifier = BuildVerifier;
         var wt = WorkTree;
         var activeRoslyn = Roslyn;
@@ -1127,11 +1162,28 @@ internal sealed class EngineerFlow(
 
     private async Task<StepResult<EngineerRun>> LiveVerifyStepAsync(EngineerRun inner, CancellationToken ct)
     {
+        if (SkippedByPolicy(EngineerVerificationPolicy.LiveVerifyGate, inner) is { } skipped)
+        {
+            return skipped;
+        }
+
         var verifier = LiveVerifier;
+        if (verifier is ILiveEnvironment { Configured: false })
+        {
+            // Nothing is configured to check against on this installation. The run records that, which is neither a pass nor a
+            // person's skip, and goes on to the approval, where the person reads it first. The verifier is not called. A run
+            // that was parked here before this rule takes this path at its next recheck or resume.
+            return new StepResult<EngineerRun>(
+                inner.WithLiveVerifyNotAvailable(),
+                Disposition: StepDisposition.Skip,
+                Reason: LiveVerifyNotAvailableReason);
+        }
+
         var liveContext = BuildLiveVerificationContext();
+        var unchecked_ = 0;
         var liveTasks = inner.Instances.Select(async instance =>
         {
-            if (instance.Build is not { Succeeded: true } || instance.Commit is null || instance.Lease is null)
+            if (!inner.BuildGatePassed(instance) || instance.Commit is null || instance.Lease is null)
             {
                 return instance.WithComputedScore();
             }
@@ -1147,6 +1199,13 @@ internal sealed class EngineerFlow(
                 : await Task.Run(
                     () => verifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, ct),
                     ct).ConfigureAwait(true);
+            if (EngineerLiveVerifier.EnvironmentMissing(report))
+            {
+                // Not checked is not failed: the candidate keeps its state and is checked when there is something to check against.
+                Interlocked.Increment(ref unchecked_);
+                return instance.WithComputedScore();
+            }
+
             return (instance with
             {
                 Live = report,
@@ -1157,8 +1216,23 @@ internal sealed class EngineerFlow(
 
         var results = await Task.WhenAll(liveTasks).ConfigureAwait(true);
         var verified = results
-            .Where(static i => i.Live is { Succeeded: true } && i.Build is { Succeeded: true } && i.Commit is not null)
+            .Where(i => i.Live is { Succeeded: true } && inner.BuildGatePassed(i) && i.Commit is not null)
             .ToArray();
+
+        if (verified.Length == 0 && unchecked_ > 0)
+        {
+            // No live environment: the gate is neither passed nor failed. The run keeps its worktrees and waits here; a resume
+            // of this step, or the end of the wait, runs the check again.
+            var reason = string.Create(
+                CultureInfo.InvariantCulture,
+                $"live-verify waits: there is no live environment to check the change against (the configured one answered that it has no candidate host and no live endpoint). The run checks again in {LiveEnvironmentRecheck.TotalMinutes:0} minutes or when this step is resumed; nothing was skipped.");
+            return new StepResult<EngineerRun>(
+                inner.WithUpdatedInstances(results, inner.SelectedInstanceIndex),
+                Emits: [new FlowStep(Id.ToString(), "live-verify", StepOutcome.Repeated, reason)],
+                Disposition: StepDisposition.Repeat,
+                Reason: reason,
+                Delay: LiveEnvironmentRecheck);
+        }
 
         if (verified.Length == 0)
         {
@@ -1278,7 +1352,7 @@ internal sealed class EngineerFlow(
             inner.Goal,
             winner.Edit?.Summary,
             winner.Edit?.ModelId,
-            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner, inner.RankCandidates()),
+            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner, inner.RankCandidates(), inner.Verification),
             ct).ConfigureAwait(true);
 
         return inner.WithPullRequest(prUrl).Advance();

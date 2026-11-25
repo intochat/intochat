@@ -51,6 +51,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
         services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));
         services.TryAddSingleton(FeatureCatalog.From);
+        services.TryAddSingleton<ICompiledApps, CompiledAppsList>();
         services.TryAddSingleton<IHostedAppTypes, CatalogHostedAppTypes>();
         services.TryAddSingleton<FeatureLoader>();
         services.TryAddSingleton<AppPackageCompiler>();
@@ -62,9 +63,6 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IBrainOwners, IdentityBrainOwners>();
         services.TryAddSingleton<IFriendCheck, FriendsFriendCheck>();
 
-        services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
-        services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();
-        services.TryAddSingleton<Creator>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();
         services.TryAddSingleton<IWorktreeRoslyn>(UnavailableWorktreeRoslyn.Instance);
@@ -75,7 +73,6 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<AppOperationCatalog>();
         services.AddHostedService<AppMenuHost>();
         services.AddNeuronProxies();
-        services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
         services.TryAddSingleton<PolicyWriter>();
         services.TryAddSingleton<ArtifactLiveHub>();
         services.TryAddSingleton(new IntoChat.OS.Host.Conversations.ConversationDefaults(
@@ -94,7 +91,6 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(endpoints);
         AppsEndpoints.Map(endpoints);
         ArtCraftWebEndpoints.Map(endpoints);
-        WidgetbookWebEndpoints.Map(endpoints);
         ArtifactEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);

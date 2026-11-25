@@ -38,6 +38,8 @@ public sealed record ProfilePostItem(
     public Audience Seen => Audience ?? Audience.FromLegacy(Circle);
 }
 
+// Posts is what the profile kept before posts moved to the post store (IPosts). The store copies it once and nothing
+// writes it any more; it stays readable so a brain that goes back to an earlier version still finds those posts (OWED.md).
 public sealed record ProfileState(
     string Handle,
     string Bio,
@@ -64,6 +66,8 @@ public interface IProfile
 
     Task<ProfileState> UpdateProfile(string handle, string displayName, string bio, string[] pinnedApps, string avatarUrl = "");
 
+    // Retired: posts live in the post store (IPosts, social.posts). The three methods below store nothing and refuse,
+    // saying so; they stay so a caller built against them gets that answer and not a missing method (OWED.md).
     Task<ProfileState> PublishPost(string id, string content, Audience? audience = null);
 
     Task<ProfileState> PublishAppPost(ProfilePostItem post);

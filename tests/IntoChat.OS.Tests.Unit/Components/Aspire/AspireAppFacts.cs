@@ -261,7 +261,7 @@ public sealed class AspireAppFacts
             .BuildServiceProvider();
 
         await using var os = TestOS.Local(o => o.Services = services);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<AspireApp>();
 
         var screen = os.Get<IScreen>(new NeuronId(TestBrain, "app.aspire", "default"));
@@ -350,7 +350,7 @@ public sealed class AspireAppFacts
     {
         using var person = EnterPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<AspireApp>();
 
         var aspire = os.Get<IScreen>(new NeuronId(TestBrain, "app.aspire", "default"));

@@ -94,7 +94,7 @@ public sealed class PrReviewFlowFacts
 
         await using var os = await JourneyOS.Start(
             kind,
-            [typeof(AppsModule), typeof(GitHubModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
+            [.. CatalogFamily.Modules, typeof(GitHubModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
             f => f.GitHub(g => g
                 .WebhookSecret(WebhookSecret)
                 .Repository("intochat/os", repositoryId: 61001, installationId: 9101)
@@ -136,7 +136,7 @@ public sealed class PrReviewFlowFacts
 
         var flows = ada.Get<IFlows>(IFlows.Key(ada.Brain.Value));
         var flowId = await flows.Start(
-            IFlows.PrReviewFlow,
+            IEngineerRuns.PrReviewFlow,
             "Review PR #19",
             parentFlowId: null,
             JsonSerializer.Serialize(initialState, EngineerPipelineStages.Json),

@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
-import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` (`NakedToggle`) + `mix` selectable/filter Chip control.
@@ -24,8 +21,6 @@ final class UiMixChip extends StatefulWidget {
       paddingY: 6,
       radius: 999,
     ),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -35,8 +30,6 @@ final class UiMixChip extends StatefulWidget {
   final IconData? icon;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -46,12 +39,6 @@ final class UiMixChip extends StatefulWidget {
 class _UiMixChipState extends State<UiMixChip> {
   bool _hovered = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,16 +72,10 @@ class _UiMixChipState extends State<UiMixChip> {
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);
-        _emit(
-          UiEventMask.hover,
-          hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-          const [{}],
-        );
       },
       onFocusChange: (focused) {
         if (_focused == focused) return;
         setState(() => _focused = focused);
-        _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       child: Box(
         style: BoxStyler()

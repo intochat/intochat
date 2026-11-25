@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
@@ -57,7 +55,7 @@ final class UiStyleStateOverride {
   }
 }
 
-/// Mirrors C# `IntoChat.OS.Modules.UI.Core.UiStyleRef` 1-to-1.
+/// Style of a Mix primitive: tone, padding, radius, motion and per-state overrides.
 @immutable
 final class UiStyleData {
   const UiStyleData({
@@ -239,7 +237,7 @@ abstract final class UiStyleMapper {
 
 /// First Option B flagship control: headless `NakedButton` (accessibility,
 /// keyboard focus, hover/press/focus states) + `mix` `Box` driven directly by
-/// C# [UiStyleData], with opt-in WinForms-style [UiEventMask] signal dispatch.
+/// C# [UiStyleData].
 final class UiMixButton extends StatefulWidget {
   const UiMixButton({
     super.key,
@@ -247,8 +245,6 @@ final class UiMixButton extends StatefulWidget {
     this.onPressed,
     this.style = const UiStyleData(tone: 'accent', paddingX: 16, paddingY: 10),
     this.enabled = true,
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -256,8 +252,6 @@ final class UiMixButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final UiStyleData style;
   final bool enabled;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -268,12 +262,6 @@ class _UiMixButtonState extends State<UiMixButton> {
   bool _hovered = false;
   bool _pressed = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -291,25 +279,14 @@ class _UiMixButtonState extends State<UiMixButton> {
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);
-        _emit(
-          UiEventMask.hover,
-          hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-          const [{}],
-        );
       },
       onPressChange: (pressed) {
         if (_pressed == pressed) return;
         setState(() => _pressed = pressed);
-        _emit(
-          UiEventMask.press,
-          pressed ? 'OnPointerDown' : 'OnPointerUp',
-          const [{}],
-        );
       },
       onFocusChange: (focused) {
         if (_focused == focused) return;
         setState(() => _focused = focused);
-        _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       child: AnimatedScale(
         scale: resolved.scale ?? (_pressed && widget.enabled ? 0.97 : 1.0),

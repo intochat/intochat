@@ -346,6 +346,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
             services =>
             {
                 AppsModule.ConfigureServices(services, config);
+                IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, config);
                 AIModule.ConfigureServices(services, config);
                 DevicesModule.ConfigureServices(services, config);
                 FlutterModule.ConfigureServices(services, config);
@@ -395,6 +396,9 @@ public sealed class InoSiloFixture : IAsyncLifetime
                     typeof(InoWiringTestModule),
                     typeof(ShippedShellAppsModule),
                     typeof(AppsModule),
+                    typeof(IntoChat.OS.Modules.Runs.RunsModule),
+                    typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),
+                    typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule),
                     typeof(IdentityModule),
                     typeof(AuthorityPlainNeurons),
                     typeof(AIModule),

@@ -154,7 +154,19 @@ public static class ArtCraftEngineRunner
         return false;
     }
 
-    public static async Task<ArtCraftEngineResult> ExecuteAsync(
+    // A screen has no route to the workspace; the engine neuron passes it.
+    public static Task<ArtCraftEngineResult> ExecuteAsync(
+        string app,
+        string? instructionOrCommand,
+        string? explicitParamsJson,
+        string? currentDocument,
+        string executionMode,
+        IArtCraftStudio? studio,
+        Func<string, IMcpToolConnection?>? mcpResolver,
+        Action<Exception, string>? onRecoverableError = null)
+        => ExecuteOnWorkspaceAsync(app, instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs: null);
+
+    internal static async Task<ArtCraftEngineResult> ExecuteOnWorkspaceAsync(
         string app,
         string? instructionOrCommand,
         string? explicitParamsJson,
@@ -163,20 +175,20 @@ public static class ArtCraftEngineRunner
         IArtCraftStudio? studio,
         Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null,
-        IFilesVfsService? vfs = null)
+        BrainWorkspaceFiles? vfs = null)
     {
         var descriptor = ArtCraftCatalog.Get(app);
         if (descriptor.Id == ShippedApps.PhotoCraft)
         {
-            return await ExecutePhotoCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            return await ExecutePhotoCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
         }
         if (descriptor.Id == ShippedApps.FilmCraft)
         {
-            return await ExecuteFilmCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            return await ExecuteFilmCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
         }
 
         var mode = NormalizeMode(executionMode);
-        var inputDoc = await ResolveStudioInputDocumentAsync(descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(false);
+        var inputDoc = await ResolveStudioInputDocumentAsync(descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(true);
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
             return CreateClarificationResult(descriptor.Id, mode, inputDoc, $"Specify a {descriptor.Title} command or instruction.");
@@ -195,10 +207,10 @@ public static class ArtCraftEngineRunner
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
             descriptor.DefaultLayersOrTracks, "Input", isNewGradient: false,
-            studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
     }
 
-    public static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
+    internal static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentDocument,
@@ -206,11 +218,11 @@ public static class ArtCraftEngineRunner
         IArtCraftStudio? studio,
         Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null,
-        IFilesVfsService? vfs = null)
+        BrainWorkspaceFiles? vfs = null)
     {
         var descriptor = ArtCraftCatalog.Get(ShippedApps.PhotoCraft);
         var mode = NormalizeMode(executionMode);
-        var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(false);
+        var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(true);
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
@@ -221,17 +233,17 @@ public static class ArtCraftEngineRunner
         var isNewGradient = cmdId == "layer.newFillLayer.gradient";
         if (vfs is not null && !isNewGradient)
         {
-            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "PhotoCraft input file", onRecoverableError).ConfigureAwait(false);
+            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "PhotoCraft input file", onRecoverableError).ConfigureAwait(true);
         }
 
         var cliInvocation = string.Empty;
 
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
-            layers, "Input", isNewGradient, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            layers, "Input", isNewGradient, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
     }
 
-    public static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
+    internal static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentSequence,
@@ -239,11 +251,11 @@ public static class ArtCraftEngineRunner
         IArtCraftStudio? studio,
         Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null,
-        IFilesVfsService? vfs = null)
+        BrainWorkspaceFiles? vfs = null)
     {
         var descriptor = ArtCraftCatalog.Get(ShippedApps.FilmCraft);
         var mode = NormalizeMode(executionMode);
-        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(false);
+        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(true);
 
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
@@ -253,13 +265,13 @@ public static class ArtCraftEngineRunner
         var (cmdId, title, paramsJson, inputDoc, outputDoc, tracks) = resolved;
         if (vfs is not null)
         {
-            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "FilmCraft sequence", onRecoverableError).ConfigureAwait(false);
+            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "FilmCraft sequence", onRecoverableError).ConfigureAwait(true);
         }
 
         var cliInvocation = string.Empty;
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
-            tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
     }
 
     private static ArtCraftEngineResult CreateClarificationResult(string appId, string mode, string inputDoc, string summary) => new(
@@ -282,7 +294,7 @@ public static class ArtCraftEngineRunner
         IArtCraftStudio? studio,
         Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError,
-        IFilesVfsService? vfs)
+        BrainWorkspaceFiles? vfs)
     {
         var previewUrl = string.Empty;
 
@@ -363,13 +375,14 @@ public static class ArtCraftEngineRunner
                 var bytes = DecodeDataUrlBytes(previewUrl);
                 if (bytes.Length > 0)
                 {
-                    outputNeuronUri = (await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false)).NeuronUri;
+                    _ = await vfs.Write(outputDoc, bytes).ConfigureAwait(true);
+                    outputNeuronUri = BrainWorkspaceFiles.Stored(outputDoc);
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
-                onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
+                OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not persist {descriptor.Title} output artifact to the workspace.");
+                onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to the workspace.");
             }
         }
 
@@ -398,7 +411,7 @@ public static class ArtCraftEngineRunner
         ArtCraftAppDescriptor descriptor,
         string? instructionOrCommand,
         string? currentDocument,
-        IFilesVfsService? vfs,
+        BrainWorkspaceFiles? vfs,
         Action<Exception, string>? onRecoverableError)
     {
         var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
@@ -407,36 +420,36 @@ public static class ArtCraftEngineRunner
 
         try
         {
-            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry) { return vfsEntry.VfsPath; }
+            if (await vfs.Located(inputDoc).ConfigureAwait(true) is { } located) { return located; }
             if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
             {
-                var files = await vfs.ListFilesAsync().ConfigureAwait(false);
-                if (files.FirstOrDefault(f => descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) is { } candidate)
+                var files = await vfs.Search(null).ConfigureAwait(true);
+                if (files.FirstOrDefault(f => descriptor.SupportedExtensions.Any(ext => f.Item.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) is var candidate && candidate.Path is not null)
                 {
-                    return candidate.VfsPath;
+                    return BrainWorkspaceFiles.Stored(candidate.Path);
                 }
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
-            onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {descriptor.Title} input file in the workspace.");
+            onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file in the workspace.");
         }
 
         return inputDoc;
     }
 
     private static async Task<string> TryResolveExactVfsPathAsync(
-        string inputDoc, IFilesVfsService vfs, string label, Action<Exception, string>? onRecoverableError)
+        string inputDoc, BrainWorkspaceFiles vfs, string label, Action<Exception, string>? onRecoverableError)
     {
         try
         {
-            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry) { return vfsEntry.VfsPath; }
+            if (await vfs.Located(inputDoc).ConfigureAwait(true) is { } located) { return located; }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {label} against Files VFS.");
-            onRecoverableError?.Invoke(error, $"Could not resolve {label} against Files VFS.");
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {label} in the workspace.");
+            onRecoverableError?.Invoke(error, $"Could not resolve {label} in the workspace.");
         }
 
         return inputDoc;
@@ -445,7 +458,7 @@ public static class ArtCraftEngineRunner
     private static async Task<string?> ResolveInputDocumentFromVfsAsync(
         string? instructionOrCommand,
         string? currentDocument,
-        IFilesVfsService? vfs,
+        BrainWorkspaceFiles? vfs,
         bool isVideo,
         Action<Exception, string>? onRecoverableError)
     {
@@ -456,26 +469,26 @@ public static class ArtCraftEngineRunner
             var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
             if (!string.IsNullOrWhiteSpace(extracted))
             {
-                return (await vfs.ResolveFileAsync(extracted).ConfigureAwait(false))?.VfsPath ?? currentDocument;
+                return await vfs.Located(extracted).ConfigureAwait(true) ?? currentDocument;
             }
 
             if (!string.IsNullOrWhiteSpace(currentDocument))
             {
-                if (await vfs.ResolveFileAsync(currentDocument).ConfigureAwait(false) is { } matchedCurrent) { return matchedCurrent.VfsPath; }
+                if (await vfs.Located(currentDocument).ConfigureAwait(true) is { } matchedCurrent) { return matchedCurrent; }
                 var defaultDoc = isVideo ? "/work/launch-trailer.fcproj" : "/work/portrait.png";
                 if (!string.Equals(currentDocument, defaultDoc, StringComparison.OrdinalIgnoreCase)) { return currentDocument; }
             }
 
-            var files = await vfs.ListFilesAsync().ConfigureAwait(false);
-            if (files.FirstOrDefault(f => isVideo ? IsVideoExtension(f.Name) : IsImageExtension(f.Name)) is { } candidate)
+            var files = await vfs.Search(null).ConfigureAwait(true);
+            if (files.FirstOrDefault(f => isVideo ? IsVideoExtension(f.Item.Name) : IsImageExtension(f.Item.Name)) is var candidate && candidate.Path is not null)
             {
-                return candidate.VfsPath;
+                return BrainWorkspaceFiles.Stored(candidate.Path);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, "Could not inspect Files VFS for studio input resolution.");
-            onRecoverableError?.Invoke(error, "Could not inspect Files VFS for studio input resolution.");
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, "Could not inspect the workspace for studio input resolution.");
+            onRecoverableError?.Invoke(error, "Could not inspect the workspace for studio input resolution.");
         }
 
         return currentDocument;

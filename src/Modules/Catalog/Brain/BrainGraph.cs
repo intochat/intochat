@@ -10,7 +10,7 @@ namespace IntoChat.OS.Modules.Apps;
 // and `pulse:<traceId>`. Edges and pulses are not nodes of the view: the renderer activates SelectKey with their key as the value.
 public static class BrainGraph
 {
-    public const string Unit = "unit", App = "app", Kernel = "kernel", Draft = "draft";
+    public const string Unit = BrainTopologyNode.UnitRole, App = BrainTopologyNode.AppRole, Kernel = "kernel", Draft = "draft";
     private const double Radius = 320;
 
     public static string NodeKey(string id) => $"node:{id}";
@@ -65,7 +65,7 @@ public static class BrainGraph
         }
         foreach (var flow in topology.Flows)
         {
-            if (flow.Type != BuildFlow.Alias || flow.Subject is not { Length: > 0 } alias || !flow.Done.Contains("author")) { continue; }
+            if (flow.Type != BuildInner.Flow || flow.Subject is not { Length: > 0 } alias || !flow.Done.Contains("author")) { continue; }
             if (flow.Status is FlowStatus.Failed or FlowStatus.Cancelled || units.Contains(alias)) { continue; }
             var id = DraftId(alias);
             if (seen.Add(id)) { members.Add((id, alias, Draft, flow.Current)); }

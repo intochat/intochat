@@ -83,7 +83,7 @@ public sealed class ApprovalsFacts
 
     private sealed class ApprovalsFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlowsFactsModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {

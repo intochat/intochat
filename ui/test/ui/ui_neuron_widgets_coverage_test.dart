@@ -14,40 +14,14 @@ void main() {
     ),
   );
 
-  // Covers all 20 UI neuron widgets that previously had zero widget tests.
+  // Covers the UI neuron widgets that have no interaction test of their own.
   final sampleStates = <String, Map<String, dynamic>>{
-    'ui.checkbox': {
-      'label': 'Accept terms',
-      'isChecked': true,
-      'isEnabled': true,
-    },
-    'ui.select': {
-      'label': 'Region',
-      'selectedValue': 'eu',
-      'options': [
-        {'value': 'us', 'label': 'US East'},
-        {'value': 'eu', 'label': 'EU West'},
-      ],
-    },
     'ui.tabs': {
       'activeTabId': 'overview',
       'tabs': [
         {'id': 'overview', 'label': 'Overview'},
         {'id': 'logs', 'label': 'Logs'},
       ],
-    },
-    'ui.expander': {
-      'header': 'Advanced Settings',
-      'summary': 'Click to expand',
-      'isExpanded': true,
-    },
-    'ui.listbox': {
-      'label': 'Items',
-      'items': [
-        {'id': 'a', 'label': 'Alpha'},
-        {'id': 'b', 'label': 'Beta'},
-      ],
-      'selectedIds': ['a'],
     },
     'ui.table': {
       'title': 'Deployments',
@@ -84,40 +58,12 @@ void main() {
       'value': 40.0,
       'unit': '%',
     },
-    'ui.radio-buttons': {
-      'label': 'Execution Mode',
-      'selectedValue': 'wasm-ui',
-      'options': [
-        {'value': 'wasm-ui', 'label': 'WASM Web UI'},
-        {'value': 'mcp', 'label': 'MCP Server'},
-      ],
-    },
-    'ui.rating': {'label': 'Quality', 'value': 4.0, 'max': 5},
-    'ui.color-picker': {'label': 'Accent', 'hex': '#60A5FA'},
     'ui.breadcrumb': {
       'items': [
         {'id': 'root', 'label': 'Home'},
         {'id': 'ui', 'label': 'UI Kit'},
       ],
     },
-    'ui.auto-suggest': {
-      'label': 'Search',
-      'query': 'tog',
-      'suggestions': ['Toggle', 'ToggleSplitButton'],
-    },
-    'ui.progress': {
-      'label': 'Building WASM',
-      'value': 0.65,
-      'isIndeterminate': false,
-    },
-    'ui.info-bar': {
-      'title': 'Ready',
-      'message': 'All neurons online',
-      'severity': 'success',
-      'isOpen': true,
-    },
-    'ui.date-picker': {'label': 'Release Date', 'isoDate': '2026-11-20'},
-    'ui.time-picker': {'label': 'Reminder Time', 'hour': 9, 'minute': 30},
     'ui.context-menu': {
       'title': 'Actions',
       'isOpen': true,
@@ -203,7 +149,7 @@ void main() {
       addTearDown(watchCtrl.close);
 
       final widget = NeuronWidget(
-        kind: 'ui.toggle',
+        kind: 'ui.tabs',
         neuronKey: 'coverage/error-watch',
         callNeuron: (_, _, _, _) async => throw StateError('offline'),
         watch: (_, _) => watchCtrl.stream,

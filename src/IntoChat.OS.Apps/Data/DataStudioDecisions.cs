@@ -85,12 +85,18 @@ internal static class DataStudioDecisions
 
     public static string NormalizeCsvExportPath(string raw) => NormalizeCsvPath(raw, "/work/analytics-export.csv");
 
-    public static string NormalizeCsvPath(string raw, string fallback)
+    public static string NormalizeCsvPath(string raw, string fallback) => StoredPath(raw, fallback, ".csv");
+
+    // A workspace path, kept with its folders ("reports/q4.csv"), in the stored form "/work/..."; the fallback when the
+    // text is not a safe relative path.
+    internal static string StoredPath(string? raw, string fallback, string extension)
     {
-        var clean = WorkspaceFilesService.ExtractCleanFileName(raw);
-        if (string.IsNullOrWhiteSpace(clean)) { return fallback; }
-        if (!Path.HasExtension(clean)) { clean += ".csv"; }
-        return clean.StartsWith('/') ? clean : $"/work/{clean}";
+        var text = (raw ?? string.Empty).Trim().Trim('"', '\'', '`').Replace('\\', '/');
+        if (text.StartsWith("/work/", StringComparison.OrdinalIgnoreCase)) { text = text["/work/".Length..]; }
+        if (!IntoChat.OS.Host.Primitives.SafeRelativePath.TryParse(text.TrimStart('/'), out var safe) || safe.Value.Length == 0) { return fallback; }
+        var clean = safe.Value;
+        if (!Path.HasExtension(clean)) { clean += extension; }
+        return $"/work/{clean}";
     }
 
     public static string BuildDefaultQueryForSource(string source) => source.ToLowerInvariant() switch

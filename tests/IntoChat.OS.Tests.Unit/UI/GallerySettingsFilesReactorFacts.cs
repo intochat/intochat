@@ -57,7 +57,7 @@ public sealed class GallerySettingsFilesReactorFacts
     public void GalleryAppStateExplorerVerifiesAllTabsUniqueKeysAndZeroMonospace()
     {
         var choices = new ChoiceSet()
-            .ForParameter("page", "home", "colors", "toggle", "charts", "graphs")
+            .ForParameter("page", "home", "colors", "tabs", "charts", "graphs")
             .ForParameter("holder", "alice")
             .ForParameter("amount", 50m, 30m, 70m)
             .ForParameter("stateId", "s0")
@@ -88,7 +88,7 @@ public sealed class GallerySettingsFilesReactorFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("gallery-test", "gallery-test", new BrainId("gallery-test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         os.Register(typeof(GalleryApp).Assembly);
 

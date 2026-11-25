@@ -189,7 +189,7 @@ public sealed class KernelScenarioFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly).Register<RunNeuron>();
+        await using var os = TestOS.Local().RegisterCatalog().Register<RunNeuron>();
         var driver = await KernelDriver.Start(os);
         var run = os.Get<IRun>(new NeuronId(new BrainId("local"), "test.run", name));
 
@@ -211,7 +211,7 @@ public sealed class KernelScenarioFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly).Register<RunNeuron>();
+        await using var os = TestOS.Local().RegisterCatalog().Register<RunNeuron>();
         var driver = await KernelDriver.Start(os);
 
         RunVerdict verdict;
@@ -228,7 +228,7 @@ public sealed class KernelScenarioFacts
     public async Task Selecting_a_page_changes_what_its_key_reads()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var driver = await KernelDriver.Start(os);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => driver.Read("checkBox", ct));

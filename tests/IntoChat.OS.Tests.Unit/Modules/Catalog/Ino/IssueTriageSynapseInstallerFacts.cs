@@ -48,9 +48,9 @@ public sealed class IssueTriageSynapseInstallerFacts
 
         var sourceFiles = await synapseStudio.SourceFiles("gh-triage-main");
         Assert.Contains(IssueTriageSynapseGenerator.CodeFileName, sourceFiles.Keys);
-        var compileCheck = SynapseCheck.CompileOrDefault(os.Services, sourceFiles);
-        Assert.True(compileCheck.Success);
-        Assert.Empty(compileCheck.Errors);
+        var compiler = new DigitalBrain.Runtime.Synapses.SynapseCompiler(DigitalBrain.Runtime.Synapses.ReferenceSet.FromDefaultContext());
+        var build = compiler.Compile(new DigitalBrain.Units.SynapseSource("check", sourceFiles, null));
+        Assert.True(build.Success, string.Join("; ", build.Diagnostics.Select(d => d.Message)));
 
         var sidecars = await synapseStudio.Sidecars("gh-triage-main");
         Assert.Contains(UnitFiles.Spec, sidecars.Keys);
@@ -275,9 +275,10 @@ public sealed class IssueTriageSynapseInstallerFacts
         var minimalServices = new ServiceCollection()
             .AddOptions<AppsOptions>().Services
             .AddSingleton(TimeProvider.System)
+            .AddSingleton<IUnitVerifier, UnitVerifier>()
             .BuildServiceProvider();
         await using (var minimalOs = TestOS.Local(o => o.Services = minimalServices)
-            .Register(typeof(AppsModule).Assembly))
+            .RegisterCatalog())
         {
             minimalOs.Confirmations.ApproveAll();
             using var minimalPerson = minimalOs.Edge.Enter(minimalOs.Edge.Person("owner", "owner", minimalBrain));
@@ -331,13 +332,14 @@ public sealed class IssueTriageSynapseInstallerFacts
         var services = new ServiceCollection();
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IUnitVerifier, UnitVerifier>();
         GitHubModule.ConfigureServices(services, new ConfigurationBuilder().Build());
         services.AddSingleton<IModuleIntegrations<GitHubModule>>(new UnconfiguredGitHubIntegrations());
         services.AddSingleton<IGitHubRepositorySource>(source);
 
         return TestOS.Local(o => o.Services = services.BuildServiceProvider())
             .Register(typeof(GitHubModule).Assembly)
-            .Register(typeof(AppsModule).Assembly);
+            .RegisterCatalog();
     }
 
     private static void SeedConnectedRepository(TestOS os, NeuronId connId)

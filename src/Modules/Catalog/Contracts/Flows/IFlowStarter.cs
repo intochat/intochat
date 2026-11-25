@@ -16,15 +16,6 @@ public interface IFlowStarter
     Task Cancel(string reason);
 
     Task Relate(FlowRelation relation);
-
-    Task SelectCandidate(int candidateIndex)
-        => throw new NotSupportedException("Candidate selection is only supported by multi-worktree engineering flows.");
-
-    Task RatifyPlan(
-        string[]? approvedCleanupTargets = null,
-        EngineerTaskSlice[]? slices = null,
-        string? ratifiedBy = null)
-        => throw new NotSupportedException("Plan ratification is only supported by engineering flows.");
 }
 
 // What a flow reports of itself: its declared steps and the parts of its state the index cannot learn from signals alone, so an

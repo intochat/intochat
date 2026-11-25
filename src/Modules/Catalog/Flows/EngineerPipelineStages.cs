@@ -14,11 +14,12 @@ internal sealed record EngineerPullRequestContext(
     EngineerTaskPlan? Plan,
     int TotalInstances,
     EngineerInstance Winner,
-    EngineerCandidateResult[]? TournamentCandidates = null);
+    EngineerCandidateResult[]? TournamentCandidates = null,
+    EngineerVerificationPolicy? Verification = null);
 
 /// <summary>
-/// Shared durable pipeline stage execution helpers backing both <see cref="EngineerFlow"/> (<c>flow.engineer</c>)
-/// and its single-instance <see cref="FeatureToPrFlow"/> (<c>flow.change</c>) adapter.
+/// The pipeline stages of <see cref="EngineerFlow"/> (<c>flow.engineer</c>): worktrees, the approval gate, push, pull request,
+/// cleanup. The retired <see cref="FeatureToPrFlow"/> (<c>flow.change</c>) finishes its in-flight runs through the same code.
 /// </summary>
 internal static class EngineerPipelineStages
 {
@@ -396,6 +397,16 @@ internal static class EngineerPipelineStages
         if (engineerContext?.Winner.Live is { } live)
         {
             sb.AppendLine($"- **Live Verify:** {ChangePolicy.SanitizeCommitText(live.Summary)}");
+        }
+
+        if (engineerContext?.Verification is { SkipsAny: true } skippedPolicy)
+        {
+            sb.AppendLine($"- **Verification skipped:** {string.Join(", ", skippedPolicy.SkippedGates.Select(static gate => $"`{gate}`"))} (switched off by `{skippedPolicy.SkippedBy ?? "the starter"}` when the run was started)");
+        }
+
+        if (engineerContext?.Verification is { LiveVerifyNotAvailable: true })
+        {
+            sb.AppendLine("- **Not live-verified:** `live-verify` did not run because no live environment is available on the installation that made this change; it was not checked against a running system.");
         }
 
         sb.AppendLine($"- **Approved by Person:** `{approverId}` (plan `{planId}`)");

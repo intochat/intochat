@@ -142,7 +142,7 @@ public sealed partial class TasksApp
 
     private async Task<string> StartEngineerFlowForIssueAsync(IFlows flows, string repoLabel, string taskTitle, string goal)
     {
-        try
+        if (EngineerRuns is { } runs)
         {
             var request = new EngineerDelegationRequest(
                 RepoSlug: repoLabel,
@@ -150,20 +150,16 @@ public sealed partial class TasksApp
                 ParallelInstances: 1,
                 Backend: "LocalGit",
                 RequirePlanRatification: true);
-            var summary = await flows.StartEngineerRun(request);
+            var summary = await runs.StartEngineerRun(request);
             if (!summary.Ok && !string.Equals(repoLabel, "os", StringComparison.OrdinalIgnoreCase))
             {
-                summary = await flows.StartEngineerRun(request with { RepoSlug = "os" });
+                summary = await runs.StartEngineerRun(request with { RepoSlug = "os" });
             }
 
             if (summary.Ok && !string.IsNullOrWhiteSpace(summary.FlowId))
             {
                 return summary.FlowId;
             }
-        }
-        catch (NotSupportedException notSupported)
-        {
-            _logger.LogDebug(notSupported, "StartEngineerRun is unsupported on this IFlows host; starting flow.engineer directly.");
         }
 
         var fallbackStart = new EngineerStartRequest(
