@@ -307,8 +307,9 @@ public sealed class FilesPreviewFacts
         var app = Harness.App(sized);
         await app.Browse(new("a", storage.Root), Ct);
         await app.Select(new(new("a", await sized.Stat(picture, Ct))), Ct);
-        Assert.Contains("/content", app.Snapshot.PreviewUrl, StringComparison.Ordinal);
-        Assert.Contains("/brains/owner/storage/a/items/", app.Snapshot.PreviewUrl, StringComparison.Ordinal);
+        // The hosted content route, the connection key in its one route form (never the raw key with its slashes).
+        Assert.Equal(DigitalBrain.Runtime.Http.Storage.StorageContentEndpoints.ContentPath("owner", "a", picture.Value), app.Snapshot.PreviewUrl);
+        Assert.StartsWith("/brains/owner/storage/" + DigitalBrain.Runtime.Http.Storage.StorageContentEndpoints.Segment("a") + "/items/", app.Snapshot.PreviewUrl, StringComparison.Ordinal);
         Assert.DoesNotContain("Read", sized.Calls);
         await app.Select(new(new("a", await sized.Stat(huge, Ct))), Ct);
         Assert.Equal(FilesCopy.PreviewTooLarge, app.Snapshot.Preview);

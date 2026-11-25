@@ -8,9 +8,9 @@ namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 // HTTP-edge findings, driven through the harness's real route map and real auth filters (in-process Kestrel on an
 // ephemeral loopback port). Each is named for the property that SHOULD hold.
 //
-// Finding 3 (43-misplaced-subjects.md): /artifacts/* routes are AllowAnonymous, carry no brain in the path, and gate
-//   only on IsLoopbackOrAuthenticated. Over loopback they serve and accept writes with a caller-named actor and no
-//   brain scoping.
+// Finding 3 (43-misplaced-subjects.md): /artifacts/* routes were AllowAnonymous, carried no brain in the path, and gated
+//   only on IsLoopbackOrAuthenticated. They are gone; a studio page reads and saves workspace files through the hosted
+//   storage content route, which is brain-scoped and needs a member's session (StorageContentRouteFacts).
 // Finding 4 (same paper): /artcraft/* and /widgetbook/* GET routes are anonymous. The question is whether they can
 //   serve anything outside the intended static directory -- i.e. path traversal. This is a GUARD test: the property
 //   holds today (ServeStudioAssetAsync bounds the resolved path), so it passes and stays as a regression guard.
@@ -21,27 +21,24 @@ public sealed class AccessFindingsHttpRouteFacts(Gate20EdgeApprovalWallFacts.Edg
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // Finding 3: a live artifact can be written and read with no credential and no brain scope (loopback anonymous).
+    // Finding 3: with no credential, nothing of a brain's files is read or written, and the old artifact routes are gone.
     [Fact]
-    public async Task WritingAndReadingALiveArtifact_RequiresAnAuthenticatedOwner()
+    public async Task ReadingOrSavingAStudioDocument_RequiresAnAuthenticatedMember()
     {
         var host = fixture.Host;
-        var path = "proof-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
+        var path = "/work/proof-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
 
-        // No presence token at all; caller names its own actor in the query.
+        using var locate = await host.Client.GetAsync($"/brains/{host.Scope}/workspace/item?path={Uri.EscapeDataString(path)}", Ct);
+        using var content = await host.Client.GetAsync(DigitalBrain.Runtime.Http.Storage.StorageContentEndpoints.ContentPath(host.Scope, host.Scope + "/local-cloud/main", "ld:x"), Ct);
         using var put = new HttpRequestMessage(HttpMethod.Put, $"/artifacts/bytes?path={Uri.EscapeDataString(path)}&actor=attacker")
         {
             Content = new StringContent("secret-artifact-body", Encoding.UTF8, "text/plain"),
         };
-        using var putRes = await host.Client.SendAsync(put, Ct);
+        using var oldWrite = await host.Client.SendAsync(put, Ct);
 
-        using var getRes = await host.Client.GetAsync($"/artifacts/bytes?path={Uri.EscapeDataString(path)}", Ct);
-
-        // SHOULD hold: an unauthenticated request cannot write or read a live artifact. If the write was accepted the
-        // read returns the body; if the property holds the write is rejected (4xx) and the read is 404/401.
-        Assert.False(
-            putRes.StatusCode == HttpStatusCode.OK && getRes.StatusCode == HttpStatusCode.OK,
-            $"Unauthenticated artifact write+read succeeded (PUT {(int)putRes.StatusCode}, GET {(int)getRes.StatusCode}).");
+        Assert.Equal(HttpStatusCode.Unauthorized, locate.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, content.StatusCode);
+        Assert.NotEqual(HttpStatusCode.OK, oldWrite.StatusCode);
     }
 
     // Finding 4: GUARD -- an anonymous artcraft asset request cannot escape the studio's static directory.

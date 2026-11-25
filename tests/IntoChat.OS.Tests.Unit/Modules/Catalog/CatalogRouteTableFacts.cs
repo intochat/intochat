@@ -17,9 +17,6 @@ public sealed class CatalogRouteTableFacts
         "GET /artcraft/{appId} anonymous order=-100",
         "GET /artcraft/{appId}/index.html anonymous order=-100",
         "GET /artcraft/{appId}/{**assetPath} anonymous order=-100",
-        "GET /artifacts/bytes order=-100",
-        "GET /artifacts/meta order=-100",
-        "GET /artifacts/stream order=-100",
         "GET /brains/{brainId}/apps/",
         "GET /brains/{brainId}/apps/packages",
         "GET /brains/{brainId}/apps/skills",
@@ -49,7 +46,6 @@ public sealed class CatalogRouteTableFacts
         "POST /brains/{brainId}/apps/{name}/update",
         "POST /brains/{brainId}/marketplace/{publisher}/{name}/install",
         "POST /brains/{brainId}/policies/",
-        "PUT /artifacts/bytes order=-100",
         "PUT /brains/{brainId}/apps/{name}/settings",
     ];
 
@@ -59,8 +55,7 @@ public sealed class CatalogRouteTableFacts
         var routes = RouteTable.Of(new AppsModule().Configure, services => services
             .Known<INeuronProxies>()
             .Known<IBrainObserver>()
-            .Known<IWebHostEnvironment>()
-            .Known<ArtifactLiveHub>());
+            .Known<IWebHostEnvironment>());
 
         Assert.True(Expected.SequenceEqual(routes), "The apps module maps:" + Environment.NewLine + string.Join(Environment.NewLine, routes));
     }

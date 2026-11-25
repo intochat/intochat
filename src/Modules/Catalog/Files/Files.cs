@@ -456,7 +456,8 @@ internal sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesSta
         return builder.ToString().Trim('-');
     }
 
-    private string ContentUrl(string connection, ItemId item) => "/brains/" + brain.Value + "/storage/" + connection + "/items/" + item.Value + "/content";
+    // The hosted content route (StorageContentHosting) in its one key form.
+    private string ContentUrl(string connection, ItemId item) => DigitalBrain.Runtime.Http.Storage.StorageContentEndpoints.ContentPath(brain.Value, connection, item.Value);
 
     private async Task<IStorage> Storage(string connection, CancellationToken ct)
         => (await broker.ResolveAll<IStorage>(brain, ct).ConfigureAwait(false)).SingleOrDefault(item => item.ConnectionKey == connection)?.Capability
