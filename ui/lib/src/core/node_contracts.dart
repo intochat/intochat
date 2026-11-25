@@ -25,69 +25,6 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
       'ViewportChanged',
     ),
-    // Unified DDD UI Neuron Kit (IntoChat.OS.Modules.UI)
-    'ui.chart': NodeContract(
-      'IntoChat.OS.Modules.UI.Chart.IChart',
-      'UiChartChanged',
-    ),
-    'ui.tabs': NodeContract('IntoChat.OS.Modules.UI.Tabs.ITabs', 'TabChanged'),
-    'ui.table': NodeContract(
-      'IntoChat.OS.Modules.UI.Table.ITable',
-      'UiTableChanged',
-    ),
-    'ui.form': NodeContract('IntoChat.OS.Modules.UI.Form.IForm', 'FormChanged'),
-    'ui.dialog': NodeContract(
-      'IntoChat.OS.Modules.UI.Dialog.IDialog',
-      'DialogChanged',
-    ),
-    'ui.chat': NodeContract(
-      'IntoChat.OS.Modules.UI.Chat.IChatThread',
-      'ChatThreadChanged',
-    ),
-    'ui.slider': NodeContract(
-      'IntoChat.OS.Modules.UI.Slider.ISlider',
-      'SliderChanged',
-    ),
-    'ui.breadcrumb': NodeContract(
-      'IntoChat.OS.Modules.UI.BreadcrumbBar.IBreadcrumbBar',
-      'BreadcrumbClicked',
-    ),
-    'ui.tree-view': NodeContract(
-      'IntoChat.OS.Modules.UI.TreeView.ITreeView',
-      'TreeViewChanged',
-    ),
-    'ui.context-menu': NodeContract(
-      'IntoChat.OS.Modules.UI.ContextMenu.IContextMenu',
-      'ContextMenuInvoked',
-    ),
-    'ui.grid-view': NodeContract(
-      'IntoChat.OS.Modules.UI.GridView.IGridView',
-      'GridViewChanged',
-    ),
-    'ui.command-bar': NodeContract(
-      'IntoChat.OS.Modules.UI.CommandBar.ICommandBar',
-      'CommandBarInvoked',
-    ),
-    'ui.code-editor': NodeContract(
-      'IntoChat.OS.Modules.UI.CodeEditor.ICodeEditor',
-      'CodeEditorChanged',
-    ),
-    'ui.markdown': NodeContract(
-      'IntoChat.OS.Modules.UI.MarkdownViewer.IMarkdownViewer',
-      'MarkdownChanged',
-    ),
-    'ui.stepper': NodeContract(
-      'IntoChat.OS.Modules.UI.Stepper.IStepper',
-      'StepperChanged',
-    ),
-    'ui.property-grid': NodeContract(
-      'IntoChat.OS.Modules.UI.PropertyGrid.IPropertyGrid',
-      'PropertyGridChanged',
-    ),
-    'ui.kanban': NodeContract(
-      'IntoChat.OS.Modules.UI.KanbanBoard.IKanbanBoard',
-      'KanbanBoardChanged',
-    ),
   };
 
   // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.

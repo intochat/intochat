@@ -26,14 +26,7 @@ export 'src/theme/theme_studio_panel.dart';
 
 export 'src/composition/view_host.dart';
 export 'src/primitives/primitives.dart';
-export 'src/widgets/neuron/neuron_widget.dart';
-export 'src/widgets/neuron/ui_neuron_registry.dart';
-export 'src/widgets/neuron/code_editor_widget.dart'
-    show
-        CodeEditorNeuronWidget,
-        buildIcCodeHighlightTheme,
-        resolveCodeHighlightLanguage,
-        supportedCodeHighlightModes;
+export 'src/core/neuron_method_caller.dart';
 export 'src/nodes/brain_scene.dart';
 export 'src/nodes/diff_card.dart';
 export 'src/nodes/empty_state.dart';

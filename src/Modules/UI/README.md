@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.UI
 
-Stateful UI component neurons and signals for IntoChat OS.
+The control neurons (`control.*`) a screen mounts as children, a read-only reader of the old `ui.chat` state, and the Widgetbook site at `/widgetbook`.
 
 Module id: `ui`.
 
@@ -17,6 +17,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.UI` (`IBreadcrumbBar`, `IChartSource`, `IChart`, `IChatThread`, `ICodeEditor`, `ICommandBar`, `IContextMenu`, `IDialog`, `IForm`, `IGridView`, `IKanbanBoard`, `IMarkdownViewer`, `IPropertyGrid`, `ISlider`, `IStepper`, `ITable`, `ITabs`, `ITreeView`, `IUiInteractiveControl`, `IUiTableSource`).
+Contracts: assembly `IntoChat.OS.Modules.UI.Contracts` (`IChatThreadControl`, `ICheckBoxControl`, `IComboBoxControl`, `IExpanderControl`, `IFormControl`, `IKanbanControl`, `IListBoxControl`, `ILiveChartControl`, `IQueryTableControl`, `ISliderControl`, `IStepperControl`, `ITabStripControl`, `IToggleSwitchControl`, `ITreeControl`).
 Hosting: runs in process.
 <!-- END GENERATED -->

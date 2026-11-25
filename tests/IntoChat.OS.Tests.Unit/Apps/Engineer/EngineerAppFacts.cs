@@ -6,7 +6,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.Chat;
+using IntoChat.OS.Modules.UI.Legacy;
+using IntoChat.OS.Tests.Unit.Modules.UI;
 using IntoChat.OS.Tests;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -265,10 +266,15 @@ public sealed class EngineerAppFacts
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
-        var legacy = os.Get<IChatThread>(new NeuronId(brain, "ui.chat", EngineerApp.LegacyBrainstormChatKey));
-        await legacy.AppendMessage(new ChatMessage("old-run-turn-0", "user", "**[User · Goal & Scope]** Earlier goal"));
-        await legacy.AppendMessage(new ChatMessage("old-run-turn-1", "assistant", "**[Architect · Plan]** Earlier plan"));
-        await legacy.AppendMessage(new ChatMessage("old-run-turn-2", "assistant", "**[Critic · Audit]** Earlier audit"));
+        // What an earlier version stored in the old ui.chat neuron; nothing writes it any more.
+        var legacyId = new NeuronId(brain, "ui.chat", EngineerApp.LegacyBrainstormChatKey);
+        ChatMessage[] earlier =
+        [
+            new("old-run-turn-0", "user", "**[User · Goal & Scope]** Earlier goal"),
+            new("old-run-turn-1", "assistant", "**[Architect · Plan]** Earlier plan"),
+            new("old-run-turn-2", "assistant", "**[Critic · Audit]** Earlier audit"),
+        ];
+        os.SeedStoredState(legacyId, LegacyChatThreadFacts.Stored(earlier));
 
         var engineerId = new NeuronId(brain, "app.engineer", "default");
         var screen = os.Get<IScreen>(engineerId);
@@ -285,14 +291,14 @@ public sealed class EngineerAppFacts
         var afterBrainstorm = await ThreadIds(screen);
         Assert.Equal(imported[..3], afterBrainstorm[..3]);
 
-        // The import ran once: a message the old neuron gains afterwards is not imported on the next activation.
-        await legacy.AppendMessage(new ChatMessage("late-turn-0", "user", "late"));
+        // The import ran once: the next activation does not read the old neuron at all.
+        await os.Deactivate(legacyId);
         await os.Deactivate(engineerId);
         await os.Idle();
         _ = await screen.Read();
         await os.Idle();
         var reactivated = await ThreadIds(screen);
-        Assert.DoesNotContain("late-turn-0", reactivated);
+        Assert.False(os.IsActive(legacyId), "Engineer read the old ui.chat neuron again after importing it.");
         Assert.Equal(afterBrainstorm, reactivated);
     }
 

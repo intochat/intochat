@@ -2,7 +2,7 @@ using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
-using IntoChat.OS.Modules.UI.Chat;
+using IntoChat.OS.Modules.UI.Legacy;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Engineer;
@@ -15,7 +15,7 @@ public sealed partial class EngineerApp
     // brainstorm child (owner decision 11); OWED.md names the reader and the flag for deletion.
     public const string LegacyBrainstormChatKey = "engineer/chat/brainstorm";
 
-    [Slot(Key = LegacyBrainstormChatKey, Required = false)] private partial IChatThread? LegacyBrainstormChat { get; }
+    [Slot(Key = LegacyBrainstormChatKey, Required = false)] private partial ILegacyChatThread? LegacyBrainstormChat { get; }
 
     // The current run's transcript as thread messages; ids are "{run}-turn-{i}", the ids the old ui.chat sync used, so a run's turns
     // replace themselves in place and earlier runs stay above them.

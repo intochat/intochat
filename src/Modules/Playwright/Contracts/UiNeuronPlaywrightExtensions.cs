@@ -20,8 +20,8 @@ public sealed record UiGeometryBox(float X, float Y, float Width, float Height)
             $"x={X:0.#}, y={Y:0.#}, w={Width:0.#}, h={Height:0.#} ({WidthRatio(viewportWidth) * 100f:0.0}%w x {HeightRatio(viewportHeight) * 100f:0.0}%h)");
 }
 
-// Typed Playwright helpers driving IntoChat.OS.Modules.UI neurons, Flame SceneView camera HUD,
-// Studio shell chrome, WebBrowser surfaces, Creator time-travel controls, and DOM bounding-box geometry.
+// Typed Playwright helpers for keyed view nodes and child slots, the Flame SceneView camera HUD, Studio shell chrome,
+// WebBrowser surfaces, Creator time-travel controls, and DOM bounding-box geometry.
 public static partial class UiNeuronPlaywrightExtensions
 {
     private const float DefaultTimeoutMs = 15_000;
@@ -29,12 +29,6 @@ public static partial class UiNeuronPlaywrightExtensions
 
     [GeneratedRegex(@"\b\d{1,3}%", RegexOptions.CultureInvariant)]
     private static partial Regex ZoomPercentPattern();
-
-    public static PlaywrightSdk.ILocator Neuron(this PlaywrightSdk.IPage page, string kind, string key)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        return page.Locator($"[flt-semantics-identifier='neuron:{kind}:{key}']");
-    }
 
     public static PlaywrightSdk.ILocator KeyedNode(this PlaywrightSdk.IPage page, string key)
     {
@@ -68,284 +62,6 @@ public static partial class UiNeuronPlaywrightExtensions
         var btn = scope.Locator("xpath=descendant-or-self::*[@role='button']").First;
         var target = await btn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0 && await btn.IsVisibleAsync().WaitAsync(ct).ConfigureAwait(false) ? btn : scope;
         await ClickStableAsync(target, ct).ConfigureAwait(false);
-    }
-
-    public static async Task SelectTabAsync(this PlaywrightSdk.IPage page, string key, string label, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.tabs", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-
-        var byRole = host.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = label, Exact = true }).First;
-        PlaywrightSdk.ILocator target;
-        if (await byRole.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
-        {
-            target = byRole;
-        }
-        else
-        {
-            var exact = host.GetByText(label, new() { Exact = true }).First;
-            target = await exact.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0
-                ? exact
-                : host.GetByText(label, new() { Exact = false }).First;
-        }
-
-        for (var settle = 0; settle < 3; settle++)
-        {
-            var b1 = await target.BoundingBoxAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-            await page.WaitForTimeoutAsync(90).WaitAsync(ct).ConfigureAwait(false);
-            var b2 = await target.BoundingBoxAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-            if (b1 is not null && b2 is not null && Math.Abs(b1.X - b2.X) <= 1f && Math.Abs(b1.Y - b2.Y) <= 1f)
-            {
-                break;
-            }
-        }
-
-        await ClickStableAsync(target, ct).ConfigureAwait(false);
-    }
-
-    public static async Task SwitchChartKindAsync(this PlaywrightSdk.IPage page, string key, string kindButtonLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.chart", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(kindButtonLabel, new() { Exact = true }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task FilterTableAsync(this PlaywrightSdk.IPage page, string key, string filterText, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.table", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var input = host.Locator("input, textarea, [role='textbox']").First;
-        await input.FillAsync(filterText, new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task SortTableAsync(this PlaywrightSdk.IPage page, string key, string columnLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.table", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var btn = host.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = columnLabel }).First;
-        var target = await btn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0 ? btn : host.GetByText(columnLabel, new() { Exact = false }).First;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task SelectTableRowAsync(this PlaywrightSdk.IPage page, string key, string rowText, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.table", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(rowText, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task SelectTreeNodeAsync(this PlaywrightSdk.IPage page, string key, string nodeLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.tree-view", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(nodeLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task ClickBreadcrumbAsync(this PlaywrightSdk.IPage page, string key, string segmentLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.breadcrumb", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(segmentLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task SelectGridItemAsync(this PlaywrightSdk.IPage page, string key, string itemTitle, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.grid-view", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(itemTitle, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task ClickCommandBarItemAsync(this PlaywrightSdk.IPage page, string key, string itemLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.command-bar", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var btn = host.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = itemLabel }).First;
-        var target = await btn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0 ? btn : host.GetByText(itemLabel, new() { Exact = false }).First;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task SendChatMessageAsync(this PlaywrightSdk.IPage page, string key, string message, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Neuron("ui.chat", key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var input = host.Locator("input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])").Last;
-        await input.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-        await page.WaitForTimeoutAsync(50).WaitAsync(ct).ConfigureAwait(false);
-        await input.FillAsync(message, new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var sendRole = host.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = "Send", Exact = true }).First;
-        if (await sendRole.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
-        {
-            await ClickStableAsync(sendRole, ct).ConfigureAwait(false);
-            return;
-        }
-        var sendText = host.GetByText("Send", new() { Exact = true }).First;
-        if (await sendText.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
-        {
-            await ClickStableAsync(sendText, ct).ConfigureAwait(false);
-            return;
-        }
-        await input.PressAsync("Enter", new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    // Wave 3: IStepper (ui.stepper)
-    public static PlaywrightSdk.ILocator Stepper(this PlaywrightSdk.IPage page, string key)
-        => page.Neuron("ui.stepper", key);
-
-    public static PlaywrightSdk.ILocator StepperStep(this PlaywrightSdk.IPage page, string stepId)
-        => page.SemanticsId($"stepper-step:{stepId}");
-
-    public static async Task SelectStepAsync(this PlaywrightSdk.IPage page, string key, string stepLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.Stepper(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(stepLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task AdvanceStepperAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var advanceScope = page.SemanticsId($"stepper-advance:{key}").First;
-        if (await advanceScope.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
-        {
-            var btn = advanceScope.Locator("xpath=descendant-or-self::*[@role='button']").First;
-            var target = await btn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0 ? btn : advanceScope;
-            await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-            return;
-        }
-        var host = page.Stepper(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText("Advance", new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static Task<string> ReadStepperTextAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
-        => page.ReadNeuronTextAsync("ui.stepper", key, ct);
-
-    // Wave 3: IPropertyGrid (ui.property-grid)
-    public static PlaywrightSdk.ILocator PropertyGrid(this PlaywrightSdk.IPage page, string key)
-        => page.Neuron("ui.property-grid", key);
-
-    public static async Task FilterPropertyGridAsync(this PlaywrightSdk.IPage page, string key, string filterText, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.PropertyGrid(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var input = host.Locator("input, textarea, [role='textbox']").First;
-        await input.FillAsync(filterText, new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task TogglePropertyNodeAsync(this PlaywrightSdk.IPage page, string key, string propertyLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.PropertyGrid(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(propertyLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static Task<string> ReadPropertyGridTextAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
-        => page.ReadNeuronTextAsync("ui.property-grid", key, ct);
-
-    // Wave 3: IKanbanBoard (ui.kanban)
-    public static PlaywrightSdk.ILocator KanbanBoard(this PlaywrightSdk.IPage page, string key)
-        => page.Neuron("ui.kanban", key);
-
-    public static PlaywrightSdk.ILocator KanbanColumn(this PlaywrightSdk.IPage page, string columnId)
-        => page.SemanticsId($"kanban-col:{columnId}");
-
-    public static PlaywrightSdk.ILocator KanbanCard(this PlaywrightSdk.IPage page, string cardId)
-        => page.SemanticsId($"kanban-card:{cardId}");
-
-    public static async Task ClickKanbanCardAsync(this PlaywrightSdk.IPage page, string key, string cardTitle, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.KanbanBoard(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        await host.GetByText(cardTitle, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task MoveKanbanCardRightAsync(this PlaywrightSdk.IPage page, string cardId, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var card = page.KanbanCard(cardId).First;
-        await card.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var moveBtn = card.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = "Move right" }).First;
-        var target = await moveBtn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0
-            ? moveBtn
-            : card.Locator("[aria-label='Move right']").First;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task MoveKanbanCardLeftAsync(this PlaywrightSdk.IPage page, string cardId, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var card = page.KanbanCard(cardId).First;
-        await card.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var moveBtn = card.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = "Move left" }).First;
-        var target = await moveBtn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0
-            ? moveBtn
-            : card.Locator("[aria-label='Move left']").First;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async Task MoveKanbanCardAsync(this PlaywrightSdk.IPage page, string key, string cardTitle, string actionOrColumnLabel, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.KanbanBoard(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var card = host.GetByText(cardTitle, new() { Exact = false }).First;
-        await card.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-        await page.WaitForTimeoutAsync(200).WaitAsync(ct).ConfigureAwait(false);
-        var target = host.GetByText(actionOrColumnLabel, new() { Exact = false }).First;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public static Task<string> ReadKanbanTextAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
-        => page.ReadNeuronTextAsync("ui.kanban", key, ct);
-
-    public static Task<string> ReadKanbanColumnTextAsync(this PlaywrightSdk.IPage page, string columnId, CancellationToken ct = default)
-        => page.ReadSemanticsSubtreeTextAsync($"kanban-col:{columnId}", ct);
-
-    // CodeEditor (ui.code-editor) + re_editor / re_highlight syntax inspection
-    public static PlaywrightSdk.ILocator CodeEditor(this PlaywrightSdk.IPage page, string key)
-        => page.Neuron("ui.code-editor", key);
-
-    public static Task<string> ReadCodeEditorTextAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
-        => page.ReadNeuronTextAsync("ui.code-editor", key, ct);
-
-    public static async Task<string[]> ReadCodeEditorSemanticsAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        var host = page.CodeEditor(key).First;
-        await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        return await host.EvaluateAsync<string[]>(
-            """
-            el => {
-              const items = [];
-              const push = v => { v = (v || '').trim(); if (v) items.push(v); };
-              const walk = node => {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                  push(node.getAttribute('flt-semantics-identifier'));
-                  push(node.getAttribute('aria-label'));
-                  if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) push(node.value);
-                } else if (node.nodeType === Node.TEXT_NODE) {
-                  push(node.textContent);
-                }
-                for (const c of node.childNodes) walk(c);
-              };
-              walk(el);
-              return items;
-            }
-            """).WaitAsync(ct).ConfigureAwait(false);
     }
 
     // Flame SceneView Camera HUD (zoom in, zoom out, fit, reset, follow live, minimap, zoom readout, pan/wheel gestures)
@@ -486,17 +202,6 @@ public static partial class UiNeuronPlaywrightExtensions
         return page.KeyedNode(key).WaitForBoxAsync(minWidth, minHeight, ct);
     }
 
-    public static Task<UiGeometryBox> MeasureNeuronBoxAsync(
-        this PlaywrightSdk.IPage page,
-        string kind,
-        string key,
-        float minWidth = 1f,
-        float minHeight = 1f,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(page);
-        return page.Neuron(kind, key).WaitForBoxAsync(minWidth, minHeight, ct);
-    }
 
     public static async Task<UiGeometryBox> MeasureSceneCanvasBoxAsync(
         this PlaywrightSdk.IPage page,
@@ -663,9 +368,6 @@ public static partial class UiNeuronPlaywrightExtensions
         }
         return string.Empty;
     }
-
-    public static Task<string> ReadNeuronTextAsync(this PlaywrightSdk.IPage page, string kind, string key, CancellationToken ct = default)
-        => page.ReadSemanticsSubtreeTextAsync($"neuron:{kind}:{key}", ct);
 
     public static async Task<string> ReadSemanticsSubtreeTextAsync(this PlaywrightSdk.IPage page, string identifier, CancellationToken ct = default)
     {
