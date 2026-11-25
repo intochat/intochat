@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Flutter.Screens;
 
 /// <summary>
-/// Unified screen gateway neuron for listing, reading, acting on, and approving UI across built-in apps and runtime units.
+/// Unified screen gateway neuron for listing, reading and acting on UI across built-in apps and runtime units.
 /// </summary>
 [Neuron(IScreenDirectory.TypeName, State = "screens")]
 internal sealed partial class ScreenDirectoryNeuron(
@@ -29,7 +29,6 @@ internal sealed partial class ScreenDirectoryNeuron(
     : UiNeuron<ScreenDirectoryState>, IScreenDirectory
 {
     private readonly string? _brainOverride;
-    private ScreenDirectoryState? _inMemoryState;
 
     private ILogger Log => logger ?? ShellConsoleLog.For<ScreenDirectoryNeuron>();
 
@@ -42,18 +41,6 @@ internal sealed partial class ScreenDirectoryNeuron(
         => _brainOverride = brainOverride;
 
     private string Brain => _brainOverride ?? Id.Brain.Value;
-
-    private ScreenDirectoryState CurrentState => _brainOverride is not null ? (_inMemoryState ??= new()) : Snapshot;
-
-    private Task PersistState(ScreenDirectoryState next, params DigitalBrain.Signal[] signals)
-    {
-        if (_brainOverride is not null)
-        {
-            _inMemoryState = next;
-            return Task.CompletedTask;
-        }
-        return Save(next, signals);
-    }
 
     private T ResolveNeuron<T>(NeuronId id) where T : class => proxies?.Get<T>(id) ?? Get<T>(id);
     private T ResolveNeuron<T>(string key) where T : class => ResolveNeuron<T>(PlainNeuronContracts.IdOf(typeof(T), key));
@@ -446,14 +433,6 @@ internal sealed partial class ScreenDirectoryNeuron(
             return new ScreenActionResult(false, $"Screen for app '{appId}' not found.");
         }
 
-        // Special case: confirmations screen resolution
-        if (normalizedApp == "confirmations" && value is "approve" or "deny")
-        {
-            var approveResult = await Approve(key, value == "approve");
-            var updatedSnapshot = await Read(appId, instanceId);
-            return new ScreenActionResult(approveResult.Accepted, approveResult.Message, updatedSnapshot);
-        }
-
         try
         {
             if (generation is { } seen && seen != current.Generation) { throw new ActivationRefusedException(ActivationRefusedException.Stale); }
@@ -491,69 +470,5 @@ internal sealed partial class ScreenDirectoryNeuron(
             Log.LogSwallowed(ex, $"Acting on '{key}' of '{appId}' failed.");
             return new ScreenActionResult(false, ex.Message);
         }
-    }
-
-    public async Task<ScreenActionResult> Approve(string approvalId, bool approved, string? reason = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(approvalId);
-
-        if (CurrentState.ResolvedApprovals.Contains(approvalId, StringComparer.Ordinal))
-        {
-            return new ScreenActionResult(false, $"Approval '{approvalId}' has already been resolved.");
-        }
-
-        var brainId = Brain;
-        var inbox = ResolveNeuron<IConfirmationInbox>(IConfirmationInbox.Key(brainId));
-
-        if (_brainOverride is not null)
-        {
-            try
-            {
-                await inbox.Resolve(approvalId, approved);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.LogSwallowed(ex, "IConfirmationInbox.Resolve failed in ScreenDirectoryNeuron.");
-            }
-        }
-        else
-        {
-            ConfirmationResult? outcome = null;
-            var wasPending = false;
-            try
-            {
-                var before = await inbox.Read();
-                wasPending = before.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal));
-                if (wasPending)
-                {
-                    await inbox.Resolve(approvalId, approved);
-                }
-
-                var requests = ResolveNeuron<IConfirmationRequests>(IConfirmationRequests.Of(new BrainId(brainId)));
-                outcome = await requests.Outcome(approvalId);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.LogSwallowed(ex, "Approval resolution or outcome verification failed in ScreenDirectoryNeuron.");
-                return new ScreenActionResult(false, $"Approval '{approvalId}' could not be resolved: {ex.Message}");
-            }
-
-            if (!wasPending)
-            {
-                return outcome is not null
-                    ? new ScreenActionResult(false, $"Approval '{approvalId}' has already been resolved.")
-                    : new ScreenActionResult(false, $"Approval '{approvalId}' was not found or could not be resolved.");
-            }
-
-            if (outcome is null || outcome.Approved != approved)
-            {
-                return new ScreenActionResult(false, $"Approval '{approvalId}' was not found or could not be resolved.");
-            }
-        }
-
-        string[] nextResolved = [.. CurrentState.ResolvedApprovals, approvalId];
-        await PersistState(CurrentState with { ResolvedApprovals = nextResolved }, new ApprovalResolved(brainId, approvalId, approved));
-
-        return new ScreenActionResult(true, $"Approval '{approvalId}' resolved as {(approved ? "approved" : "denied")}.");
     }
 }

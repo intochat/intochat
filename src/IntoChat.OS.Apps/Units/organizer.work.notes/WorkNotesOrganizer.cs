@@ -20,12 +20,6 @@ public static class WorkNotesOrganizerUnit
     public static Reaction<OrganizerState> Poll(Tick tick, OrganizerState state)
         => Reaction<OrganizerState>.Of(state, new NotesIndexed(state.NoteCount));
 
-    [Synapse("ui.screens.approval-resolved", "organizer.work.notes")]
-    public static OrganizerState Approved(SignalEnvelope env, OrganizerState state)
-        => (Read(env.Payload, "approvalId") ?? "").Contains("organizer.work.notes", StringComparison.OrdinalIgnoreCase)
-            ? new(state.NoteCount, state.LatestNote)
-            : state;
-
     [Synapse("notes.index", "organizer.work.notes")]
     public static Reaction<OrganizerState> Index(SignalEnvelope env, OrganizerState state)
     {

@@ -70,7 +70,7 @@ public sealed class GuestSurfaceFacts
     public void AGuest_MayUseTheThreeScreenTools(string tool) => Assert.True(GuestSurface.MayUseTool(tool));
 
     [Theory]
-    [InlineData("screen_approve")]
+    [InlineData("screen_answer")]
     [InlineData(NeuronSurfaceTools.CallName)]
     [InlineData(NeuronSurfaceTools.ListName)]
     [InlineData(NeuronSurfaceTools.SearchName)]
@@ -216,7 +216,7 @@ public sealed class GuestSurfaceFacts
     }
 
     [Theory]
-    [InlineData("screen_approve")]
+    [InlineData("screen_answer")]
     [InlineData(NeuronSurfaceTools.CallName)]
     [InlineData(NeuronSurfaceTools.ListName)]
     [InlineData(NeuronSurfaceTools.SearchName)]

@@ -160,7 +160,6 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
 
         // -----------------------------------------------------------------------------------------
         // Attack 2: Unproved loopback HTTP caller (no X-IntoChat-Presence -> rejected 401 at edge)
-        // Attempt via both /confirmations/{planId} and /screens/approvals/{id}
         // -----------------------------------------------------------------------------------------
         using (var unprovedEventRes = await host.Client.PostAsJsonAsync(
             $"/brains/{scope}/confirmations/{Uri.EscapeDataString(planId)}",
@@ -170,12 +169,31 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
             Assert.Equal(HttpStatusCode.Unauthorized, unprovedEventRes.StatusCode);
         }
 
-        using (var unprovedScreenRes = await host.Client.PostAsJsonAsync(
-            $"/brains/{scope}/screens/approvals/{Uri.EscapeDataString(planId)}",
-            new { approved = true, reason = "unproved loopback attempt" },
-            Ct))
+        // -----------------------------------------------------------------------------------------
+        // Attack 2b: Another brain's person, signed in, answering this brain's plan -> 403 at the membership filter
+        // -----------------------------------------------------------------------------------------
+        var stranger = $"gate20-stranger-{Guid.NewGuid():N}";
+        using (var strangerClient = new HttpClient { BaseAddress = host.BaseAddress })
         {
-            Assert.Equal(HttpStatusCode.Unauthorized, unprovedScreenRes.StatusCode);
+            using (var registered = await strangerClient.PostAsJsonAsync(
+                "/identity/register",
+                new { principalId = stranger, password = "correct-horse-battery-staple", displayName = "Stranger" },
+                Ct))
+            {
+                Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
+            }
+            using (var signedIn = await strangerClient.PostAsJsonAsync(
+                "/identity/login",
+                new { principalId = stranger, password = "correct-horse-battery-staple" },
+                Ct))
+            {
+                Assert.Equal(HttpStatusCode.OK, signedIn.StatusCode);
+            }
+            using var strangerRes = await strangerClient.PostAsJsonAsync(
+                $"/brains/{scope}/confirmations/{Uri.EscapeDataString(planId)}",
+                new { approve = true },
+                Ct);
+            Assert.Equal(HttpStatusCode.Forbidden, strangerRes.StatusCode);
         }
 
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
@@ -183,7 +201,7 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
         // -----------------------------------------------------------------------------------------
         // Attack 3: /mcp caller (EVEN WHEN HTTP transport carries valid X-IntoChat-Presence!)
         // McpCaller ALWAYS stamps Actor.Agent (AppId = "assistant", ConversationId = "mcp").
-        // Try screen_approve (approve + deny) AND neurons_call on Resolve + Withdraw!
+        // No MCP tool answers a confirmation; neurons_call on Resolve + Withdraw is refused.
         // -----------------------------------------------------------------------------------------
         using var mcpHttp = new HttpClient { BaseAddress = host.BaseAddress };
         mcpHttp.DefaultRequestHeaders.Add(PresenceProof.HeaderName, host.PresenceToken);
@@ -195,25 +213,8 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
             }, mcpHttp, ownsHttpClient: false),
             cancellationToken: Ct))
         {
-            var mcpApprove = await mcpClient.CallToolAsync(
-                "screen_approve",
-                new Dictionary<string, object?> { ["approvalId"] = planId, ["approved"] = true },
-                cancellationToken: Ct);
-            Assert.True(
-                mcpApprove.IsError == true
-                || ExtractText(mcpApprove).Contains("\"accepted\":false", StringComparison.OrdinalIgnoreCase)
-                || ExtractText(mcpApprove).Contains("UnauthorizedAccessException", StringComparison.Ordinal),
-                $"Expected MCP screen_approve(true) to fail, got: {ExtractText(mcpApprove)}");
-
-            var mcpDenyCancelAttempt = await mcpClient.CallToolAsync(
-                "screen_approve",
-                new Dictionary<string, object?> { ["approvalId"] = planId, ["approved"] = false },
-                cancellationToken: Ct);
-            Assert.True(
-                mcpDenyCancelAttempt.IsError == true
-                || ExtractText(mcpDenyCancelAttempt).Contains("\"accepted\":false", StringComparison.OrdinalIgnoreCase)
-                || ExtractText(mcpDenyCancelAttempt).Contains("UnauthorizedAccessException", StringComparison.Ordinal),
-                $"Expected MCP screen_approve(false) to fail without cancelling plan, got: {ExtractText(mcpDenyCancelAttempt)}");
+            var tools = await mcpClient.ListToolsAsync(cancellationToken: Ct);
+            Assert.DoesNotContain(tools, tool => tool.Name.Contains("approve", StringComparison.OrdinalIgnoreCase));
 
             var mcpDirectResolve = await mcpClient.CallToolAsync(
                 "neurons_call",

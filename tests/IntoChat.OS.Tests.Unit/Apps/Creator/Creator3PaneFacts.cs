@@ -194,10 +194,6 @@ public sealed class Creator3PaneFacts
         var pendingItem = Assert.Single(snapshot.PendingApprovals);
         Assert.Equal("plan-cf-77", pendingItem.ApprovalId);
         Assert.Equal("creator", pendingItem.AppId);
-
-        var result = await screenDirectory.Approve("plan-cf-77", true);
-        Assert.True(result.Accepted);
-        Assert.Contains("plan-cf-77", proxies.Inbox.Resolved.Select(r => r.PlanId));
     }
 
     [Fact]

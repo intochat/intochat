@@ -24,6 +24,21 @@ public sealed class ConfirmationAndBrowserRoutesFacts
         Assert.Equal(["POST /brains/{brainId}/confirmations/{**planId}"], routes);
     }
 
+    // The screens surface lists, reads and acts; it answers no confirmation. The one answer is the confirmations route above, and the
+    // screen directory has no approve of its own.
+    [Fact]
+    public void TheScreensRoutesAnswerNoConfirmation()
+    {
+        var routes = RouteTable.Of(IntoChat.OS.Modules.Flutter.Screens.ScreensEndpoints.Map, services => services.Known<INeuronProxies>());
+
+        Assert.Equal(
+            ["GET /brains/{brainId}/screens/", "GET /brains/{brainId}/screens/{appId}", "POST /brains/{brainId}/screens/{appId}/act"],
+            routes);
+        Assert.DoesNotContain(
+            typeof(IntoChat.OS.Modules.Flutter.Screens.IScreenDirectory).GetMethods(),
+            method => method.Name.Contains("Approv", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void TheBrowserRoutesAreConnectDisconnectAndUnavailable()
     {
@@ -60,7 +75,8 @@ public sealed class ConfirmationAndBrowserRoutesFacts
         Assert.Empty(brain.Inbox.Resolved);
     }
 
-    // Only a direct person answers: a person speaking inside a conversation, an agent and an app are refused.
+    // Only a direct person answers: a person speaking inside a conversation, an agent and an app are refused. Another brain's person
+    // never reaches this brain's inbox: the route's membership filter refuses them (Gate20EdgeApprovalWallFacts, over real HTTP).
     [Fact]
     public async Task ANonDirectCallerCannotAnswer()
     {
@@ -80,6 +96,28 @@ public sealed class ConfirmationAndBrowserRoutesFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => ConfirmationEndpoints.Answer("plan-3", new(true), brain, Scope, null, Ct));
 
         Assert.Empty(brain.Inbox.Resolved);
+    }
+
+    // The route's gate is the inbox's own Answerer rule, so the edge refuses up front exactly whom the inbox would not take as the person.
+    [Fact]
+    public async Task TheGateIsTheInboxAnswererRule()
+    {
+        await using var os = DigitalBrain.Testing.TestOS.Local();
+        var brain = new BrainId(Scope);
+        var ann = new DigitalBrain.Access.Actor.Person("ann", "acct");
+        foreach (var caller in new[]
+        {
+            os.Edge.Person("ann", "acct", brain),
+            os.Edge.Person("ann", "acct", brain, "chat-1"),
+            os.Edge.Agent(ann, brain),
+            os.Edge.App("app.settings", ann, brain),
+            os.Edge.RelayedPerson("ann", "acct", brain),
+            os.Edge.Scheduler(brain),
+        })
+        {
+            var refused = Record.Exception(() => ShellPresenceGate.RequireDirectPerson(caller)) is UnauthorizedAccessException;
+            Assert.Equal(DigitalBrain.Confirmation.Answerer.Of(caller, brain).IsPerson, !refused);
+        }
     }
 
     [Fact]
