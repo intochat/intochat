@@ -1,43 +1,84 @@
+using System.Reflection;
+using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.UI;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Modules.UI.Core;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 /// <summary>
-/// DDD vertical-slice fitness tests for <c>IntoChat.OS.Modules.UI</c>:
-/// 1. Contracts are co-located in the same folder as their neuron (no separate <c>Contracts/</c> tree).
-/// 2. Every stateful UI control neuron inherits <see cref="UiNeuronBase{TState}"/>.
+/// Fitness facts for <c>IntoChat.OS.Modules.UI</c>, the one home of controls:
+/// 1. The control contracts (<c>control.*</c>) are in <c>IntoChat.OS.Modules.UI.Contracts</c>, one per control neuron, so apps,
+///    components and sandboxed apps mount a control without referencing the module.
+/// 2. Every control neuron (<c>IntoChat.OS.Modules.UI.Controls</c>) derives from <see cref="ControlNeuron{TState, TProps}"/> and
+///    implements the contract that names its neuron type and props.
+/// 3. Every other neuron of the module is a legacy <c>ui.*</c> control on <see cref="UiNeuronBase{TState}"/>, its contract beside it.
 /// </summary>
 public sealed class UiVerticalSliceFacts
 {
+    private static readonly Assembly ContractsAssembly = typeof(ICheckBoxControl).Assembly;
+
     [Fact]
-    public void UiModuleHasNoSeparateContractsFolder()
+    public void TheUiContractsAssemblyHoldsOnlyControlContracts()
     {
-        var uiDir = Repository.Projects["IntoChat.OS.Modules.UI"].Directory;
-        var separateContractsDir = Path.Combine(uiDir, "Contracts");
-        Assert.False(
-            Directory.Exists(separateContractsDir),
-            $"UI contracts must be co-located inside each neuron folder under IntoChat.OS.Modules.UI, not in '{separateContractsDir}'.");
+        Assert.Equal("IntoChat.OS.Modules.UI.Contracts", ContractsAssembly.GetName().Name);
+        var problems = ContractsAssembly.GetExportedTypes()
+            .Where(type => !type.IsInterface || PropsOfContract(type) is null
+                || type.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type.StartsWith("control.", StringComparison.Ordinal) != true)
+            .Select(type => type.FullName)
+            .ToArray();
+        Assert.True(problems.Length == 0, "Not a control contract ([DefaultNeuronType(\"control.…\")] interface over IControl<TProps>): " + string.Join(", ", problems));
     }
 
     [Fact]
-    public void EveryUiControlNeuronInheritsUiNeuronBase()
+    public void EveryControlNeuronImplementsTheContractOfItsTypeAndProps()
     {
-        var uiAssembly = typeof(UiModule).Assembly;
-        var violations = new List<string>();
-
-        foreach (var type in uiAssembly.GetTypes())
+        var neurons = ControlNeurons();
+        Assert.NotEmpty(neurons);
+        var contracts = ContractsAssembly.GetExportedTypes().Where(type => type.IsInterface).ToArray();
+        var problems = new List<string>();
+        foreach (var neuron in neurons)
         {
-            if (type.IsAbstract || !type.IsClass) { continue; }
-            if (!type.Name.EndsWith("Neuron", StringComparison.Ordinal)) { continue; }
-            if (!InheritsOpenGeneric(type, typeof(UiNeuronBase<>)))
-            {
-                violations.Add(type.FullName ?? type.Name);
-            }
+            var typeId = neuron.GetCustomAttribute<NeuronAttribute>()!.Type;
+            var contract = contracts.SingleOrDefault(candidate => candidate.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type == typeId);
+            if (contract is null) { problems.Add($"{neuron.Name}: no contract names {typeId}"); continue; }
+            if (!contract.IsAssignableFrom(neuron)) { problems.Add($"{neuron.Name} does not implement {contract.Name}"); }
+            if (PropsOfContract(contract) != PropsOfNeuron(neuron)) { problems.Add($"{contract.Name} and {neuron.Name} name different props"); }
         }
+        var mounted = neurons.Select(neuron => neuron.GetCustomAttribute<NeuronAttribute>()!.Type).ToHashSet(StringComparer.Ordinal);
+        problems.AddRange(contracts.Select(contract => contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)!.Type)
+            .Where(typeId => !mounted.Contains(typeId)).Select(typeId => $"{typeId}: a contract no control neuron implements"));
+        Assert.True(problems.Count == 0, string.Join("; ", problems));
+    }
 
+    [Fact]
+    public void EveryOtherUiNeuronInheritsUiNeuronBase()
+    {
+        var violations = typeof(UiModule).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false } && type.Name.EndsWith("Neuron", StringComparison.Ordinal)
+                && type.Namespace != typeof(ControlNeuron<,>).Namespace && !InheritsOpenGeneric(type, typeof(UiNeuronBase<>)))
+            .Select(type => type.FullName ?? type.Name)
+            .ToArray();
         Assert.Empty(violations);
+    }
+
+    private static Type[] ControlNeurons() => [.. typeof(UiModule).Assembly.GetTypes()
+        .Where(type => type is { IsClass: true, IsAbstract: false } && type.Namespace == typeof(ControlNeuron<,>).Namespace
+            && InheritsOpenGeneric(type, typeof(ControlNeuron<,>)))];
+
+    private static Type? PropsOfContract(Type contract) => contract.GetInterfaces()
+        .Where(candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IControl<>))
+        .Select(candidate => candidate.GetGenericArguments()[0]).SingleOrDefault();
+
+    private static Type? PropsOfNeuron(Type neuron)
+    {
+        for (var current = neuron.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(ControlNeuron<,>)) { return current.GetGenericArguments()[1]; }
+        }
+        return null;
     }
 
     private static bool InheritsOpenGeneric(Type type, Type openGeneric)

@@ -20,7 +20,6 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
-using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.AI;

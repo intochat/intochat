@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Log;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Apps.AgentApp;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.Apps;

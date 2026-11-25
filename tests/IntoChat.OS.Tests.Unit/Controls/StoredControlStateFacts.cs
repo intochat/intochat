@@ -5,7 +5,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 
@@ -33,13 +33,15 @@ public sealed class StoredControlStateFacts
                     var chart = Assert.IsType<LiveChartView>(node);
                     Assert.Equal(3, chart.Version);
                     Assert.Equal([new ChartPointNode("Mon", 2)], chart.Points);
-                }),
+                }
+            ),
             ["control.queryTable"] = (typeof(QueryTableNeuron), """{"filter":"ann","sortBy":"name","descending":true,"page":2}""",
                 node =>
                 {
                     var table = Assert.IsType<QueryTableView>(node);
                     Assert.Equal(("ann", "name", true, 2), (table.Filter, table.SortBy, table.Descending, table.Page));
-                }),
+                }
+            ),
             ["control.chatThread"] = (typeof(ChatThreadNeuron),
                 """{"messages":[{"id":"m1","role":"user","text":"hello","status":"completed","activities":[],"cards":[]}],"showsStop":false,"showsRetry":false,"acceptsText":true}""",
                 node => Assert.Equal("hello", Assert.Single(Assert.IsType<ChatThreadView>(node).Messages).Text)),

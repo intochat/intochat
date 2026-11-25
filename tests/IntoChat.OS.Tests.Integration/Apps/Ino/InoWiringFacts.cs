@@ -8,7 +8,6 @@ using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
@@ -35,7 +34,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         var screen = fixture.InoScreen(brain);
         await OpenInoAsync(screen);
 
-        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "hello");
+        await fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "hello");
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(8), Ct);
 
         // Immediately while working: user's "hello" is visible inside Conversation and composer is disabled!
@@ -76,7 +75,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         var screen = fixture.InoScreen(brain);
         await OpenInoAsync(screen);
 
-        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "hello");
+        await fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "hello");
 
         // The failed reply says why and offers a retry (or, when no reply was started, the error line under the thread does).
         var failedView = await fixture.WaitForScreenAsync(
@@ -91,7 +90,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
 
         // Now fix the provider and click "Try again".
         fixture.Model.Reply("Hi, back online.");
-        await fixture.ActOnThreadAsync(brain, failedReply?.Retry?.Key ?? ChatThreadNeuron.ErrorRetryKey);
+        await fixture.ActOnThreadAsync(brain, failedReply?.Retry?.Key ?? ChatThreadProps.ErrorRetryKey);
 
         var recovered = await fixture.WaitForScreenAsync(
             screen,
@@ -112,7 +111,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
 
         var screen = fixture.InoScreen(brain);
         await OpenInoAsync(screen);
-        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "remember this turn");
+        await fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "remember this turn");
 
         await fixture.WaitForScreenAsync(
             screen,
@@ -145,12 +144,12 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         var screen = fixture.InoScreen(brain);
         await OpenInoAsync(screen);
 
-        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "first question");
+        await fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "first question");
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(8), Ct);
 
         // A second send through the composer while the first run is active: the thread refuses it in order (Ino said it cannot take a
         // message), so it never reaches Ino. A one-way request to Ino could land after the run ends, when sending is allowed again.
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "second question"));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "second question"));
         Assert.Equal(ControlProps.Disabled, refused.Reason);
 
         held.Release();
@@ -174,7 +173,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         var screen = fixture.InoScreen(brain);
         await OpenInoAsync(screen);
 
-        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "   ");
+        await fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "   ");
         var after = await fixture.ReadComposedAsync(screen);
 
         Assert.Empty(fixture.Model.Requests);
@@ -196,7 +195,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
             var screen = fixture.InoScreen(brain);
             await OpenInoAsync(screen);
 
-            await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "Write a unit test");
+            await fixture.ActOnThreadAsync(brain, ChatThreadProps.ComposerKey, "Write a unit test");
 
             var noProviderView = await fixture.WaitForScreenAsync(
                 screen,

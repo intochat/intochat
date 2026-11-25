@@ -20,11 +20,11 @@ using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A query table: it owns the query, reads one page from its source, and signals <see cref="TableChanged"/>.</summary>
 [Neuron("control.queryTable"), Emits(typeof(TableChanged))]
-public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, QueryTableProps>
+public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, QueryTableProps>, IQueryTableControl
 {
     [Slot(Required = false)]
     private partial SlotCollection<ITableSource> TableSources { get; }

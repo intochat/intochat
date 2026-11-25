@@ -23,7 +23,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -210,13 +210,13 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         // Settings reacts to its control neurons through synapses: one wire per child, told apart by SignalChild.
-        foreach (var toggle in SettingsControls.Toggles) { await FollowChild<ToggleSwitchNeuron, Toggled>(toggle.Key); }
-        foreach (var combo in SettingsControls.Combos) { await FollowChild<ComboBoxNeuron, SelectionChanged>(combo.Key); }
-        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Search);
-        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Regional);
-        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.InstallModel);
-        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.SearxngUrl);
-        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.McpAddForm);
+        foreach (var toggle in SettingsControls.Toggles) { await FollowChild<IToggleSwitchControl, Toggled>(toggle.Key); }
+        foreach (var combo in SettingsControls.Combos) { await FollowChild<IComboBoxControl, SelectionChanged>(combo.Key); }
+        await FollowChild<IFormControl, Submitted>(SettingsControls.Search);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.Regional);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.InstallModel);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.SearxngUrl);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.McpAddForm);
         if (ThisMachine is { Value.Length: > 0 } machine)
         {
             try
@@ -289,9 +289,9 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     }
 
     private SettingsSlots ChildSlots => new(
-        Child<ToggleSwitchNeuron, ToggleSwitchProps>,
-        Child<ComboBoxNeuron, ComboBoxProps>,
-        Child<IntoChat.OS.Apps.Controls.FormNeuron, FormProps>);
+        Child<IToggleSwitchControl, ToggleSwitchProps>,
+        Child<IComboBoxControl, ComboBoxProps>,
+        Child<IFormControl, FormProps>);
 
     [On]
     public async Task OnToggled(Toggled toggled)

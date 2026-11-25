@@ -5,7 +5,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
@@ -24,7 +24,7 @@ public sealed record AgentAppStarterClicked(string Prompt) : DigitalBrain.Signal
 
 /// <summary>
 /// Generic runtime host screen for pure-data agent apps (<c>Manifest.Agent != null</c>).
-/// Mounts <see cref="ChatThreadNeuron"/> using <see cref="ConversationThreadProjection"/> and seats the app's
+/// Mounts <see cref="IChatThreadControl"/> using <see cref="ConversationThreadProjection"/> and seats the app's
 /// isolated <see cref="AgentDefinition"/> on its dedicated conversation.
 /// </summary>
 [Neuron("agentapp")]
@@ -81,9 +81,9 @@ public sealed partial class AgentAppScreen : AggregateScreen<AgentAppState>
 
         await TryOptionalAsync("agentapp-thread-wires", async () =>
         {
-            await FollowChild<ChatThreadNeuron, Submitted>(ConversationSlotKey);
-            await FollowChild<ChatThreadNeuron, StopRequested>(ConversationSlotKey);
-            await FollowChild<ChatThreadNeuron, RetryRequested>(ConversationSlotKey);
+            await FollowChild<IChatThreadControl, Submitted>(ConversationSlotKey);
+            await FollowChild<IChatThreadControl, StopRequested>(ConversationSlotKey);
+            await FollowChild<IChatThreadControl, RetryRequested>(ConversationSlotKey);
         });
 
         await TryOptionalAsync("agentapp-app-wire", () => Follow<IApp, AppChanged>(AppFollowKey));
@@ -117,7 +117,7 @@ public sealed partial class AgentAppScreen : AggregateScreen<AgentAppState>
             children.Add(HStack(Space.Sm, starterButtons));
         }
 
-        children.Add(Child<ChatThreadNeuron, ChatThreadProps>(ConversationSlotKey, props));
+        children.Add(Child<IChatThreadControl, ChatThreadProps>(ConversationSlotKey, props));
         return VStack(Space.Md, [.. children]);
     }
 

@@ -29,6 +29,7 @@ public static class Journey
         typeof(WebModule),
         typeof(IdentityModule),
         typeof(ShippedShellAppsModule),
+        typeof(IntoChat.OS.Modules.UI.UiModule),
     ];
 
     /// <summary>Starts a <see cref="JourneyOS"/> with <see cref="SliceModules"/> and the configured edge fakes.</summary>

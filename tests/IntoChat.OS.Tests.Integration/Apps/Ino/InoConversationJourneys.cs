@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Flows;
-using IntoChat.OS.Apps.Controls;
+using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -59,9 +59,9 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     // Ino's messages live in its conversation thread slot; MCP and HTTP readers see its controls under the slot key.
-    private const string ComposerControl = InoView.ConversationKey + "/" + ChatThreadNeuron.ComposerKey;
-    private const string StopControl = InoView.ConversationKey + "/" + ChatThreadNeuron.StopKey;
-    private const string ErrorRetryControl = InoView.ConversationKey + "/" + ChatThreadNeuron.ErrorRetryKey;
+    private const string ComposerControl = InoView.ConversationKey + "/" + ChatThreadProps.ComposerKey;
+    private const string StopControl = InoView.ConversationKey + "/" + ChatThreadProps.StopKey;
+    private const string ErrorRetryControl = InoView.ConversationKey + "/" + ChatThreadProps.ErrorRetryKey;
     private const string MessageRetryControlPrefix = InoView.ConversationKey + "/retry:";
 
     [Fact]

@@ -11,11 +11,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A list box: it owns the selected item and signals <see cref="SelectionChanged"/>.</summary>
 [Neuron("control.listBox"), Emits(typeof(SelectionChanged))]
-public sealed class ListBoxNeuron : ControlNeuron<ListBoxState, ListBoxProps>
+public sealed class ListBoxNeuron : ControlNeuron<ListBoxState, ListBoxProps>, IListBoxControl
 {
     [On]
     public Task Select(DigitalBrain.UI.Commands.Select command)

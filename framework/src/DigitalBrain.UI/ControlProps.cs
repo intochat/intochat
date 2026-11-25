@@ -454,6 +454,36 @@ public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSen
     string? Conversation = null, bool ReadAloud = false, string? TalkConversation = null)
     : ControlProps(IsEnabled, AutomationName)
 {
+    /// <summary>The reason a failed message draws when it carries none.</summary>
+    public const string NoAnswer = "The model did not answer.";
+
+    /// <summary>The most messages a thread draws; older ones stay held but are not drawn.</summary>
+    public const int MaxDrawnMessages = 100;
+
+    /// <summary>The most characters of message text a thread draws in all.</summary>
+    public const int MaxDrawnChars = 1_000_000;
+
+    /// <summary>The key of the thread's composer node.</summary>
+    public const string ComposerKey = "composer";
+
+    /// <summary>The key of the composer's per-conversation model picker target.</summary>
+    public const string SelectModelKey = "composer-model";
+
+    /// <summary>The key of the composer's pin-default model picker target.</summary>
+    public const string PinModelKey = "composer-model-default";
+
+    /// <summary>The key of the thread's stop button.</summary>
+    public const string StopKey = "stop";
+
+    /// <summary>The key of the error line's retry button.</summary>
+    public const string ErrorRetryKey = "error-action";
+
+    /// <summary>The key of a message's retry button.</summary>
+    public static string RetryKeyOf(string id) => $"retry:{id}";
+
+    /// <summary>The key of a completed reply's regenerate button.</summary>
+    public static string RegenerateKeyOf(string id) => $"regenerate:{id}";
+
     /// <inheritdoc />
     public bool Equals(ChatThreadProps? other) => other is not null
         && IsEnabled == other.IsEnabled

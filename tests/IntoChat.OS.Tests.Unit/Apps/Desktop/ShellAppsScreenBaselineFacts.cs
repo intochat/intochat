@@ -101,8 +101,6 @@ public sealed class ShellAppsScreenBaselineFacts
         var concreteScreens = typeof(CalculatorApp).Assembly.GetTypes()
             .Concat(typeof(IntoChat.Aspire.Screens.AspireApp).Assembly.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false } && IsScreenType(t))
-            // Control neurons (IntoChat.OS.Apps.Controls) are screens too, but they are slotted into apps, not shell apps.
-            .Where(t => t.Namespace != typeof(IntoChat.OS.Apps.Controls.CheckBoxNeuron).Namespace)
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
@@ -172,6 +170,8 @@ public sealed class ShellAppsScreenBaselineFacts
             os.Register<TestWorkspaceNeuron>();
             os.RegisterCatalog();
             os.Register(typeof(CalculatorApp).Assembly);
+            // The shell apps mount the control neurons of the UI module.
+            os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
             os.Register(typeof(IntoChat.Aspire.Screens.AspireApp).Assembly);
 
             var neuronType = appType.GetCustomAttribute<NeuronAttribute>()?.Type ?? appType.Name;

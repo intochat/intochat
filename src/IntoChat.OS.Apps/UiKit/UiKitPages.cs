@@ -3,8 +3,9 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 
 namespace IntoChat.OS.Apps.UiKit;
 
@@ -61,10 +62,10 @@ public static class UiKitPages
         new(TableQuery, "Table query", Scenario),
     ];
 
-    /// <summary>The control neurons of this assembly by catalog kind (class name without "Neuron", camel-cased).</summary>
-    public static IReadOnlyDictionary<string, Type> NeuronKinds { get; } = typeof(ControlNeuron<,>).Assembly.GetTypes()
-        .Where(type => type is { IsClass: true, IsAbstract: false } && IsControl(type))
-        .ToDictionary(type => JsonNamingPolicy.CamelCase.ConvertName(type.Name.EndsWith("Neuron", StringComparison.Ordinal) ? type.Name[..^"Neuron".Length] : type.Name), StringComparer.Ordinal);
+    /// <summary>The control contracts by catalog kind: the neuron type without "control." (control.checkBox -> checkBox).</summary>
+    public static IReadOnlyDictionary<string, Type> NeuronKinds { get; } = typeof(ICheckBoxControl).Assembly.GetExportedTypes()
+        .Where(type => type.IsInterface && IsControl(type))
+        .ToDictionary(type => type.GetCustomAttribute<DefaultNeuronTypeAttribute>()!.Type["control.".Length..], StringComparer.Ordinal);
 
     /// <summary>The data node kinds, from their [ViewNode] attributes.</summary>
     public static IReadOnlyDictionary<string, Type> NodeKinds { get; } = ViewNodeAttribute.DiscoverAll();
@@ -80,14 +81,9 @@ public static class UiKitPages
 
     public static UiKitPage? Find(string? id) => All.FirstOrDefault(page => page.Id == id);
 
+    // The contracts assembly holds only control contracts (UiVerticalSliceFacts); each names its control.* neuron type.
     private static bool IsControl(Type type)
-    {
-        for (var current = type.BaseType; current is not null; current = current.BaseType)
-        {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(ControlNeuron<,>)) { return true; }
-        }
-        return false;
-    }
+        => type.GetCustomAttribute<DefaultNeuronTypeAttribute>()?.Type.StartsWith("control.", StringComparison.Ordinal) == true;
 
     /// <summary>The [Showcase] examples of a data node kind, each read back as the node: a whole node, or one property value shown as {kind, prop: value}.</summary>
     public static IReadOnlyList<Node> Examples(string kind, Type type)

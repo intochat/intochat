@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Apps.AgentApp;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.AI.Models;
@@ -26,7 +26,6 @@ public static partial class InoView
     public const string ProviderCredentialKey = "provider-credential";
     public const string ProviderCredentialField = "apps/ino/provider-credential";
     public const string UseLocalKey = "use-local-model";
-    public const string StopKey = ChatThreadNeuron.StopKey;
     public const string NewKey = "new-conversation";
     public const string SendDraftKey = "ino:send-draft";
     public const string DismissDraftKey = "ino:dismiss-draft";

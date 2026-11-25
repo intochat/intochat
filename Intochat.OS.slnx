@@ -99,6 +99,7 @@
   <Project Path="src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
   <Project Path="src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
   <Project Path="src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />
+  <Project Path="src/Modules/UI/Contracts/IntoChat.OS.Modules.UI.Contracts.csproj" />
   <Project Path="src/Modules/UI/IntoChat.OS.Modules.UI.csproj" />
   <Project Path="src/Modules/Web/Contracts/IntoChat.OS.Modules.Web.Contracts.csproj" />
   <Project Path="src/Modules/Web/IntoChat.OS.Modules.Web.csproj" />

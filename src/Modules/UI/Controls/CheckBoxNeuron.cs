@@ -10,11 +10,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A check box: it owns whether it is checked and signals <see cref="Toggled"/>.</summary>
 [Neuron("control.checkBox"), Emits(typeof(Toggled))]
-public sealed class CheckBoxNeuron : ControlNeuron<CheckBoxState, CheckBoxProps>
+public sealed class CheckBoxNeuron : ControlNeuron<CheckBoxState, CheckBoxProps>, ICheckBoxControl
 {
     [On]
     public Task Toggle(Toggle command)

@@ -11,11 +11,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A tab strip: it owns the selected tab and signals <see cref="SelectionChanged"/>.</summary>
 [Neuron("control.tabStrip"), Emits(typeof(SelectionChanged))]
-public sealed class TabStripNeuron : ControlNeuron<TabStripState, TabStripProps>
+public sealed class TabStripNeuron : ControlNeuron<TabStripState, TabStripProps>, ITabStripControl
 {
     [On]
     public Task Select(DigitalBrain.UI.Commands.Select command)
