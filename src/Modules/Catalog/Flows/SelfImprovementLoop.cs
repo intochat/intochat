@@ -15,7 +15,8 @@ internal sealed partial class SelfImprovementLoop : Neuron, ISelfImprovementLoop
     [Slot(Key = "confirmations")]
     private partial IConfirmationInbox Approval { get; }
 
-    // Where the loop keeps its findings: a storage connection the installer binds; it has no default.
+    // Where the loop keeps its findings: a storage connection the installer binds; it has no default, so an unbound loop is
+    // refused at activation. Status does not open it.
     [Slot]
     private partial IStorage FindingsLog { get; }
 
@@ -24,7 +25,6 @@ internal sealed partial class SelfImprovementLoop : Neuron, ISelfImprovementLoop
         ct.ThrowIfCancellationRequested();
         _ = Flows;
         _ = Approval;
-        _ = FindingsLog;
         return Task.FromResult("ready");
     }
 }
