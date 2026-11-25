@@ -1270,7 +1270,7 @@
             "label": "TextureCraft",
             "uri": "neuron://owner/apps/texturecraft",
             "kind": "app",
-            "x": 0,
+            "x": -0,
             "y": -320,
             "z": 0,
             "status": "idle",
@@ -1531,19 +1531,21 @@
             "refKind": "slot",
             "neuronUri": "creator-graph-mode",
             "props": {
-              "isEnabled": true,
-              "automationName": "Graph mode",
               "items": [
                 {
                   "id": "brain",
-                  "label": "Brain Graph"
+                  "label": "Brain Graph",
+                  "icon": null
                 },
                 {
                   "id": "state",
-                  "label": "Accordant State Graph"
+                  "label": "Accordant State Graph",
+                  "icon": null
                 }
               ],
-              "selectedId": "brain"
+              "selectedId": "brain",
+              "isEnabled": true,
+              "automationName": "Graph mode"
             }
           },
           {
