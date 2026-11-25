@@ -5,7 +5,7 @@ using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Flutter;
 
-// A unit owning its view, for the edge's unit route: a bump emit and a copy intent.
+// A unit owning its view, for the edge's unit route: a bump command and a copy intent.
 [State("ctr")]
 public sealed record Counter(int Bumps, string? Value, int Kicks, string? By = null)
 {
@@ -51,7 +51,7 @@ public static class CounterUnit
         new Badge(c.Bumps.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         new DigitalBrain.UI.Button("bump", "Bump", new Command(".", "ctr.bump")),
         new DigitalBrain.UI.Button("copy", "Copy", Intent: new Intent(IntentKind.Copy, "neuron://owner/ctr")),
-        new Conversation("foreign-thread", [], new ComposerNode("foreign", new Emit("other.alias", "ctr.bump"))),
+        new Conversation("foreign-thread", [], new ComposerNode("foreign", new Command("other", "ctr.bump"))),
         new Field("valued", "ctr/valued", FieldKind.Text, OnSubmit: new Command(".", "ctr.bump", JsonSerializer.SerializeToElement(new { value = "declared" }))),
         new ApprovalCardNode("approval", "plan-1", "Approve", "A unit's card", [], Resolve: new Resolve("plan-1")),
     ]));

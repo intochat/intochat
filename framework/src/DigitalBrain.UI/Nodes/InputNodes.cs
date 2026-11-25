@@ -94,18 +94,18 @@ public sealed record Button(
         ? true
         : throw new ArgumentException("A button carries exactly one of Command and Intent.", nameof(Intent));
 
-    // Reads stored views and fixtures written before buttons carried commands: a legacy emit becomes a command to the view's own
-    // neuron (".") with the emit's signal and args. Only "command" is ever written.
+    // Reads stored views and fixtures written before buttons carried commands: a legacy "emit" ({owner, signal, args}) reads as a
+    // command to the view's own neuron (".") with its signal and args (Command's reading constructor). Only "command" is ever written.
     [JsonConstructor]
-    private Button(string key, string label, Command? command, Intent? intent, bool enabled, string tone, string automationName, string? tooltip, bool visible, Emit? emit)
-        : this(key, label, command ?? (emit is null ? null : new Command(".", emit.Signal, emit.Args)), intent, enabled, tone ?? ButtonTone.Neutral, automationName ?? "", tooltip, visible)
+    private Button(string key, string label, Command? command, Intent? intent, bool enabled, string tone, string automationName, string? tooltip, bool visible, Command? legacyEmit)
+        : this(key, label, command ?? legacyEmit, intent, enabled, tone ?? ButtonTone.Neutral, automationName ?? "", tooltip, visible)
     {
     }
 
     // The legacy member the reading constructor binds; never written.
     [JsonInclude, JsonPropertyName("emit"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 #pragma warning disable CA1822 // an instance member, so the serializer binds the reading constructor's parameter to it
-    private Emit? Emit => null;
+    private Command? LegacyEmit => null;
 #pragma warning restore CA1822
 
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
@@ -153,19 +153,6 @@ public sealed record IconButton(
     public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 }
 
-/// <summary>A signal a node emits when activated: journaled with alias <paramref name="Signal"/> to the state alias <paramref name="Owner"/>.</summary>
-/// <param name="Owner">The state alias that owns the view and receives the signal.</param>
-/// <param name="Signal">The journal alias of the emitted signal.</param>
-/// <param name="Args">Optional JSON object payload; an activation's field value is added as <c>value</c>.</param>
-public sealed record Emit(string Owner, string Signal, System.Text.Json.JsonElement? Args = null)
-{
-    /// <inheritdoc />
-    public bool Equals(Emit? other) => other is not null && Owner == other.Owner && Signal == other.Signal && Args?.GetRawText() == other.Args?.GetRawText();
-
-    /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Owner, Signal, Args?.GetRawText());
-}
-
 /// <summary>What a client-local intent does.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<IntentKind>))]
 public enum IntentKind
@@ -186,7 +173,7 @@ public enum IntentKind
 [ViewNode("intent")]
 public sealed record Intent([property: JsonPropertyName("intentKind")] IntentKind Kind, string? Arg = null) : Node;
 
-/// <summary>An approval card's resolution: the OS inbox surface answers plan <paramref name="PlanId"/> (approve or deny); never an <see cref="Emit"/>.</summary>
+/// <summary>An approval card's resolution: the OS inbox surface answers plan <paramref name="PlanId"/> (approve or deny); never a <see cref="Command"/>.</summary>
 /// <param name="PlanId">The confirmation plan id.</param>
 public sealed record Resolve(string PlanId);
 

@@ -129,16 +129,16 @@ public sealed record NavItemNode(
     Command? Command = null,
     string AutomationName = "") : Node
 {
-    // Reads stored views and fixtures written before nav items carried commands.
+    // Reads stored views and fixtures written before nav items carried commands: a legacy "emit" reads as a command to ".".
     [JsonConstructor]
-    private NavItemNode(string key, string label, string icon, string action, bool selected, string? badge, Command? command, string automationName, Emit? emit)
-        : this(key, label, icon, action, selected, badge, command ?? (emit is null ? null : new Command(".", emit.Signal, emit.Args)), automationName ?? "")
+    private NavItemNode(string key, string label, string icon, string action, bool selected, string? badge, Command? command, string automationName, Command? legacyEmit)
+        : this(key, label, icon, action, selected, badge, command ?? legacyEmit, automationName ?? "")
     {
     }
 
     [JsonInclude, JsonPropertyName("emit"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 #pragma warning disable CA1822
-    private Emit? Emit => null;
+    private Command? LegacyEmit => null;
 #pragma warning restore CA1822
 
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>

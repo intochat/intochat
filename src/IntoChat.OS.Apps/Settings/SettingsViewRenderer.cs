@@ -84,7 +84,7 @@ internal static class SettingsViewRenderer
                     entry.Icon,
                     $"navigate:{entry.SectionId}",
                     selected: activeSection == entry.SectionId && string.IsNullOrEmpty(state.SubPage),
-                    emit: AppSignals.Emits("settings", new SettingsNavigate(entry.SectionId)))).ToArray()));
+                    command: Sends(new SettingsNavigate(entry.SectionId)))).ToArray()));
         }
 
         if (filtered.FirstOrDefault(e => e.SectionId == "danger") is { } dangerEntry)
@@ -96,7 +96,7 @@ internal static class SettingsViewRenderer
                 dangerEntry.Icon,
                 "navigate:danger",
                 selected: activeSection == "danger",
-                emit: AppSignals.Emits("settings", new SettingsNavigate("danger"))));
+                command: Sends(new SettingsNavigate("danger"))));
         }
 
         return VStack(Space.Sm, nodes.ToArray());
@@ -291,7 +291,7 @@ internal static class SettingsViewRenderer
             .Select((alias, idx) => Button($"Unit · {alias}", "cpu")
                 .Key($"inspect-unit-{idx}-{alias}")
                 .Small()
-                .Emits(AppSignals.Emit("settings", "navigate", "apps", alias))
+                .Sends(new SettingsNavigate("apps", alias))
                 .ToNode())
             .ToArray();
 
@@ -305,19 +305,19 @@ internal static class SettingsViewRenderer
                     PrimaryButton("Inspect Ino app", Icons.Sparkles)
                         .Key("apps:inspect-ino")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "apps", "ino")),
+                        .Sends(new SettingsNavigate("apps", "ino")),
                     Button("Inspect Creator app", "wand-sparkles")
                         .Key("apps:inspect-creator")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "apps", "creator")),
+                        .Sends(new SettingsNavigate("apps", "creator")),
                     Button("Ino MemoryPage", "brain")
                         .Key("apps:inspect-memory")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "apps", "memory")),
+                        .Sends(new SettingsNavigate("apps", "memory")),
                     Button("Install from link", "package-plus")
                         .Key("apps:install-link")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "apps", "", "install-link"))
+                        .Sends(new SettingsNavigate("apps", "", "install-link"))
                 ],
                 unitButtons.Length > 0
                     ? HStack(Space.Sm, unitButtons).ToNode()
@@ -354,11 +354,11 @@ internal static class SettingsViewRenderer
                         PrimaryButton("Reconnect OAuth", Icons.RefreshCw)
                             .Key("conn:reconnect-oauth")
                             .Small()
-                            .Emits(AppSignals.Emit("settings", "navigate", "connections", subPage, "add-connection")),
+                            .Sends(new SettingsNavigate("connections", subPage, "add-connection")),
                         Button("Back to Connections", "arrow-left")
                             .Key("conn:back")
                             .Small()
-                            .Emits(AppSignals.Emit("settings", "go-back"))
+                            .Sends(new SettingsGoBack())
                     ]
                 ]
             ];
@@ -379,15 +379,15 @@ internal static class SettingsViewRenderer
                     PrimaryButton("Add connection", Icons.Plus)
                         .Key("conn:add")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "connections", "", "add-connection")),
+                        .Sends(new SettingsNavigate("connections", "", "add-connection")),
                     Button("GitHub connection", "plug")
                         .Key("conn:github")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "connections", "github")),
+                        .Sends(new SettingsNavigate("connections", "github")),
                     Button("Google Drive connection", Icons.Folder)
                         .Key("conn:google-drive")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "connections", "google-drive"))
+                        .Sends(new SettingsNavigate("connections", "google-drive"))
                 ]
             ]
         ];
@@ -482,17 +482,17 @@ internal static class SettingsViewRenderer
                                 : Button("Auto-comment (10 / hr)", "shield-check"))
                                 .Key("settings:github-policy:auto-10")
                                 .Small()
-                                .Emits(AppSignals.Emits("settings", new SettingsSetGitHubTriagePolicy("auto-10"))),
+                                .Sends(new SettingsSetGitHubTriagePolicy("auto-10")),
                             (string.Equals(state.GitHubTriagePolicyPreset, "draft-only", StringComparison.Ordinal)
                                 ? PrimaryButton("Draft-only (0 auto-posts)", Icons.Hand)
                                 : Button("Draft-only (0 auto-posts)", Icons.Hand))
                                 .Key("settings:github-policy:draft-only")
                                 .Small()
-                                .Emits(AppSignals.Emits("settings", new SettingsSetGitHubTriagePolicy("draft-only"))),
+                                .Sends(new SettingsSetGitHubTriagePolicy("draft-only")),
                             Button("Reset policy", Icons.RefreshCw)
                                 .Key("settings:github-policy:reset")
                                 .Small()
-                                .Emits(AppSignals.Emits("settings", new SettingsSetGitHubTriagePolicy("reset")))
+                                .Sends(new SettingsSetGitHubTriagePolicy("reset"))
                         ]
                     ]
                 ],
@@ -510,11 +510,11 @@ internal static class SettingsViewRenderer
                             PrimaryButton("Install Triage Synapse (Draft)", Icons.Sparkles)
                                 .Key("settings:github-synapse:draft")
                                 .Small()
-                                .Emits(AppSignals.Emits("settings", new SettingsInstallIssueTriageSynapse(connectionKey, "DraftForApproval"))),
+                                .Sends(new SettingsInstallIssueTriageSynapse(connectionKey, "DraftForApproval")),
                             Button("Install Triage Synapse (Auto)", Icons.Play)
                                 .Key("settings:github-synapse:auto")
                                 .Small()
-                                .Emits(AppSignals.Emits("settings", new SettingsInstallIssueTriageSynapse(connectionKey, "AutoComment"))),
+                                .Sends(new SettingsInstallIssueTriageSynapse(connectionKey, "AutoComment")),
                             Button("Open Tasks Approvals ↗", "list-checks")
                                 .Key("settings:github:open-tasks")
                                 .Small()
@@ -526,7 +526,7 @@ internal static class SettingsViewRenderer
                             Button("Back to Connections", "arrow-left")
                                 .Key("conn:back")
                                 .Small()
-                                .Emits(AppSignals.Emit("settings", "go-back"))
+                                .Sends(new SettingsGoBack())
                         ]
                     ]
                 ]
@@ -554,7 +554,7 @@ internal static class SettingsViewRenderer
                     Button("Resolve file conflict sheet", "git-compare")
                         .Key("files:conflict-sheet")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "files", "", "conflict"))
+                        .Sends(new SettingsNavigate("files", "", "conflict"))
                 ]
             ]
         ];
@@ -849,19 +849,19 @@ internal static class SettingsViewRenderer
                     PrimaryButton("Local server (Ollama)", "cpu")
                         .Key("models:local-server")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "models", "local-server")),
+                        .Sends(new SettingsNavigate("models", "local-server")),
                     Button("Web & tools", "globe")
                         .Key("models:web-tools")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "models", "web-tools")),
+                        .Sends(new SettingsNavigate("models", "web-tools")),
                     Button("Configure endpoint sheet", Icons.Sliders)
                         .Key("models:endpoint-sheet")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "models", "", "ollama-config")),
+                        .Sends(new SettingsNavigate("models", "", "ollama-config")),
                     Button("API keys & vault", Icons.KeyRound)
                         .Key("models:open-keys")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "keys"))
+                        .Sends(new SettingsNavigate("keys"))
                 ]
             ]
         ];
@@ -910,7 +910,7 @@ internal static class SettingsViewRenderer
                 DangerButton("Remove", Icons.Trash2)
                     .Key($"mcp:{server.Name}")
                     .Small()
-                    .Emits(AppSignals.Emits("settings", new SettingsMcpRemove(server.Name)))
+                    .Sends(new SettingsMcpRemove(server.Name))
             ])
             .ToArray();
 
@@ -946,7 +946,7 @@ internal static class SettingsViewRenderer
                             Button("API keys & vault", Icons.KeyRound)
                                 .Key("models:open-keys")
                                 .Small()
-                                .Emits(AppSignals.Emit("settings", "navigate", "keys"))
+                                .Sends(new SettingsNavigate("keys"))
                         ]
                     ]
                 ],
@@ -966,7 +966,7 @@ internal static class SettingsViewRenderer
                     Button("Back to AI", "arrow-left")
                         .Key("back-to-ai-web-tools")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "go-back"))
+                        .Sends(new SettingsGoBack())
                 ]
             ]
         ];
@@ -1122,11 +1122,11 @@ internal static class SettingsViewRenderer
                     PrimaryButton("Invite teammate", "user-plus")
                         .Key("team:invite")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "team", "", "invite")),
+                        .Sends(new SettingsNavigate("team", "", "invite")),
                     Button("Inspect owner grants", "shield-check")
                         .Key("team:owner-grants")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "team", "owner"))
+                        .Sends(new SettingsNavigate("team", "owner"))
                 ]
             ]
         ];
@@ -1183,15 +1183,15 @@ internal static class SettingsViewRenderer
                     PrimaryButton("Export brain archive", "download")
                         .Key("danger:export-brain")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "export-brain")),
+                        .Sends(new SettingsExportBrain()),
                     Button("Restore brain archive", "upload")
                         .Key("danger:import-brain")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "import-brain")),
+                        .Sends(new SettingsImportBrain()),
                     DangerButton("Delete account / reset brain", Icons.Trash2)
                         .Key("danger:reset-brain")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", "danger", "", "confirm-delete"))
+                        .Sends(new SettingsNavigate("danger", "", "confirm-delete"))
                 ]
             ]
         ];
@@ -1211,12 +1211,14 @@ internal static class SettingsViewRenderer
                     Button(backLabel, "arrow-left")
                         .Key(backId)
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "go-back"))
+                        .Sends(new SettingsGoBack())
                 ]
             ]
         ];
 
-    private static Emit PrefEmit(
+    // The save a preference button sends: the current display name, theme and model with the given ones applied; style and bar
+    // layout only when a style, bar, mode or tone is given, the mode only when a mode or tone is given.
+    private static SettingsSavePreferences PrefSave(
         SettingsAppState state,
         string? theme = null,
         string? model = null,
@@ -1225,29 +1227,16 @@ internal static class SettingsViewRenderer
         string? themeMode = null,
         string? desktopTone = null)
     {
-        var args = new List<string>
-        {
-            state.DisplayName,
-            theme ?? state.Theme,
-            model ?? state.DefaultModel,
-        };
-        if (preset != null || barLayout != null || themeMode != null || desktopTone != null)
-        {
-            args.Add(preset ?? state.StylePreset);
-            args.Add(barLayout ?? state.BarLayout);
-        }
-
-        if (themeMode != null || desktopTone != null)
-        {
-            args.Add(themeMode ?? state.ThemeMode);
-        }
-
-        if (desktopTone != null)
-        {
-            args.Add(desktopTone);
-        }
-
-        return AppSignals.Emit("settings", "save-preferences", [.. args]);
+        var styled = preset != null || barLayout != null || themeMode != null || desktopTone != null;
+        var moded = themeMode != null || desktopTone != null;
+        return new SettingsSavePreferences(
+            DisplayName: state.DisplayName,
+            Theme: theme ?? state.Theme,
+            DefaultModel: model ?? state.DefaultModel,
+            StylePreset: styled ? preset ?? state.StylePreset : null,
+            BarLayout: styled ? barLayout ?? state.BarLayout : null,
+            ThemeMode: moded ? themeMode ?? state.ThemeMode : null,
+            DesktopTone: desktopTone);
     }
 
     private static Node PrefButton(
@@ -1265,6 +1254,6 @@ internal static class SettingsViewRenderer
         (selected ? PrimaryButton(label, icon) : Button(label, icon))
             .Key(id)
             .Small()
-            .Emits(PrefEmit(state, theme, model, preset, barLayout, themeMode, desktopTone))
+            .Sends(PrefSave(state, theme, model, preset, barLayout, themeMode, desktopTone))
             .ToNode();
 }

@@ -81,9 +81,10 @@ public sealed record ActivityNode(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Category = null);
 
 /// <summary>The message input composer at the bottom of a <see cref="Conversation"/>.</summary>
+/// <remarks>A send carries <c>OnSubmit</c> with the typed text as <c>value</c>.</remarks>
 public sealed record ComposerNode(
     string Key,
-    Emit OnSubmit,
+    Command OnSubmit,
     string Placeholder = "Message",
     bool Enabled = true,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActiveModelLabel = null,
@@ -92,6 +93,6 @@ public sealed record ComposerNode(
 
 /// <summary>An addressable model-picker activation target drawn by a chat thread.</summary>
 /// <param name="Key">The node's activation key.</param>
-/// <param name="OnSubmit">The signal emitted with the chosen model id as "value".</param>
-public sealed record ModelSelectNode(string Key, Emit OnSubmit);
+/// <param name="OnSubmit">The command a pick sends, with the chosen model id as <c>value</c>.</param>
+public sealed record ModelSelectNode(string Key, Command OnSubmit);
 

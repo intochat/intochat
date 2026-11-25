@@ -9,13 +9,14 @@ Map<String, dynamic> button(String key) => {
   'kind': 'button',
   'key': key,
   'label': key,
-  'emit': {'owner': 'brain', 'signal': 'focus'},
+  'command': {'target': '.', 'signal': 'creator.select'},
 };
 
 final sample = BrainSceneNode.fromJson(_json);
 
 final _json = <String, dynamic>{
   'kind': 'brainScene',
+  'select': {'target': '.', 'signal': 'creator.select'},
   'nodes': [
     {
       'id': 'ada/notes/default',
@@ -97,11 +98,11 @@ void main() {
         .single;
     pulse.onTap!(pulse.pulse.key);
     await tester.pump();
-    // An edge or a pulse is not a node of the view: it goes through the select key, its own key as the value.
-    expect(events.map((e) => [e['key'], e['value']]), [
+    // An edge or a pulse is not a node of the view: the scene's own select command carries its key as the value.
+    expect(events.map((e) => [e['key'] ?? e['signal'], e['value']]), [
       ['node:ada/notes/default', null],
-      [brainSelectKey, 'edge:*→ada/notes/default:note.added'],
-      [brainSelectKey, 'pulse:tr'],
+      ['creator.select', 'edge:*→ada/notes/default:note.added'],
+      ['creator.select', 'pulse:tr'],
     ]);
     await tester.pump(const Duration(seconds: 1));
     await tail.close();

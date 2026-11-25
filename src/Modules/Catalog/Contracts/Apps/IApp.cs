@@ -44,7 +44,7 @@ public interface IApp
     [DigitalBrain.Contracts.CallTimeout(600_000)] Task Delete();
     // Publishes AppRequested for a synapse to react to. Nothing waits for it: the answer is neuron state.
     Task<Guid> Request(string operation, string input);
-    // An app view's own Emit, resolved by its view neuron and checked against this app by the edge: exactly Request(signal,
+    // An app view's command to ".", resolved by its view neuron and routed to this app by the edge: exactly Request(signal,
     // args JSON), so the signal must be a declared operation and every request rule applies.
     Task<Guid> Emit(string signal, string args);
 }

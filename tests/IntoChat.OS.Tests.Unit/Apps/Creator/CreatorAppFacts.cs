@@ -120,8 +120,10 @@ public sealed class CreatorAppFacts
         var cursorReadout = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-cursor-readout");
         Assert.Equal("Live · Event 4 / 4", cursorReadout.Label);
 
-        var select = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == BrainGraph.SelectKey);
-        Assert.Equal("select", select.Command!.Signal);
+        // The scene's own select carries a picked edge or pulse key as its value; the clear button sends the same command.
+        var scene = Assert.Single(Nodes(creator.App.Render()).OfType<BrainSceneNode>());
+        Assert.Equal(("creator.select", "{}"), (scene.Select!.Signal, scene.Select.Args!.Value.GetRawText()));
+        Assert.Equal(scene.Select, Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "clear-selection").Command);
     }
 
     [Fact]
@@ -137,7 +139,7 @@ public sealed class CreatorAppFacts
         var ghost = Assert.Single(scene.Nodes, n => n.Kind == BrainGraph.Draft);
         Assert.Equal(BrainGraph.DraftId("weather"), ghost.Id);
         Assert.Contains(scene.Nodes, n => n.Id == Unit && n.Kind == BrainGraph.Unit);
-        Assert.Equal("select", scene.Nodes.Single(n => n.Id == Unit).Select!.Command!.Signal);
+        Assert.Equal("creator.select", scene.Nodes.Single(n => n.Id == Unit).Select!.Command!.Signal);
     }
 
     [Fact]
@@ -152,7 +154,7 @@ public sealed class CreatorAppFacts
         Assert.Equal(("ctr.bump", null), FakeReads.Asked);
         var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>());
         Assert.Equal(["7", "9"], table.Rows.Select(r => r[0]));
-        Assert.Contains(Nodes(creator.App.Render()).OfType<Button>(), b => b.Command is { Signal: "trace" });
+        Assert.Contains(Nodes(creator.App.Render()).OfType<Button>(), b => b.Command is { Signal: "creator.trace" });
     }
 
     [Fact]
@@ -243,7 +245,7 @@ public sealed class CreatorAppFacts
         Assert.Equal(["replay:0:1:test.hop:t1", "replay:1:2:synapse.state-changed:t1", "replay:2:3:test.hop:t1", "replay:3:4:synapse.state-changed:t1"], steps.Select(s => s.SignalLabel));
         Assert.Equal([true, false, false, false], steps.Select(s => s.Active));
         var next = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-next");
-        Assert.Equal("replay", next.Command!.Signal);
+        Assert.Equal("creator.replay", next.Command!.Signal);
 
         await creator.Request("replay", new CreatorReplay("stop"));
         Assert.Null(creator.App.State.ReplayCursor);
@@ -262,7 +264,7 @@ public sealed class CreatorAppFacts
 
         await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
         var shareBtn = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "share-unit");
-        Assert.Equal("share", shareBtn.Command!.Signal);
+        Assert.Equal("creator.share", shareBtn.Command!.Signal);
 
         await creator.Request("share", new CreatorShare("ctr"));
 

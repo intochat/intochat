@@ -37,10 +37,10 @@ public sealed class ChallengerScreen : Screen<ChallengerScreenState>
                 new Heading($"Counter: {state.Counter}"),
                 new Button("btn-valid", "Valid Button", Sends(new ChallengerTick(1))),
                 new Button("btn-no-emit", "No Emit Button", Intent: new Intent(IntentKind.Copy, "clipboard")),
-                new Conversation("btn-alien-owner-thread", [], new ComposerNode("btn-alien-owner", new Emit("alien.screen", "challenger.tick"))),
+                new Conversation("btn-alien-owner-thread", [], new ComposerNode("btn-alien-owner", new Command("alien", "challenger.tick"))),
                 new Field("fld-valid", "Valid Field", FieldKind.Text, state.Text, OnSubmit: Sends(new ChallengerSetText("default"))),
                 new Field("fld-no-submit", "Field Without OnSubmit", FieldKind.Text, state.Text, OnSubmit: null),
-                new Conversation("conv-alien", [], new ComposerNode("fld-alien-submit", new Emit("alien.screen", "challenger.set-text")))
+                new Conversation("conv-alien", [], new ComposerNode("fld-alien-submit", new Command("alien", "challenger.set-text")))
             ])
         );
     }
@@ -290,7 +290,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
     [Theory]
     [InlineData("btn-alien-owner")]
     [InlineData("fld-alien-submit")]
-    public async Task Activate_Case4_ForeignOwner_ThrowsActivationRefusedException_WithZeroJournaling(string alienKey)
+    public async Task Activate_Case4_CommandToAnUnshownChild_ThrowsActivationRefusedException_WithZeroJournaling(string alienKey)
     {
         var (screen, context) = await Attached();
         var initialView = await screen.Read();
@@ -304,7 +304,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("challenger.screen", initialView.Generation, alienKey));
 
-        Assert.Equal(ActivationRefusedException.ForeignOwner, ex.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
 
         // Verification: Absolutely ZERO state or signal journaled
         Assert.Equal(beforeWrites, context.Writes.Count);

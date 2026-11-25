@@ -818,9 +818,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 
   // A desktop button as the window chrome reads it: its key, label, argument and state.
-  // A view stored before buttons carried commands has the argument in its emit.
-  Map<String, dynamic> _button(ButtonNode node) =>
-      desktopButton(node, legacyEmitArgs(_data?['view']));
+  Map<String, dynamic> _button(ButtonNode node) => desktopButton(node);
 
   static Iterable<Node> _children(Node node) => switch (node) {
     ColumnNode(:final children) ||
@@ -2935,41 +2933,14 @@ bool desktopShellOperationAllowed(String app, String operation) =>
     _desktopShellOperations.contains((app, operation));
 
 /// A desktop button as the window chrome reads it: its key, label, argument
-/// (the command's text args, else the legacy emit's from [legacyArgs]) and state.
-Map<String, dynamic> desktopButton(
-  ButtonNode node,
-  Map<String, Object?> legacyArgs,
-) => {
+/// (the command's text args) and state. A stored view's legacy emits are
+/// commands by the time the server serves it.
+Map<String, dynamic> desktopButton(ButtonNode node) => {
   'key': node.key,
   'text': node.label,
   'enabled': node.enabled,
-  'argument': switch (node.command?.args ?? legacyArgs[node.key]) {
+  'argument': switch (node.command?.args) {
     final String text => text,
     _ => null,
   },
 };
-
-/// The `emit.args` of every keyed button in raw view JSON written before
-/// buttons carried commands, by key.
-Map<String, Object?> legacyEmitArgs(Object? view) {
-  final found = <String, Object?>{};
-  void walk(Object? node) {
-    if (node is List) {
-      for (final item in node) {
-        walk(item);
-      }
-    } else if (node is Map) {
-      final key = node['key'];
-      final emit = node['emit'];
-      if (key is String && emit is Map && node['command'] == null) {
-        found[key] = emit['args'];
-      }
-      for (final value in node.values) {
-        walk(value);
-      }
-    }
-  }
-
-  walk(view);
-  return found;
-}

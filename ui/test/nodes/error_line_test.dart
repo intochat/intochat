@@ -47,7 +47,7 @@ void main() {
       'action': {
         'key': 'retry',
         'label': 'Try again',
-        'emit': {'owner': 'app.ino', 'signal': 'retry'},
+        'command': {'target': '.', 'signal': 'retry'},
       },
     }, events: events);
 

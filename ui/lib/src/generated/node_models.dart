@@ -441,6 +441,7 @@ final class BrainSceneNode extends Node {
     required this.pauseRotation,
     required this.zoomTargetId,
     required this.targetZoom,
+    required this.select,
   });
 
   @override
@@ -452,6 +453,7 @@ final class BrainSceneNode extends Node {
   final bool pauseRotation;
   final String? zoomTargetId;
   final double targetZoom;
+  final Command? select;
 
   factory BrainSceneNode.fromJson(Map<String, dynamic> json) => BrainSceneNode(
     nodes: [
@@ -466,6 +468,9 @@ final class BrainSceneNode extends Node {
     pauseRotation: _bool(json['pauseRotation']),
     zoomTargetId: _stringOrNull(json['zoomTargetId']),
     targetZoom: _double(json['targetZoom']),
+    select: json['select'] is Map
+        ? Command.fromJson(_map(json['select']))
+        : null,
   );
 }
 
@@ -561,6 +566,7 @@ final class ChartNode extends Node {
     required this.sourceNeuronUri,
     required this.from,
     required this.prefix,
+    required this.select,
   });
 
   @override
@@ -575,6 +581,7 @@ final class ChartNode extends Node {
   final String? sourceNeuronUri;
   final String from;
   final String prefix;
+  final Command? select;
 
   factory ChartNode.fromJson(Map<String, dynamic> json) => ChartNode(
     chartKind: _string(json['chartKind']),
@@ -591,6 +598,9 @@ final class ChartNode extends Node {
     sourceNeuronUri: _stringOrNull(json['sourceNeuronUri']),
     from: _string(json['from'], 'DigitalBrain'),
     prefix: _string(json['prefix']),
+    select: json['select'] is Map
+        ? Command.fromJson(_map(json['select']))
+        : null,
   );
 }
 
@@ -960,7 +970,7 @@ final class ComposerNode {
   });
 
   final String key;
-  final Emit onSubmit;
+  final Command onSubmit;
   final String placeholder;
   final bool enabled;
   final String? activeModelLabel;
@@ -969,7 +979,7 @@ final class ComposerNode {
 
   factory ComposerNode.fromJson(Map<String, dynamic> json) => ComposerNode(
     key: _string(json['key']),
-    onSubmit: Emit.fromJson(_map(json['onSubmit'])),
+    onSubmit: Command.fromJson(_map(json['onSubmit'])),
     placeholder: _string(json['placeholder'], 'Message'),
     enabled: _bool(json['enabled'], true),
     activeModelLabel: _stringOrNull(json['activeModelLabel']),
@@ -1036,6 +1046,7 @@ final class DataTableNode extends Node {
     required this.rows,
     required this.sourceNeuronUri,
     required this.from,
+    required this.select,
   });
 
   @override
@@ -1046,6 +1057,7 @@ final class DataTableNode extends Node {
   final List<List<String>> rows;
   final String? sourceNeuronUri;
   final String from;
+  final Command? select;
 
   factory DataTableNode.fromJson(Map<String, dynamic> json) => DataTableNode(
     title: _string(json['title']),
@@ -1056,6 +1068,9 @@ final class DataTableNode extends Node {
     ],
     sourceNeuronUri: _stringOrNull(json['sourceNeuronUri']),
     from: _string(json['from'], 'DigitalBrain'),
+    select: json['select'] is Map
+        ? Command.fromJson(_map(json['select']))
+        : null,
   );
 }
 
@@ -1187,20 +1202,6 @@ final class DraftCardNode extends Node {
     discard: json['discard'] is Map
         ? ButtonNode.fromJson(_map(json['discard']))
         : null,
-  );
-}
-
-final class Emit {
-  const Emit({required this.owner, required this.signal, required this.args});
-
-  final String owner;
-  final String signal;
-  final Object? args;
-
-  factory Emit.fromJson(Map<String, dynamic> json) => Emit(
-    owner: _string(json['owner']),
-    signal: _string(json['signal']),
-    args: json['args'],
   );
 }
 
@@ -2010,12 +2011,12 @@ final class ModelSelectNode {
   const ModelSelectNode({required this.key, required this.onSubmit});
 
   final String key;
-  final Emit onSubmit;
+  final Command onSubmit;
 
   factory ModelSelectNode.fromJson(Map<String, dynamic> json) =>
       ModelSelectNode(
         key: _string(json['key']),
-        onSubmit: Emit.fromJson(_map(json['onSubmit'])),
+        onSubmit: Command.fromJson(_map(json['onSubmit'])),
       );
 }
 

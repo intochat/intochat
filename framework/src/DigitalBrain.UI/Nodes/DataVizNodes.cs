@@ -11,10 +11,15 @@ public sealed record DataTable(
     string? SourceNeuronUri = null,
     string From = "DigitalBrain") : Node
 {
+    /// <summary>The command a picked row sends, with the row's first cell as <c>value</c>; null draws the rows unpickable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Command? Select { get; init; }
+
     /// <inheritdoc />
     public bool Equals(DataTable? other) =>
         other is not null &&
         Title == other.Title &&
+        Equals(Select, other.Select) &&
         SourceNeuronUri == other.SourceNeuronUri &&
         From == other.From &&
         Columns.SequenceEqual(other.Columns) &&
@@ -41,10 +46,15 @@ public sealed record Chart(
     string From = "DigitalBrain",
     string Prefix = "") : Node
 {
+    /// <summary>The command a picked point sends, with the point's label as <c>value</c>; null draws the points unpickable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Command? Select { get; init; }
+
     /// <inheritdoc />
     public bool Equals(Chart? other) =>
         other is not null &&
         Kind == other.Kind &&
+        Equals(Select, other.Select) &&
         Title == other.Title &&
         SeriesName == other.SeriesName &&
         CompareName == other.CompareName &&
@@ -98,10 +108,15 @@ public sealed record BrainSceneNode(
     /// <summary>Target camera zoom factor (default <c>1.0</c>).</summary>
     public double TargetZoom { get; init; } = 1.0;
 
+    /// <summary>The command a picked edge or pulse sends, with its key (<c>edge:…</c>, <c>pulse:…</c>) as <c>value</c>; a node is picked by its own <see cref="BrainGraphNode.Select"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Command? Select { get; init; }
+
     /// <inheritdoc />
     public bool Equals(BrainSceneNode? other) =>
         other is not null &&
         SelectedId == other.SelectedId &&
+        Equals(Select, other.Select) &&
         PauseRotation == other.PauseRotation &&
         ZoomTargetId == other.ZoomTargetId &&
         TargetZoom.Equals(other.TargetZoom) &&

@@ -28,7 +28,7 @@ public sealed class AppUiScreenEndpointsFacts
             "TestApp",
             new Column([
                 new Button(key, "ClickMe", new Command(".", emitSignal, null)),
-                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("app.alien", "test.alien", null)))
+                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Command("alien", "test.alien", null)))
             ]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
         return new PublishedView(alias, generation, json);
@@ -59,7 +59,7 @@ public sealed class AppUiScreenEndpointsFacts
             }
             if (nodeKey == "btn-alien")
             {
-                throw new ActivationRefusedException(ActivationRefusedException.ForeignOwner);
+                throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
             }
             Activations.Add((alias, generation, nodeKey, fieldValue, by));
             return Task.CompletedTask;
@@ -175,7 +175,7 @@ public sealed class AppUiScreenEndpointsFacts
     }
 
     [Fact]
-    public async Task Button_Emitting_To_Foreign_Owner_Throws_UnauthorizedAccessException()
+    public async Task A_command_to_a_child_the_view_does_not_show_is_refused()
     {
         var brain = new ScreenBrain();
         var published = CreateTestView("app.calculator", 1L, "btn-alien", "test.alien");
@@ -186,9 +186,9 @@ public sealed class AppUiScreenEndpointsFacts
 
         using (AsPerson("alice"))
         {
-            var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
                 AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
-            Assert.Contains("cannot emit to another owner", ex.Message);
+            Assert.Contains(ActivationRefusedException.UnknownChild, ex.Message);
         }
     }
 

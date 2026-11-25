@@ -263,7 +263,7 @@ public sealed partial class TasksApp
         FlowView[] liveFlows,
         Approval[] approvals)
     {
-        var startEmit = AppSignals.Emit(AppName, "new", state.Draft.Title, state.Draft.Description);
+        var start = new TasksNew(state.Draft.Title, state.Draft.Description);
         var statusLine = approvals.Length == 0
             ? state.Status
             : string.Create(CultureInfo.InvariantCulture, $"{state.Status} · {approvals.Length} pending approval(s)");
@@ -275,7 +275,7 @@ public sealed partial class TasksApp
                 .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("title", Arg.Text)),
             TextField(FieldKey("description"), "Description").Key("description").Value(state.Draft.Description)
                 .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("description", Arg.Text)),
-            PrimaryButton("Start", Icons.Plus).Key("start").Small().Emits(startEmit),
+            PrimaryButton("Start", Icons.Plus).Key("start").Small().Sends(start),
         ];
 
         if (liveFlows.Length > 0)
@@ -788,13 +788,13 @@ public sealed partial class TasksApp
 
         if (flow.Status is not (FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled))
         {
-            actions.Add(DangerButton("Cancel").Key("cancel").Small().Emits(AppSignals.Emit(AppName, "cancel", flow.FlowId)));
+            actions.Add(DangerButton("Cancel").Key("cancel").Small().Sends(new TasksCancel(flow.FlowId)));
         }
 
         if (flow.Type == BuildInner.Flow)
         {
-            actions.Add(Button("Show source", "code").Key("show-source").Small().Emits(AppSignals.Emit(AppName, "show-source", flow.FlowId)));
-            actions.Add(Button("Ask Ino to change", Icons.Sparkles).Key("ask-ino-to-change").Small().Emits(AppSignals.Emit(AppName, "ask-ino", flow.FlowId)));
+            actions.Add(Button("Show source", "code").Key("show-source").Small().Sends(new TasksShowSource(flow.FlowId)));
+            actions.Add(Button("Ask Ino to change", Icons.Sparkles).Key("ask-ino-to-change").Small().Sends(new TasksAskIno(flow.FlowId)));
         }
 
         children.Add(HStack(Space.Sm, [.. actions]));

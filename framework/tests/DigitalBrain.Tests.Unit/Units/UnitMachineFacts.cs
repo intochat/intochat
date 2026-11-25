@@ -120,15 +120,15 @@ public sealed class UnitMachineFacts
     }
 
     [Fact]
-    public void PressValidatesStaleGenerationAndForeignOwner()
+    public void PressValidatesStaleGenerationAndAnotherAddress()
     {
         var element = JsonSerializer.SerializeToElement(new
         {
             kind = "row",
             children = new object[]
             {
-                new { key = "btn", kind = "button", emit = new { owner = "counter", signal = "test.bump", args = new { amount = 5 } } },
-                new { key = "foreign_btn", kind = "button", emit = new { owner = "other", signal = "test.bump" } },
+                new { key = "btn", kind = "button", command = new { target = ".", signal = "test.bump", args = new { amount = 5 } } },
+                new { key = "foreign_btn", kind = "button", command = new { target = "other", signal = "test.bump" } },
                 new { key = "plain_btn", kind = "button" }
             }
         });
@@ -144,10 +144,10 @@ public sealed class UnitMachineFacts
         // Unknown node
         Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 2, "unknown", null, null));
 
-        // No emit
+        // No command
         Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 2, "plain_btn", null, null));
 
-        // Foreign owner
+        // A command to another address (a unit has no children)
         Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 2, "foreign_btn", null, null));
 
         // Valid press

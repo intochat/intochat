@@ -479,15 +479,15 @@ internal sealed partial class ScreenDirectoryNeuron(
                         await child.Activate(childView.Alias, childView.Generation, slot.Key, value, callerPersonId);
                         return new ScreenActionResult(true, "Action accepted.", await Read(appId, instanceId));
                     }
-                    await ScreenAppEmitBridge.ActivateAsync(
-                        screen,
-                        pub,
-                        screenAlias,
-                        targetGen,
-                        key,
-                        value,
-                        callerPersonId,
-                        logger: Log);
+                    if (pub.Generation != targetGen) { throw new ActivationRefusedException(ActivationRefusedException.Stale); }
+                    // An intent is the client's to perform and a resolve the inbox's to answer: neither is a screen's action.
+                    var node = ViewValidation.Find(pub.View, key) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
+                    switch (ViewValidation.ActionOf(node).Kind)
+                    {
+                        case ViewActivationKind.Command: await screen.Activate(pub.Alias, targetGen, key, value, callerPersonId); break;
+                        case ViewActivationKind.Intent: break;
+                        default: throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
+                    }
                     var updated = await Read(appId, instanceId);
                     return new ScreenActionResult(true, "Action accepted.", updated);
                 }
@@ -523,13 +523,15 @@ internal sealed partial class ScreenDirectoryNeuron(
 
                     switch (activation.Kind)
                     {
-                        case ViewActivationKind.Emit:
-                            var emit = activation.Emit!;
-                            var appKey = IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brainId), emit.Owner, out var emitRef)
-                                ? emitRef.Key
-                                : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), emit.Owner).Key;
-                            var args = value is null ? emit.Args : ViewArgs.WithValue(emit.Args, value);
-                            await ResolveNeuron<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "");
+                        case ViewActivationKind.Command when ViewValidation.ToSelf(activation.Command!):
+                            // A command to "." is the view's own app: the view's name without "/view".
+                            var self = viewName.EndsWith("/view", StringComparison.Ordinal) ? viewName[..^"/view".Length] : viewName;
+                            var appKey = IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brainId), self, out var selfRef)
+                                ? selfRef.Key
+                                : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), self).Key;
+                            var command = activation.Command!;
+                            var args = value is null ? command.Args : ViewArgs.WithValue(command.Args, value);
+                            await ResolveNeuron<IApp>(appKey).Emit(command.Signal, args?.GetRawText() ?? "");
                             break;
                         case ViewActivationKind.Resolve:
                             throw new UnauthorizedAccessException("Only the OS confirmation inbox can answer a confirmation.");

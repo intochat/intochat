@@ -361,10 +361,15 @@ void main() {
               sourceNeuronUri: 'neuron://local/apps/data/revenue',
               from: 'Data Studio',
               prefix: '€',
+              select: const Command(
+                target: '.',
+                signal: 'data.pick',
+                args: null,
+                props: null,
+              ),
             );
             final ctx = NodeContext(
               view: 'local/apps/data/view',
-              nodeKeys: {'chart:Revenue ($chartKind)': 'pick_point'},
               send: (event) async {
                 clickedPoint = event['value'] as String?;
                 return null;
@@ -445,6 +450,7 @@ void main() {
             ],
             sourceNeuronUri: null,
             from: 'Salesforce',
+            select: null,
           );
           const ctx = NodeContext(view: 'local/apps/data/view');
 
@@ -512,6 +518,7 @@ void main() {
             rows: [],
             sourceNeuronUri: null,
             from: 'Local',
+            select: null,
           );
           await pumpSurface(
             tester,

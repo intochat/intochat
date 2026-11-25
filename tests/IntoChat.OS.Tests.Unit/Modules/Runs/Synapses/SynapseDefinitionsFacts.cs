@@ -59,6 +59,6 @@ public sealed class SynapseDefinitionsFacts
 
         Assert.Contains(left.Children.OfType<Heading>(), heading => heading.Value == "Synapses");
         var run = left.Children.OfType<Row>().SelectMany(row => row.Children).OfType<Button>().Single(button => button.Key == "synapse:workflow:approval-demo");
-        Assert.Equal("start-workflow", run.Command!.Signal);
+        Assert.Equal("creator.start-workflow", run.Command!.Signal);
     }
 }

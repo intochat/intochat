@@ -42,7 +42,7 @@ public sealed class TestCounterScreen : Screen<TestCounterState>
                 new Text($"LastBy: {state.LastBy ?? "none"}"),
                 new Button("btn-press", "Press", Sends(new TestCounterPress("increment"))),
                 new Field("fld-no-emit", "Input", FieldKind.Text),
-                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("app.alien_owner", "test.alien", null))),
+                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Command("alien", "test.alien", null))),
                 new Text("static-text")
             ]));
     }
@@ -218,10 +218,10 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
             screen.Activate("app.test_counter", 1L, "fld-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, exNoEmit.Reason);
 
-        // 3. Emit with alien owner
+        // 3. A command to a child the view does not show
         var exAlien = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("app.test_counter", 1L, "btn-alien"));
-        Assert.Equal(ActivationRefusedException.ForeignOwner, exAlien.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, exAlien.Reason);
     }
 
     [Fact]

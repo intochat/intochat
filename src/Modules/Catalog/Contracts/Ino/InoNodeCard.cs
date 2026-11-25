@@ -228,12 +228,6 @@ public static class InoNodeCard
             return true;
         }
 
-        if (element.TryGetProperty("emit", out var emitProp) && emitProp.ValueKind != JsonValueKind.Null)
-        {
-            refusal = "Button emit actions are not allowed in chat cards: only post-back command actions targeting '.' with 'control.submitText' are permitted.";
-            return true;
-        }
-
         if (!element.TryGetProperty("command", out var commandProp) || commandProp.ValueKind != JsonValueKind.Object)
         {
             refusal = "Button action is not allowed in chat cards: only command {target:'.', signal:'control.submitText', args:{value:1..2000 chars}} is permitted.";

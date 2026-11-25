@@ -106,7 +106,7 @@ class _FieldNodeViewState extends State<FieldNodeView> {
           .whenComplete(() {
             if (number == _sent) _dirty = false;
           })
-          .catchError((Object _) {}),
+          .catchError((Object _) => ActivationOutcome.refused),
     );
   }
 
@@ -126,7 +126,7 @@ class _FieldNodeViewState extends State<FieldNodeView> {
           .whenComplete(() {
             if (number == _sent) _dirty = false;
           })
-          .catchError((Object _) {}),
+          .catchError((Object _) => ActivationOutcome.refused),
     );
     if (_secret) _controller.clear();
   }

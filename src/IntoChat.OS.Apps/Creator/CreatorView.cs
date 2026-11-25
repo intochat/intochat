@@ -104,36 +104,36 @@ public static class CreatorView
                 .Key("replay-first")
                 .Small()
                 .Disabled(!hasEvents)
-                .Emits(AppSignals.Emit(App, "replay", "first")),
+                .Sends(new CreatorReplay("first")),
             Button("Prev", "chevron-left")
                 .Key("replay-prev")
                 .Small()
                 .Disabled(!hasEvents)
-                .Emits(AppSignals.Emit(App, "replay", "prev")),
+                .Sends(new CreatorReplay("prev")),
             PrimaryButton(toggleLabel, toggleIcon)
                 .Key("replay-toggle")
                 .Small()
                 .Disabled(!hasEvents && !state.IsReplayActive)
-                .Emits(AppSignals.Emit(App, "replay", "toggle")),
+                .Sends(new CreatorReplay("toggle")),
             Button("Next", "chevron-right")
                 .Key("replay-next")
                 .Small()
                 .Disabled(!hasEvents)
-                .Emits(AppSignals.Emit(App, "replay", "next")),
+                .Sends(new CreatorReplay("next")),
             Button("Last", "chevrons-right")
                 .Key("replay-last")
                 .Small()
                 .Disabled(!hasEvents)
-                .Emits(AppSignals.Emit(App, "replay", "last")),
+                .Sends(new CreatorReplay("last")),
             GhostButton("Stop", "radio")
                 .Key("replay-live")
                 .Small()
                 .Disabled(!state.IsReplayActive)
-                .Emits(AppSignals.Emit(App, "replay", "stop")),
+                .Sends(new CreatorReplay("stop")),
             GhostButton(cursorReadout, "history")
                 .Key("replay-cursor-readout")
                 .Small()
-                .Emits(AppSignals.Emit(App, "replay", "toggle")),
+                .Sends(new CreatorReplay("toggle")),
             new NeuronRef("ui.slider", ReplaySliderKey),
             new Button("open-engineer-studio", "Open Studio (Engineer) ↗", Intent: AppSignals.OpenApp("engineer", state.ActiveRunId))
             {
@@ -184,7 +184,7 @@ public static class CreatorView
                     icon: Icons.LayoutGrid,
                     action: BrainGraph.NodeKey(node.Id),
                     selected: isSelected,
-                    emit: AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id))));
+                    command: Sends(new CreatorSelect(BrainGraph.NodeKey(node.Id)))));
             }
         }
         else
@@ -221,7 +221,7 @@ public static class CreatorView
                     icon: "cpu",
                     action: BrainGraph.NodeKey(node.Id),
                     selected: isSelected,
-                    emit: AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id))));
+                    command: Sends(new CreatorSelect(BrainGraph.NodeKey(node.Id)))));
             }
 
             foreach (var (deployed, alias) in extraDeployed)
@@ -237,7 +237,7 @@ public static class CreatorView
                     action: synKey,
                     selected: isSelected,
                     badge: deployed.Status.ToString(),
-                    emit: AppSignals.Emit(App, "select", synKey)));
+                    command: Sends(new CreatorSelect(synKey))));
             }
         }
         else
@@ -265,7 +265,7 @@ public static class CreatorView
                     action: flow.FlowId,
                     selected: isSelectedRun,
                     badge: flow.Status.ToString(),
-                    emit: AppSignals.Emit(App, "run", flow.FlowId)));
+                    command: Sends(new CreatorRun(flow.FlowId))));
 
                 if (Consent(flow, approvals) is { } consent)
                 {
@@ -298,11 +298,11 @@ public static class CreatorView
                         Button($"Run {synapse.Name}", Icons.Play)
                             .Key($"synapse:{synapse.Id}")
                             .Small()
-                            .Emits(AppSignals.Emit(App, "start-workflow", synapse.Name)),
+                            .Sends(new CreatorStartWorkflow(synapse.Name)),
                         GhostButton("3D", "git-branch")
                             .Key($"inspect:{synapse.Id}")
                             .Small()
-                            .Emits(AppSignals.Emit(App, "select", synTarget))
+                            .Sends(new CreatorSelect(synTarget))
                     ]);
                 }
                 else
@@ -319,7 +319,7 @@ public static class CreatorView
                         action: synTarget,
                         selected: isSelectedSynapse,
                         badge: badge,
-                        emit: AppSignals.Emit(App, "select", synTarget)));
+                        command: Sends(new CreatorSelect(synTarget))));
                 }
             }
         }
@@ -366,7 +366,7 @@ public static class CreatorView
             return CreatorStateSpaceInspector.RenderInspectionScene(state, inspection, effectiveFlows);
         }
 
-        var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null);
+        var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null, key => Sends(new CreatorSelect(key)));
         var replayTraceId = state.TraceId ?? (inspection.Kind == Selection.Pulse ? inspection.Id : "timeline");
         if (timelineHops.Count > 0)
         {
@@ -459,7 +459,7 @@ public static class CreatorView
             Button("Back to 3D Graph", "git-branch")
                 .Key("preview-back-graph")
                 .Small()
-                .Emits(AppSignals.Emit(App, "select", "mode:brain")),
+                .Sends(new CreatorSelect("mode:brain")),
             tabStrip?.Invoke(ViewportKey, new TabStripProps(
                 [new("fill", "Fill"), new("720", "720px"), new("390", "390px")],
                 AutomationName: "Preview width",

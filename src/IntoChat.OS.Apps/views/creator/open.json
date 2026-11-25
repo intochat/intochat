@@ -175,8 +175,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/artcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/artcraft"
+              }
             },
             "automationName": "ArtCraft"
           },
@@ -190,8 +192,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/cadcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/cadcraft"
+              }
             },
             "automationName": "CADCraft"
           },
@@ -205,8 +209,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/calculator"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/calculator"
+              }
             },
             "automationName": "Calculator"
           },
@@ -220,8 +226,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/customer-researcher"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/customer-researcher"
+              }
             },
             "automationName": "Customer Researcher"
           },
@@ -235,8 +243,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/data"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/data"
+              }
             },
             "automationName": "Data Studio"
           },
@@ -250,8 +260,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/deckcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/deckcraft"
+              }
             },
             "automationName": "DeckCraft"
           },
@@ -265,8 +277,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/designcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/designcraft"
+              }
             },
             "automationName": "DesignCraft"
           },
@@ -280,8 +294,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/devui"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/devui"
+              }
             },
             "automationName": "DevUI"
           },
@@ -295,8 +311,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/effectcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/effectcraft"
+              }
             },
             "automationName": "EffectCraft"
           },
@@ -310,8 +328,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/engineer"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/engineer"
+              }
             },
             "automationName": "IntoChat Engineer"
           },
@@ -325,8 +345,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/figcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/figcraft"
+              }
             },
             "automationName": "FigCraft"
           },
@@ -340,8 +362,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/filmcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/filmcraft"
+              }
             },
             "automationName": "FilmCraft"
           },
@@ -355,8 +379,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/friends"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/friends"
+              }
             },
             "automationName": "Friends"
           },
@@ -370,8 +396,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/gallery"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/gallery"
+              }
             },
             "automationName": "UI Gallery"
           },
@@ -385,8 +413,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/gridcraft"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/gridcraft"
+              }
             },
             "automationName": "GridCraft"
           },
@@ -400,8 +430,10 @@
             "badge": null,
             "command": {
               "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/ino"
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/ino"
+              }
             },
             "automationName": "Ino"
           },
@@ -446,8 +478,10 @@
                 "label": "Run approval-demo",
                 "command": {
                   "target": ".",
-                  "signal": "start-workflow",
-                  "args": "approval-demo"
+                  "signal": "creator.start-workflow",
+                  "args": {
+                    "workflow": "approval-demo"
+                  }
                 },
                 "intent": null,
                 "enabled": true,
@@ -465,8 +499,10 @@
                 "label": "3D",
                 "command": {
                   "target": ".",
-                  "signal": "select",
-                  "args": "synapse:workflow:approval-demo"
+                  "signal": "creator.select",
+                  "args": {
+                    "key": "synapse:workflow:approval-demo"
+                  }
                 },
                 "intent": null,
                 "enabled": true,
@@ -508,6 +544,11 @@
       },
       "body": {
         "kind": "brainScene",
+        "select": {
+          "target": ".",
+          "signal": "creator.select",
+          "args": {}
+        },
         "nodes": [
           {
             "id": "owner/apps/artcraft",
@@ -524,8 +565,10 @@
               "label": "ArtCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/artcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/artcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -552,8 +595,10 @@
               "label": "CADCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/cadcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/cadcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -580,8 +625,10 @@
               "label": "Calculator",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/calculator"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/calculator"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -608,8 +655,10 @@
               "label": "Creator",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/creator"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/creator"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -636,8 +685,10 @@
               "label": "Customer Researcher",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/customer-researcher"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/customer-researcher"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -664,8 +715,10 @@
               "label": "Data Studio",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/data"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/data"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -692,8 +745,10 @@
               "label": "DeckCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/deckcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/deckcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -720,8 +775,10 @@
               "label": "DesignCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/designcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/designcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -748,8 +805,10 @@
               "label": "DevUI",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/devui"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/devui"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -776,8 +835,10 @@
               "label": "EffectCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/effectcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/effectcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -804,8 +865,10 @@
               "label": "IntoChat Engineer",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/engineer"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/engineer"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -832,8 +895,10 @@
               "label": "FigCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/figcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/figcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -860,8 +925,10 @@
               "label": "FilmCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/filmcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/filmcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -888,8 +955,10 @@
               "label": "Friends",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/friends"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/friends"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -916,8 +985,10 @@
               "label": "UI Gallery",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/gallery"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/gallery"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -944,8 +1015,10 @@
               "label": "GridCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/gridcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/gridcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -972,8 +1045,10 @@
               "label": "Ino",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/ino"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/ino"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1000,8 +1075,10 @@
               "label": "LightCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/lightcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/lightcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1028,8 +1105,10 @@
               "label": "Markdraw",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/markdraw"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/markdraw"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1056,8 +1135,10 @@
               "label": "MaterialCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/materialcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/materialcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1084,8 +1165,10 @@
               "label": "Orleans Dashboard",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/orleans"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/orleans"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1112,8 +1195,10 @@
               "label": "PdfCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/pdfcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/pdfcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1140,8 +1225,10 @@
               "label": "PhotoCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/photocraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/photocraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1168,8 +1255,10 @@
               "label": "Settings",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/settings"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/settings"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1196,8 +1285,10 @@
               "label": "SolidCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/solidcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/solidcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1224,8 +1315,10 @@
               "label": "SoundCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/soundcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/soundcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1252,8 +1345,10 @@
               "label": "Tasks",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/tasks"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/tasks"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1280,8 +1375,10 @@
               "label": "TextureCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/texturecraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/texturecraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1308,8 +1405,10 @@
               "label": "UI Kit",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/uikit"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/uikit"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1336,8 +1435,10 @@
               "label": "Usage",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/usage"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/usage"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1364,8 +1465,10 @@
               "label": "VectorCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/vectorcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/vectorcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1392,8 +1495,10 @@
               "label": "Widgetbook",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/widgetbook"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/widgetbook"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1420,8 +1525,10 @@
               "label": "WordCraft",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/wordcraft"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/wordcraft"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1448,8 +1555,10 @@
               "label": "Files",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/files"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/files"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1476,8 +1585,10 @@
               "label": ".NET Aspire",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/aspire"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/aspire"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1504,8 +1615,10 @@
               "label": "Muncly CRM",
               "command": {
                 "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/muncly"
+                "signal": "creator.select",
+                "args": {
+                  "key": "node:owner/apps/muncly"
+                }
               },
               "intent": null,
               "enabled": true,
@@ -1554,8 +1667,10 @@
             "label": "First",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "first"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "first"
+              }
             },
             "intent": null,
             "enabled": false,
@@ -1573,8 +1688,10 @@
             "label": "Prev",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "prev"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "prev"
+              }
             },
             "intent": null,
             "enabled": false,
@@ -1592,8 +1709,10 @@
             "label": "Replay",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "toggle"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "toggle"
+              }
             },
             "intent": null,
             "enabled": false,
@@ -1611,8 +1730,10 @@
             "label": "Next",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "next"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "next"
+              }
             },
             "intent": null,
             "enabled": false,
@@ -1630,8 +1751,10 @@
             "label": "Last",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "last"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "last"
+              }
             },
             "intent": null,
             "enabled": false,
@@ -1649,8 +1772,10 @@
             "label": "Stop",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "stop"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "stop"
+              }
             },
             "intent": null,
             "enabled": false,
@@ -1668,8 +1793,10 @@
             "label": "Event 0 / 0",
             "command": {
               "target": ".",
-              "signal": "replay",
-              "args": "toggle"
+              "signal": "creator.replay",
+              "args": {
+                "cursor": "toggle"
+              }
             },
             "intent": null,
             "enabled": true,
@@ -1738,19 +1865,19 @@
               },
               {
                 "kind": "button",
-                "key": "graph:select",
+                "key": "clear-selection",
                 "label": "Clear selection",
                 "command": {
                   "target": ".",
-                  "signal": "select",
-                  "args": null
+                  "signal": "creator.select",
+                  "args": {}
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
                 "tooltip": null,
                 "visible": true,
-                "automationName": "graph:select",
+                "automationName": "clear-selection",
                 "style": "ghost",
                 "icon": "x",
                 "small": true

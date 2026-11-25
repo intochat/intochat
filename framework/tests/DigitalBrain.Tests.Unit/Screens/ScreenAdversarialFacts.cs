@@ -42,7 +42,7 @@ public sealed class AdversarialScreen : Screen<AdversarialScreenState>
                 new Button("btn-update-visible", "Update Visible", Sends(new UpdateVisible("Updated"))),
                 new Button("btn-update-hidden", "Update Hidden", Sends(new UpdateHidden(1))),
                 new Button("btn-set-caller", "Set Caller", new Command(".", "adversarial.set-caller", callerArgs.RootElement.Clone())),
-                new Conversation("btn-foreign-thread", [], new ComposerNode("btn-foreign", new Emit("other.screen", "adversarial.update-visible"))),
+                new Conversation("btn-foreign-thread", [], new ComposerNode("btn-foreign", new Command("other", "adversarial.update-visible"))),
                 new Button("btn-no-emit", "No Emit", Intent: new Intent(IntentKind.Copy, "text")),
                 new Field("fld-input", "input-label", FieldKind.Text, state.LastCallerValue, OnSubmit: new Command(".", "adversarial.set-caller", callerArgs.RootElement.Clone()))
             ])
@@ -280,7 +280,7 @@ public sealed class ScreenAdversarialFacts
         NeuronAttachment.Attach(invalid, context);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => NeuronAttachment.Activate(invalid, CancellationToken.None));
-        Assert.Equal("The view of 'CasingByScreen' declares the host-reserved 'by' in an emit's args.", ex.Message);
+        Assert.Equal("The view of 'CasingByScreen' declares the host-reserved 'by' in a command's args.", ex.Message);
     }
 
     [Theory]
@@ -295,7 +295,7 @@ public sealed class ScreenAdversarialFacts
         NeuronAttachment.Attach(invalid, context);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => NeuronAttachment.Activate(invalid, CancellationToken.None));
-        Assert.Equal("The view of 'OnSubmitByScreen' declares the host-reserved 'by' in an emit's args.", ex.Message);
+        Assert.Equal("The view of 'OnSubmitByScreen' declares the host-reserved 'by' in a command's args.", ex.Message);
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class ScreenAdversarialFacts
         NeuronAttachment.Attach(invalid, context);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => NeuronAttachment.Activate(invalid, CancellationToken.None));
-        Assert.Equal("The view of 'MultiCasingByScreen' declares the host-reserved 'by' in an emit's args.", ex.Message);
+        Assert.Equal("The view of 'MultiCasingByScreen' declares the host-reserved 'by' in a command's args.", ex.Message);
     }
 
     [Theory]
@@ -321,7 +321,7 @@ public sealed class ScreenAdversarialFacts
         NeuronAttachment.Attach(invalid, context);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => NeuronAttachment.Activate(invalid, CancellationToken.None));
-        Assert.Equal("The view of 'DeeplyNestedByScreen' declares the host-reserved 'by' in an emit's args.", ex.Message);
+        Assert.Equal("The view of 'DeeplyNestedByScreen' declares the host-reserved 'by' in a command's args.", ex.Message);
     }
 
     [Theory]
@@ -539,7 +539,7 @@ public sealed class ScreenAdversarialFacts
     }
 
     [Fact]
-    public async Task Activate_ForeignOwner_RefusedWithForeignOwner()
+    public async Task Activate_CommandToAnUnshownChild_RefusedWithUnknownChild()
     {
         var (screen, _) = await Attached<AdversarialScreen>();
         var view = await screen.Read();
@@ -547,6 +547,6 @@ public sealed class ScreenAdversarialFacts
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("app.adversarial-test", view.Generation, "btn-foreign"));
-        Assert.Equal(ActivationRefusedException.ForeignOwner, ex.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
 }

@@ -120,7 +120,7 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
     public Task Connect(MunclyConnect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return ApplyDecisionAsync(State.ConnectEndpoint(request.BaseUrl));
+        return ApplyDecisionAsync(State.ConnectEndpoint(request.BaseUrl ?? request.Value));
     }
 
     [On]
@@ -140,7 +140,7 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
                     "CRM URL",
                     FieldKind.Text,
                     "https://your-org.munc.ly",
-                    new Command(".", "connect"),
+                    Sends(new MunclyConnect()),
                     AutomationName: "Muncly CRM URL"));
 
             return AppShell(

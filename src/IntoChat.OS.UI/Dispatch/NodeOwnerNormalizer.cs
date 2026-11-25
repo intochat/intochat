@@ -43,7 +43,7 @@ internal static class NodeOwnerNormalizer
             AppTileNode tile => tile with { Command = NormalizeCommand(tile.Command, owner) },
             DigitalBrain.UI.Conversation conv => conv with
             {
-                Composer = conv.Composer with { OnSubmit = NormalizeEmit(conv.Composer.OnSubmit, owner)! },
+                Composer = conv.Composer with { OnSubmit = NormalizeCommand(conv.Composer.OnSubmit, owner)! },
                 Waiting = conv.Waiting is null ? null : Normalize(conv.Waiting, owner),
                 Messages = [.. conv.Messages.Select(m => m.Cards is null ? m : m with { Cards = NormalizeList(m.Cards, owner) })],
             },
@@ -125,16 +125,6 @@ internal static class NodeOwnerNormalizer
         }
 
         return changed ? normalized : children;
-    }
-
-    private static Emit? NormalizeEmit(Emit? emit, string owner)
-    {
-        if (emit is null)
-        {
-            return null;
-        }
-
-        return emit.Owner == CommandBinding.PendingOwner ? emit with { Owner = owner } : emit;
     }
 
     private static Command? NormalizeCommand(Command? command, string owner)

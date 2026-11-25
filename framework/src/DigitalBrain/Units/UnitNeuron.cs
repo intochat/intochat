@@ -32,7 +32,7 @@ internal static partial class UnitLog
     public static partial void ViewNotStored(Microsoft.Extensions.Logging.ILogger logger, string synapse, string type);
 
     [Microsoft.Extensions.Logging.LoggerMessage(EventId = 4141, EventName = "ViewDeclaresBy", Level = Microsoft.Extensions.Logging.LogLevel.Warning,
-        Message = "View synapse {Synapse} declares the host-reserved \"by\" in an emit's args; the view is refused and not published.")]
+        Message = "View synapse {Synapse} declares the host-reserved \"by\" in a command's args; the view is refused and not published.")]
     public static partial void ViewDeclaresBy(Microsoft.Extensions.Logging.ILogger logger, string synapse);
 }
 
@@ -79,6 +79,13 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
         if (state is null) { return Task.FromResult<JsonElement?>(null); }
         var type = typeof(TState);
         return Task.FromResult<JsonElement?>(PooledJson.Encode(state, type));
+    }
+
+    // A view stored before every action was a command: a legacy emit in it reads as the command it means until the next render.
+    internal override async Task<StoredUnit<TState>?> LoadState()
+    {
+        var stored = await base.LoadState().ConfigureAwait(true);
+        return stored?.View is { } view ? stored with { View = view with { View = DigitalBrain.UI.LegacyViewJson.Normalize(view.View) } } : stored;
     }
 
     protected override Task OnActivate(CancellationToken cancellationToken) => OnActivateAsync(cancellationToken);

@@ -55,7 +55,7 @@ public sealed class MachineScreen : Screen<MachineScreenState>
             new Button("btn-fail", "Fail", Sends(new MachineScreenFail())),
             new Button("btn-noop", "NoOp", Sends(new MachineScreenNoOp())),
             new Button("btn-inject-by", "Inject By", Sends(new MachineScreenMakeInjectBy())),
-            new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("app.alien_owner", "machine-screen.step", null))),
+            new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Command("alien", "machine-screen.step", null))),
             new Field("fld-no-emit", "Input", FieldKind.Text)
         };
 
@@ -265,9 +265,9 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
             screen.Activate("app.machine_screen", 1L, "fld-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, exNoEmit.Reason);
 
-        // 4. Foreign emit owner
+        // 4. A command to a child the view does not show
         var exForeign = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("app.machine_screen", 1L, "btn-alien"));
-        Assert.Equal(ActivationRefusedException.ForeignOwner, exForeign.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, exForeign.Reason);
     }
 }

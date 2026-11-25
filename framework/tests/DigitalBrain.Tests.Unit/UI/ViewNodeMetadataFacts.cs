@@ -58,7 +58,7 @@ public sealed class ViewNodeMetadataFacts
                     Cards: [new ApprovalCardNode("app-1", "plan-1", "Run git push?", "Pushes branch", [])],
                     Activities: [new ActivityNode("act-1", "Checked status")]),
             ],
-            new ComposerNode("composer", new Emit("app.ino", "ino.asked")));
+            new ComposerNode("composer", new Command(".", "ino.asked")));
 
         var view = new View("Ino", conversation);
         var wire = JsonSerializer.SerializeToElement(view, Json);
@@ -117,7 +117,7 @@ public sealed class ViewNodeMetadataFacts
 
         var composer = new ComposerNode(
             "composer",
-            new Emit("app.ino", "ino.asked"),
+            new Command(".", "ino.asked"),
             Placeholder: "Ask anything",
             Enabled: true,
             ActiveModelLabel: "Claude Opus 4.6",

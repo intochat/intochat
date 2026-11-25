@@ -139,7 +139,7 @@ public sealed class Creator3PaneFacts
 
         // Right Inspector buttons & approval gates
         var rightButtons = AllNodes(shell.Inspector).OfType<Button>().ToArray();
-        Assert.Contains(rightButtons, b => b.Key == BrainGraph.SelectKey);
+        Assert.Contains(rightButtons, b => b.Key == "clear-selection");
         Assert.Contains(rightButtons, b => b.Key == "share-unit");
         Assert.Contains(rightButtons, b => b.Key == "approve:plan-cf-99");
         Assert.Contains(rightButtons, b => b.Key == "reject:plan-cf-99");

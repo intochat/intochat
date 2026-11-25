@@ -33,6 +33,7 @@ Widget renderLiveChartView(LiveChartViewNode node, NodeContext ctx) {
         sourceNeuronUri: null,
         from: 'DigitalBrain',
         prefix: '',
+        select: null,
       ),
       ctx,
     ),

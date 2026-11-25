@@ -212,8 +212,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "ino",
-                      "view": null
+                      "app": "ino"
                     }
                   },
                   "automationName": "Ino"
@@ -233,8 +232,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "files",
-                      "view": null
+                      "app": "files"
                     }
                   },
                   "automationName": "Files"
@@ -254,8 +252,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "data",
-                      "view": null
+                      "app": "data"
                     }
                   },
                   "automationName": "Data Studio"
@@ -275,8 +272,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "markdraw",
-                      "view": null
+                      "app": "markdraw"
                     }
                   },
                   "automationName": "Markdraw"
@@ -296,8 +292,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "photocraft",
-                      "view": null
+                      "app": "photocraft"
                     }
                   },
                   "automationName": "PhotoCraft"
@@ -317,8 +312,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "filmcraft",
-                      "view": null
+                      "app": "filmcraft"
                     }
                   },
                   "automationName": "FilmCraft"
@@ -338,8 +332,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "creator",
-                      "view": null
+                      "app": "creator"
                     }
                   },
                   "automationName": "Creator"
@@ -359,8 +352,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "gallery",
-                      "view": null
+                      "app": "gallery"
                     }
                   },
                   "automationName": "UI Gallery"
@@ -380,8 +372,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "friends",
-                      "view": null
+                      "app": "friends"
                     }
                   },
                   "automationName": "Friends"
@@ -411,9 +402,7 @@
                   "command": {
                     "target": ".",
                     "signal": "desktop.newtab",
-                    "args": {
-                      "windowId": null
-                    }
+                    "args": {}
                   },
                   "intent": null,
                   "enabled": true,
@@ -453,8 +442,7 @@
                     "target": ".",
                     "signal": "desktop.open",
                     "args": {
-                      "app": "friends",
-                      "view": null
+                      "app": "friends"
                     }
                   },
                   "intent": null,
@@ -514,8 +502,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "ino",
-                  "view": null
+                  "app": "ino"
                 }
               },
               "automationName": "Ino"
@@ -535,8 +522,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "files",
-                  "view": null
+                  "app": "files"
                 }
               },
               "automationName": "Files"
@@ -556,8 +542,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "data",
-                  "view": null
+                  "app": "data"
                 }
               },
               "automationName": "Data Studio"
@@ -577,8 +562,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "markdraw",
-                  "view": null
+                  "app": "markdraw"
                 }
               },
               "automationName": "Markdraw"
@@ -598,8 +582,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "photocraft",
-                  "view": null
+                  "app": "photocraft"
                 }
               },
               "automationName": "PhotoCraft"
@@ -619,8 +602,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "filmcraft",
-                  "view": null
+                  "app": "filmcraft"
                 }
               },
               "automationName": "FilmCraft"
@@ -640,8 +622,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "creator",
-                  "view": null
+                  "app": "creator"
                 }
               },
               "automationName": "Creator"
@@ -661,8 +642,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "gallery",
-                  "view": null
+                  "app": "gallery"
                 }
               },
               "automationName": "UI Gallery"
@@ -682,8 +662,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "friends",
-                  "view": null
+                  "app": "friends"
                 }
               },
               "automationName": "Friends"
@@ -721,8 +700,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "aspire",
-                  "view": null
+                  "app": "aspire"
                 }
               },
               "automationName": ".NET Aspire"
@@ -742,8 +720,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "artcraft",
-                  "view": null
+                  "app": "artcraft"
                 }
               },
               "automationName": "ArtCraft"
@@ -763,8 +740,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "cadcraft",
-                  "view": null
+                  "app": "cadcraft"
                 }
               },
               "automationName": "CADCraft"
@@ -784,8 +760,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "calculator",
-                  "view": null
+                  "app": "calculator"
                 }
               },
               "automationName": "Calculator"
@@ -805,8 +780,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "deckcraft",
-                  "view": null
+                  "app": "deckcraft"
                 }
               },
               "automationName": "DeckCraft"
@@ -826,8 +800,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "designcraft",
-                  "view": null
+                  "app": "designcraft"
                 }
               },
               "automationName": "DesignCraft"
@@ -847,8 +820,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "devui",
-                  "view": null
+                  "app": "devui"
                 }
               },
               "automationName": "DevUI"
@@ -868,8 +840,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "effectcraft",
-                  "view": null
+                  "app": "effectcraft"
                 }
               },
               "automationName": "EffectCraft"
@@ -889,8 +860,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "figcraft",
-                  "view": null
+                  "app": "figcraft"
                 }
               },
               "automationName": "FigCraft"
@@ -910,8 +880,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "gridcraft",
-                  "view": null
+                  "app": "gridcraft"
                 }
               },
               "automationName": "GridCraft"
@@ -931,8 +900,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "engineer",
-                  "view": null
+                  "app": "engineer"
                 }
               },
               "automationName": "IntoChat Engineer"
@@ -952,8 +920,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "lightcraft",
-                  "view": null
+                  "app": "lightcraft"
                 }
               },
               "automationName": "LightCraft"
@@ -973,8 +940,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "materialcraft",
-                  "view": null
+                  "app": "materialcraft"
                 }
               },
               "automationName": "MaterialCraft"
@@ -994,8 +960,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "muncly",
-                  "view": null
+                  "app": "muncly"
                 }
               },
               "automationName": "Muncly CRM"
@@ -1015,8 +980,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "orleans",
-                  "view": null
+                  "app": "orleans"
                 }
               },
               "automationName": "Orleans Dashboard"
@@ -1036,8 +1000,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "pdfcraft",
-                  "view": null
+                  "app": "pdfcraft"
                 }
               },
               "automationName": "PdfCraft"
@@ -1057,8 +1020,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "solidcraft",
-                  "view": null
+                  "app": "solidcraft"
                 }
               },
               "automationName": "SolidCraft"
@@ -1078,8 +1040,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "soundcraft",
-                  "view": null
+                  "app": "soundcraft"
                 }
               },
               "automationName": "SoundCraft"
@@ -1099,8 +1060,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "tasks",
-                  "view": null
+                  "app": "tasks"
                 }
               },
               "automationName": "Tasks"
@@ -1120,8 +1080,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "texturecraft",
-                  "view": null
+                  "app": "texturecraft"
                 }
               },
               "automationName": "TextureCraft"
@@ -1141,8 +1100,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "uikit",
-                  "view": null
+                  "app": "uikit"
                 }
               },
               "automationName": "UI Kit"
@@ -1162,8 +1120,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "usage",
-                  "view": null
+                  "app": "usage"
                 }
               },
               "automationName": "Usage"
@@ -1183,8 +1140,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "vectorcraft",
-                  "view": null
+                  "app": "vectorcraft"
                 }
               },
               "automationName": "VectorCraft"
@@ -1204,8 +1160,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "widgetbook",
-                  "view": null
+                  "app": "widgetbook"
                 }
               },
               "automationName": "Widgetbook"
@@ -1225,8 +1180,7 @@
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "wordcraft",
-                  "view": null
+                  "app": "wordcraft"
                 }
               },
               "automationName": "WordCraft"

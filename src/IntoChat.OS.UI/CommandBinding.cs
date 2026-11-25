@@ -74,43 +74,27 @@ public sealed record BoundCommand(
     int? ValueIndex,
     string CanonicalKey)
 {
-    /// <summary>Builds the <see cref="DigitalBrain.UI.Emit"/> targeting <paramref name="owner"/>.</summary>
-    public Emit ToEmit(string owner, string? guardReason = null, string? tooltip = null)
+    /// <summary>Builds the <see cref="DigitalBrain.UI.Command"/> a button sends to its own view's neuron (".").</summary>
+    public Command ToCommand()
     {
         var command = new UiCommand(
             Target: Target,
             Method: Method.Name,
             Args: Args.Length == 0 ? null : Args,
             ValueIndex: ValueIndex,
-            Value: null,
-            GuardReason: guardReason,
-            Tooltip: tooltip);
-        var payload = RuntimeProtocol.SerializeToElement(command, typeof(UiCommand));
-        return new Emit(owner, UiCommand.SignalAlias, payload);
-    }
-
-    /// <summary>Builds the <see cref="DigitalBrain.UI.Command"/> a button sends to its own view's neuron (".").</summary>
-    public Command ToCommand()
-    {
-        var emit = ToEmit(".");
-        return new Command(".", emit.Signal, emit.Args);
+            Value: null);
+        return new Command(".", UiCommand.SignalAlias, RuntimeProtocol.SerializeToElement(command, typeof(UiCommand)));
     }
 
     internal static Command AttachHintMetadata(Command command, string? guardReason, string? tooltip)
     {
-        var emit = AttachHintMetadata(new Emit(".", command.Signal, command.Args), guardReason, tooltip);
-        return command with { Args = emit.Args };
-    }
-
-    internal static Emit AttachHintMetadata(Emit emit, string? guardReason, string? tooltip)
-    {
         if (string.IsNullOrWhiteSpace(guardReason) && string.IsNullOrWhiteSpace(tooltip))
         {
-            return emit;
+            return command;
         }
 
         var map = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        if (emit.Args is { ValueKind: JsonValueKind.Object } existing)
+        if (command.Args is { ValueKind: JsonValueKind.Object } existing)
         {
             foreach (var prop in existing.EnumerateObject())
             {
@@ -128,39 +112,11 @@ public sealed record BoundCommand(
             map["tooltip"] = RuntimeProtocol.SerializeToElement(tooltip, typeof(string));
         }
 
-        return emit with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
+        return command with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
     }
 
     internal static Command? AttachFieldMetadata(
         Command? command,
-        bool hasExplicitLabel,
-        string? explicitLabel,
-        string? controlledValue,
-        string? helper,
-        string? error,
-        bool liveChange)
-    {
-        var baseEmit = command is null ? null : new Emit(".", command.Signal, command.Args);
-        var attached = AttachFieldMetadata(
-            baseEmit,
-            ".",
-            hasExplicitLabel,
-            explicitLabel,
-            controlledValue,
-            helper,
-            error,
-            liveChange);
-        if (attached is null)
-        {
-            return null;
-        }
-
-        return new Command(command?.Target is { Length: > 0 } t ? t : ".", attached.Signal, attached.Args, command?.Props);
-    }
-
-    internal static Emit? AttachFieldMetadata(
-        Emit? emit,
-        string owner,
         bool hasExplicitLabel,
         string? explicitLabel,
         string? controlledValue,
@@ -176,12 +132,14 @@ public sealed record BoundCommand(
             liveChange;
         if (!hasAnyMeta)
         {
-            return emit;
+            return command;
         }
 
-        var baseEmit = CommandBinding.EnsureEmit(emit, owner);
+        // A field with no command still carries its metadata, on an inert ui.command to its own view's neuron.
+        var baseCommand = command is null ? new Command(".", UiCommand.SignalAlias)
+            : string.IsNullOrEmpty(command.Target) ? command with { Target = "." } : command;
         var map = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        if (baseEmit.Args is { ValueKind: JsonValueKind.Object } existing)
+        if (baseCommand.Args is { ValueKind: JsonValueKind.Object } existing)
         {
             foreach (var prop in existing.EnumerateObject())
             {
@@ -214,7 +172,7 @@ public sealed record BoundCommand(
             map["uiLive"] = RuntimeProtocol.SerializeToElement(true, typeof(bool));
         }
 
-        return baseEmit with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
+        return baseCommand with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
     }
 }
 
@@ -229,9 +187,6 @@ public static class CommandBinding
     private static readonly AsyncLocal<string?> CurrentOwner = new();
 
     internal static string ActiveOwner => CurrentOwner.Value ?? PendingOwner;
-
-    internal static Emit EnsureEmit(Emit? emit, string owner)
-        => emit is not null ? emit : new Emit(owner, UiCommand.SignalAlias);
 
     /// <summary>Establishes the active screen owner alias for nested <see cref="Kit"/> builders on the current execution context.</summary>
     public static BindingScope PushOwner(string owner)

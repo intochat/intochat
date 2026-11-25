@@ -41,8 +41,8 @@ public sealed class IconButtonBuilder
     /// <summary>Binds an async screen orchestration method (<c>screen =&gt; screen.SyncAsync()</c>).</summary>
     public IconButtonBuilder OnClickAsync<TScreen>(Expression<Func<TScreen, Task>> command) where TScreen : class { _button.OnClickAsync(command); return this; }
 
-    /// <summary>Binds a classic <c>[On]</c> signal as a command to the view's own neuron (".").</summary>
-    public IconButtonBuilder Emits(Emit emit) { _button.Emits(emit); return this; }
+    /// <summary>Binds a typed signal a click sends to the <c>[On]</c> reaction of the view's own neuron (".").</summary>
+    public IconButtonBuilder Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal { _button.Sends(signal); return this; }
 
     /// <summary>Binds the <see cref="Command"/> a click sends.</summary>
     public IconButtonBuilder Sends(Command command) { _button.Sends(command); return this; }
@@ -196,13 +196,8 @@ public sealed class ButtonBuilder
         return this;
     }
 
-    /// <summary>Binds a classic <c>[On]</c> signal: a button sends it as a <see cref="Command"/> to its own view's neuron (".");
-    /// the emit's owner is not kept, since a button only commands the view it is in or that view's children.</summary>
-    public ButtonBuilder Emits(Emit emit)
-    {
-        ArgumentNullException.ThrowIfNull(emit);
-        return Sends(new Command(".", emit.Signal, emit.Args));
-    }
+    /// <summary>Binds a typed signal a click sends to the <c>[On]</c> reaction of the view's own neuron (".").</summary>
+    public ButtonBuilder Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal => Sends(DigitalBrain.ScreenCommands.Sends(signal));
 
     /// <summary>Binds the <see cref="Command"/> a click sends to a neuron address relative to the view's neuron.</summary>
     public ButtonBuilder Sends(Command command)
@@ -403,12 +398,8 @@ public sealed class FieldBuilder : KitNode
         return this;
     }
 
-    /// <summary>Binds a classic <c>[On]</c> signal as a <see cref="Command"/> to the view's own neuron (".").</summary>
-    public FieldBuilder Emits(Emit emit)
-    {
-        ArgumentNullException.ThrowIfNull(emit);
-        return Sends(new Command(".", emit.Signal, emit.Args));
-    }
+    /// <summary>Binds a typed signal a submission sends, with the typed text as <c>value</c>, to the view's own neuron (".").</summary>
+    public FieldBuilder Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal => Sends(DigitalBrain.ScreenCommands.Sends(signal));
 
     /// <summary>Binds the <see cref="Command"/> a field submission sends, with the typed text as <c>value</c>.</summary>
     public FieldBuilder Sends(Command command)

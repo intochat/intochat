@@ -965,7 +965,7 @@ Map<String, dynamic> _button(
   'kind': 'button',
   'key': key,
   'label': label,
-  'emit': {'owner': 'desktop', 'signal': signal, 'args': ?argument},
+  'command': {'target': '.', 'signal': signal, 'args': ?argument},
   'enabled': true,
   'tone': 'neutral',
   'style': 'secondary',

@@ -66,7 +66,7 @@ public sealed class ViewNeuronFacts
     }
 
     [Fact]
-    public async Task ActivateResolvesEmitAndIntentByKey()
+    public async Task ActivateResolvesCommandAndIntentByKey()
     {
         using var person = Edge.AsPerson();
         await using var os = Started();
@@ -74,21 +74,21 @@ public sealed class ViewNeuronFacts
         await view.Publish(1, Sample);
 
         var cancel = await view.Activate(1, "cancel", null);
-        Assert.Equal(ViewActivationKind.Emit, cancel.Kind);
-        // A button's command to "." resolves to the view's own key.
-        Assert.Equal(("owner/apps/tasks", "cancel"), (cancel.Emit!.Owner, cancel.Emit.Signal));
-        Assert.Equal("[\"f/1\",\"x:y\"]", cancel.Emit.Args!.Value.GetRawText());
+        Assert.Equal(ViewActivationKind.Command, cancel.Kind);
+        // A button's command to "." is for the view's own app; the edge routes it there.
+        Assert.Equal((".", "cancel"), (cancel.Command!.Target, cancel.Command.Signal));
+        Assert.Equal("[\"f/1\",\"x:y\"]", cancel.Command.Args!.Value.GetRawText());
 
         var copy = await view.Activate(1, "copy", null);
         Assert.Equal(new Intent(IntentKind.Copy, "neuron://owner/tasks"), copy.Intent);
 
         var rename = await view.Activate(1, "title", "Ship docs");
-        Assert.Equal(("rename", "Ship docs"), (rename.Emit!.Signal, rename.Value));
+        Assert.Equal(("rename", "Ship docs"), (rename.Command!.Signal, rename.Value));
 
         var nav = await view.Activate(1, "nav-filter", null);
-        Assert.Equal(ViewActivationKind.Emit, nav.Kind);
-        Assert.Equal(("owner/apps/tasks", "filter"), (nav.Emit!.Owner, nav.Emit.Signal));
-        Assert.Equal("\"all\"", nav.Emit.Args!.Value.GetRawText());
+        Assert.Equal(ViewActivationKind.Command, nav.Kind);
+        Assert.Equal((".", "filter"), (nav.Command!.Target, nav.Command.Signal));
+        Assert.Equal("\"all\"", nav.Command.Args!.Value.GetRawText());
     }
 
     [Fact]
