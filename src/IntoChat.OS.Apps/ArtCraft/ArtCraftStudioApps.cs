@@ -183,7 +183,7 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
         string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode)
     {
         ArtCraftEngineResult? result = null;
-        // The engine neuron reaches the workspace (through the broker); the app itself has no route to it.
+        // The engine neuron reaches the workspace itself (through the broker), for the commands it runs.
         if (Engine is { } engine)
         {
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }

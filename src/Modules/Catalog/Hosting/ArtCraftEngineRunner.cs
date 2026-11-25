@@ -154,7 +154,7 @@ public static class ArtCraftEngineRunner
         return false;
     }
 
-    // A screen has no route to the workspace; the engine neuron passes it.
+    // Without the workspace: the engine neuron passes it (ExecuteOnWorkspaceAsync); a screen reads workspace files through IWorkspaceFiles.
     public static Task<ArtCraftEngineResult> ExecuteAsync(
         string app,
         string? instructionOrCommand,
