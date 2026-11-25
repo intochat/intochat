@@ -101,7 +101,6 @@ public sealed class AzuriteOrleansTarget(AzuriteFixture azurite) : OrleansFramew
                 [RuntimeOptions.Default.HomeKey] = Home,
                 [RuntimeOptions.Default.CloudStorageKey] = storage,
                 [TopologyContext.SiloPortKey] = FreePort().ToString(CultureInfo.InvariantCulture),
-                [TopologyContext.GatewayPortKey] = FreePort().ToString(CultureInfo.InvariantCulture),
             };
             // The 03-09 probe host keeps its vault URL with the in-memory master key; framework hosts run with no vault at all.
             if (modules is null) { values[RuntimeOptions.Default.CloudKeyVaultKey] = "https://e2e-vault.vault.azure.net/"; }

@@ -83,7 +83,6 @@ internal static class CloudHosts
             [RuntimeOptions.Default.CloudStorageKey] = storage,
             [RuntimeOptions.Default.CloudKeyVaultKey] = vault,
             [TopologyContext.SiloPortKey] = Ports.Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
-            [TopologyContext.GatewayPortKey] = Ports.Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Orleans:ClusterId"] = clusterId,
         });
         if (cluster is not null) { builder.UseClusterStore(cluster); }

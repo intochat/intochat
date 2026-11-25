@@ -10,14 +10,16 @@ using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Modules.Identity.Grants;
 
-// The silo's admission rule for grain calls: a call with no stamped caller is refused, and a call a cluster client sent reaches
-// neuron contracts only. A neuron contract call (INeuronHost with a RuntimeInvocation) is authorized by the stages; every
-// other grain method is served to callers stamped inside this silo process (SiloOrigin), except the entries the two lists below name.
+// The silo's admission rule for grain calls. An OS silo has no external callers: the product ships no out-of-process cluster
+// client (the command-line host calls the edge), so a grain call this silo process did not send (SiloOrigin) is refused, whatever
+// caller it states and whichever port it came in on. SingleSiloGuard keeps the silo alone in its cluster, which is what makes
+// "sent by this process" the same as "sent from inside". Of the calls the process sent, a neuron contract call (INeuronHost with
+// a RuntimeInvocation) is authorized by the stages, and every other grain method needs a stamped caller, except the entries below.
 public sealed class SiloAccessCallFilter(
     IEnumerable<ICallFilterStage> stages,
     ICallerAmbient callerAmbient) : IIncomingGrainCallFilter
 {
-    // Entry points that take a call with no caller. Each is sent by this silo process itself; a cluster client is still refused.
+    // Entry points that take a call with no caller. Each is sent by this silo process itself.
     private static readonly (Type Contract, string Method)[] Callerless =
     [
         // The Orleans reminder service delivers a tick and knows no caller; the host grain runs it as the scheduler of its brain.
@@ -25,19 +27,6 @@ public sealed class SiloAccessCallFilter(
         // Which host grain type serves a neuron type: a proxy asks before it stamps the hop, and the answer is build metadata.
         (typeof(INeuronHostCatalog), nameof(INeuronHostCatalog.HostType)),
         (typeof(ICompiledTypeTable), nameof(ICompiledTypeTable.HostType)),
-    ];
-
-    // Entry points a cluster client may reach with the caller it stamped itself. Its neuron proxies need them to route a call;
-    // none executes neuron code or returns a brain's data.
-    private static readonly (Type Contract, string Method)[] ServedToClients =
-    [
-        // Whether the bound call may interleave: the proxy asks before it picks Invoke or InvokeInterleaved.
-        (typeof(INeuronHost), nameof(INeuronHost.IsInterleaved)),
-        // Which host grain type serves a neuron type: a client holds contracts, not neuron classes.
-        (typeof(INeuronHostCatalog), nameof(INeuronHostCatalog.HostType)),
-        (typeof(ICompiledTypeTable), nameof(ICompiledTypeTable.HostType)),
-        // The compiled neuron types of this build: the same for every brain, no brain's data.
-        (typeof(ICompiledTypeTable), nameof(ICompiledTypeTable.List)),
     ];
 
     private readonly ICallFilterStage[] _stages = [.. (stages ?? throw new ArgumentNullException(nameof(stages))).OrderBy(static s => s.Order)];
@@ -63,7 +52,13 @@ public sealed class SiloAccessCallFilter(
             return;
         }
 
-        // 2. Orleans' own plumbing: its grain extensions (stream enumeration, call cancellation) ride on an admitted call, and the
+        // 2. Nothing from outside this process, on any port: no grain, no Orleans grain, no neuron contract.
+        if (!SiloOrigin.IsCurrent)
+        {
+            throw new UnauthorizedAccessException($"'{Name(context)}' was not sent by this silo process: an OS silo has no external callers.");
+        }
+
+        // 3. Orleans' own plumbing: its grain extensions (stream enumeration, call cancellation) ride on an admitted call, and the
         // grains it implements itself (management, the dashboard when a host turns it on) hold no brain's state.
         if (IsOrleansPlumbing(context))
         {
@@ -71,7 +66,7 @@ public sealed class SiloAccessCallFilter(
             return;
         }
 
-        // 3. Neuron contract calls arrive on INeuronHost with a RuntimeInvocation; the stages authorize them and refuse a missing caller.
+        // 4. Neuron contract calls arrive on INeuronHost with a RuntimeInvocation; the stages authorize them and refuse a missing caller.
         // The interleaving check binds the same invocation but executes no neuron method, so it takes the default rule instead.
         if (context.Grain is INeuronHost
             && !Is(context, typeof(INeuronHost), nameof(INeuronHost.IsInterleaved))
@@ -82,7 +77,7 @@ public sealed class SiloAccessCallFilter(
             return;
         }
 
-        // 4. Every other grain method: refused by default.
+        // 5. Every other grain method: refused without a caller.
         RequireAdmitted(context);
         if (context.Grain is not INeuronHost)
         {
@@ -95,16 +90,9 @@ public sealed class SiloAccessCallFilter(
 
     private void RequireAdmitted(IIncomingGrainCallContext context)
     {
-        var inside = SiloOrigin.IsCurrent;
-        if (_callerAmbient.Current is null)
+        if (_callerAmbient.Current is null && !Listed(Callerless, context))
         {
-            if (inside && Listed(Callerless, context)) { return; }
             throw new UnauthorizedAccessException($"Unstamped call to '{Name(context)}' carried no caller provenance.");
-        }
-
-        if (!inside && !Listed(ServedToClients, context))
-        {
-            throw new UnauthorizedAccessException($"'{Name(context)}' is served inside the silo only, not to a cluster client.");
         }
     }
 

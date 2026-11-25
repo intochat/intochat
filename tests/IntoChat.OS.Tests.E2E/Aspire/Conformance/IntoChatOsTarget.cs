@@ -115,7 +115,6 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
                     [RuntimeOptions.Default.TopologyKey] = Topology.Local.ToConfigValue(),
                     [RuntimeOptions.Default.HomeKey] = home,
                     [TopologyContext.SiloPortKey] = lease.SiloPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    [TopologyContext.GatewayPortKey] = lease.GatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 };
                 foreach (var (key, value) in options.Configuration) { values[key] = value; }
                 Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(builder.Configuration, values);

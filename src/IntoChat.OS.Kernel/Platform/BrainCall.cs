@@ -27,8 +27,10 @@ internal static class BrainCall
         var http = context.GetHttpContext();
         var edge = http.RequestServices.GetRequiredService<EdgeAuthority>();
         var brain = new BrainId(brainId);
+        var asApp = ActingAs(http);
         var caller = HttpCaller.Current(http) switch
         {
+            { Actor: Actor.Person person } current when asApp is not null => edge.App(asApp, person, brain, current.Conversation),
             { Actor: Actor.Person person } current => edge.Person(person.Principal, person.Account, brain, current.Conversation),
             { Actor: Actor.App { Key: GuestSurface.AppId } app } current => edge.Guest(app.For.Principal, app.For.Account, brain, current.Conversation),
             null => throw new RpcException(new Status(StatusCode.Unauthenticated, "The call carries no caller.")),
@@ -40,6 +42,18 @@ internal static class BrainCall
             throw new RpcException(new Status(code, "This brain is not yours."));
         }
         return caller;
+    }
+
+    // The edge app a proven person asked to act as (ActingApp), or null. A header naming anything else is refused rather than
+    // ignored, so a caller never runs with more authority than it asked for.
+    private static string? ActingAs(HttpContext http)
+    {
+        if (!http.Request.Headers.TryGetValue(ActingApp.HeaderName, out var named)) { return null; }
+        if (named.Count != 1 || !ActingApp.IsEdgeApp(named[0]))
+        {
+            throw new RpcException(new Status(StatusCode.PermissionDenied, $"{ActingApp.HeaderName} may only name an edge app of the OS."));
+        }
+        return named[0];
     }
 
     // Error details ride in trailers until the status-details packages arrive with protocol v1 (W2 PR 5a):

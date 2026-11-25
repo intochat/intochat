@@ -23,8 +23,8 @@ internal sealed class BrainClient(ILogger<BrainClient> logger, IServiceProvider 
         return new OrleansBrain(this, brainId);
     }
 
-    // The kernel view the host registered (the silo, or AddIntoChatOSClient for a cluster client); the kernel composition owns it.
-    public IBrainObserver Kernel => kernel ?? throw new InvalidOperationException("No kernel view is registered: a silo registers it, and AddIntoChatOSClient does for a cluster client.");
+    // The kernel view the silo registered; the kernel composition owns it.
+    public IBrainObserver Kernel => kernel ?? throw new InvalidOperationException("No kernel view is registered: the silo registers it.");
 
     public object Get(Type contract, string key)
         => SiloNeurons.Get(services, contract, PlainNeuronContracts.IdOf(contract, key));

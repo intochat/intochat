@@ -94,8 +94,7 @@ public sealed class TwoSiloClusterFacts
     internal static void Join(WebApplicationBuilder builder, IPEndPoint primary)
     {
         var siloPort = int.Parse(builder.Configuration[DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey]!, System.Globalization.CultureInfo.InvariantCulture);
-        var gatewayPort = int.Parse(builder.Configuration[DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey]!, System.Globalization.CultureInfo.InvariantCulture);
-        builder.UseOrleans(orleans => orleans.UseLocalhostClustering(siloPort, gatewayPort, primary));
+        builder.UseOrleans(orleans => orleans.UseLocalhostClustering(siloPort, DigitalBrain.Runtime.Orleans.TopologyContext.NoGateway, primary));
         // The harness disposes a host whose start failed without stopping it; its silo connection still receives the first
         // silo's membership gossip and would log into a disposed Windows event log, which ends the test process.
         builder.Logging.ClearProviders();

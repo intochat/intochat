@@ -95,7 +95,6 @@ internal sealed class VoiceHostHarness : IAsyncDisposable
                 [IntoChatOSNames.FrontEnabledKey] = "false",
                 [AuthKeys.Posture] = "Open",
                 [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
-                [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
             });
 
             LocalRunDefaults.Apply(builder.Configuration);

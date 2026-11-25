@@ -242,7 +242,8 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
 
         var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
 
-        Assert.Contains("carried no caller provenance", ex.Message);
+        // Called outside a silo, the call carries no origin mark either, so the origin rule refuses it first.
+        Assert.Contains("was not sent by this silo process", ex.Message);
     }
 
     [Fact]

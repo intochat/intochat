@@ -25,8 +25,8 @@ using Orleans.Runtime;
 
 namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 
-// The silo's default rule (SiloAccessCallFilter): a grain call with no stamped caller is refused; a call a cluster client
-// sent reaches neuron contracts and the few routing entries its proxies need, nothing else, whatever caller it declares.
+// The silo's default rule (SiloAccessCallFilter): a grain call with no stamped caller is refused, and an OS silo has no external
+// callers at all: a call this silo process did not send is refused whatever caller it declares, neuron contracts included.
 //
 // "Inside" facts send through the silo's own grain factory with the ambient caller cleared. "Cluster client" facts open a
 // real Orleans client over TCP to the harness's own gateway port (loopback, ephemeral, this process only), so the request
@@ -64,12 +64,26 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
             .Consume("jti", DateTimeOffset.UtcNow.AddMinutes(1)),
     };
 
-    // What the allow-lists name. Everything else in the table is refused in both positions.
+    // What the allow-list names. Everything else in the table is refused inside without a caller, and everything is refused to a client.
     private static readonly string[] CallerlessInside = ["IRemindable.ReceiveReminder", "INeuronHostCatalog.HostType"];
-    private static readonly string[] ServedToClients =
-        ["INeuronHost.IsInterleaved", "ICompiledTypeTable.List", "INeuronHostCatalog.HostType"];
 
     public static TheoryData<string> EveryCall => [.. Calls.Keys];
+
+    // The three callers an outside process could declare for itself: the owner person, the owner's agent, an app acting for the owner.
+    public static TheoryData<string, string> EveryCallUnderEveryStatedCaller =>
+        [.. Calls.Keys.SelectMany(call => new[] { "person", "agent", "app" }.Select(stamp => (stamp, call)))];
+
+    private static Caller Stated(EdgeAuthority edge, string brain, string stamp)
+    {
+        var owner = new Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin);
+        return stamp switch
+        {
+            "person" => edge.Person(owner.Principal, owner.Account, new BrainId(brain)),
+            "agent" => edge.Agent(owner, new BrainId(brain)),
+            "app" => edge.App("cli", owner, new BrainId(brain)),
+            _ => throw new ArgumentOutOfRangeException(nameof(stamp), stamp, null),
+        };
+    }
 
     [Theory]
     [MemberData(nameof(EveryCall))]
@@ -116,27 +130,27 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
     }
 
     [Theory]
-    [MemberData(nameof(EveryCall))]
-    public async Task AClusterClient_ThatDeclaresItselfTheOwner_ReachesOnlyTheRoutingEntries(string name)
+    [MemberData(nameof(EveryCallUnderEveryStatedCaller))]
+    public async Task AClusterClient_ThatStatesItsOwnCaller_IsRefusedEverywhere(string stamp, string name)
     {
         var (host, client) = (silo.Host, silo.Client);
         var edge = host.Services.GetRequiredService<EdgeAuthority>();
         RequestContext.Clear();
 
-        // The stamp a client writes for itself: the owner person of the brain. It travels serialized over the gateway.
-        using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(host.Scope))))
+        // The stamp a client writes for itself. It travels serialized over the gateway, and the silo did not send the call.
+        using (edge.Enter(Stated(edge, host.Scope, stamp)))
         {
-            var grains = client.Services.GetRequiredService<IClusterClient>();
-            if (ServedToClients.Contains(name))
-            {
-                // Served: whatever the grain answers (a probe invocation need not bind), the filter did not refuse it.
-                var refused = await Record.ExceptionAsync(() => Calls[name](grains, host.Scope));
-                Assert.False(refused is UnauthorizedAccessException { Message: var message } && IsFilterRefusal(message), refused?.Message);
-                return;
-            }
-
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Calls[name](grains, host.Scope));
+            var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Calls[name](client.Services.GetRequiredService<IClusterClient>(), host.Scope));
+            Assert.True(IsFilterRefusal(refused.Message), refused.Message);
         }
+    }
+
+    // This harness opted in to a gateway (no OS host opens one), so the facts above have a real TCP client to refuse.
+    [Fact]
+    public async Task TheHarnessGateway_IsOpenOnlyBecauseItOptedIn()
+    {
+        Assert.Equal(silo.Host.GatewayPort, silo.Host.Services.GetRequiredService<ILocalSiloDetails>().GatewayAddress?.Endpoint.Port);
+        Assert.True(await IntoChat.OS.Tests.Integration.Cli.CliOverTheEdgeFacts.Listens(silo.Host.GatewayPort), "The opted-in gateway listens.");
     }
 
     [Fact]
@@ -154,37 +168,42 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
         }
     }
 
-    [Fact]
-    public async Task AClusterClient_ActingAsAnApp_StillRoutesANeuronCallThroughTheGate()
-    {
-        var (host, client) = (silo.Host, silo.Client);
-        RequestContext.Clear();
-
-        // The documented client stamp (ClientCaller.ActAs): the proxy resolves the host grain and asks the interleaving
-        // policy, then the call reaches the stages. An app without a grant is refused there, by the gate, not by routing.
-        using (ClientCaller.ActAs("cli", AccountSession.DefaultLogin, AccountSession.DefaultLogin, host.Scope))
-        {
-            var friends = SiloNeurons.Get<IFriends>(client.Services, FriendsDefaults.Id(host.Scope));
-            var refused = await Record.ExceptionAsync(friends.List);
-            Assert.False(refused is UnauthorizedAccessException { Message: var message } && IsFilterRefusal(message), refused?.Message);
-        }
-    }
-
-    // OPEN (stated in the build report): the gateway has no authentication, so a cluster client that declares itself a
-    // person of a brain is admitted to that brain's neuron contracts as that person. The filter cannot tell a first-party
-    // front from a stranger; closing this needs a kernel-issued gateway credential (ClientCaller.cs). This fact pins the
-    // behaviour so that the change that closes it has to turn it around.
-    [Fact]
-    public async Task Open_AClusterClient_ThatDeclaresItselfTheOwner_IsAdmittedToNeuronContracts()
+    // A neuron contract through a real client proxy, the way the command-line host used to call: the owner person, the owner's
+    // agent or an app for the owner. The proxy's first routing question is already refused, and so is the call itself.
+    [Theory]
+    [InlineData("person")]
+    [InlineData("agent")]
+    [InlineData("app")]
+    public async Task AClusterClient_ThatStatesItsOwnCaller_IsRefusedANeuronContract(string stamp)
     {
         var (host, client) = (silo.Host, silo.Client);
         var edge = host.Services.GetRequiredService<EdgeAuthority>();
         RequestContext.Clear();
 
-        using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(host.Scope))))
+        using (edge.Enter(Stated(edge, host.Scope, stamp)))
         {
             var friends = SiloNeurons.Get<IFriends>(client.Services, FriendsDefaults.Id(host.Scope));
-            Assert.Empty(await friends.List());
+            var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(friends.List);
+            Assert.True(IsFilterRefusal(refused.Message), refused.Message);
+        }
+    }
+
+    // The same neuron contract call bound by hand, past the proxy's routing questions, straight to the host grain.
+    [Theory]
+    [InlineData("person")]
+    [InlineData("agent")]
+    [InlineData("app")]
+    public async Task AClusterClient_ThatStatesItsOwnCaller_IsRefusedAtTheHostGrain(string stamp)
+    {
+        var (host, client) = (silo.Host, silo.Client);
+        var edge = host.Services.GetRequiredService<EdgeAuthority>();
+        RequestContext.Clear();
+
+        using (edge.Enter(Stated(edge, host.Scope, stamp)))
+        {
+            var grains = client.Services.GetRequiredService<IClusterClient>();
+            var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Host(grains, host.Scope).Invoke(ListFriends(host.Scope), Ct));
+            Assert.True(IsFilterRefusal(refused.Message), refused.Message);
         }
     }
 
@@ -235,7 +254,7 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
 
     private static bool IsFilterRefusal(string message)
         => message.Contains("carried no caller provenance", StringComparison.Ordinal)
-            || message.Contains("served inside the silo only", StringComparison.Ordinal);
+            || message.Contains("was not sent by this silo process", StringComparison.Ordinal);
 
     // One silo and one cluster client for the class: every fact only asks whether a call is admitted.
     public sealed class Silo : IAsyncLifetime
@@ -245,11 +264,13 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
 
         public async ValueTask InitializeAsync()
         {
-            Host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(CancellationToken.None);
+            // No OS host opens a gateway; this one does, so the facts can prove that nothing is admitted through one.
+            Host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(CancellationToken.None, openGateway: true);
             Client = new HostBuilder()
                 .UseOrleansClient(client =>
                 {
-                    client.UseLocalhostClustering(Host.GatewayPort).AddIntoChatOS();
+                    client.UseLocalhostClustering(Host.GatewayPort);
+                    client.Services.AddIntoChatOSClient();
                     OrleansAotResponses.Register(client.Services);
                 })
                 .Build();

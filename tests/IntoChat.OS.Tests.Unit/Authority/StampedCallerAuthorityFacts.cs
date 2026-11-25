@@ -121,7 +121,8 @@ public sealed class StampedCallerAuthorityFacts
 
         var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
 
-        Assert.Contains("carried no caller provenance", error.Message, StringComparison.Ordinal);
+        // Outside a silo no call carries this process's origin mark, so the origin rule refuses it before the caller is read.
+        Assert.Contains("was not sent by this silo process", error.Message, StringComparison.Ordinal);
         Assert.False(context.Invoked);
     }
 

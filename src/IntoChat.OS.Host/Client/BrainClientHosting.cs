@@ -7,12 +7,6 @@ namespace IntoChat.OS.Host.Client;
 
 public static class BrainClientHosting
 {
-    public static IClientBuilder AddIntoChatOS(this IClientBuilder client)
-    {
-        client.Services.AddIntoChatOSClient();
-        return client;
-    }
-
     public static IServiceCollection AddIntoChatOSClient(this IServiceCollection services)
     {
         services.TryAddSingleton<BrainClient>();
