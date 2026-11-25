@@ -92,7 +92,6 @@ public sealed class ScreenTargetResolverFacts
     private sealed class StubApp(AppSnapshot snapshot) : IApp
     {
         public Task<AppSnapshot> Read() => Task.FromResult(snapshot);
-        public Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation) => throw new NotSupportedException();
         public Task<AppSnapshot> Create(AppManifest manifest, string spec) => throw new NotSupportedException();
         public Task<AppSnapshot> SaveSpec(string spec, Guid operationId) => throw new NotSupportedException();
         public Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId) => throw new NotSupportedException();

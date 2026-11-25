@@ -258,7 +258,6 @@
     "IntoChat.OS.Modules.AI.Routing.RouterDecided": "RouterDecided",
     "IntoChat.OS.Modules.AI.SystemOne.Signals.SystemOneDecided": "SystemOneDecided",
     "IntoChat.OS.Modules.AI.Testing.Signals.TestSuiteVerified": "TestSuiteVerified",
-    "IntoChat.OS.Modules.Apps.FilesWorkspaceChanged": "FilesWorkspaceChanged",
     "IntoChat.OS.Modules.Apps.FriendAdded": "FriendAdded",
     "IntoChat.OS.Modules.Apps.FriendRemoved": "FriendRemoved",
     "IntoChat.OS.Modules.Apps.ProfileChanged": "ProfileChanged",

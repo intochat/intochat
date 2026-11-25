@@ -172,8 +172,8 @@ public sealed class WorkspaceWindowsFacts
             new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", DesktopApp.Bundle.Version));
         await os.Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), IntoChat.OS.Host.Primitives.AppRef.Of(brain, "files").Key))
             .Import(
-                IntoChat.OS.Modules.Apps.FilesRequests.Bundle,
-                new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "files", IntoChat.OS.Modules.Apps.FilesRequests.Bundle.Version));
+                IntoChat.OS.Modules.Apps.FilesWorkspaceScreen.Bundle,
+                new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "files", IntoChat.OS.Modules.Apps.FilesWorkspaceScreen.Bundle.Version));
         await os.Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), IntoChat.OS.Host.Primitives.AppRef.Of(brain, "settings").Key))
             .Import(
                 IntoChat.OS.Apps.Settings.SettingsApp.Bundle,

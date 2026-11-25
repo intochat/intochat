@@ -28,7 +28,7 @@ internal static class FilesScreen
         var narrow = width <= 390;
         var isGridView = string.Equals(viewMode, "grid", StringComparison.OrdinalIgnoreCase);
         var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
-        Emit Act(string verb, int? index = null) => FilesUi.Act(rev, verb, index);
+        Command Act(string verb, int? index = null) => FilesUi.Act(rev, verb, index);
 
         if (state.Storages.Length == 0 && state.Connection is null && !state.Loading && !state.Searching)
         {
@@ -218,7 +218,7 @@ internal static class FilesScreen
         var chrome = new Node[]
         {
             finderHeader,
-            Crumbs(state, revision),
+            Crumbs(state, revision, BrainOf(appKey)),
             toolbar,
             searchBarRow,
         };
@@ -497,15 +497,18 @@ internal static class FilesScreen
             ? (state.Storages.FirstOrDefault(s => s.Connection == conn) is { } st ? FormatStorageLabel(st) : HumanizeOpaqueIdentifier(conn, "Storage"))
             : null;
 
-    private static string? ActiveFolderNeuronUri(FilesState state)
+    private static string? ActiveFolderNeuronUri(FilesState state, string brain)
     {
         if (state.SelectedNeuronUri is { } selectedUri) { return selectedUri; }
         var connection = state.Connection ?? state.Breadcrumbs.LastOrDefault()?.Connection;
         if (string.IsNullOrWhiteSpace(connection)) { return null; }
         var segments = state.Breadcrumbs.Skip(1).Select(folder => SlugSegment(folder.Item.Name)).Where(s => s.Length > 0).ToArray();
         var suffix = segments.Length == 0 ? "" : "/" + string.Join("/", segments);
-        return $"neuron://owner/{SlugSegment(connection)}.files{suffix}";
+        return $"neuron://{brain}/{SlugSegment(connection)}.files{suffix}";
     }
+
+    // The brain of an app key "{brain}/apps/{name}".
+    private static string BrainOf(string appKey) => appKey.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash ? appKey[..slash] : appKey;
 
     private static string SlugSegment(string value)
     {
@@ -519,7 +522,7 @@ internal static class FilesScreen
         return builder.ToString().Trim('-');
     }
 
-    private static Node Crumbs(FilesState state, long revision)
+    private static Node Crumbs(FilesState state, long revision, string brain)
     {
         var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
         var pathSegments = new List<Node>
@@ -557,7 +560,7 @@ internal static class FilesScreen
         }
 
         var trailing = new List<Node>();
-        var activeUri = ActiveFolderNeuronUri(state);
+        var activeUri = ActiveFolderNeuronUri(state, brain);
         var activeDisplayPath = state.Selected is { } sel ? DisplayPath(state, sel) : ActiveFolderDisplayPath(state);
 
         if (activeUri is { Length: > 0 })

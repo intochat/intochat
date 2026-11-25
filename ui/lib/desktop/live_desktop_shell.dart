@@ -949,12 +949,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
           'kind': 'view',
           'name': '${widget.brain}/apps/$appId/view',
         };
-      } else if (appId == 'files' &&
-          (viewportRef['name'] as String? ?? '').endsWith('/apps/files/main')) {
-        viewportRef = <String, dynamic>{
-          'kind': 'view',
-          'name': '${widget.brain}/apps/files/view',
-        };
       }
       result.add(
         _ParsedDesktopWindow(

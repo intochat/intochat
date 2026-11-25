@@ -194,7 +194,7 @@ public sealed partial class UnitsAllTheWayFacts
     [
         "ShippedApps.cs", "SettingsApp.cs", "PhotoCraftApp.cs", "FilmCraftApp.cs", "CreatorApp.cs",
         "ArtCraftEngineNeuron.cs", "ArtCraftEngineRunner.cs", "InstalledModulesNeuron.cs",
-        "ShippedGrants.cs", "FilesWorkspaceNeuron.cs",
+        "ShippedGrants.cs", "FilesWorkspaceScreen.cs",
     ];
 
     [Fact]

@@ -4,7 +4,8 @@ using System.Text.RegularExpressions;
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 // A view's emit is a request: AppNeuron refuses a signal its app's manifest does not declare. This scans the source of the compiled
-// apps (the IntoChat.OS.Apps project) and of the host-built views in the Apps module (Files, the brain scene, the desktop shell) for every
+// apps (the IntoChat.OS.Apps project) and of the host-built views in the Apps module (the brain scene, the desktop shell; Files sends
+// commands to its own screen, not emits) for every
 // literal emitted signal and compares it with the emitting app's Bundle.Manifest.Operations. A site whose owner or signal is not a
 // literal cannot be checked here; it is reported in the output, not skipped silently.
 public sealed partial class EmittedSignalsFacts
@@ -37,7 +38,7 @@ public sealed partial class EmittedSignalsFacts
         }
 
         TestContext.Current.TestOutputHelper?.WriteLine(string.Join(Environment.NewLine, unchecked_.Select(site => "Not a literal emit, unchecked: " + site)));
-        Assert.True(found > 50, $"Only {found} literal emits found; the scan patterns no longer match the source.");
+        Assert.True(found > 40, $"Only {found} literal emits found; the scan patterns no longer match the source.");
         Assert.True(undeclared.Count == 0, string.Join(Environment.NewLine, undeclared));
     }
 
@@ -51,16 +52,6 @@ public sealed partial class EmittedSignalsFacts
         {
             yield return (Literal(match.Groups["owner"].Value), match.Groups["signal"].Value is { Length: > 0 } s && s.StartsWith('"') ? s.Trim('"') : null, Site(match));
         }
-        foreach (Match match in FilesAct().Matches(source))
-        {
-            var signal = match.Groups["signal"].Value;
-            yield return ("files", signal.StartsWith('"') ? Normalize(signal.Trim('"')) : null, Site(match));
-        }
-        if (file.EndsWith("FilesScreen.cs", StringComparison.Ordinal) || file.EndsWith("FilesWorkspaceView.cs", StringComparison.Ordinal))
-        {
-            foreach (Match match in FilesButton().Matches(source)) { yield return ("files", Normalize(match.Groups["signal"].Value), Site(match)); }
-            foreach (Match match in LocalAct().Matches(source)) { yield return ("files", Normalize(match.Groups["signal"].Value), Site(match)); }
-        }
         foreach (Match match in HostEmit().Matches(source))
         {
             var owner = match.Groups["helper"].Value.StartsWith("Brain", StringComparison.Ordinal) ? "brain" : "desktop";
@@ -69,15 +60,11 @@ public sealed partial class EmittedSignalsFacts
         }
     }
 
-    // FilesUi.Act sends search-all as search.
-    private static string Normalize(string files) => files == "search-all" ? "search" : files;
-
     private static Dictionary<string, HashSet<string>> Manifests()
     {
         var bundles = typeof(IntoChat.OS.Apps.AppSignals).Assembly.GetTypes()
             .Select(type => type.GetProperty("Bundle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null))
-            .OfType<AppBundle>()
-            .Append(FilesRequests.Bundle);
+            .OfType<AppBundle>();
         var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         foreach (var bundle in bundles)
         {
@@ -111,16 +98,6 @@ public sealed partial class EmittedSignalsFacts
     // AppSignals.Emit(owner, signal...) and new Emit(owner, signal...): owner a literal or App, signal any first argument.
     [GeneratedRegex(""""(?<![\\"])(?:AppSignals\.Emit|new Emit)\((?<owner>"[a-z-]+"|[A-Za-z_][A-Za-z0-9_.]*),\s*(?<signal>"[a-z-]+"|[^,)]+)"""")]
     private static partial Regex GeneralEmit();
-
-    [GeneratedRegex(""""FilesUi\.Act\((?:rev|[a-z]+),\s*(?<signal>"[a-z-]+"|[^,)]+)"""")]
-    private static partial Regex FilesAct();
-
-    // FilesScreen/FilesWorkspaceView's local Button(key, text, "verb", ...) helpers.
-    [GeneratedRegex(@"(?<![.\w])Button\(""[a-z0-9-]+"",\s*[^,]+,\s*""(?<signal>[a-z-]+)""")]
-    private static partial Regex FilesButton();
-
-    [GeneratedRegex(@"(?<![.\w])Act\(""(?<signal>[a-z-]+)""")]
-    private static partial Regex LocalAct();
 
     [GeneratedRegex(""""(?<helper>BrainEmit|DesktopEmit)\((?<signal>"[a-z-]+"|[^,)]+)|(?<helper>DesktopButton)\([^,]+,\s*[^,]+,\s*(?<signal>"[a-z-]+"|[^,)]+)|(?<helper>DesktopIcon)\([^,]+,\s*[^,]+,\s*[^,]+,\s*(?<signal>"[a-z-]+"|[^,)]+)"""")]
     private static partial Regex HostEmit();

@@ -705,7 +705,6 @@ public sealed class HouseRules22Facts
         {
             ("IntoChat.OS.Host", "AppRef.cs"),
             ("IntoChat.OS.Host", "SafeRelativePath.cs"),
-            ("IntoChat.OS.Modules.Catalog", "SlotNamesABrainNeuron.cs"),
             ("IntoChat.OS.Modules.Roslyn", "CodeGraphService.cs"),
             ("IntoChat.OS.Modules.Shell", "ViewportNeuron.cs"),
             ("IntoChat.OS.Modules.Shell", "WorkspaceNeuron.cs"),

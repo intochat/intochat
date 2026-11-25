@@ -14,7 +14,6 @@ public sealed class FilesContractFacts
         // [Shareable] is what lets a Shared or Public operation be called from another brain. Files are shared through
         // IFileShares; the files contracts themselves stay closed.
         Assert.False(typeof(IFiles).IsDefined(typeof(ShareableAttribute), inherit: false));
-        Assert.False(typeof(IFilesWorkspace).IsDefined(typeof(ShareableAttribute), inherit: false));
         Assert.True(typeof(IFileShares).IsDefined(typeof(ShareableAttribute), inherit: false));
         // files.vfs is gone: no neuron of this assembly is hosted under that type.
         Assert.DoesNotContain(typeof(FileSharesDefaults).Assembly.GetTypes().Concat(typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly.GetTypes()),

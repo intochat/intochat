@@ -352,7 +352,7 @@ public static class VisualCatalog
             "IConfirmations", "IApprovals", "confirmations", "os.confirmations", "approvals", "capability:shield");
 
         Add(new("Files", "capability:files", "#3B82F6", "System"),
-            "IFiles", "IFilesWorkspace", "files", "capability:files");
+            "IFiles", "files", "capability:files");
 
         Add(new("App Studio", "capability:studio", "#6366F1", "Studio"),
             "IAppStudio", "creator", "capability:studio");
