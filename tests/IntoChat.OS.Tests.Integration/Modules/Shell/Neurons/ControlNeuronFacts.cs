@@ -3,7 +3,6 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Flutter.Conversations;
-using IntoChat.OS.Modules.Flutter.Fields;
 
 namespace IntoChat.OS.Modules.Flutter.Tests;
 
@@ -15,24 +14,6 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
 
     public static TheoryData<NeuronRuntimeKind> Kinds => FlutterFixture.Kinds;
 
-    [Theory, MemberData(nameof(Kinds))]
-    public async Task ASecretFieldNeverJournalsItsValue(NeuronRuntimeKind kind)
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var runtime = await fixture.Runtime(kind);
-        var id = runtime.Id(UIVocabulary.FieldType, "apps/login/secret");
-        var field = runtime.Get<IField>(id);
-        // What the edge stamps on the person's request; a field refuses an unstamped call.
-        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
-
-        await field.Configure(DigitalBrain.UI.FieldKind.Secret);
-        await field.Set("hunter2-set");
-        await field.Input("hunter2-input");
-
-        var changes = await runtime.WaitForSignals<FieldChanged>(id, 2, Within, ct);
-        Assert.All(changes, change => Assert.Equal("secret", change.Name));
-        Assert.Equal("••••••••", (await field.Read()).Value);
-    }
     // 06-05b: the chat index is plain; it titles a default entry from the first message and announces each change.
     [Theory, MemberData(nameof(Kinds))]
     public async Task TheChatIndexTitlesItsFirstMessageAndArchivesByIdOnly(NeuronRuntimeKind kind)

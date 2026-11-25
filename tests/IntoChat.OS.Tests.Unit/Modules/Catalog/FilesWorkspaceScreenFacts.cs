@@ -8,7 +8,6 @@ using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Fields;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -70,16 +69,16 @@ public sealed class FilesWorkspaceScreenFacts
         await Press(os, Key(await ViewOf(os), "docs"));
 
         // Write: what the person typed into the two quick-write fields.
-        await Type(os, FilesWorkspaceScreen.NameField, "todo.txt");
-        await Type(os, FilesWorkspaceScreen.ContentField, "buy milk");
+        await Type(os, "input-name", "todo.txt");
+        await Type(os, "input-content", "buy milk");
         await Press(os, "write");
         Assert.Equal("buy milk", await Text(storage, docs, "todo.txt"));
 
         // A new folder with no name asks inline, then takes the prompt's text.
-        await Type(os, FilesWorkspaceScreen.NameField, "");
+        await Type(os, "input-name", "");
         await Press(os, "mkdir");
         Assert.Contains("\"prompt-confirm\"", await ViewOf(os), StringComparison.Ordinal);
-        await Type(os, FilesWorkspaceScreen.PromptField, "reports");
+        await Type(os, "prompt-input", "reports");
         await Press(os, "prompt-confirm");
         Assert.Contains((await storage.List(docs, new ListQuery(), Ct)).Items, item => item is { Name: "reports", Kind: ItemKind.Folder });
         Assert.DoesNotContain("\"prompt-confirm\"", await ViewOf(os), StringComparison.Ordinal);
@@ -89,8 +88,8 @@ public sealed class FilesWorkspaceScreenFacts
         await Press(os, Key(await ViewOf(os), "docs"));
         await Press(os, Key(await ViewOf(os), "note.md"));
         await Press(os, "rename");
-        Assert.Equal("note.md", (await Field(os, FilesWorkspaceScreen.PromptField).Read()).Value);
-        await Type(os, FilesWorkspaceScreen.PromptField, "readme.md");
+        Assert.Equal("note.md", Shown(await ViewOf(os), "prompt-input"));
+        await Type(os, "prompt-input", "readme.md");
         await Press(os, "prompt-confirm");
         Assert.Equal("readme.md", (await storage.Stat(note, Ct)).Name);
 
@@ -99,10 +98,31 @@ public sealed class FilesWorkspaceScreenFacts
         await Press(os, "up");
         await Press(os, Key(await ViewOf(os), "docs"));
         await Press(os, Key(await ViewOf(os), "todo.txt"));
-        Assert.Equal("buy milk", (await Field(os, FilesWorkspaceScreen.EditorField).Read()).Value);
-        await Type(os, FilesWorkspaceScreen.EditorField, "buy oat milk");
+        Assert.Equal("buy milk", Shown(await ViewOf(os), "editor-content"));
+        await Type(os, "editor-content", "buy oat milk");
         await Press(os, "save-edit");
         Assert.Equal("buy oat milk", await Text(storage, docs, "todo.txt"));
+    }
+
+    [Fact]
+    public async Task Typing_into_search_and_filter_runs_them_through_act()
+    {
+        var (storage, _, _) = Disk();
+        await using var os = Os(storage);
+        using var person = AsPerson();
+        await Press(os, "storage-open-0");
+        await Press(os, Key(await ViewOf(os), "disk"));
+        await Press(os, Key(await ViewOf(os), "docs"));
+
+        await Type(os, "filter", "zzz");
+        Assert.DoesNotContain("note.md", await ViewOf(os), StringComparison.Ordinal);
+        await Type(os, "filter", "");
+        Assert.Contains("note.md", await ViewOf(os), StringComparison.Ordinal);
+
+        await Type(os, "search", "note");
+        var found = await ViewOf(os);
+        Assert.Contains("Search results for", found, StringComparison.Ordinal);
+        Assert.Contains("note.md", found, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -176,13 +196,24 @@ public sealed class FilesWorkspaceScreenFacts
 
     private static IScreen Screen(TestOS os) => os.Get<IScreen>(new NeuronId(new BrainId(Brain), "app.files", "default"));
 
-    private static IField Field(TestOS os, string name) => os.Get<IField>(new NeuronId(new BrainId(Brain), UIVocabulary.FieldType, "apps/files/" + name));
-
-    private static async Task Type(TestOS os, string field, string text)
+    // Types into the field keyed <paramref name="key"/> as the client does: after a pause, the field's command with the typed text as
+    // its value, posted to /act.
+    private static async Task Type(TestOS os, string key, string text)
     {
-        await Field(os, field).Input(text);
+        var field = Nodes(JsonDocument.Parse(await ViewOf(os)).RootElement).FirstOrDefault(n => n.TryGetProperty("key", out var k) && k.GetString() == key && n.TryGetProperty("onSubmit", out _));
+        Assert.True(field.ValueKind == JsonValueKind.Object, $"The view has no field '{key}'.");
+        var command = field.GetProperty("onSubmit");
+        var result = await AppUiEndpoints.Act(new($"{Brain}/apps/files", command.GetProperty("target").GetString(), command.GetProperty("signal").GetString(),
+            command.TryGetProperty("args", out var args) ? args.Clone() : null, text), new Proxies(os), Brain, Ct, Caller());
+        Assert.True(Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode == StatusCodes.Status200OK, $"{key}: {JsonSerializer.Serialize((result as IValueHttpResult)?.Value)}");
         await os.Idle();
     }
+
+    // The text the view gives the field keyed <paramref name="key"/>: what it shows while the person is not typing.
+    private static string? Shown(string view, string key)
+        => Nodes(JsonDocument.Parse(view).RootElement).Where(n => n.TryGetProperty("key", out var k) && k.GetString() == key && n.TryGetProperty("onSubmit", out _))
+            .Select(n => n.GetProperty("onSubmit").TryGetProperty("args", out var args) && args.TryGetProperty("uiValue", out var value) ? value.GetString() : null)
+            .FirstOrDefault();
 
     private static async Task<string> ViewOf(TestOS os)
     {

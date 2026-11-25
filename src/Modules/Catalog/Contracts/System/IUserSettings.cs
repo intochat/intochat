@@ -8,6 +8,9 @@ public sealed record UserVariableEntry(string Key, string Value);
 
 public sealed record RoleChoice(ModelRole Role, ModelId Model);
 
+/// <summary>One notification switch of the brain's person: <c>agent-finished</c>, <c>needs-approval</c>, <c>connection-errors</c> or <c>product-updates</c>.</summary>
+public sealed record NotificationSetting(string Key, bool On);
+
 public sealed record UserSettingsState(
     string DisplayName,
     string Theme,
@@ -21,9 +24,11 @@ public sealed record UserSettingsState(
     string TimeZone = "UTC",
     string DateFormat = "17 Oct 2026",
     string ArtCraftDefaultMode = "wasm-ui",
-    RoleChoice[]? Roles = null)
+    RoleChoice[]? Roles = null,
+    NotificationSetting[]? Notifications = null,
+    string? NewTabApp = null)
 {
-    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026", "wasm-ui", null) { }
+    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026", "wasm-ui", null, null, null) { }
 
     public ModelId? RoleOf(ModelRole role)
     {
@@ -91,4 +96,11 @@ public interface IUserSettings
     Task<UserSettingsState> SetVariable(string key, string value);
 
     Task<UserSettingsState> SetRole(ModelRole role, ModelId model);
+
+    /// <summary>Sets the given notification switches and keeps the others. <see cref="UserSettingsState.Notifications"/> is null
+    /// until the first call; an unset switch keeps its default.</summary>
+    Task<UserSettingsState> SetNotifications(NotificationSetting[] settings);
+
+    /// <summary>Sets the app a new tab opens; empty means the default. <see cref="UserSettingsState.NewTabApp"/> is null until the first call.</summary>
+    Task<UserSettingsState> SetNewTabApp(string app);
 }

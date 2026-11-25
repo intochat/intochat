@@ -250,9 +250,6 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     [Slot(Required = false)] private partial IPosts? SocialPosts { get; }
     [Slot(Required = false)] private partial SlotCollection<IRoom> SocialRooms { get; }
     [Slot(Required = false)] private partial IRooms? RoomIndex { get; }
-    [Slot(Key = "apps/friends/" + CodeField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField CodeFieldSlot { get; }
-    [Slot(Key = "apps/friends/" + PathField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField PathFieldSlot { get; }
-    [Slot(Key = "apps/friends/" + TextField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField TextFieldSlot { get; }
 
     [On]
     public Task MakeCode(FriendsMakeCode request)
@@ -271,7 +268,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("add that friend", async () =>
         {
-            var raw = await Typed(request.Code, CodeFieldSlot);
+            var raw = Typed(request.Code, State.CodeDraft);
             if (!IntoChat.OS.Code.TryParse(raw, out var code))
             {
                 return State with
@@ -284,7 +281,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             var friend = await Friends.Redeem(code);
             var profile = await Profile.Read();
             var roster = await TryReadRosterAsync();
-            return await WithShares(State.ApplyProfile(profile, $"{friend.Name} is now a friend.", roster: roster));
+            return await WithShares(State.ApplyProfile(profile, $"{friend.Name} is now a friend.", roster: roster) with { CodeDraft = "" });
         });
     }
 
@@ -310,7 +307,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("share that", async () =>
         {
-            var path = await Typed(request.Path, PathFieldSlot);
+            var path = Typed(request.Path, State.PathDraft);
             var role = string.Equals(request.Role?.Trim(), "editor", StringComparison.OrdinalIgnoreCase) ? ShareRole.Editor : ShareRole.Viewer;
             var share = await Door.Share(request.Account, path, role);
             return await WithShares(State with { Status = $"Shared {share.Path} as {share.Role}." });
@@ -341,7 +338,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             var file = entries is [{ IsFolder: false } only] && (request.Path.Length == 0 ? !pointer.IsFolder : only.Path == request.Path) ? only : null;
             var text = file is null ? null : System.Text.Encoding.UTF8.GetString(await Mine.Read(request.OwnerBrain, request.ShareId, request.Path) ?? []);
             var opened = new FriendsOpenedShare(request.OwnerBrain, request.ShareId, request.Path, pointer.Role == ShareRole.Editor, file is null ? entries : [], text, file?.ModifiedBy ?? "", file?.Modified);
-            return State with { Opened = opened, Status = file is null ? $"Opened {pointer.Path}/{request.Path}".TrimEnd('/') : $"Opened {file.Name}." };
+            return State with { Opened = opened, SharedTextDraft = text ?? "", Status = file is null ? $"Opened {pointer.Path}/{request.Path}".TrimEnd('/') : $"Opened {file.Name}." };
         });
     }
 
@@ -351,7 +348,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("save that", async () =>
         {
-            var text = await Typed(request.Text, TextFieldSlot);
+            var text = request.Text ?? State.SharedTextDraft;
             var saved = await Mine.Write(request.OwnerBrain, request.ShareId, request.Path, System.Text.Encoding.UTF8.GetBytes(text));
             var opened = State.Opened is { } open && open.ShareId == request.ShareId && open.Path == request.Path
                 ? open with { Text = text, SavedBy = saved.ModifiedBy, SavedAt = saved.Modified }
@@ -402,9 +399,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         }
     }
 
-    // The value a signal carried, or what the person typed into the field of that name.
-    private static async Task<string> Typed(string? carried, IntoChat.OS.Modules.Flutter.Fields.IField field)
-        => !string.IsNullOrWhiteSpace(carried) ? carried.Trim() : ((await field.Read()).Value ?? "").Trim();
+    // The value a signal carried, or what the person typed into the field (kept in the state as they typed).
+    private static string Typed(string? carried, string typed)
+        => !string.IsNullOrWhiteSpace(carried) ? carried.Trim() : typed.Trim();
 
     [On]
     public async Task ForkApp(FriendsForkApp request)
@@ -959,9 +956,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     Button("Make a friend code", "key").Key("make-code").Small().OnClick(() => MakeCodeAsync()),
                     Text(state.FriendCode)
                 ],
-                TextField(FieldKey(CodeField), "XXXX-XXXX-XXXX").Key(CodeField).Label("Friend code you received"),
+                TextField(FieldKey(CodeField), "XXXX-XXXX-XXXX").Key(CodeField).Label("Friend code you received")
+                    .Value(state.CodeDraft).OnChange<FriendsAppState>(s => s.SetCodeDraft(Arg.Text)),
                 PrimaryButton("Add friend", "user-plus").Key("redeem-code").Small().OnClick(() => RedeemTypedCodeAsync()),
-                TextField(FieldKey(PathField), "/work/folder").Key(PathField).Label("Folder or file of your workspace to share"),
+                TextField(FieldKey(PathField), "/work/folder").Key(PathField).Label("Folder or file of your workspace to share")
+                    .Value(state.PathDraft).OnChange<FriendsAppState>(s => s.SetPathDraft(Arg.Text)),
             ])
         ];
     }
@@ -992,11 +991,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         ]);
 
         return Card("Shared with me", "The file stays with its owner. It is reachable while their brain is running; the last save wins.")[
-            VStack(Space.Sm, [.. list, RenderOpened(state.Opened)])
+            VStack(Space.Sm, [.. list, RenderOpened(state.Opened, state.SharedTextDraft)])
         ];
     }
 
-    private Node? RenderOpened(FriendsOpenedShare? opened)
+    private Node? RenderOpened(FriendsOpenedShare? opened, string typed)
     {
         if (opened is null) { return null; }
         if (opened.Text is null)
@@ -1018,7 +1017,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         [
             MutedText(byAndWhen),
             opened.CanEdit
-                ? TextField(FieldKey(TextField), "").Key(TextField).Label("Text").Value(opened.Text)
+                ? TextField(FieldKey(TextField), "").Key(TextField).Label("Text").Value(typed).OnChange<FriendsAppState>(s => s.SetSharedTextDraft(Arg.Text))
                 : Text(opened.Text),
             .. opened.CanEdit
                 ? new Node[] { PrimaryButton("Save", "save").Key($"save-shared:{opened.ShareId}").Small().OnClick(() => SaveTypedTextAsync(opened.OwnerBrain, opened.ShareId, opened.Path)) }

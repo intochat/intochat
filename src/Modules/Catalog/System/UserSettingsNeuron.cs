@@ -211,4 +211,41 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
             next.ArtCraftDefaultMode));
         return next;
     }
+
+    public async Task<UserSettingsState> SetNotifications(NotificationSetting[] settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var merged = (State.Notifications ?? []).ToList();
+        foreach (var setting in settings)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(setting?.Key, nameof(settings));
+            merged.RemoveAll(entry => string.Equals(entry.Key, setting.Key, StringComparison.Ordinal));
+            merged.Add(setting);
+        }
+
+        var next = State with { Notifications = [.. merged] };
+        await Save(next, Changed(next));
+        return next;
+    }
+
+    public async Task<UserSettingsState> SetNewTabApp(string app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        var next = State with { NewTabApp = app.Trim() };
+        await Save(next, Changed(next));
+        return next;
+    }
+
+    private static UserSettingsChanged Changed(UserSettingsState next) => new(
+        next.DisplayName,
+        next.Theme,
+        next.DefaultModel,
+        next.StylePreset,
+        next.BarLayout,
+        next.ThemeMode,
+        next.DesktopTone,
+        next.Language,
+        next.TimeZone,
+        next.DateFormat,
+        next.ArtCraftDefaultMode);
 }

@@ -6,7 +6,8 @@ Operations: run
 
 Browse, search, create and manage files across connected storages, with safe confirmations. One screen (`app.files`): storages
 in the sidebar, the folder or search results with a quick view, an inline prompt for a new name, an editor for a selected text
-file, and the operations it started. Every button sends `files.run` with the revision it was drawn at.
+file, and the operations it started. Every button sends `files.run` with the revision it was drawn at; every field sends `files.type`
+with what the person typed.
 */
 using System.ComponentModel;
 using DigitalBrain;
@@ -20,7 +21,6 @@ using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +32,17 @@ internal sealed record FilesRun(string Operation, long Revision, int? Index = nu
 {
     internal const string Alias = "files.run";
 }
+
+// What a person typed into one Files field, sent after each pause in typing: the screen keeps it in its state until the request
+// that uses it. Search and filter run as they change.
+[Signal(Alias)]
+internal sealed record FilesType(string Field, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? Value = null) : DigitalBrain.Signal
+{
+    internal const string Alias = "files.type";
+}
+
+// The text of each Files field as the person last typed it; null when nothing was typed (a field then shows what the view decides).
+internal sealed record FilesTyped(string? Name = null, string? Content = null, string? Prompt = null, string? Editor = null, string? Search = null, string? Filter = null);
 
 // What a request carries besides its verb: an index, or the text a field or a prompt gave.
 internal sealed record FilesWorkspaceInput(
@@ -59,11 +70,12 @@ internal sealed record FilesWorkspaceState
     public int Width { get; init; } = 1440;
     public bool PreviewOpen { get; init; }
     public string ViewMode { get; init; } = "list";
+    public FilesTyped Typed { get; init; } = new();
 }
 
 // The Files app: one screen of the brain (app.files/default). The provider-neutral FilesApp owns navigation; this screen owns its
-// state, the operations it started and its view. Every button sends FilesRun to "." through POST /act; what a person types lives in
-// the field neurons under apps/files until the request that uses it.
+// state, the operations it started and its view. Every button sends FilesRun to "." through POST /act; every field sends FilesType
+// with its text, which the screen keeps in its state (Typed) until the request that uses it.
 [Neuron("app.files", State = "files-workspace")]
 [Screen("app.files", Title = "Files", Icon = "folder", Category = "Workspace", Dock = 2)]
 [Description("Browse, search, create and manage files across connected storages, with safe confirmations.")]
@@ -87,18 +99,18 @@ internal sealed partial class FilesWorkspaceScreen(
     internal const string PromptField = "prompt";
     internal const string EditorField = "editor";
 
-    // A field holds at most this many characters (FieldNeuron); a longer preview is not offered for editing.
+    // A preview longer than this is not offered for editing: the view carries the editor's text.
     internal const int MaxEditableText = 32_000;
+
+    // What one field may hold: the largest inline write (FilesPathRules.ValidateInlineTextSize) in characters.
+    internal const int MaxTyped = 256 * 1024;
 
     private string AppKey => Id.Brain.Value + "/" + AppPath;
     private FilesApp App => new(broker is CapabilityBroker runtime ? runtime.ForApp(AppKey) : broker, Id.Brain, State.Files);
-    private IField Field(string name) => Get<IField>(new NeuronId(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + name));
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
-        // The fields belong to this app; they are configured under a caller of this brain (a delivery that wakes the screen has none).
-        if (IsSameBrainCaller()) { await ConfigureFields(); }
         if (!State.Ready)
         {
             var app = App;
@@ -118,33 +130,12 @@ internal sealed partial class FilesWorkspaceScreen(
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, cancellationToken); }
     }
 
-    private bool _fieldsConfigured;
-
-    private async Task ConfigureFields()
-    {
-        if (_fieldsConfigured) { return; }
-        foreach (var (name, kind) in new[]
-        {
-            (SearchField, DigitalBrain.UI.FieldKind.Text), (FilterField, DigitalBrain.UI.FieldKind.Text), (NameField, DigitalBrain.UI.FieldKind.Text),
-            (ContentField, DigitalBrain.UI.FieldKind.Multiline), (PromptField, DigitalBrain.UI.FieldKind.Text), (EditorField, DigitalBrain.UI.FieldKind.Multiline),
-        })
-        {
-            await Field(name).Configure(kind);
-        }
-        foreach (var name in new[] { SearchField, FilterField })
-        {
-            await Context.Wires.Ensure<FieldChanged>(new NeuronId(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + name));
-        }
-        _fieldsConfigured = true;
-    }
-
     [On]
     [Description("Run a Files verb (open, storage, browse, select, search, preview, up, mkdir, write, rename, delete, copy, move, paste, ...) on the revision the person saw.")]
     public async Task Run(FilesRun request)
     {
         ArgumentNullException.ThrowIfNull(request);
         RequireSameBrain();
-        await ConfigureFields();
         await Request(request.Operation, new FilesWorkspaceInput(Index: request.Index, Everywhere: request.Everywhere), request.Revision);
     }
 
@@ -192,8 +183,8 @@ internal sealed partial class FilesWorkspaceScreen(
             case "select":
                 await app.Select(new(At(next.Files.Items, input.Index)), ct);
                 var selected = Stored() with { PreviewOpen = next.PreviewOpen || next.Width <= 390 };
-                if (Editable(selected.Files) is { } text) { await Field(EditorField).Set(text); }
-                return selected;
+                // A newly selected file opens in the editor as it is stored.
+                return selected with { Typed = selected.Typed with { Editor = null } };
             case "preview": await app.Preview(new(), ct); return Stored(resetPage: true);
             case "up":
                 if (next.Files.Breadcrumbs.Length > 1)
@@ -204,7 +195,7 @@ internal sealed partial class FilesWorkspaceScreen(
                 else { await app.Open(new(), ct); }
                 return Stored(resetPage: true);
             case "search":
-                await app.Search(new(input.Query ?? (await Field(SearchField).Read()).Value ?? "", input.Everywhere), ct);
+                await app.Search(new(input.Query ?? next.Typed.Search ?? "", input.Everywhere), ct);
                 return Stored(resetPage: true);
             case "more":
                 var offset = next.Files.Items.Length;
@@ -224,14 +215,14 @@ internal sealed partial class FilesWorkspaceScreen(
             case "dry-run": app.Options(next.Files.Conflict, !next.Files.DryRun); return Stored();
             case "prompt-confirm":
                 var pending = next.Prompt ?? throw new InvalidOperationException("Nothing is waiting for a name.");
-                var given = ((await Field(PromptField).Read()).Value ?? "").Trim();
+                var given = (next.Typed.Prompt ?? "").Trim();
                 next = next with { Prompt = null };
                 if (given.Length == 0) { return next with { Notice = "A name is required." }; }
                 return await Start(pending, input with { Name = given }, next, app, ct);
             case "prompt-cancel": return next with { Prompt = null };
             case "save-edit":
                 var edited = next.Files.Selected ?? throw new InvalidOperationException("Select a file to save.");
-                var content = (await Field(EditorField).Read()).Value;
+                var content = next.Typed.Editor;
                 if (content is null || string.Equals(content, next.Files.Preview, StringComparison.Ordinal)) { return next with { Notice = "Nothing changed." }; }
                 return await Start("write", input with { Name = edited.Item.Name, Text = content }, next, app, ct, replace: true);
             case "mkdir" or "write" or "rename" or "delete" or "paste":
@@ -240,7 +231,7 @@ internal sealed partial class FilesWorkspaceScreen(
                 var cancelling = At(next.Started, input.Index);
                 if (!cancelling.Done) { await operations.Cancel(new(cancelling.Id), ct); }
                 return next;
-            case "filter": app.Filter(input.Query ?? (await Field(FilterField).Read()).Value ?? ""); return Stored();
+            case "filter": app.Filter(input.Query ?? next.Typed.Filter ?? ""); return Stored();
             case "clear-filter": app.Filter(""); return Stored();
             case "sort-name": app.SortBy("name"); return Stored();
             case "sort-size": app.SortBy("size"); return Stored();
@@ -289,11 +280,11 @@ internal sealed partial class FilesWorkspaceScreen(
     private async Task<FilesWorkspaceState> Start(string operation, FilesWorkspaceInput input, FilesWorkspaceState next, FilesApp app, CancellationToken ct, bool replace = false)
     {
         if (next.Started.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
-        var name = input.Name ?? (await Field(NameField).Read()).Value ?? "";
+        var name = input.Name ?? next.Typed.Name ?? "";
         if (operation is "mkdir" or "rename" && string.IsNullOrWhiteSpace(name))
         {
-            await Field(PromptField).Set(operation == "rename" ? next.Files.Selected?.Item.Name : null);
-            return next with { Prompt = operation };
+            // The prompt starts with the selected item's name for a rename, empty for a new folder.
+            return next with { Prompt = operation, Typed = next.Typed with { Prompt = operation == "rename" ? next.Files.Selected?.Item.Name : null } };
         }
         if (operation is "mkdir" or "write" or "rename")
         {
@@ -302,7 +293,7 @@ internal sealed partial class FilesWorkspaceScreen(
             SafeRelativePath.TryParse(name, out var safeName);
             name = safeName.Value;
         }
-        var text = operation == "write" ? input.Text ?? (await Field(ContentField).Read()).Value ?? "" : "";
+        var text = operation == "write" ? input.Text ?? next.Typed.Content ?? "" : "";
         var sizeRule = FilesPathRules.ValidateInlineTextSize(text);
         if (sizeRule.Broken) { throw new InvalidOperationException(sizeRule.Message); }
         var plan = app.Plan(operation, name, text);
@@ -321,20 +312,31 @@ internal sealed partial class FilesWorkspaceScreen(
     }
 
     [On]
-    public async Task On(FieldChanged changed)
+    [Description("Keep what the person typed into a Files field (name, content, prompt, editor, search, filter); search and filter run as they change.")]
+    public async Task Type(FilesType typed)
     {
-        ArgumentNullException.ThrowIfNull(changed);
-        var full = changed.Owner + "/" + changed.Name;
-        var field = full == AppKey + "/" + FilterField ? FilterField : full == AppKey + "/" + SearchField ? SearchField : null;
-        if (field is null) { return; }
-        var value = (await Field(field).Read()).Value ?? "";
-        if (field == FilterField && !string.Equals(State.Files.Filter, value, StringComparison.Ordinal))
+        ArgumentNullException.ThrowIfNull(typed);
+        RequireSameBrain();
+        var value = typed.Value ?? "";
+        if (value.Length > MaxTyped) { throw new ArgumentException("A Files field holds at most 262144 characters.", nameof(typed)); }
+        var kept = State.Typed;
+        switch (typed.Field)
         {
-            await Request("filter", new(Query: value), State.Files.Revision);
-        }
-        else if (field == SearchField && !string.IsNullOrWhiteSpace(value) && !(State.Files.Searching && string.Equals(State.Files.Search, value, StringComparison.Ordinal)))
-        {
-            await Request("search", new(Query: value, Everywhere: true), State.Files.Revision);
+            case NameField: await Show(State with { Typed = kept with { Name = value } }); return;
+            case ContentField: await Show(State with { Typed = kept with { Content = value } }); return;
+            case PromptField: await Show(State with { Typed = kept with { Prompt = value } }); return;
+            case EditorField: await Show(State with { Typed = kept with { Editor = value } }); return;
+            case FilterField:
+                await Show(State with { Typed = kept with { Filter = value } });
+                // A filter reads the text, never the drawn rows: it runs on the current revision.
+                if (!string.Equals(State.Files.Filter, value, StringComparison.Ordinal)) { await Request("filter", new(Query: value), State.Files.Revision); }
+                return;
+            case SearchField:
+                await Show(State with { Typed = kept with { Search = value } });
+                if (!string.IsNullOrWhiteSpace(value) && !(State.Files.Searching && string.Equals(State.Files.Search, value, StringComparison.Ordinal)))
+                { await Request("search", new(Query: value, Everywhere: true), State.Files.Revision); }
+                return;
+            default: throw new ArgumentException("Unknown Files field.", nameof(typed));
         }
     }
 

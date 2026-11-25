@@ -17,10 +17,6 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Views.IView',
       'FlutterViewChanged',
     ),
-    'field': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Fields.IField',
-      'FieldChanged',
-    ),
     'webbrowser': NodeContract(
       'IntoChat.OS.Modules.Flutter.WebBrowser.IWebBrowser',
       'BrowserObservationChanged',

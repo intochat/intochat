@@ -530,18 +530,9 @@ void main() {
       testWidgets(
         'FieldNode supports search/text clear (x) + Esc clear, and secret eye/eye-off toggle',
         (tester) async {
-          final sentInputs = <(String, String)>[];
           final ctx = NodeContext(
             view: 'local/apps/settings/view',
-            send: (event) async {
-              if (event['kind'] == 'field') {
-                sentInputs.add((
-                  event['name'] as String,
-                  event['value'] as String,
-                ));
-              }
-              return null;
-            },
+            send: (event) async => null,
           );
 
           const viewNode = ColumnNode(
@@ -594,7 +585,6 @@ void main() {
             tester.widget<TextField>(searchField).controller?.text,
             isEmpty,
           );
-          expect(sentInputs.last.$2, isEmpty);
 
           // Typing again and pressing Escape also clears:
           await tester.enterText(searchField, 'ollama');

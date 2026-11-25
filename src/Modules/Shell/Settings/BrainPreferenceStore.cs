@@ -4,14 +4,14 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Flutter.Settings;
 
-// The member-writable preferences of a brain, as text fields under {brain}/settings. The HTTP preference endpoints and
-// the preference neuron both read and write through here, so they share one store and one caller rule.
+// The member-writable preferences of a brain: the notification switches and the app a new tab opens, kept in the brain's settings
+// (IUserSettings at {brain}/settings). The HTTP preference endpoints read and write through here. A brain that stored them before
+// they moved there (one text field per preference under {brain}/settings) has them adopted once, on the first read.
 internal static class BrainPreferenceStore
 {
     public const string NewTabDefault = "ino";
@@ -39,24 +39,47 @@ internal static class BrainPreferenceStore
 
     private static string NewTabField(string scope) => scope + "/settings/workspace/new-tab-app";
 
-    public static async Task<bool> ReadNotification(INeuronProxies brain, string scope, string key, CancellationToken ct)
+    private static IUserSettings Settings(INeuronProxies brain, string scope) => brain.Get<IUserSettings>(IUserSettings.Key(new DigitalBrain.BrainId(scope)));
+
+    // The settings, after adopting what an earlier version stored as text fields: each part once, when it was never set.
+    private static async Task<UserSettingsState> Read(INeuronProxies brain, string scope, CancellationToken ct)
     {
-        var fallback = NotificationKeys.First(known => known.Key == key).Default;
-        var state = await brain.Get<IField>(NotificationField(scope, key)).Read().WaitAsync(ct);
-        return state.Value switch { "on" => true, "off" => false, _ => fallback };
+        var settings = Settings(brain, scope);
+        var state = await settings.Read().WaitAsync(ct);
+        if (state.Notifications is null)
+        {
+            var adopted = new List<NotificationSetting>();
+            foreach (var (key, _) in NotificationKeys)
+            {
+                var stored = await brain.Get<ILegacyPreferenceField>(NotificationField(scope, key)).Value().WaitAsync(ct);
+                if (stored is "on" or "off") { adopted.Add(new(key, stored == "on")); }
+            }
+            state = await settings.SetNotifications([.. adopted]).WaitAsync(ct);
+        }
+        if (state.NewTabApp is null)
+        {
+            var stored = await brain.Get<ILegacyPreferenceField>(NewTabField(scope)).Value().WaitAsync(ct);
+            state = await settings.SetNewTabApp(stored ?? "").WaitAsync(ct);
+        }
+        return state;
     }
+
+    private static bool NotificationOf(UserSettingsState state, string key)
+        => state.Notifications?.LastOrDefault(setting => setting.Key == key) is { } set ? set.On : NotificationKeys.First(known => known.Key == key).Default;
 
     public static async Task<Dictionary<string, bool>> ReadNotifications(INeuronProxies brain, string scope, CancellationToken ct)
     {
-        var result = new Dictionary<string, bool>();
-        foreach (var (key, _) in NotificationKeys) { result[key] = await ReadNotification(brain, scope, key, ct); }
-        return result;
+        var state = await Read(brain, scope, ct);
+        return NotificationKeys.ToDictionary(known => known.Key, known => NotificationOf(state, known.Key));
     }
 
-    public static Task WriteNotification(INeuronProxies brain, string scope, string key, bool on, CancellationToken ct)
+    public static async Task WriteNotifications(INeuronProxies brain, string scope, IReadOnlyDictionary<string, bool> values, CancellationToken ct)
     {
-        if (!IsNotificationKey(key)) { throw new ArgumentException("Unknown notification preference.", nameof(key)); }
-        return brain.Get<IField>(NotificationField(scope, key)).Set(on ? "on" : "off").WaitAsync(ct);
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Keys.Any(key => !IsNotificationKey(key))) { throw new ArgumentException("Unknown notification preference.", nameof(values)); }
+        // Adopt first, so a stored switch this write does not name is not lost.
+        await Read(brain, scope, ct);
+        await Settings(brain, scope).SetNotifications([.. values.Select(pair => new NotificationSetting(pair.Key, pair.Value))]).WaitAsync(ct);
     }
 
     // The apps a new tab may open: every titled, live app of the caller's brain except the hidden ones, Ino first.
@@ -75,7 +98,7 @@ internal static class BrainPreferenceStore
 
     public static async Task<string> ReadNewTab(INeuronProxies brain, string scope, Choice[] choices, CancellationToken ct)
     {
-        var stored = (await brain.Get<IField>(NewTabField(scope)).Read().WaitAsync(ct)).Value;
+        var stored = (await Read(brain, scope, ct)).NewTabApp;
         return choices.Any(choice => choice.Name == stored) ? stored! : NewTabDefault;
     }
 
@@ -84,7 +107,8 @@ internal static class BrainPreferenceStore
     {
         var choices = await NewTabChoices(brain, kernel, scope, ct);
         if (name is null || !choices.Any(choice => choice.Name == name)) { return false; }
-        await brain.Get<IField>(NewTabField(scope)).Set(name).WaitAsync(ct);
+        await Read(brain, scope, ct);
+        await Settings(brain, scope).SetNewTabApp(name).WaitAsync(ct);
         return true;
     }
 }

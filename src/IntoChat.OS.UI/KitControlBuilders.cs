@@ -336,7 +336,7 @@ public sealed class FieldBuilder : KitNode
     /// <summary>Hides the top label row for compact toolbar / inline inputs.</summary>
     public FieldBuilder NoLabel() => Label(string.Empty);
 
-    /// <summary>Binds the current value from <c>TState</c> so the field initializes and stays synchronized without boilerplate <c>IField</c> wiring.</summary>
+    /// <summary>The text the screen's state holds for this field; the field shows it while the person is not typing in it.</summary>
     public FieldBuilder Value(string? value)
     {
         _controlledValue = value ?? string.Empty;
@@ -410,12 +410,20 @@ public sealed class FieldBuilder : KitNode
         return Sends(new Command(".", emit.Signal, emit.Args));
     }
 
-    /// <summary>Binds the <see cref="Command"/> a field submission sends.</summary>
+    /// <summary>Binds the <see cref="Command"/> a field submission sends, with the typed text as <c>value</c>.</summary>
     public FieldBuilder Sends(Command command)
     {
         ArgumentNullException.ThrowIfNull(command);
         _onSubmit = command;
         return this;
+    }
+
+    /// <summary>Binds the <see cref="Command"/> the field sends, with the typed text as <c>value</c>, after each pause in typing
+    /// and on submit: the way a screen keeps what a person types in its state.</summary>
+    public FieldBuilder SendsOnChange(Command command)
+    {
+        _liveChange = true;
+        return Sends(command);
     }
 
     private FieldBuilder Bind(BoundCommand bound, bool live)

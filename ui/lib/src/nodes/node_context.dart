@@ -131,7 +131,7 @@ class NodeContext {
   /// Forces the owning host to reload its published view and update [generation].
   final Future<void> Function()? reload;
 
-  /// The node's change events (`FieldChanged` for a field).
+  /// The node's change events (`FlutterViewChanged` for a view).
   final Stream<void> Function(String kind, String name)? watch;
 
   /// Watches one signal type on a neuron contract, yielding decoded payloads.
@@ -254,10 +254,6 @@ class NodeContext {
     return last > 0 ? view.substring(0, last) : view;
   }
 
-  /// The full field neuron name for a field node's `name` (`apps/{app}/{field}`).
-  String fieldName(String name) =>
-      name.startsWith('$scope/') ? name : '$scope/$name';
-
   Future<Object?> _send(Map<String, dynamic> event) {
     final send = this.send;
     if (send == null) return Future.value();
@@ -374,12 +370,6 @@ class NodeContext {
   Future<void> resolve(String planId, {required bool approve}) async {
     if (!interactive) return;
     await _send({'kind': 'confirmation', 'planId': planId, 'approve': approve});
-  }
-
-  /// Posts a field's typed value to its field neuron.
-  Future<void> input(String field, String value) async {
-    if (!interactive) return;
-    await _send({'kind': 'field', 'name': fieldName(field), 'value': value});
   }
 
   /// Performs a client-local intent if the gate allows it; returns whether it ran.

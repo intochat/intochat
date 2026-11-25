@@ -89,6 +89,20 @@ public sealed record FriendsAppState(
     [IgnoreExplore]
     public FriendsAppState SetRoomMessageDraft(string? draft) => this with { RoomMessageDraft = draft ?? "" };
 
+    // What the person typed into the friend-code, share-path and shared-text fields, kept until the request that uses it.
+    public string CodeDraft { get; init; } = "";
+    public string PathDraft { get; init; } = "";
+    public string SharedTextDraft { get; init; } = "";
+
+    [IgnoreExplore]
+    public FriendsAppState SetCodeDraft(string? draft) => this with { CodeDraft = draft ?? "" };
+
+    [IgnoreExplore]
+    public FriendsAppState SetPathDraft(string? draft) => this with { PathDraft = draft ?? "" };
+
+    [IgnoreExplore]
+    public FriendsAppState SetSharedTextDraft(string? draft) => this with { SharedTextDraft = draft ?? "" };
+
     // ── Domain Invariants ────────────────────────────────────────────────────
 
     [Invariant("SelectedScope is always all, public, or friends."), JsonIgnore]

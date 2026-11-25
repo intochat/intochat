@@ -64,6 +64,10 @@ internal static class FilesUi
             index,
             Everywhere: verb == "search-all"), typeof(FilesRun)));
 
+    // The command a Files field sends with its text: FilesType for that field.
+    public static Command Typing(string field)
+        => new(".", FilesType.Alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new FilesType(field), typeof(FilesType)));
+
     public static Node Text(string text) => Kit.Text(text);
 
     public static Node Muted(string text) => MutedText(text);
@@ -146,7 +150,8 @@ internal static class FilesUi
         FieldKind kind = FieldKind.Text,
         string? placeholder = null,
         string? label = null,
-        string? value = null)
+        string? value = null,
+        string? typed = null)
     {
         FieldBuilder builder = kind switch
         {
@@ -164,6 +169,11 @@ internal static class FilesUi
         if (value is not null)
         {
             builder.Value(value);
+        }
+        // What the person types reaches the screen as FilesType for the named field, after each pause and on submit.
+        if (typed is not null)
+        {
+            builder.SendsOnChange(Typing(typed));
         }
         return builder.ToNode();
     }

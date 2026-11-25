@@ -24,7 +24,6 @@ using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.CommandBar.Signals;
@@ -193,8 +192,10 @@ public sealed partial class TasksApp
         List<Node?> children =
         [
             SectionHeader("Quick Task", string.Create(CultureInfo.InvariantCulture, $"{visible.Length} visible")),
-            TextField(FieldKey("title"), "Title").Key("title"),
-            TextField(FieldKey("description"), "Description").Key("description").Emits(startEmit),
+            TextField(FieldKey("title"), "Title").Key("title").Value(state.Draft.Title)
+                .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("title", Arg.Text)),
+            TextField(FieldKey("description"), "Description").Key("description").Value(state.Draft.Description)
+                .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("description", Arg.Text)),
             PrimaryButton("Start", Icons.Plus).Key("start").Small().Emits(startEmit),
         ];
 
@@ -717,7 +718,8 @@ public sealed partial class TasksApp
         }
 
         children.Add(HStack(Space.Sm, [.. actions]));
-        children.Add(TextField(FieldKey("lag"), "Lag in days (Follows)").Key("lag"));
+        children.Add(TextField(FieldKey("lag"), "Lag in days (Follows)").Key("lag").Value(state.Draft.Lag)
+            .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("lag", Arg.Text)));
 
         if (source is not null)
         {

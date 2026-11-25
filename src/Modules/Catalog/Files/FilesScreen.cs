@@ -211,8 +211,8 @@ internal static class FilesScreen
         ].ToNode();
 
         var searchBarRow = Grid(2, Space.Sm)[
-            FilesUi.Field("filter", appKey + "/filter", FieldKind.Search, FilesCopy.FilterLabel, label: "", value: state.Filter),
-            FilesUi.Field("search", appKey + "/search", FieldKind.Search, FilesCopy.SearchLabel, label: "", value: state.Search)
+            FilesUi.Field("filter", appKey + "/filter", FieldKind.Search, FilesCopy.FilterLabel, label: "", value: state.Filter, typed: FilesWorkspaceScreen.FilterField),
+            FilesUi.Field("search", appKey + "/search", FieldKind.Search, FilesCopy.SearchLabel, label: "", value: state.Search, typed: FilesWorkspaceScreen.SearchField)
         ].ToNode();
 
         var chrome = new Node[]

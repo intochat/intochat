@@ -23,7 +23,6 @@ Future<void> _host(
   WidgetTester tester,
   Map<String, dynamic> root, {
   List<Map<String, dynamic>>? events,
-  Map<String, Map<String, dynamic>> fields = const {},
   Object? Function(Map<String, dynamic> event)? answer,
   String kind = 'view',
   String name = _view,
@@ -39,9 +38,7 @@ Future<void> _host(
           knowsApp: knowsApp ?? (_) => false,
           kind: kind,
           name: name,
-          load: (kind, name) async => kind == 'field'
-              ? fields[name] ?? {'value': ''}
-              : _published(root),
+          load: (kind, name) async => _published(root),
           watch: watch ?? (kind, name) => const Stream.empty(),
           onAction: (event) async {
             events?.add(event);
@@ -113,68 +110,77 @@ void main() {
     ]);
   });
 
-  testWidgets('field reads, then posts each edit to the field neuron', (
+  testWidgets('typed text stays in the field until it submits', (tester) async {
+    final events = <Map<String, dynamic>>[];
+    await _host(tester, {
+      ...nodeSamples['field']!,
+      'onSubmit': {'target': '.', 'signal': 'save'},
+    }, events: events);
+    await tester.enterText(find.byType(TextField), 'Final');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(events, isEmpty, reason: 'typing alone sends nothing');
+    await tester.showKeyboard(find.byType(TextField));
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(events.single, {
+      'kind': 'view',
+      'name': _view,
+      'generation': 3,
+      'key': 'title',
+      'value': 'Final',
+    });
+  });
+
+  testWidgets('a live field sends one command per pause in typing', (
     tester,
   ) async {
     final events = <Map<String, dynamic>>[];
-    await _host(
-      tester,
-      nodeSamples['field']!,
-      events: events,
-      fields: {
-        'local/apps/sample/title': {'value': 'Draft', 'version': 1},
+    await _host(tester, {
+      ...nodeSamples['field']!,
+      'onSubmit': {
+        'target': '.',
+        'signal': 'draft',
+        'args': {'uiLive': true},
       },
-    );
-    expect(find.text('Draft'), findsOneWidget);
+    }, events: events);
     await tester.enterText(find.byType(TextField), 'Fin');
     await tester.pump(const Duration(milliseconds: 100));
     await tester.enterText(find.byType(TextField), 'Final');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    expect(
-      events.where((event) => event['kind'] == 'field'),
-      hasLength(1),
-      reason: 'edits within the debounce post once',
-    );
-    expect(events.last, {
-      'kind': 'field',
-      'name': 'local/apps/sample/title',
-      'value': 'Final',
-    });
-  });
-
-  testWidgets('field re-reads on FieldChanged', (tester) async {
-    final changes = StreamController<void>.broadcast();
-    addTearDown(changes.close);
-    final values = {
-      'local/apps/sample/title': <String, dynamic>{'value': 'One'},
-    };
-    final watched = <String>[];
-    await _host(
-      tester,
-      nodeSamples['field']!,
-      fields: values,
-      watch: (kind, name) {
-        watched.add('$kind:$name');
-        return kind == 'field' ? changes.stream : const Stream.empty();
-      },
-    );
-    expect(watched, contains('field:local/apps/sample/title'));
-    values['local/apps/sample/title'] = {'value': 'Two'};
-    changes.add(null);
+    expect(events.map((event) => event['value']), [
+      'Final',
+    ], reason: 'edits within the debounce send once');
+    await tester.enterText(find.byType(TextField), 'Final draft');
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    expect(find.text('Two'), findsOneWidget);
+    expect(events.map((event) => event['value']), ['Final', 'Final draft']);
   });
 
-  testWidgets('a secret field never shows the stored value', (tester) async {
-    await _host(
-      tester,
-      {...nodeSamples['field']!, 'fieldKind': 'Secret'},
-      fields: {
-        'local/apps/sample/title': {'value': '••••••••'},
+  testWidgets('a field shows the text the screen holds for it', (tester) async {
+    await _host(tester, {
+      ...nodeSamples['field']!,
+      'onSubmit': {
+        'target': '.',
+        'signal': 'draft',
+        'args': {'uiValue': 'Draft'},
       },
-    );
-    expect(find.text('••••••••'), findsNothing);
+    });
+    expect(find.text('Draft'), findsOneWidget);
+  });
+
+  testWidgets('a secret field never shows a value it is given', (tester) async {
+    await _host(tester, {
+      ...nodeSamples['field']!,
+      'fieldKind': 'Secret',
+      'onSubmit': {
+        'target': '.',
+        'signal': 'draft',
+        'args': {'uiValue': 'hunter2'},
+      },
+    });
+    expect(find.text('hunter2'), findsNothing);
   });
 
   testWidgets('a field with onSubmit submits through the view', (tester) async {

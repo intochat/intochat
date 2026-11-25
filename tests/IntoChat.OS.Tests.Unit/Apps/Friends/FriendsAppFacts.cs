@@ -177,6 +177,43 @@ public sealed class FriendsAppFacts
         Assert.Empty(friends.App.State.SharedByMe ?? []);
     }
 
+    // R3: a friends field's text reaches the screen only as its command's value over /act, and the request that needs it reads it
+    // from the screen's state; no field neuron holds it.
+    [Fact]
+    public async Task What_the_person_types_reaches_the_screen_over_act_and_the_request_uses_it()
+    {
+        await using var os = TestOS.Local().RegisterCatalog();
+        var friends = await os.Install<FriendsApp>();
+
+        await Type(friends, FriendsApp.PathField, "/work/trip");
+        await Type(friends, FriendsApp.CodeField, " old.code ");
+
+        Assert.Equal(("/work/trip", " old.code "), (friends.App.State.PathDraft, friends.App.State.CodeDraft));
+        var code = Nodes(friends.App.Render()).OfType<Field>().Single(field => field.Key == FriendsApp.CodeField);
+        Assert.Contains("old.code", code.OnSubmit!.Args!.Value.GetRawText(), StringComparison.Ordinal);
+        await friends.Request("redeem-code", new FriendsRedeemCode());
+        Assert.Equal("That code is from before the update; ask for a new one.", friends.App.State.Status);
+    }
+
+    // Types as the client does after a pause: the field's command, with the typed text as its value, posted to /act.
+    private static async Task Type(InstalledApp<FriendsApp> friends, string key, string text)
+    {
+        var field = Nodes(friends.App.Render()).OfType<Field>().Single(node => node.Key == key);
+        var command = Assert.IsType<Command>(field.OnSubmit);
+        var os = friends.OS;
+        var brain = new BrainId("local");
+        using var person = os.Edge.Current is null ? os.Edge.Enter(os.Edge.Person("local", "local", brain)) : null;
+        var result = await IntoChat.OS.Modules.Flutter.AppUiEndpoints.Act(new("local/apps/friends", command.Target, command.Signal, command.Args, text),
+            new Proxies(os), brain.Value, TestContext.Current.CancellationToken, os.Edge.Current);
+        Assert.Equal(Microsoft.AspNetCore.Http.StatusCodes.Status200OK, Assert.IsAssignableFrom<Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(result).StatusCode);
+        await os.Idle();
+    }
+
+    private sealed class Proxies(TestOS os) : DigitalBrain.Neurons.INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
+    }
+
     private static IEnumerable<Node> Nodes(object? value) => value switch
     {
         null or string => [],

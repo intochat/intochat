@@ -9,11 +9,6 @@ void main() {
     );
     expect(NodeContracts.of('view').changed, 'FlutterViewChanged');
     expect(
-      NodeContracts.of('field').contract,
-      'IntoChat.OS.Modules.Flutter.Fields.IField',
-    );
-    expect(NodeContracts.of('field').changed, 'FieldChanged');
-    expect(
       NodeContracts.of('viewport').contract,
       'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
     );
@@ -32,6 +27,8 @@ void main() {
       'toggle',
       'chat',
       'composer',
+      // A field's text travels with its command; no field neuron is watched.
+      'field',
     ]) {
       expect(() => NodeContracts.of(kind), throwsArgumentError, reason: kind);
     }

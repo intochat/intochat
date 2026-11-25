@@ -18,10 +18,13 @@ Map<String, dynamic> _fieldMeta(FieldNode node) {
 Widget renderField(FieldNode node, NodeContext ctx) =>
     FieldNodeView(node: node, ctx: ctx);
 
-/// A view field bound to its field neuron (and/or `AggregateScreen` `UiCommand`):
+/// A view field. What the person types stays in the widget until the field's
+/// command sends it as `value` (`onSubmit`, through [pressCommand]); no neuron
+/// stores it on the way.
 /// - Supports explicit `uiLabel` (including `""` to omit label), `uiValue`
-///   (controlled state sync), `uiHelper`, `uiError`, and `uiLive` (`.OnChange`
-///   live debounced activation) via `onSubmit.args`.
+///   (the text the screen's state holds, shown while the person is not typing),
+///   `uiHelper`, `uiError`, and `uiLive` (the command is also sent after each
+///   pause in typing and when the field loses focus) via `onSubmit.args`.
 /// - Humanizes slash neuron keys (`owner/apps/files/name` -> `Name`) so internal
 ///   storage keys never leak as raw lowercase slugs.
 class FieldNodeView extends StatefulWidget {
@@ -36,7 +39,6 @@ class FieldNodeView extends StatefulWidget {
 class _FieldNodeViewState extends State<FieldNodeView> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-  StreamSubscription<void>? _watch;
   Timer? _debounce;
   bool _dirty = false;
   int _sent = 0;
@@ -46,8 +48,6 @@ class _FieldNodeViewState extends State<FieldNodeView> {
   bool get _secret =>
       widget.node.fieldKind == FieldKind.secret ||
       widget.node.fieldKind == FieldKind.password;
-
-  String get _name => widget.ctx.fieldName(widget.node.name);
 
   Map<String, dynamic> get _meta => _fieldMeta(widget.node);
 
@@ -62,20 +62,12 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     if (!_secret && _controlledValue != null) {
       _controller.text = _controlledValue!;
     }
-    _read();
-    _watch = widget.ctx.watch
-        ?.call('field', _name)
-        .listen((_) => _read(), onError: (Object _) {});
+    _focus.addListener(_focusChanged);
   }
 
   @override
   void didUpdateWidget(covariant FieldNodeView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // The control's key is its wire key; a rebinding to another field neuron reads that one.
-    if (oldWidget.ctx.fieldName(oldWidget.node.name) !=
-        widget.ctx.fieldName(widget.node.name)) {
-      _read();
-    }
     if (!_secret && !_dirty && !_focus.hasFocus) {
       final nextControlled = _controlledValue;
       if (nextControlled != null && nextControlled != _controller.text) {
@@ -84,64 +76,57 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     }
   }
 
-  Future<void> _read() async {
-    final load = widget.ctx.load;
-    if (load == null || _secret) return;
-    try {
-      final state = await load('field', _name);
-      if (!mounted || _dirty || _focus.hasFocus) return;
-      final value = state['value'];
-      if (value is String && value != _controller.text) {
-        _controller.text = value;
-      }
-    } catch (_) {
-      // Field neuron is optional for pure AggregateScreen commands.
-    }
+  // Leaving a live field sends what is still waiting for its pause, so a
+  // button pressed right after typing acts on the text the person sees.
+  void _focusChanged() {
+    if (!_focus.hasFocus && _debounce != null) _post();
   }
 
+  // Typed text is the person's until it is sent: a redraw does not replace it.
   void _changed(String value) {
     _dirty = true;
+    if (!_liveChange || widget.node.onSubmit == null) return;
     _debounce?.cancel();
     _debounce = Timer(debounce, _post);
   }
 
+  // One command per pause: the field's command with the typed text as value.
   void _post() {
     _debounce?.cancel();
     _debounce = null;
     final number = ++_sent;
-    final text = _controller.text;
     unawaited(
-      widget.ctx
-          .input(widget.node.name, text)
+      pressCommand(
+            widget.node.key,
+            widget.node.onSubmit,
+            widget.ctx,
+            mounted ? context : null,
+            value: _controller.text,
+          )
           .whenComplete(() {
             if (number == _sent) _dirty = false;
           })
           .catchError((Object _) {}),
     );
-    if (_liveChange && widget.node.onSubmit != null) {
-      unawaited(
-        pressCommand(
-          widget.node.key,
-          widget.node.onSubmit,
-          widget.ctx,
-          mounted ? context : null,
-          value: text,
-        ).catchError((Object _) {}),
-      );
-    }
   }
 
   void _submitted(String value) {
     if (widget.node.onSubmit == null) return;
-    if (_debounce != null) _post();
+    _debounce?.cancel();
+    _debounce = null;
+    final number = ++_sent;
     unawaited(
       pressCommand(
-        widget.node.key,
-        widget.node.onSubmit,
-        widget.ctx,
-        mounted ? context : null,
-        value: value,
-      ).catchError((Object _) {}),
+            widget.node.key,
+            widget.node.onSubmit,
+            widget.ctx,
+            mounted ? context : null,
+            value: value,
+          )
+          .whenComplete(() {
+            if (number == _sent) _dirty = false;
+          })
+          .catchError((Object _) {}),
     );
     if (_secret) _controller.clear();
   }
@@ -149,7 +134,7 @@ class _FieldNodeViewState extends State<FieldNodeView> {
   @override
   void dispose() {
     if (_debounce != null) _post();
-    _watch?.cancel();
+    _focus.removeListener(_focusChanged);
     _controller.dispose();
     _focus.dispose();
     super.dispose();

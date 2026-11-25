@@ -7,7 +7,6 @@ using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -270,14 +269,13 @@ public sealed class AppUiEventFacts
         Assert.Equal(("owner/apps/tasks", "relate", "[\"f/1\",\"blocks\",\"2d\"]"), Assert.Single(brain.Emitted));
     }
 
+    // A field's text travels with its command; typing is not an event of its own and no neuron stores it.
     [Fact]
-    public async Task TypingIntoAnAppFieldUpdatesItsFieldNeuron()
+    public async Task TypingIntoAFieldIsNoLongerAUiEvent()
     {
         var brain = new RecordingBrain(ViewActivation.None);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
-
-        Assert.Equal(("owner/apps/tasks/title", "Ship docs"), Assert.Single(brain.Field.Inputs));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
     }
 
     [Fact]
@@ -334,7 +332,6 @@ public sealed class AppUiEventFacts
     private sealed class RecordingBrain(ViewActivation activation) : INeuronProxies
     {
         public RecordingInbox Inbox { get; } = new();
-        public RecordingField Field { get; } = new();
         public List<(string App, string Signal, string Args)> Emitted { get; } = [];
         public List<(string View, long Generation, string Key)> Activations { get; } = [];
 
@@ -343,7 +340,6 @@ public sealed class AppUiEventFacts
             var key = id.Brain.Value + "/" + id.Key;
             if (typeof(T) == typeof(IConfirmationInbox)) { Inbox.Key = key; return (T)(object)Inbox; }
             if (typeof(T) == typeof(IApp)) { return (T)(object)FakeApp.For(key, this); }
-            if (typeof(T) == typeof(IField)) { Field.Key = key; return (T)(object)Field; }
             if (typeof(T) == typeof(IView)) { return (T)(object)new FakeView(key, this, activation); }
             throw new InvalidOperationException($"No {typeof(T).Name} in this fake.");
         }
@@ -366,17 +362,6 @@ public sealed class AppUiEventFacts
         public List<(string Key, string PlanId, bool Approve)> Resolved { get; } = [];
         public Task<ConfirmationInbox> Read() => Task.FromResult(new ConfirmationInbox(0, []));
         public Task Resolve(string planId, bool approve) { Resolved.Add((Key, planId, approve)); return Task.CompletedTask; }
-    }
-
-    private sealed class RecordingField : IField
-    {
-        public string Key { get; set; } = "";
-        public List<(string Key, string Value)> Inputs { get; } = [];
-        public Task Configure(FieldKind kind) => Task.CompletedTask;
-        public Task Set(string? value) => Task.CompletedTask;
-        public Task Input(string value) { Inputs.Add((Key, value)); return Task.CompletedTask; }
-        public Task<string?> TakeSecret() => Task.FromResult<string?>(null);
-        public Task<FieldState> Read() => Task.FromResult(new FieldState());
     }
 
     private class FakeApp : System.Reflection.DispatchProxy
