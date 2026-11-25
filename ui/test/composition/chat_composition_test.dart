@@ -43,12 +43,10 @@ Future<void> _host(
           knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async => kind == 'field'
-              ? {'value': ''}
-              : {
-                  'generation': 2,
-                  'view': {'title': 'Ino', 'root': root},
-                },
+          load: (kind, name) async => {
+            'generation': 2,
+            'view': {'title': 'Ino', 'root': root},
+          },
           watch: (kind, name) => const Stream.empty(),
           onAction: (event) async {
             events.add(event);

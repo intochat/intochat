@@ -2,14 +2,16 @@ using System.Reflection;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// Units all the way: DigitalBrain.UI.View is the one UI tree. The Flutter module keeps the view, one field neuron per view field,
-// the hosted surfaces (web browser, viewport) and its non-widget neurons; the per-widget neurons are gone, and a chat transcript
-// and its composer are view nodes.
+// Units all the way: DigitalBrain.UI.View is the one UI tree. The Flutter module keeps the view, the hosted surfaces (web browser,
+// viewport) and its non-widget neurons; the per-widget neurons and the field neuron are gone (a field's text travels with its
+// command), and a chat transcript and its composer are view nodes.
 public sealed partial class OneUiPathFacts
 {
     private static readonly string[] Kept =
     [
-        "view", "ui.field", "webbrowser", "viewport",
+        "view", "webbrowser", "viewport",
+        // The read-only reader of preferences stored as text fields before they moved into the brain's settings (OWED.md).
+        "ui.field",
         // Non-UI neurons of the module: a chat's stored projection (rendered as view nodes by its app) and the shell's sources.
         "chat",
         "chat-index", "ui.compute", "ui.problem-reports", "ui.screens", "ui.space", "ui.workspace",
@@ -25,13 +27,12 @@ public sealed partial class OneUiPathFacts
             .Select(type => type.GetCustomAttribute<DigitalBrain.Neurons.NeuronAttribute>(inherit: false)?.Type)
             .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);
-        Assert.Contains("ui.field", aliases);
         var outside = aliases.Except(Kept).Except(Pending).Order(StringComparer.Ordinal).ToArray();
         Assert.True(outside.Length == 0, "Neurons outside the kept UI kinds: " + string.Join(", ", outside));
     }
 
     [Fact]
-    public void OnlyViewAndFieldNeuronKindsRemain()
+    public void OnlyTheViewAndTheHostedSurfaceKindsRemain()
     {
         Assert.Empty(Pending);
         var kinds = typeof(IntoChat.OS.Modules.Flutter.UIVocabulary)
@@ -39,7 +40,7 @@ public sealed partial class OneUiPathFacts
             .Where(field => field.IsLiteral && field.FieldType == typeof(string))
             .Select(field => (string)field.GetRawConstantValue()!)
             .Order(StringComparer.Ordinal);
-        Assert.Equal(["confirmation", "ui.field", "view", "viewport", "webbrowser"], kinds);
+        Assert.Equal(["confirmation", "view", "viewport", "webbrowser"], kinds);
     }
 
     // The one leftover of the old UI channel that still ships (file: token); the fact fails when it is gone, so the list only shrinks.

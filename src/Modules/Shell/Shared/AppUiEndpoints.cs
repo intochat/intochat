@@ -11,7 +11,6 @@ using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Views;
@@ -413,25 +412,19 @@ internal static class AppUiEndpoints
         }
         return kind switch
         {
-            "field" => Results.Ok(await brain.Get<IField>(name).Read().WaitAsync(ct)),
             UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
             _ => throw new ArgumentException("Unknown app UI kind.")
         };
     }
 
-    // One UI event from the shell, under the caller the edge stamped on brain: a view activation or a field's typing. A person's
-    // confirmation answer and the embedded browser's reports have their own routes (ConfirmationEndpoints, WebBrowserEndpoints).
-    // An app view's own Emit becomes AppRequested at its app; an Intent goes back to the client, which performs it.
+    // One UI event from the shell, under the caller the edge stamped on brain: a view activation. A field's text travels with its
+    // command (POST /act or the activation's value); a person's confirmation answer and the embedded browser's reports have their own
+    // routes (ConfirmationEndpoints, WebBrowserEndpoints). An app view's own Emit becomes AppRequested at its app; an Intent goes back
+    // to the client, which performs it.
     internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null, IScreenTargetResolver? resolver = null)
     {
-        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct, caller, logger, resolver); }
-        if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
-        switch (input.Kind)
-        {
-            case "field": await brain.Get<IField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
-            default: throw new ArgumentException("Unknown UI event.");
-        }
-        return Results.Ok(new { delivered = true });
+        if (input.Kind != UIVocabulary.ViewType) { throw new ArgumentException("Unknown UI event."); }
+        return await DeliverView(input, brain, scope, ct, caller, logger, resolver);
     }
 
     private static Task<ScreenTarget?> ResolveScreenTargetAsync(

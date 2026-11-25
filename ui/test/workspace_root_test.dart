@@ -82,7 +82,8 @@ void main() {
         for (final s in w.$2) s.key,
     };
     expect(watched, contains('brain-1/apps/assistant/surface'));
-    expect(watched, contains('brain-1/apps/assistant/draft'));
+    // A field's text travels with its command: no field neuron is watched.
+    expect(watched, isNot(contains('brain-1/apps/assistant/draft')));
     int reads() => server.requestsTo('/brains/brain-1/apps/node').length;
     final settled = reads();
     // Ten former poll periods: no node is read again without a change signal.
@@ -90,9 +91,9 @@ void main() {
     expect(reads(), settled);
     fixture.link.events.add(
       const NeuronSignal(
-        source: 'brain-1/apps/assistant/draft',
-        type: 'FieldChanged',
-        publisher: 'brain-1/apps/assistant/draft',
+        source: 'brain-1/apps/assistant/surface',
+        type: 'FlutterViewChanged',
+        publisher: 'brain-1/apps/assistant/surface',
         sequence: 0,
         payload: {},
         serverTimeMs: 0,

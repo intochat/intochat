@@ -52,7 +52,6 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
   if (!request.url.path.endsWith('/apps/node')) return null;
   final name = request.url.queryParameters['name'] ?? '';
   return switch (request.url.queryParameters['kind']) {
-    'field' => {'owner': root, 'name': name, 'value': '', 'version': 1},
     'viewport' => {
       'revision': 1,
       'root': {'kind': 'view', 'name': '${segments[1]}/apps/ino/surface'},

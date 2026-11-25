@@ -109,7 +109,7 @@ void main() {
       for (final node in [
         ('view', 'owner/apps/a/view'),
         ('view', 'owner/apps/b/view'),
-        ('field', 'owner/apps/a/title'),
+        ('viewport', 'owner/apps/a'),
       ])
         client.watchNode('owner', node.$1, node.$2).listen((_) {}),
     ];
@@ -118,7 +118,7 @@ void main() {
     expect(service.watches.single.sources.map((s) => s.key), [
       'owner/apps/a/view',
       'owner/apps/b/view',
-      'owner/apps/a/title',
+      'owner/apps/a',
     ]);
     for (final subscription in subscriptions) {
       await subscription.cancel();

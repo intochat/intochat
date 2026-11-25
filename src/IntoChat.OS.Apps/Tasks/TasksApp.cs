@@ -24,7 +24,6 @@ using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.CommandBar.Signals;
@@ -134,9 +133,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     [Slot(Key = StepperKey, Required = false)] private partial IStepper? Stepper { get; }
     [Slot(Key = KanbanKey, Required = false)] private partial IKanbanBoard? Kanban { get; }
     [Slot(Key = TableKey, Required = false)] private partial ITable? Table { get; }
-    [Slot(Key = "apps/" + AppName + "/title", Required = false)] private partial IField? TitleField { get; }
-    [Slot(Key = "apps/" + AppName + "/description", Required = false)] private partial IField? DescriptionField { get; }
-    [Slot(Key = "apps/" + AppName + "/lag", Required = false)] private partial IField? LagField { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<TasksApp>();
@@ -650,25 +646,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         var nextOwner = string.Equals(State.Query.Owner, owner, StringComparison.Ordinal) ? null : owner;
         return Filter(new TasksFilter(Owner: nextOwner, Status: State.Query.Status?.ToString(), Type: State.Query.Type));
-    }
-
-    public async Task OnField(string field, FieldChanged changed)
-    {
-        ArgumentNullException.ThrowIfNull(changed);
-        var slot = field switch
-        {
-            "title" => TitleField,
-            "description" => DescriptionField,
-            "lag" => LagField,
-            _ => null,
-        };
-        if (slot is null)
-        {
-            return;
-        }
-
-        var value = (await slot.Read()).Value ?? "";
-        await Show(State.UpdateDraftField(field, value));
     }
 
     // ── Modules.UI & Flows Synapse Reactions (Version-Guarded Anti-Clobber) ──

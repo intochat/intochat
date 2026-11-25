@@ -10,8 +10,8 @@ using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Settings;
 
-// Per-brain workspace preferences. Today that is the app a new tab opens, stored under {brain}/settings/workspace
-// as a text field holding the app name. Any member may read and change it.
+// Per-brain workspace preferences. Today that is the app a new tab opens, kept in the brain's settings (IUserSettings).
+// Any member may read and change it.
 internal static class WorkspacePreferenceEndpoints
 {
     public const string Default = BrainPreferenceStore.NewTabDefault;

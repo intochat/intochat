@@ -8,8 +8,8 @@ using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Settings;
 
-// Per-brain notification preferences, stored next to the display name and theme under {brain}/settings
-// as text fields holding "on" or "off". Any member may read and change them.
+// Per-brain notification preferences, kept in the brain's settings next to the display name and theme (IUserSettings).
+// Any member may read and change them.
 internal static class NotificationPreferenceEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
@@ -20,14 +20,14 @@ internal static class NotificationPreferenceEndpoints
     }
 
     // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences,
-    // as brain entries refuse them. The fields are text-field neurons, so this guards the HTTP path.
+    // as brain entries refuse them.
     internal static async Task<IResult> Write(HttpContext http, Dictionary<string, bool>? input, INeuronProxies brain, CancellationToken ct)
     {
         if (DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(http) is not { } caller || BrainPreferenceStore.IsAppCaller(caller)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         if (input is null || input.Keys.Any(key => !BrainPreferenceStore.IsNotificationKey(key)))
         { return Results.BadRequest(new { error = "Unknown notification preference." }); }
         var scope = BrainScope.CurrentId();
-        foreach (var (key, value) in input) { await BrainPreferenceStore.WriteNotification(brain, scope, key, value, ct); }
+        await BrainPreferenceStore.WriteNotifications(brain, scope, input, ct);
         return Results.Ok(await BrainPreferenceStore.ReadNotifications(brain, scope, ct));
     }
 }

@@ -24,7 +24,6 @@ using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.CommandBar.Signals;

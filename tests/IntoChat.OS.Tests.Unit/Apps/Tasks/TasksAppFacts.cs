@@ -10,7 +10,6 @@ using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Modules.UI.CommandBar;
@@ -790,10 +789,23 @@ public sealed class TasksAppFacts
         Assert.Empty(graph.Violations);
     }
 
-    private static async Task Field(InstalledApp<TasksApp> tasks, string field, string value)
+    // Types into the field keyed <paramref name="key"/> as the client does: after a pause, the field's command, with the typed text
+    // as its value, is posted to /act. The screen keeps the text in its draft.
+    private static async Task Field(InstalledApp<TasksApp> tasks, string key, string value)
     {
-        FakeField.Values[$"apps/tasks/{field}"] = value;
-        await tasks.App.OnField(field, new FieldChanged("local/apps/tasks", field, 1));
+        var field = Nodes(tasks.App.RenderSide()).Concat(Nodes(tasks.App.Render())).OfType<Field>().First(f => f.Key == key);
+        var command = Assert.IsType<Command>(field.OnSubmit);
+        var os = tasks.OS;
+        using var person = os.Edge.Current is null ? os.Edge.Enter(os.Edge.Person("local", "local", LocalBrain)) : null;
+        var result = await IntoChat.OS.Modules.Flutter.AppUiEndpoints.Act(new("local/apps/tasks", command.Target, command.Signal, command.Args, value),
+            new Proxies(os), LocalBrain.Value, TestContext.Current.CancellationToken, os.Edge.Current);
+        Assert.Equal(Microsoft.AspNetCore.Http.StatusCodes.Status200OK, Assert.IsAssignableFrom<Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(result).StatusCode);
+        await os.Idle();
+    }
+
+    private sealed class Proxies(TestOS os) : INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
     }
 
     private static TestOS FakeOs()
@@ -810,7 +822,6 @@ public sealed class TasksAppFacts
         os.Register<FakeApprovals>();
         os.Register<FakeFocus>();
         os.Register<FakeSynapses>();
-        os.Register<FakeField>();
         return os;
     }
 
@@ -924,18 +935,6 @@ public sealed class TasksAppFacts
         public Task<EngineerRunSummary> InspectEngineerRun(string? flowId = null, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<EngineerRunSummary> SelectEngineerCandidate(string flowId, int candidateIndex, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<EngineerRunSummary> RatifyEngineerPlan(string flowId, string[]? approvedCleanupTargets = null, EngineerTaskSlice[]? slices = null, CancellationToken ct = default) => throw new NotSupportedException();
-    }
-
-    [Neuron("ui.field")]
-    private sealed class FakeField : Neuron, IField
-    {
-        public static Dictionary<string, string?> Values { get; } = [];
-
-        public Task Configure(FieldKind kind) => Task.CompletedTask;
-        public Task Set(string? value) { Values[Id.Key] = value; return Task.CompletedTask; }
-        public Task Input(string value) => Set(value);
-        public Task<string?> TakeSecret() => Task.FromResult<string?>(null);
-        public Task<FieldState> Read() => Task.FromResult(new FieldState { Value = Values.GetValueOrDefault(Id.Key) });
     }
 
     [Neuron("approvals")]

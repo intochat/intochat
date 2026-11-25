@@ -21,6 +21,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Shell.Contracts` (`ICompute`, `IConversation`, `IField`, `IScreenDirectory`, `IScreenTargetResolver`, `ISessionList`, `IUiRootProvider`, `IView`, `IViewport`, `IWebBrowser`, `IWorkspace`).
+Contracts: assembly `IntoChat.OS.Modules.Shell.Contracts` (`ICompute`, `IConversation`, `ILegacyPreferenceField`, `IScreenDirectory`, `IScreenTargetResolver`, `ISessionList`, `IUiRootProvider`, `IView`, `IViewport`, `IWebBrowser`, `IWorkspace`).
 Hosting: runs in process.
 <!-- END GENERATED -->

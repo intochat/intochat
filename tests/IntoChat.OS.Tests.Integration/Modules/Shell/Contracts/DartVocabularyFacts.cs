@@ -9,13 +9,10 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 // (DartNodeModelsFacts in IntoChat.OS.Architecture.Tests.Unit), so there is no hand-written renderer kind list to mirror.
 public sealed partial class DartVocabularyFacts
 {
-    // The kept kinds the client reads by GET /apps/node and watches: one view tree, its fields and the hosted surfaces (a chat
-    // and its composer are view nodes).
+    // The kept kinds the client reads by GET /apps/node and watches: one view tree and the hosted surfaces (a chat and its
+    // composer are view nodes; a field's text travels with its command).
     private static readonly string[] KeptKinds =
-        [UIVocabulary.ViewType, "field", UIVocabulary.ConfirmationType, UIVocabulary.ViewportType, UIVocabulary.WebBrowserType];
-
-    // The wire spells the field kind "field" (GET /apps/node?kind=field); its vocabulary type is the neuron alias.
-    private static string VocabularyKind(string kind) => kind == "field" ? UIVocabulary.FieldType : kind;
+        [UIVocabulary.ViewType, UIVocabulary.ConfirmationType, UIVocabulary.ViewportType, UIVocabulary.WebBrowserType];
 
     internal static string[] Vocabulary() => [.. typeof(UIVocabulary).GetFields(BindingFlags.Public | BindingFlags.Static)
         .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("Type", StringComparison.Ordinal))
@@ -46,7 +43,7 @@ public sealed partial class DartVocabularyFacts
         var offenders = new List<string>();
         foreach (var (kind, contract, changed) in coreTable)
         {
-            if (!Vocabulary().Contains(VocabularyKind(kind))) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
+            if (!Vocabulary().Contains(kind)) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
             if (kind == UIVocabulary.ConfirmationType)
             {
                 // The runtime's framework signal is intentionally not declared beside its OS inbox adapter.
@@ -120,7 +117,7 @@ public sealed partial class DartVocabularyFacts
         }
         Assert.Equal(PendingWidgetEmitters.Order(StringComparer.Ordinal), pending.Order(StringComparer.Ordinal)); // the list only shrinks.
         Assert.Contains("viewport", emitters.Keys); // the scan must see the Workspace's call site, or it is blind.
-        var tableKinds = NodeContracts().Select(contract => VocabularyKind(contract.Kind)).ToHashSet();
+        var tableKinds = NodeContracts().Select(contract => contract.Kind).ToHashSet();
         var stale = VocabularyKindsWithoutADartContract.Where(tableKinds.Contains).ToArray();
         Assert.True(stale.Length == 0, "VocabularyKindsWithoutADartContract lists kinds that now have a Dart entry: " + string.Join(", ", stale));
         var calls = emitters.Where(entry => entry.Value.Any(source => source != "UIVocabulary")).Select(entry => entry.Key);
