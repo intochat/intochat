@@ -155,6 +155,26 @@ public static class UiKitPages
     /// <summary>The alias of <see cref="UiKitShowcaseCommand"/>.</summary>
     public const string ShowcaseCommandSignal = "uikit.showcaseCommand";
 
+    /// <summary>The kanban page's columns.</summary>
+    public static IReadOnlyList<KanbanColumnItem> Columns { get; } = [new("todo", "To do"), new("doing", "Doing", WipLimit: 2), new("done", "Done", "check")];
+
+    /// <summary>The kanban page's cards before any move.</summary>
+    public static IReadOnlyList<KanbanCardItem> Cards { get; } =
+        [new("notes", "todo", "Write release notes", Tag: "docs"), new("ship", "doing", "Ship 2.0", "Due Friday", Assignee: "Ada"), new("plan", "done", "Plan")];
+
+    /// <summary>The cards with <paramref name="cardId"/> moved into <paramref name="columnId"/> at <paramref name="index"/> among that column's
+    /// other cards (past the end appends); an unknown card leaves them as they are.</summary>
+    public static KanbanCardItem[] Move(IReadOnlyList<KanbanCardItem> cards, string cardId, string columnId, int index)
+    {
+        ArgumentNullException.ThrowIfNull(cards);
+        if (cards.FirstOrDefault(card => card.Id == cardId) is not { } moved) { return [.. cards]; }
+        List<KanbanCardItem> rest = [.. cards.Where(card => card.Id != cardId)];
+        int[] inColumn = [.. rest.Select((card, at) => (card, at)).Where(entry => entry.card.ColumnId == columnId).Select(entry => entry.at)];
+        var at = index < inColumn.Length ? inColumn[Math.Max(index, 0)] : inColumn.Length > 0 ? inColumn[^1] + 1 : rest.Count;
+        rest.Insert(at, moved with { ColumnId = columnId });
+        return [.. rest];
+    }
+
     /// <summary>The points the live chart pages start with (fixed event ids, so writing them again is ignored while the chart holds them).</summary>
     public static IReadOnlyList<LivePoint> ChartSeed { get; } = [new("seed-1", "Mon", 40), new("seed-2", "Tue", 65), new("seed-3", "Wed", 52)];
 

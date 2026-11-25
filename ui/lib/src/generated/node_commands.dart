@@ -95,6 +95,26 @@ Future<ActivationOutcome> actFormSubmit(
   'secretRefs': secretRefs,
 });
 
+/// Sends `MoveCard` to the `kanban` neuron at [address].
+Future<ActivationOutcome> actKanbanMoveCard(
+  NodeContext ctx,
+  String address, {
+  required String cardId,
+  required String columnId,
+  required int index,
+}) => ctx.act(address, 'control.moveCard', {
+  'cardId': cardId,
+  'columnId': columnId,
+  'index': index,
+});
+
+/// Sends `Select` to the `kanban` neuron at [address].
+Future<ActivationOutcome> actKanbanSelect(
+  NodeContext ctx,
+  String address, {
+  required String id,
+}) => ctx.act(address, 'control.select', {'id': id});
+
 /// Sends `Select` to the `listBox` neuron at [address].
 Future<ActivationOutcome> actListBoxSelect(
   NodeContext ctx,
@@ -144,6 +164,20 @@ Future<ActivationOutcome> actQueryTableSort(
   required String column,
 }) => ctx.act(address, 'control.sort', {'column': column});
 
+/// Sends `SetValue` to the `slider` neuron at [address].
+Future<ActivationOutcome> actSliderSetValue(
+  NodeContext ctx,
+  String address, {
+  required double value,
+}) => ctx.act(address, 'control.setValue', {'value': value});
+
+/// Sends `Select` to the `stepper` neuron at [address].
+Future<ActivationOutcome> actStepperSelect(
+  NodeContext ctx,
+  String address, {
+  required String id,
+}) => ctx.act(address, 'control.select', {'id': id});
+
 /// Sends `Select` to the `tabStrip` neuron at [address].
 Future<ActivationOutcome> actTabStripSelect(
   NodeContext ctx,
@@ -163,3 +197,21 @@ Future<ActivationOutcome> actToggleSwitchToggle(
   NodeContext ctx,
   String address,
 ) => ctx.act(address, 'control.toggle', {});
+
+/// Sends `ExpandNode` to the `tree` neuron at [address].
+Future<ActivationOutcome> actTreeExpandNode(
+  NodeContext ctx,
+  String address, {
+  required String id,
+  required bool isExpanded,
+}) => ctx.act(address, 'control.expandNode', {
+  'id': id,
+  'isExpanded': isExpanded,
+});
+
+/// Sends `Select` to the `tree` neuron at [address].
+Future<ActivationOutcome> actTreeSelect(
+  NodeContext ctx,
+  String address, {
+  required String id,
+}) => ctx.act(address, 'control.select', {'id': id});

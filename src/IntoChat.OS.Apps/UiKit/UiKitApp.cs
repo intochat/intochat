@@ -7,7 +7,8 @@ Operations: open, append, showcaseCommand
 Working, clickable prototypes of every control: one page per catalog kind and a page per chat scenario. Control neuron kinds are real
 slotted children (slot key = the kind); data node kinds are drawn inline from their [Showcase] examples. The app follows every child's
 domain signals and keeps the last 50 in an event log shown on every page: the visible proof each control signals. Controls are
-uncontrolled (they keep their own state) except the switch labelled as controlled, whose value the app owns.
+uncontrolled (they keep their own state) except the switch labelled as controlled, whose value the app owns, and the kanban board,
+whose cards the app owns: a move the board signals lands in the app's state and the board is drawn again with the card moved.
 */
 using IntoChat.OS.Host.Apps;
 using System.Globalization;
@@ -64,6 +65,12 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         await FollowChild<ILiveChartControl, ChartChanged>(UiKitPages.LiveChart);
         await FollowChild<IQueryTableControl, TableChanged>("queryTable");
         await FollowChild<IQueryTableControl, TableChanged>(UiKitPages.TableQuery);
+        await FollowChild<IKanbanControl, SelectionChanged>("kanban");
+        await FollowChild<IKanbanControl, CardMoved>("kanban");
+        await FollowChild<IStepperControl, SelectionChanged>("stepper");
+        await FollowChild<ITreeControl, SelectionChanged>("tree");
+        await FollowChild<ITreeControl, NodeExpanded>("tree");
+        await FollowChild<ISliderControl, ValueChanged>("slider");
         foreach (var thread in ThreadSlots)
         {
             await FollowChild<IChatThreadControl, MessageAppended>(thread);
@@ -123,7 +130,16 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         return Show(State.Logged(new UiKitEvent(command.Kind ?? "(example)", command.OriginalSignal ?? "", command.ArgsJson ?? "null", Context.Time.GetUtcNow())));
     }
 
+    [On]
+    public Task OnCardMoved(CardMoved moved)
+    {
+        ArgumentNullException.ThrowIfNull(moved);
+        return Show(Log(moved) with { Cards = UiKitPages.Move(State.Cards, moved.CardId, moved.ColumnId, moved.Index) });
+    }
+
     [On] public Task OnExpanded(Expanded expanded) => Show(Log(expanded));
+    [On] public Task OnNodeExpanded(NodeExpanded expanded) => Show(Log(expanded));
+    [On] public Task OnValueChanged(ValueChanged changed) => Show(Log(changed));
     [On] public Task OnSubmitted(Submitted submitted) => Show(Log(submitted));
     [On] public Task OnChartChanged(ChartChanged changed) => Show(Log(changed));
     [On] public Task OnTableChanged(TableChanged changed) => Show(Log(changed));
@@ -198,6 +214,13 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
             "liveChart" or UiKitPages.LiveChart => [Chart(page.Id)],
             "queryTable" or UiKitPages.TableQuery => [Child<IQueryTableControl, QueryTableProps>(page.Id, new QueryTableProps("People",
                 [new("id", "Id"), new("name", "Name"), new("status", "Status")], $"{_brain}/control.sampleTableSource/{UiKitPages.SampleSourceKey}"))],
+            "kanban" => [Child<IKanbanControl, KanbanProps>("kanban", new KanbanProps("Release", UiKitPages.Columns, state.Cards, AutomationName: "Release board"))],
+            "stepper" => [Child<IStepperControl, StepperProps>("stepper", new StepperProps(
+                [new("plan", "Plan", StepperStatus.Done), new("build", "Build", StepperStatus.Active, "Compiling"), new("ship", "Ship")], "Release"))],
+            "tree" => [Child<ITreeControl, TreeProps>("tree", new TreeProps(
+                [new("src", "src", IsFolder: true), new("app", "app.cs", "src"), new("docs", "docs", IsFolder: true), new("guide", "guide.md", "docs"), new("readme", "README.md")],
+                AutomationName: "Files"))],
+            "slider" => [Child<ISliderControl, SliderProps>("slider", new SliderProps("Volume", 0, 100, 5, "%"))],
             "chatThread" => [Thread("chatThread", new ChatThreadProps("Write a message", AutomationName: "Chat thread"))],
             UiKitPages.Message => [Thread(page.Id, new ChatThreadProps(AutomationName: "Message"))],
             UiKitPages.FailedReply => [Thread(page.Id, new ChatThreadProps(Status: "failed", AutomationName: "Failed reply"))],

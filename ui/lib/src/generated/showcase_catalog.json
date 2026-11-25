@@ -1926,6 +1926,176 @@
     "examples": []
   },
   {
+    "kind": "kanban",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "columns",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "cards",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedCardId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedCardId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "MoveCard",
+        "signal": "control.moveCard",
+        "args": {
+          "cardId": "String",
+          "columnId": "String",
+          "index": "int"
+        }
+      },
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "CardMoved",
+        "signal": "control.cardMoved",
+        "args": {
+          "cardId": "String",
+          "columnId": "String",
+          "index": "int"
+        }
+      },
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "kanbanView",
+        "key": "work",
+        "selectedCardId": "ship",
+        "props": {
+          "title": "Release",
+          "columns": [
+            {
+              "id": "todo",
+              "title": "To do"
+            },
+            {
+              "id": "doing",
+              "title": "Doing",
+              "wipLimit": 2
+            },
+            {
+              "id": "done",
+              "title": "Done",
+              "icon": "check"
+            }
+          ],
+          "cards": [
+            {
+              "id": "write",
+              "columnId": "todo",
+              "title": "Write notes",
+              "tag": "docs"
+            },
+            {
+              "id": "ship",
+              "columnId": "doing",
+              "title": "Ship 2.0",
+              "subtitle": "Due Friday",
+              "assignee": "Ada"
+            },
+            {
+              "id": "plan",
+              "columnId": "done",
+              "title": "Plan"
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Release board"
+        }
+      },
+      {
+        "kind": "kanbanView",
+        "key": "locked",
+        "selectedCardId": null,
+        "props": {
+          "title": "Archive",
+          "columns": [
+            {
+              "id": "done",
+              "title": "Done"
+            }
+          ],
+          "cards": [
+            {
+              "id": "old",
+              "columnId": "done",
+              "title": "Old work"
+            }
+          ],
+          "isEnabled": false,
+          "automationName": "Archive board"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "kanbanView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedCardId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "listBox",
     "isNeuron": true,
     "props": [
@@ -2840,6 +3010,128 @@
     "examples": []
   },
   {
+    "kind": "slider",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "min",
+        "type": "double",
+        "default": 0
+      },
+      {
+        "name": "max",
+        "type": "double",
+        "default": 100
+      },
+      {
+        "name": "step",
+        "type": "double",
+        "default": 1
+      },
+      {
+        "name": "unit",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "value",
+        "type": "double?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "value",
+        "type": "double?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "SetValue",
+        "signal": "control.setValue",
+        "args": {
+          "value": "double"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "ValueChanged",
+        "signal": "control.valueChanged",
+        "args": {
+          "value": "double"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "sliderView",
+        "key": "volume",
+        "value": 40,
+        "props": {
+          "label": "Volume",
+          "min": 0,
+          "max": 100,
+          "step": 5,
+          "unit": "%",
+          "isEnabled": true,
+          "automationName": "Volume"
+        }
+      },
+      {
+        "kind": "sliderView",
+        "key": "locked",
+        "value": null,
+        "props": {
+          "label": "Temperature",
+          "min": 0,
+          "max": 2,
+          "step": 0.1,
+          "unit": "",
+          "isEnabled": false,
+          "automationName": "Temperature",
+          "value": 0.7
+        }
+      }
+    ]
+  },
+  {
+    "kind": "sliderView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "double?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "spacer",
     "isNeuron": false,
     "props": [
@@ -2922,6 +3214,138 @@
         "name": "automationName",
         "type": "String",
         "default": ""
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "stepper",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "steps",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "activeStepId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "activeStepId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "stepperView",
+        "key": "release",
+        "activeStepId": "build",
+        "props": {
+          "steps": [
+            {
+              "id": "plan",
+              "label": "Plan",
+              "status": "Done"
+            },
+            {
+              "id": "build",
+              "label": "Build",
+              "status": "Active",
+              "description": "Compiling"
+            },
+            {
+              "id": "test",
+              "label": "Test",
+              "status": "Error"
+            },
+            {
+              "id": "ship",
+              "label": "Ship",
+              "status": "Pending"
+            }
+          ],
+          "title": "Release",
+          "isEnabled": true,
+          "automationName": "Release steps"
+        }
+      },
+      {
+        "kind": "stepperView",
+        "key": "locked",
+        "activeStepId": null,
+        "props": {
+          "steps": [
+            {
+              "id": "a",
+              "label": "Draft",
+              "status": "Done"
+            },
+            {
+              "id": "b",
+              "label": "Skipped",
+              "status": "Skipped"
+            }
+          ],
+          "isEnabled": false,
+          "automationName": "Draft steps"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "stepperView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "activeStepId",
+        "type": "String?",
+        "default": null
       }
     ],
     "state": [],
@@ -3258,6 +3682,175 @@
       {
         "name": "isOn",
         "type": "bool",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "tree",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "nodes",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "expandedIds",
+        "type": "List<String>?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "expandedIds",
+        "type": "List<String>",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "ExpandNode",
+        "signal": "control.expandNode",
+        "args": {
+          "id": "String",
+          "isExpanded": "bool"
+        }
+      },
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "NodeExpanded",
+        "signal": "control.nodeExpanded",
+        "args": {
+          "id": "String",
+          "isExpanded": "bool"
+        }
+      },
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "treeView",
+        "key": "files",
+        "selectedId": "app",
+        "expandedIds": [
+          "src"
+        ],
+        "props": {
+          "nodes": [
+            {
+              "id": "src",
+              "label": "src",
+              "isFolder": true
+            },
+            {
+              "id": "app",
+              "label": "app.cs",
+              "parentId": "src"
+            },
+            {
+              "id": "lib",
+              "label": "lib",
+              "parentId": "src",
+              "isFolder": true
+            },
+            {
+              "id": "docs",
+              "label": "docs",
+              "isFolder": true
+            },
+            {
+              "id": "readme",
+              "label": "README.md"
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Files"
+        }
+      },
+      {
+        "kind": "treeView",
+        "key": "opened",
+        "selectedId": null,
+        "expandedIds": [],
+        "props": {
+          "nodes": [
+            {
+              "id": "src",
+              "label": "src",
+              "isFolder": true
+            },
+            {
+              "id": "app",
+              "label": "app.cs",
+              "parentId": "src"
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Opened files",
+          "selectedId": "app",
+          "expandedIds": [
+            "src"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "kind": "treeView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "expandedIds",
+        "type": "List<String>",
         "default": null
       }
     ],

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.UI;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.UiKit;
@@ -27,7 +28,7 @@ public sealed record UiKitShowcaseCommand(string? Kind = null, string? OriginalS
 /// <param name="At">When the UI Kit received it.</param>
 public sealed record UiKitEvent(string Control, string Signal, string ArgsJson, DateTimeOffset At);
 
-/// <summary>The UI Kit's state: the page shown, the controlled switch's value, the model the composer page picked, and the event log.</summary>
+/// <summary>The UI Kit's state: the page shown, the controlled switch's value, the model the composer page picked, the kanban page's cards, and the event log.</summary>
 public sealed record UiKitState
 {
     /// <summary>The most events the log keeps; older ones are dropped.</summary>
@@ -45,6 +46,9 @@ public sealed record UiKitState
     /// <summary>How many points the Append button has added (the next point's number).</summary>
     public int Appended { get; init; }
 
+    /// <summary>The kanban page's cards, in column order: the app owns them, and a move the board signals moves one here.</summary>
+    public KanbanCardItem[] Cards { get; init; } = [.. UiKitPages.Cards];
+
     /// <summary>The last <see cref="MaxLog"/> signals the slotted controls published, oldest first.</summary>
     public UiKitEvent[] Log { get; init; } = [];
 
@@ -56,7 +60,7 @@ public sealed record UiKitState
 
     /// <inheritdoc />
     public bool Equals(UiKitState? other) => other is not null && Page == other.Page && ControlledOn == other.ControlledOn && Model == other.Model
-        && Appended == other.Appended && Log.SequenceEqual(other.Log);
+        && Appended == other.Appended && Log.SequenceEqual(other.Log) && Cards.SequenceEqual(other.Cards);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Page, ControlledOn, Model, Appended, Log.Length);

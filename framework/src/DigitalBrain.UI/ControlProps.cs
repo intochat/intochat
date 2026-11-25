@@ -597,3 +597,215 @@ internal static class SequenceHash
         return hash.ToHashCode();
     }
 }
+
+/// <summary>A column of a kanban board.</summary>
+/// <param name="Id">The id a move names.</param>
+/// <param name="Title">The column's heading.</param>
+/// <param name="Icon">An optional icon name.</param>
+/// <param name="WipLimit">The most cards the column holds; a move into it from another column when it is full is refused
+/// (control.columnFull). Null holds any number.</param>
+public sealed record KanbanColumnItem(string Id, string Title, string? Icon = null, int? WipLimit = null);
+
+/// <summary>A card of a kanban board.</summary>
+/// <param name="Id">The id a move or a selection names.</param>
+/// <param name="ColumnId">The column it is in; the props' card order is its order within that column.</param>
+/// <param name="Title">The card's main line.</param>
+/// <param name="Subtitle">An optional muted second line.</param>
+/// <param name="Tag">An optional tag drawn as a pill.</param>
+/// <param name="Assignee">An optional assignee name.</param>
+public sealed record KanbanCardItem(string Id, string ColumnId, string Title, string? Subtitle = null, string? Tag = null, string? Assignee = null);
+
+/// <summary>The refusal reasons of a command routed to a kanban slot.</summary>
+public static class KanbanRefusals
+{
+    /// <summary>The alias of the move command (<c>DigitalBrain.UI.Commands.MoveCard</c>, which this assembly cannot reference).</summary>
+    public const string MoveCardSignal = "control.moveCard";
+
+    /// <summary>A move names no card of the slot's props.</summary>
+    public const string UnknownCard = "control.unknownCard";
+
+    /// <summary>A move names no column of the slot's props.</summary>
+    public const string UnknownColumn = "control.unknownColumn";
+
+    /// <summary>A move's position is below 0 or past the target column's other cards.</summary>
+    public const string IndexOutOfRange = "control.indexOutOfRange";
+
+    /// <summary>A move from another column into a column that already holds its <see cref="KanbanColumnItem.WipLimit"/>.</summary>
+    public const string ColumnFull = "control.columnFull";
+}
+
+/// <summary>
+/// The props of a kanban board: what its parent decides. The columns and cards are the parent's and never stored by the board: a move
+/// only signals CardMoved, and the parent moves the card in the props it renders next, so a refused move leaves the board drawn as it was.
+/// </summary>
+/// <param name="Title">The board's title.</param>
+/// <param name="Columns">The columns, in order.</param>
+/// <param name="Cards">The cards; within a column, in the order given.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the title.</param>
+/// <param name="SelectedCardId">Set when the parent owns the selection (a controlled board): drawn instead of the board's state, and a
+/// Select only signals SelectionChanged; the board stores nothing. Null leaves the selection to the board.</param>
+public sealed record KanbanProps(string Title, IReadOnlyList<KanbanColumnItem> Columns, IReadOnlyList<KanbanCardItem> Cards, bool IsEnabled = true,
+    string? AutomationName = null, string? SelectedCardId = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+        => signal == KanbanRefusals.MoveCardSignal ? MoveRefusal(args is { ValueKind: JsonValueKind.Object } json ? json : null)
+            : SelectionRefusals.OfSelect(signal, args, id => Cards.Any(card => card.Id == id) ? null : SelectionRefusals.UnknownItem);
+
+    // The refusal of a move: the card and the column must be the props', the position within the column's other cards, and a full
+    // column takes no card from another column.
+    private string? MoveRefusal(JsonElement? move)
+    {
+        var card = Cards.FirstOrDefault(known => known.Id == StringOf(move, "cardId"));
+        if (card is null) { return KanbanRefusals.UnknownCard; }
+        var column = Columns.FirstOrDefault(known => known.Id == StringOf(move, "columnId"));
+        if (column is null) { return KanbanRefusals.UnknownColumn; }
+        var index = move is { } json && json.TryGetProperty("index", out var value) ? (value.TryGetInt32(out var number) ? number : -1) : 0;
+        var others = Cards.Count(other => other.ColumnId == column.Id && other.Id != card.Id);
+        if (index < 0 || index > others) { return KanbanRefusals.IndexOutOfRange; }
+        return card.ColumnId != column.Id && column.WipLimit is { } limit && others >= limit ? KanbanRefusals.ColumnFull : null;
+    }
+
+    private static string? StringOf(JsonElement? json, string name)
+        => json is { } value && value.TryGetProperty(name, out var member) && member.ValueKind == JsonValueKind.String ? member.GetString() : null;
+
+    /// <inheritdoc />
+    public bool Equals(KanbanProps? other) => other is not null && base.Equals(other) && Title == other.Title && SelectedCardId == other.SelectedCardId
+        && Columns.SequenceEqual(other.Columns) && Cards.SequenceEqual(other.Cards);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, SelectedCardId, SequenceHash.Of(Columns), SequenceHash.Of(Cards));
+}
+
+/// <summary>Where a step of a stepper stands.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<StepperStatus>))]
+public enum StepperStatus
+{
+    /// <summary>Not started.</summary>
+    Pending,
+
+    /// <summary>Under way.</summary>
+    Active,
+
+    /// <summary>Finished.</summary>
+    Done,
+
+    /// <summary>Failed.</summary>
+    Error,
+
+    /// <summary>Passed over.</summary>
+    Skipped,
+}
+
+/// <summary>A step of a stepper.</summary>
+/// <param name="Id">The id a selection names.</param>
+/// <param name="Label">The step's text.</param>
+/// <param name="Status">Where the step stands; the client draws its badge from it.</param>
+/// <param name="Description">An optional muted line under the label.</param>
+public sealed record StepperItem(string Id, string Label, StepperStatus Status = StepperStatus.Pending, string? Description = null);
+
+/// <summary>The props of a stepper: what its parent decides.</summary>
+/// <param name="Steps">The steps, in order.</param>
+/// <param name="Title">An optional title above the steps.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the title, then the slot key.</param>
+/// <param name="ActiveStepId">Set when the parent owns the active step (a controlled stepper): drawn instead of the stepper's state, and
+/// a Select only signals SelectionChanged; the stepper stores nothing. Null leaves the active step to the stepper.</param>
+public sealed record StepperProps(IReadOnlyList<StepperItem> Steps, string? Title = null, bool IsEnabled = true, string? AutomationName = null, string? ActiveStepId = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+        => SelectionRefusals.OfSelect(signal, args, id => Steps.Any(step => step.Id == id) ? null : SelectionRefusals.UnknownItem);
+
+    /// <inheritdoc />
+    public bool Equals(StepperProps? other) => other is not null && base.Equals(other) && Title == other.Title && ActiveStepId == other.ActiveStepId
+        && Steps.SequenceEqual(other.Steps);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, ActiveStepId, SequenceHash.Of(Steps));
+}
+
+/// <summary>A node of a tree.</summary>
+/// <param name="Id">The id a selection or an expansion names; unique within the tree.</param>
+/// <param name="Label">The node's text.</param>
+/// <param name="ParentId">The id of the folder it sits in; null places it at the top.</param>
+/// <param name="Icon">An optional icon name; null draws a folder or a file icon.</param>
+/// <param name="IsFolder">True when it can be expanded; a node other nodes sit in is a folder too.</param>
+public sealed record TreeItem(string Id, string Label, string? ParentId = null, string? Icon = null, bool IsFolder = false);
+
+/// <summary>The refusal reasons of a command routed to a tree slot.</summary>
+public static class TreeRefusals
+{
+    /// <summary>The alias of the expand-node command (<c>DigitalBrain.UI.Commands.ExpandNode</c>, which this assembly cannot reference).</summary>
+    public const string ExpandNodeSignal = "control.expandNode";
+
+    /// <summary>An expansion names a node that is no folder and holds no node.</summary>
+    public const string NotAFolder = "control.notAFolder";
+}
+
+/// <summary>The props of a tree: what its parent decides.</summary>
+/// <param name="Nodes">The nodes, each placed by its parent id; siblings in the order given.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="SelectedId">Set when the parent owns the selection (a controlled tree): drawn instead of the tree's state, and a Select
+/// only signals SelectionChanged; the tree stores nothing. Null leaves the selection to the tree.</param>
+/// <param name="ExpandedIds">Set when the parent owns the expanded folders, for example to open the tree to the selected node: drawn
+/// instead of the tree's state, and an ExpandNode only signals NodeExpanded; the tree stores nothing. Null leaves them to the tree.</param>
+public sealed record TreeProps(IReadOnlyList<TreeItem> Nodes, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null,
+    IReadOnlyList<string>? ExpandedIds = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+    {
+        if (signal != TreeRefusals.ExpandNodeSignal)
+        {
+            return SelectionRefusals.OfSelect(signal, args, id => Nodes.Any(node => node.Id == id) ? null : SelectionRefusals.UnknownItem);
+        }
+        var id = args is { ValueKind: JsonValueKind.Object } json && json.TryGetProperty("id", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        var node = Nodes.FirstOrDefault(known => known.Id == id);
+        return node is null ? SelectionRefusals.UnknownItem
+            : node.IsFolder || Nodes.Any(child => child.ParentId == node.Id) ? null : TreeRefusals.NotAFolder;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(TreeProps? other) => other is not null && base.Equals(other) && SelectedId == other.SelectedId && Nodes.SequenceEqual(other.Nodes)
+        && (ExpandedIds is null ? other.ExpandedIds is null : other.ExpandedIds is not null && ExpandedIds.SequenceEqual(other.ExpandedIds));
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectedId, SequenceHash.Of(Nodes), ExpandedIds is null ? 0 : SequenceHash.Of(ExpandedIds));
+}
+
+/// <summary>The refusal reasons of a command routed to a slider slot.</summary>
+public static class SliderRefusals
+{
+    /// <summary>The alias of the set-value command (<c>DigitalBrain.UI.Commands.SetValue</c>, which this assembly cannot reference).</summary>
+    public const string SetValueSignal = "control.setValue";
+
+    /// <summary>A value that is no number or lies outside the slot's props' range.</summary>
+    public const string OutOfRange = "control.outOfRange";
+}
+
+/// <summary>The props of a slider: what its parent decides.</summary>
+/// <param name="Label">The text above the slider.</param>
+/// <param name="Min">The smallest value.</param>
+/// <param name="Max">The largest value; a SetValue outside [Min, Max] is refused (control.outOfRange).</param>
+/// <param name="Step">The distance between the values the client snaps to; 0 or less snaps to a hundredth of the range.</param>
+/// <param name="Unit">Text drawn after the value, such as "%".</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the label.</param>
+/// <param name="Value">Set when the parent owns the value (a controlled slider): drawn instead of the slider's state, except while the
+/// person drags, and a SetValue only signals ValueChanged; the slider stores nothing. Null leaves the value to the slider.</param>
+public sealed record SliderProps(string Label, double Min = 0, double Max = 100, double Step = 1, string Unit = "", bool IsEnabled = true,
+    string? AutomationName = null, double? Value = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+        => signal != SliderRefusals.SetValueSignal ? null
+            : args is { ValueKind: JsonValueKind.Object } json && json.TryGetProperty("value", out var value) && value.TryGetDouble(out var number)
+                && number >= Min && number <= Max ? null : SliderRefusals.OutOfRange;
+}

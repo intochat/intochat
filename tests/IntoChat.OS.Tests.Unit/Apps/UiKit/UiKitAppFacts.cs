@@ -19,7 +19,8 @@ public sealed class UiKitAppFacts
     private static async Task<InstalledApp<UiKitApp>> UiKit(TestOS os, string page)
     {
         os.Register<CheckBoxNeuron>().Register<ExpanderNeuron>().Register<TabStripNeuron>().Register<ListBoxNeuron>()
-            .Register<LiveChartNeuron>().Register<QueryTableNeuron>().Register<SampleTableSource>();
+            .Register<LiveChartNeuron>().Register<QueryTableNeuron>().Register<SampleTableSource>()
+            .Register<KanbanNeuron>().Register<StepperNeuron>().Register<TreeNeuron>().Register<SliderNeuron>();
         var uikit = await os.Install<UiKitApp>();
         await uikit.Request("open", new UiKitOpen(page));
         return uikit;
@@ -115,6 +116,20 @@ public sealed class UiKitAppFacts
         await Send(uikit, UiKitPages.ControlledSwitch, new Toggle());
 
         Assert.True(uikit.App.State.ControlledOn);
+    }
+
+    [Fact]
+    public async Task A_kanban_move_lands_in_the_app_cards_and_a_refused_one_does_not()
+    {
+        await using var os = TestOS.Local().RegisterCatalog();
+        var uikit = await UiKit(os, "kanban");
+
+        await Send(uikit, "kanban", new MoveCard("notes", "done", 0));
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(uikit, "kanban", new MoveCard("plan", "nowhere", 0)));
+
+        Assert.Equal(["ship", "notes", "plan"], uikit.App.State.Cards.Select(card => card.Id));
+        Assert.Equal("done", uikit.App.State.Cards.Single(card => card.Id == "notes").ColumnId);
+        Assert.Contains(uikit.App.State.Log, entry => entry.Signal == "control.cardMoved");
     }
 
     [Fact]

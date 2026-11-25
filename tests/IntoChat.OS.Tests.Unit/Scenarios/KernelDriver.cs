@@ -25,7 +25,8 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
     public static async Task<KernelDriver> Start(TestOS os)
     {
         os.Register<CheckBoxNeuron>().Register<ExpanderNeuron>().Register<TabStripNeuron>().Register<ListBoxNeuron>()
-            .Register<LiveChartNeuron>().Register<QueryTableNeuron>().Register<SampleTableSource>();
+            .Register<LiveChartNeuron>().Register<QueryTableNeuron>().Register<SampleTableSource>()
+            .Register<KanbanNeuron>().Register<StepperNeuron>().Register<TreeNeuron>().Register<SliderNeuron>();
         return new(await os.Install<UiKitApp>());
     }
 

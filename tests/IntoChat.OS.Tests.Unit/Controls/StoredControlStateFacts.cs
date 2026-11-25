@@ -43,6 +43,17 @@ public sealed class StoredControlStateFacts
                     Assert.Null(table.SelectedRowId);
                 }
             ),
+            ["control.kanban"] = (typeof(KanbanNeuron), """{"selectedCardId":"a"}""", node => Assert.Equal("a", Assert.IsType<KanbanView>(node).SelectedCardId)),
+            ["control.stepper"] = (typeof(StepperNeuron), """{"activeStepId":"ship"}""", node => Assert.Equal("ship", Assert.IsType<StepperView>(node).ActiveStepId)),
+            ["control.tree"] = (typeof(TreeNeuron), """{"selectedId":"app","expandedIds":["code"]}""",
+                node =>
+                {
+                    var tree = Assert.IsType<TreeView>(node);
+                    Assert.Equal("app", tree.SelectedId);
+                    Assert.Equal(["code"], tree.ExpandedIds);
+                }
+            ),
+            ["control.slider"] = (typeof(SliderNeuron), """{"value":2.5}""", node => Assert.Equal(2.5, Assert.IsType<SliderView>(node).Value)),
             ["control.chatThread"] = (typeof(ChatThreadNeuron),
                 """{"messages":[{"id":"m1","role":"user","text":"hello","status":"completed","activities":[],"cards":[]}],"showsStop":false,"showsRetry":false,"acceptsText":true}""",
                 node => Assert.Equal("hello", Assert.Single(Assert.IsType<ChatThreadView>(node).Messages).Text)),

@@ -114,7 +114,11 @@ public static class InoNodeCard
         "tabStripView" or
         "toggleSwitchView" or
         "chatThreadView" or
-        "liveChartView";
+        "liveChartView" or
+        "kanbanView" or
+        "stepperView" or
+        "treeView" or
+        "sliderView";
 
     private static bool ValidateRawNode(JsonElement element, int depth, [NotNullWhen(true)] out string? refusal)
     {
@@ -341,7 +345,8 @@ public static class InoNodeCard
                 return true;
 
             case CheckBoxView or ComboBoxView or ExpanderView or FormView or ListBoxView
-                or QueryTableView or TabStripView or ToggleSwitchView or ChatThreadView or LiveChartView:
+                or QueryTableView or TabStripView or ToggleSwitchView or ChatThreadView or LiveChartView
+                or KanbanView or StepperView or DigitalBrain.UI.Controls.TreeView or SliderView:
                 refusal = "Interactive control view nodes are not allowed: interactive actions are forbidden in chat cards.";
                 return true;
 

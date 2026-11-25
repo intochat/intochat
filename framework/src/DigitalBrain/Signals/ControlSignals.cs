@@ -168,3 +168,39 @@ public sealed record StopRequested : Signal;
 // The alias predates the move from the ui.chat signals: wires and journals already hold it, so it stays.
 [Signal("ui.chat-model-selected")]
 public sealed record ChatModelSelected(string ChatId, string ModelId, bool MakeDefault = false) : Signal;
+
+/// <summary>Moves a kanban card to a column, at a position among that column's other cards.</summary>
+/// <param name="CardId">The card id; one the slot's props do not hold is refused (control.unknownCard).</param>
+/// <param name="ColumnId">The target column id; one the slot's props do not hold is refused (control.unknownColumn).</param>
+/// <param name="Index">The card's position among the target column's other cards, from 0; past their count is refused (control.indexOutOfRange).</param>
+[Signal("control.moveCard")]
+public sealed record MoveCard(string CardId, string ColumnId, int Index = 0) : Signal;
+
+/// <summary>The person moved a kanban card; the board stores no card, so the parent moves it in the props it renders.</summary>
+/// <param name="CardId">The card id.</param>
+/// <param name="ColumnId">The target column id.</param>
+/// <param name="Index">The card's position among the target column's other cards.</param>
+[Signal("control.cardMoved")]
+public sealed record CardMoved(string CardId, string ColumnId, int Index) : Signal;
+
+/// <summary>Expands or collapses one folder of a tree.</summary>
+/// <param name="Id">The node id; one the slot's props do not hold is refused (control.unknownItem), a node that is no folder too (control.notAFolder).</param>
+/// <param name="IsExpanded">True expands it.</param>
+[Signal("control.expandNode")]
+public sealed record ExpandNode(string Id, bool IsExpanded) : Signal;
+
+/// <summary>A tree folder was expanded or collapsed.</summary>
+/// <param name="Id">The node id.</param>
+/// <param name="IsExpanded">True when expanded.</param>
+[Signal("control.nodeExpanded")]
+public sealed record NodeExpanded(string Id, bool IsExpanded) : Signal;
+
+/// <summary>Sets a slider's value.</summary>
+/// <param name="Value">The value; one outside the slot's props' range is refused (control.outOfRange).</param>
+[Signal("control.setValue")]
+public sealed record SetValue(double Value) : Signal;
+
+/// <summary>A slider's new value.</summary>
+/// <param name="Value">The value.</param>
+[Signal("control.valueChanged")]
+public sealed record ValueChanged(double Value) : Signal;

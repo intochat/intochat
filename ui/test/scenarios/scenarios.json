@@ -1091,6 +1091,53 @@
     ]
   },
   {
+    "name": "kanban",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "kanban"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "kanban",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "kanban"
+      }
+    ]
+  },
+  {
+    "name": "kanbanView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "kanbanView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "kanbanView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The kanbanView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
     "name": "listBox",
     "appId": "uikit",
     "steps": [
@@ -1424,6 +1471,53 @@
     ]
   },
   {
+    "name": "slider",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "slider"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "slider",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "slider"
+      }
+    ]
+  },
+  {
+    "name": "sliderView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "sliderView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "sliderView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The sliderView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
     "name": "spacer",
     "appId": "uikit",
     "steps": [
@@ -1491,6 +1585,53 @@
       {
         "step": "expect",
         "contains": "The statCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "stepper",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "stepper"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "stepper",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "stepper"
+      }
+    ]
+  },
+  {
+    "name": "stepperView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "stepperView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "stepperView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The stepperView node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1681,6 +1822,53 @@
       {
         "step": "expect",
         "contains": "The toggleSwitchView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tree",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tree"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tree",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "tree"
+      }
+    ]
+  },
+  {
+    "name": "treeView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "treeView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "treeView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The treeView node has no [Showcase] example yet.",
         "target": "."
       }
     ]

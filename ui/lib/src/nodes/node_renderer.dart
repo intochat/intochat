@@ -30,6 +30,7 @@ import 'heading.dart';
 import 'info_bar.dart';
 import 'intent.dart';
 import 'job_card.dart';
+import 'kanban_view.dart';
 import 'metric_tile.dart';
 import 'nav_item.dart';
 import 'neuron_ref.dart';
@@ -38,9 +39,11 @@ import 'progress.dart';
 import 'record_card.dart';
 import 'row.dart';
 import 'secret_card.dart';
+import 'slider_view.dart';
 import 'spacer.dart';
 import 'split_pane.dart';
 import 'stat_card.dart';
+import 'stepper_view.dart';
 import 'surface.dart';
 import 'chat_thread_view.dart';
 import 'combo_box_view.dart';
@@ -53,6 +56,7 @@ import 'tag_pill.dart';
 import 'text.dart';
 import 'toggle_switch_view.dart';
 import 'toast.dart';
+import 'tree_view.dart';
 import 'web_browser.dart';
 import '../theme/wire_node_values.dart';
 
@@ -115,6 +119,10 @@ abstract final class NodeRenderer {
     LiveChartViewNode(:final key) ||
     ChatThreadViewNode(:final key) ||
     QueryTableViewNode(:final key) ||
+    KanbanViewNode(:final key) ||
+    StepperViewNode(:final key) ||
+    TreeViewNode(:final key) ||
+    SliderViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
@@ -179,6 +187,10 @@ abstract final class NodeRenderer {
       LiveChartViewNode() => renderLiveChartView(node, ctx),
       ChatThreadViewNode() => renderChatThreadView(node, ctx),
       QueryTableViewNode() => renderQueryTableView(node, ctx),
+      KanbanViewNode() => renderKanbanView(node, ctx),
+      StepperViewNode() => renderStepperView(node, ctx),
+      TreeViewNode() => renderTreeView(node, ctx),
+      SliderViewNode() => renderSliderView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }
