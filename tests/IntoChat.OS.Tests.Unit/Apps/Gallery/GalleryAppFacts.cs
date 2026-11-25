@@ -74,7 +74,7 @@ public sealed class GalleryAppFacts
         await using var os = TestOS.Local().RegisterCatalog();
         var gallery = await Gallery(os, "checkBox");
 
-        for (var i = 0; i < GalleryState.MaxLog + 5; i++) { await Send(gallery, "checkBox", new SetChecked(true)); }
+        for (var i = 0; i < GalleryState.MaxLog + 5; i++) { await Send(gallery, "checkBox", new SetChecked(i % 2 == 0)); }
 
         Assert.Equal(GalleryState.MaxLog, gallery.App.State.Log.Length);
         Assert.Equal("""{"isOn":true}""", gallery.App.State.Log[^1].ArgsJson); // 55 values, alternating from on, end on
