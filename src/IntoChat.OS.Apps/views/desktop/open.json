@@ -347,7 +347,7 @@
                   "launch": 0,
                   "dock": 8,
                   "appKind": "compiled",
-                  "description": "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
+                  "description": "Working prototypes of every control and data node, with a log of the facts they publish.",
                   "command": {
                     "target": ".",
                     "signal": "desktop.open",
@@ -637,7 +637,7 @@
               "launch": 0,
               "dock": 8,
               "appKind": "compiled",
-              "description": "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
+              "description": "Working prototypes of every control and data node, with a log of the facts they publish.",
               "command": {
                 "target": ".",
                 "signal": "desktop.open",
@@ -1084,26 +1084,6 @@
                 }
               },
               "automationName": "TextureCraft"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-uikit",
-              "appId": "uikit",
-              "title": "UI Kit",
-              "icon": "widgets",
-              "category": "Developer",
-              "launch": 0,
-              "dock": null,
-              "appKind": "compiled",
-              "description": "Working prototypes of every control, with a log of the signals they send.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "uikit"
-                }
-              },
-              "automationName": "UI Kit"
             },
             {
               "kind": "appTile",
