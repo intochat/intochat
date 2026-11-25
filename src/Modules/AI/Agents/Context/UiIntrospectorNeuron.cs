@@ -2,172 +2,92 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
-using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.State;
-using IntoChat.OS.Modules.UI;
-using IntoChat.OS.UI;
+using DigitalBrain.UI;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Flutter.Screens;
+using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 
-[GenerateSerializer, Alias("ui.introspector.tracked-ref")]
-internal sealed record TrackedUiNeuronRef
-{
-    [Id(0)] public string NeuronKind { get; init; } = "";
-    [Id(1)] public string Key { get; init; } = "";
-
-    public TrackedUiNeuronRef() { }
-
-    public TrackedUiNeuronRef(string neuronKind, string key)
-    {
-        NeuronKind = neuronKind;
-        Key = key;
-    }
-}
-
+// Revision and StateGraphs only. A store written by the kind+key introspector also holds "trackedNeurons"; it is ignored on load
+// and dropped by the next save.
 [GenerateSerializer, Alias("ui.introspector.state")]
 [ExportableState]
 internal sealed record UiIntrospectorState
 {
     [Id(0)] public long Revision { get; init; }
-    [Id(1)] public TrackedUiNeuronRef[] TrackedNeurons { get; init; } = [];
     [Id(2)] public UiStateGraphSnapshot[] StateGraphs { get; init; } = [];
 }
 
+// Reads screens only through the brain's screen directory, which draws each child in place under its child key path; a brain without
+// one shows no screens.
 [Neuron(IUiIntrospector.NeuronType, State = "ui-introspector")]
-internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
-    : Neuron<UiIntrospectorState>, IUiIntrospector
+internal sealed class UiIntrospectorNeuron : Neuron<UiIntrospectorState>, IUiIntrospector
 {
-    private const int MaxTrackedNeurons = 128;
     private const int MaxStoredStateGraphs = 32;
-    private const int MaxStateJsonChars = 2_000;
+    private const int MaxOpenScreens = 8;
+    private const int MaxViewJsonChars = 4_000;
+    private const int MaxSummaryNodes = 12;
     private const int MaxContextSummaryChars = 2_400;
 
-    private static readonly MethodInfo ContextGetMethod = typeof(INeuronContext)
-        .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-        .Single(m => m.Name == nameof(INeuronContext.Get) && m.IsGenericMethodDefinition
-            && m.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(NeuronId));
+    private NeuronId DirectoryId => new(Id.Brain, IScreenDirectory.TypeName, "main");
 
-    public Task<UiContractSchema[]> Contracts(string? kindFilter = null)
+    public async Task<UiScreenSnapshot?> InspectScreen(string appId)
     {
-        var schemas = DiscoverUiContracts(kindFilter).Select(c => c.Schema).ToArray();
-        return Task.FromResult(schemas);
-    }
-
-    public async Task<UiNeuronSnapshot?> InspectNeuron(string neuronKind, string key)
-    {
-        if (string.IsNullOrWhiteSpace(neuronKind) || string.IsNullOrWhiteSpace(key))
+        if (string.IsNullOrWhiteSpace(appId) || !Implements<IScreenDirectory>(DirectoryId))
         {
             return null;
         }
 
-        var normalizedKind = neuronKind.Trim();
-        var normalizedKey = StripBrainPrefix(key.Trim());
-        var discovered = DiscoverUiContracts(normalizedKind)
-            .FirstOrDefault(c => string.Equals(c.Schema.NeuronKind, normalizedKind, StringComparison.OrdinalIgnoreCase));
-        if (discovered is null)
+        try
         {
+            return Snapshot(await Get<IScreenDirectory>(DirectoryId).Read(appId.Trim()).ConfigureAwait(true));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<UiIntrospectorNeuron>().LogSwallowed(error, "reading a screen through the screen directory");
             return null;
         }
-
-        return await ReadUiNeuronAsync(discovered, normalizedKey).ConfigureAwait(true);
     }
 
-    public async Task<UiNeuronSnapshot[]> InspectLiveNeurons(string? kindFilter = null)
+    public async Task<UiScreenSnapshot[]> InspectOpenScreens()
     {
-        var contractsByKind = DiscoverUiContracts(kindFilter)
-            .ToDictionary(c => c.Schema.NeuronKind, StringComparer.OrdinalIgnoreCase);
-        if (contractsByKind.Count == 0)
+        if (!Implements<IScreenDirectory>(DirectoryId))
         {
             return [];
         }
 
-        var candidates = new List<(DiscoveredUiContract Contract, string Key)>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        if (observer is not null)
+        ScreenSummary[] summaries;
+        try
         {
-            await foreach (var instance in observer.Instances(null, CancellationToken.None).ConfigureAwait(true))
+            summaries = await Get<IScreenDirectory>(DirectoryId).List().ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<UiIntrospectorNeuron>().LogSwallowed(error, "listing screens through the screen directory");
+            return [];
+        }
+
+        var screens = new List<UiScreenSnapshot>();
+        var open = summaries
+            .Where(s => s.OpenInWorkspace)
+            .OrderByDescending(s => s.Focused)
+            .ThenBy(s => s.AppId, StringComparer.Ordinal)
+            .Take(MaxOpenScreens);
+        foreach (var summary in open)
+        {
+            if (await InspectScreen(summary.AppId).ConfigureAwait(true) is { } screen)
             {
-                if (!contractsByKind.TryGetValue(instance.Type, out var contract))
-                {
-                    continue;
-                }
-
-                var relativeKey = ExtractBrainScopedKey(instance.Key, instance.Type);
-                if (relativeKey is null)
-                {
-                    continue;
-                }
-
-                var dedupeKey = $"{contract.Schema.NeuronKind}:{relativeKey}";
-                if (seen.Add(dedupeKey))
-                {
-                    candidates.Add((contract, relativeKey));
-                }
+                screens.Add(screen);
             }
         }
 
-        foreach (var tracked in State.TrackedNeurons)
-        {
-            if (!contractsByKind.TryGetValue(tracked.NeuronKind, out var contract))
-            {
-                continue;
-            }
-
-            var dedupeKey = $"{contract.Schema.NeuronKind}:{tracked.Key}";
-            if (seen.Add(dedupeKey))
-            {
-                candidates.Add((contract, tracked.Key));
-            }
-        }
-
-        var snapshots = new List<UiNeuronSnapshot>(candidates.Count);
-        foreach (var (contract, relativeKey) in candidates.OrderBy(c => c.Contract.Schema.NeuronKind, StringComparer.Ordinal).ThenBy(c => c.Key, StringComparer.Ordinal))
-        {
-            var snap = await ReadUiNeuronAsync(contract, relativeKey).ConfigureAwait(true);
-            if (snap is not null)
-            {
-                snapshots.Add(snap);
-            }
-        }
-
-        return [.. snapshots];
-    }
-
-    public async Task TrackNeuron(string neuronKind, string key)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(neuronKind);
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-
-        var normalizedKind = neuronKind.Trim();
-        var normalizedKey = StripBrainPrefix(key.Trim());
-        var matchingContracts = DiscoverUiContracts(normalizedKind);
-        await Check(
-            "TrackNeuron",
-            Decision.Rule(
-                "known_ui_kind",
-                (Contracts: matchingContracts, Kind: normalizedKind),
-                static arg => !arg.Contracts.Any(c => string.Equals(c.Schema.NeuronKind, arg.Kind, StringComparison.OrdinalIgnoreCase)),
-                $"'{normalizedKind}' is not a registered Modules.UI neuron kind."));
-
-        if (State.TrackedNeurons.Any(t => string.Equals(t.NeuronKind, normalizedKind, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(t.Key, normalizedKey, StringComparison.Ordinal)))
-        {
-            return;
-        }
-
-        var tracked = State.TrackedNeurons
-            .Append(new TrackedUiNeuronRef(normalizedKind, normalizedKey))
-            .TakeLast(MaxTrackedNeurons)
-            .ToArray();
-        var next = State with { Revision = State.Revision + 1, TrackedNeurons = tracked };
-        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, next.TrackedNeurons.Length, next.StateGraphs.Length)).ConfigureAwait(true);
+        return [.. screens];
     }
 
     public async Task<UiStateGraphSnapshot> ExploreStateGraph(string stateOrScreenTypeName, int maxStates = 32)
@@ -203,22 +123,20 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
         var normalizedContextKey = string.IsNullOrWhiteSpace(contextKey)
             ? IUiIntrospector.DefaultContextKey
             : StripBrainPrefix(contextKey.Trim());
-        var contracts = DiscoverUiContracts(null).Select(c => c.Schema).ToArray();
-        var liveNeurons = await InspectLiveNeurons(null).ConfigureAwait(true);
+        var screens = await InspectOpenScreens().ConfigureAwait(true);
         var graphs = State.StateGraphs;
-        var summary = BuildContextSummary(contracts, liveNeurons, graphs);
+        var summary = BuildContextSummary(screens, graphs);
 
         var contextNeuron = Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", normalizedContextKey));
         await contextNeuron.Upsert(new ContextEntry("ui.introspector", summary, [typeof(IUiIntrospector).FullName!])).ConfigureAwait(true);
 
         var next = State with { Revision = State.Revision + 1 };
-        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, liveNeurons.Length, graphs.Length)).ConfigureAwait(true);
+        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, screens.Length, graphs.Length)).ConfigureAwait(true);
 
         return new UiIntrospectionReport
         {
             Revision = next.Revision,
-            Contracts = contracts,
-            LiveNeurons = liveNeurons,
+            Screens = screens,
             StateGraphs = [.. graphs],
             ContextSummary = summary,
         };
@@ -233,156 +151,48 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
             .ToArray();
 
         var next = State with { Revision = State.Revision + 1, StateGraphs = updated };
-        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, next.TrackedNeurons.Length, next.StateGraphs.Length)).ConfigureAwait(true);
+        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, 0, next.StateGraphs.Length)).ConfigureAwait(true);
     }
 
-    private async Task<UiNeuronSnapshot?> ReadUiNeuronAsync(DiscoveredUiContract discovered, string relativeKey)
+    private static UiScreenSnapshot? Snapshot(ScreenSnapshot? screen)
     {
-        var targetId = new NeuronId(Id.Brain, discovered.Schema.NeuronKind, relativeKey);
-        string? rawJson = null;
-
-        if (observer is not null)
-        {
-            try
-            {
-                var element = await observer.State(targetId, CancellationToken.None).ConfigureAwait(true);
-                if (element is { } jsonElement)
-                {
-                    rawJson = jsonElement.GetRawText();
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                OsConsoleLog.For<UiIntrospectorNeuron>().LogSwallowed(error, "reading UI neuron state from brain observer");
-            }
-        }
-
-        if (rawJson is null && discovered.ReadMethod is not null)
-        {
-            try
-            {
-                var proxy = ContextGetMethod.MakeGenericMethod(discovered.InterfaceType).Invoke(Context, [targetId])!;
-                var task = (Task)discovered.ReadMethod.Invoke(proxy, null)!;
-                var stateObj = await TaskBoxing.ReturnResultAsync(task, discovered.ReadMethod.ReturnType).ConfigureAwait(true);
-                if (stateObj is not null)
-                {
-                    rawJson = JsonSerializer.Serialize(stateObj, JsonSerializerOptions.Web);
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                OsConsoleLog.For<UiIntrospectorNeuron>().LogSwallowed(error, "reading UI neuron state through contract Read()");
-                return null;
-            }
-        }
-
-        if (rawJson is null)
+        if (screen is null)
         {
             return null;
         }
 
-        var boundedJson = rawJson.Length <= MaxStateJsonChars ? rawJson : rawJson[..MaxStateJsonChars] + "...";
-        return new UiNeuronSnapshot
+        var nodes = screen.Controls.Select(c => new UiScreenNode(c.Key, c.Kind, c.Label, c.Value)).ToArray();
+        var viewJson = screen.View is null ? "" : JsonSerializer.Serialize(screen.View, RuntimeProtocol.OptionsFor(typeof(View)));
+        return new UiScreenSnapshot
         {
-            NeuronKey = targetId.FullKey(),
-            NeuronKind = discovered.Schema.NeuronKind,
-            Key = relativeKey,
-            ContractType = discovered.Schema.ContractType,
-            StateJson = boundedJson,
-            Summary = SummarizeStateJson(discovered.Schema.NeuronKind, rawJson),
+            AppId = screen.AppId,
+            Title = screen.Title,
+            Kind = screen.Kind,
+            Generation = screen.Generation,
+            Nodes = nodes,
+            ViewJson = viewJson.Length <= MaxViewJsonChars ? viewJson : viewJson[..MaxViewJsonChars] + "...",
+            Summary = Summarize(nodes),
         };
     }
 
-    private string? ExtractBrainScopedKey(string instanceKey, string neuronKind)
+    private static string Summarize(UiScreenNode[] nodes)
     {
-        if (NeuronId.TryParse(instanceKey, out var parsed))
+        if (nodes.Length == 0)
         {
-            return parsed.Brain == Id.Brain ? parsed.Key : null;
+            return "no keyed nodes";
         }
 
-        var brainPrefix = Id.Brain.Value + "/";
-        if (!instanceKey.StartsWith(brainPrefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var remainder = instanceKey[brainPrefix.Length..];
-        var typePrefix = neuronKind + "/";
-        return remainder.StartsWith(typePrefix, StringComparison.Ordinal) ? remainder[typePrefix.Length..] : remainder;
+        var parts = nodes.Take(MaxSummaryNodes).Select(n => n.Value is null
+            ? $"{n.Key}={n.Kind} \"{n.Label}\""
+            : $"{n.Key}={n.Kind} \"{n.Label}\" value=\"{(n.Value.Length <= 32 ? n.Value : n.Value[..29] + "...")}\"");
+        var more = nodes.Length > MaxSummaryNodes ? $"; +{nodes.Length - MaxSummaryNodes} more" : "";
+        return string.Join("; ", parts) + more;
     }
 
     private string StripBrainPrefix(string key)
     {
         var prefix = Id.Brain.Value + "/";
         return key.StartsWith(prefix, StringComparison.Ordinal) ? key[prefix.Length..] : key;
-    }
-
-    private sealed record DiscoveredUiContract(Type InterfaceType, MethodInfo? ReadMethod, UiContractSchema Schema);
-
-    private static List<DiscoveredUiContract> DiscoverUiContracts(string? kindFilter)
-    {
-        var assembly = typeof(UiModule).Assembly;
-        var exported = assembly.GetExportedTypes();
-        var signalsByNamespace = exported
-            .Where(t => typeof(Signal).IsAssignableFrom(t) && !t.IsAbstract)
-            .Select(t => (Namespace: t.Namespace ?? "", Alias: t.GetCustomAttribute<SignalAttribute>(false)?.Alias ?? t.Name))
-            .ToArray();
-
-        var result = new List<DiscoveredUiContract>();
-        foreach (var type in exported.Where(t => t.IsInterface))
-        {
-            var alias = type.GetCustomAttribute<NeuronAliasAttribute>(false)?.Alias;
-            if (string.IsNullOrWhiteSpace(alias) || !alias.StartsWith("ui.", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(kindFilter)
-                && !alias.Contains(kindFilter.Trim(), StringComparison.OrdinalIgnoreCase)
-                && !type.Name.Contains(kindFilter.Trim(), StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .OrderBy(m => m.Name, StringComparer.Ordinal)
-                .Select(m => new UiContractMethod(
-                    m.Name,
-                    m.GetParameters()
-                        .Where(p => p.ParameterType != typeof(CancellationToken))
-                        .Select(p => $"{FormatTypeName(p.ParameterType)} {p.Name}")
-                        .ToArray(),
-                    FormatTypeName(m.ReturnType),
-                    m.IsDefined(typeof(ReadOnlyCallAttribute), false)))
-                .ToArray();
-
-            var readMethod = type.GetMethod("Read", BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
-            var stateType = readMethod is not null && readMethod.ReturnType.IsGenericType
-                ? readMethod.ReturnType.GetGenericArguments()[0].Name
-                : null;
-
-            var ns = type.Namespace ?? "";
-            var signals = signalsByNamespace
-                .Where(s => s.Namespace == ns || s.Namespace.StartsWith(ns + ".", StringComparison.Ordinal))
-                .Select(s => s.Alias)
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(a => a, StringComparer.Ordinal)
-                .ToArray();
-
-            result.Add(new DiscoveredUiContract(
-                type,
-                readMethod,
-                new UiContractSchema
-                {
-                    NeuronKind = alias,
-                    ContractType = type.FullName ?? type.Name,
-                    StateType = stateType,
-                    Methods = methods,
-                    Signals = signals,
-                }));
-        }
-
-        return [.. result.OrderBy(r => r.Schema.NeuronKind, StringComparer.Ordinal)];
     }
 
     private static Type? ResolveTargetType(string name)
@@ -526,69 +336,15 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
         };
     }
 
-    private static string SummarizeStateJson(string kind, string rawJson)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(rawJson);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return kind;
-            }
-
-            var parts = new List<string>();
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                if (parts.Count >= 4)
-                {
-                    break;
-                }
-
-                switch (prop.Value.ValueKind)
-                {
-                    case JsonValueKind.String:
-                        var s = prop.Value.GetString();
-                        if (!string.IsNullOrWhiteSpace(s))
-                        {
-                            parts.Add($"{prop.Name}=\"{(s.Length <= 32 ? s : s[..29] + "...")}\"");
-                        }
-                        break;
-                    case JsonValueKind.Number:
-                    case JsonValueKind.True:
-                    case JsonValueKind.False:
-                        parts.Add($"{prop.Name}={prop.Value.GetRawText()}");
-                        break;
-                    case JsonValueKind.Array:
-                        parts.Add($"{prop.Name}[{prop.Value.GetArrayLength()}]");
-                        break;
-                }
-            }
-
-            return parts.Count == 0 ? kind : string.Join(", ", parts);
-        }
-        catch (JsonException)
-        {
-            return kind;
-        }
-    }
-
-    private static string BuildContextSummary(
-        UiContractSchema[] contracts,
-        UiNeuronSnapshot[] liveNeurons,
-        UiStateGraphSnapshot[] graphs)
+    private static string BuildContextSummary(UiScreenSnapshot[] screens, UiStateGraphSnapshot[] graphs)
     {
         var sb = new StringBuilder();
         sb.AppendLine("[Live UI Introspection]");
-        sb.Append("Modules.UI contracts (").Append(contracts.Length).Append("): ");
-        sb.AppendLine(string.Join(", ", contracts.Select(c => c.NeuronKind)));
-
-        if (liveNeurons.Length > 0)
+        sb.Append("Open screens (").Append(screens.Length).AppendLine("):");
+        foreach (var screen in screens)
         {
-            sb.AppendLine("Active UI neurons:");
-            foreach (var n in liveNeurons.Take(16))
-            {
-                sb.Append("- ").Append(n.NeuronKey).Append(" (").Append(n.NeuronKind).Append("): ").AppendLine(n.Summary);
-            }
+            sb.Append("- ").Append(screen.AppId).Append(" \"").Append(screen.Title).Append("\" (").Append(screen.Kind)
+                .Append(", generation ").Append(screen.Generation).Append("): ").AppendLine(screen.Summary);
         }
 
         if (graphs.Length > 0)
@@ -607,22 +363,5 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
 
         var full = sb.ToString().TrimEnd();
         return full.Length <= MaxContextSummaryChars ? full : full[..(MaxContextSummaryChars - 3)] + "...";
-    }
-
-    private static string FormatTypeName(Type type)
-    {
-        if (!type.IsGenericType)
-        {
-            return type.Name;
-        }
-
-        var name = type.Name;
-        var tick = name.IndexOf('`', StringComparison.Ordinal);
-        if (tick >= 0)
-        {
-            name = name[..tick];
-        }
-
-        return $"{name}<{string.Join(", ", type.GetGenericArguments().Select(FormatTypeName))}>";
     }
 }

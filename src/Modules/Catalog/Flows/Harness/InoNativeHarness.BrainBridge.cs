@@ -87,15 +87,15 @@ internal sealed partial class InoNativeHarness
         {
             try
             {
-                var contracts = await uiIntrospector.Contracts().ConfigureAwait(false);
+                var screens = await uiIntrospector.InspectOpenScreens().ConfigureAwait(false);
                 var graphs = await uiIntrospector.ListStateGraphs().ConfigureAwait(false);
-                if (contracts.Length > 0 || graphs.Length > 0)
+                if (screens.Length > 0 || graphs.Length > 0)
                 {
-                    var kinds = string.Join(", ", contracts.Take(8).Select(static c => c.NeuronKind));
+                    var apps = string.Join(", ", screens.Take(8).Select(static s => s.AppId));
                     var healthyCount = graphs.Count(static g => g.IsHealthy);
                     sb.AppendLine(string.Create(
                         CultureInfo.InvariantCulture,
-                        $"UI_INTROSPECTOR: {contracts.Length} UI contracts ({kinds}); {healthyCount}/{graphs.Length} healthy StateGraphs."));
+                        $"UI_INTROSPECTOR: {screens.Length} open screens ({apps}); {healthyCount}/{graphs.Length} healthy StateGraphs."));
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

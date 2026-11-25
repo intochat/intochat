@@ -267,10 +267,8 @@ public sealed class CreatorSynapseProjectionFacts
     [Neuron(IUiIntrospector.NeuronType)]
     private sealed class ProjectionIntrospector : Neuron, IUiIntrospector
     {
-        public Task<UiContractSchema[]> Contracts(string? kindFilter = null) => Task.FromResult<UiContractSchema[]>([]);
-        public Task<UiNeuronSnapshot?> InspectNeuron(string neuronKind, string key) => Task.FromResult<UiNeuronSnapshot?>(null);
-        public Task<UiNeuronSnapshot[]> InspectLiveNeurons(string? kindFilter = null) => Task.FromResult<UiNeuronSnapshot[]>([]);
-        public Task TrackNeuron(string neuronKind, string key) => Task.CompletedTask;
+        public Task<UiScreenSnapshot?> InspectScreen(string appId) => Task.FromResult<UiScreenSnapshot?>(null);
+        public Task<UiScreenSnapshot[]> InspectOpenScreens() => Task.FromResult<UiScreenSnapshot[]>([]);
 
         public Task<UiStateGraphSnapshot> ExploreStateGraph(string stateOrScreenTypeName, int maxStates = 32)
         {
