@@ -19,7 +19,6 @@
     "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table"
   },
   "Contracts": {
-    "IntoChat.OS.Apps.Gallery.GalleryLibraryState": "os.gallery.library; Category=0, Search=1, SelectedId=2, Count=3",
     "IntoChat.OS.Authority.Entries.BrainEntriesState": "brain.entries-state; Entries=0, Version=1",
     "IntoChat.OS.Authority.Entries.StoredEntry": "brain.entry; Name=0, Kind=1, Value=2, Sealed=3, Tail=4, UpdatedAt=5",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState": "identity.external-ticket-replay-state; Used=0",
@@ -195,10 +194,7 @@
     "IntoChat.OS.Apps.Friends.FriendsOpen": "FriendsOpen",
     "IntoChat.OS.Apps.Friends.FriendsPublish": "FriendsPublish",
     "IntoChat.OS.Apps.Friends.FriendsUpdateBio": "FriendsUpdateBio",
-    "IntoChat.OS.Apps.Gallery.GalleryFilter": "GalleryFilter",
     "IntoChat.OS.Apps.Gallery.GalleryOpen": "GalleryOpen",
-    "IntoChat.OS.Apps.Gallery.GallerySelect": "GallerySelect",
-    "IntoChat.OS.Apps.Gallery.GallerySwitchIdentity": "GallerySwitchIdentity",
     "IntoChat.OS.Apps.Ino.InoConnectDb": "InoConnectDb",
     "IntoChat.OS.Apps.Ino.InoMake": "InoMake",
     "IntoChat.OS.Apps.Ino.InoNew": "InoNew",

@@ -27,36 +27,22 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
     private static readonly BrainId Brain = new("owner");
 
     [Fact]
-    public async Task TwoChartsMaintainIndependentStateStreamingAndQueryBinding()
+    public async Task ChartStreamingIgnoresADuplicateEventId()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
         await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
 
         var streamChart = os.Get<IChart>(new NeuronId(Brain, "ui.chart", "stream"));
-        var queryChart = os.Get<IChart>(new NeuronId(Brain, "ui.chart", "revenue"));
 
         await streamChart.Render(new ChartSpec("Live Stream", ChartKinds.Line, [new ChartSeries("Throughput", [new ChartPoint("T1", 10, "e1")])], "Streaming demo"));
         await streamChart.Append(new ChartPoint("T2", 25, "e2"));
         await streamChart.Append(new ChartPoint("T2-dup", 99, "e2")); // duplicate EventId ignored
 
-        var sourceAddress = new NeuronId(Brain, "ui.sample-chart-source", "default").ToString();
-        await queryChart.Bind(sourceAddress, new ChartQuery(Filter: "q1"));
-        await queryChart.SetKind(ChartKinds.Area);
-        await queryChart.SelectPoint("Feb");
-
         var s1 = await streamChart.Read();
-        var s2 = await queryChart.Read();
 
         Assert.Equal(ChartKinds.Line, s1.Kind);
         Assert.Equal(2, s1.Series[0].Points.Length);
         Assert.Equal("T2", s1.Series[0].Points[1].Label);
-
-        Assert.Equal(ChartKinds.Area, s2.Kind);
-        Assert.Equal(2, s2.Series.Length);
-        Assert.Equal(3, s2.Series[0].Points.Length); // Jan, Feb, Mar for Q1
-        Assert.NotNull(s2.SelectedPoint);
-        Assert.Equal("Feb", s2.SelectedPoint!.Label);
-        Assert.Equal(82, s2.SelectedPoint.Value);
     }
 
     [Fact]
@@ -87,31 +73,6 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var tabs = os.Get<ITabs>(new NeuronId(Brain, "ui.tabs", "nav"));
         await tabs.Configure([new UiTabItem("home", "Home"), new UiTabItem("data", "Data")], "home");
         Assert.Equal("data", (await tabs.Select("data")).SelectedId);
-    }
-
-    [Fact]
-    public async Task TableNeuronBindsToSampleSourceFiltersSortsAndSelectsRows()
-    {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
-        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
-
-        var table = os.Get<ITable>(new NeuronId(Brain, "ui.table", "spans"));
-        var sourceAddress = new NeuronId(Brain, "ui.sample-table-source", "default").ToString();
-        await table.Bind(sourceAddress, "Silo Spans", [new TableColumn("span", "Span"), new TableColumn("status", "Status"), new TableColumn("latency", "Latency"), new TableColumn("module", "Module")], pageSize: 5);
-
-        var initial = await table.Read();
-        Assert.Equal(8, initial.Total);
-        Assert.Equal(5, initial.Rows.Length);
-
-        var filtered = await table.Filter("Modules.UI");
-        Assert.Equal(3, filtered.Total);
-
-        var sorted = await table.Sort("span");
-        Assert.Equal("span", sorted.SortBy);
-        Assert.False(sorted.Descending);
-
-        var selected = await table.SelectRow(1);
-        Assert.Equal(1, selected.SelectedRowIndex);
     }
 
     [Fact]
@@ -301,30 +262,5 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.Equal(3, upserted.Cards.Length);
         var removed = await kanban.RemoveCard("k2");
         Assert.Equal(2, removed.Cards.Length);
-    }
-
-    [Fact]
-    public void GalleryIconCatalogCoversAllEightWinUiCategories()
-    {
-        string[] expected = ["OS", "Code/DDD", "AI/Neurons", "Files", "Media", "Navigation", "Status", "Devices"];
-        foreach (var category in expected)
-        {
-            Assert.NotEmpty(IntoChat.OS.Apps.Gallery.GalleryIconCatalog.ForCategory(category));
-        }
-        Assert.True(IntoChat.OS.Apps.Gallery.GalleryIconCatalog.All.Length >= 100);
-    }
-
-    [Fact]
-    public void WinUi3GalleryRendersEveryPageWithAppShellRoot()
-    {
-        foreach (var page in IntoChat.OS.Apps.Gallery.GalleryAppState.PageIds)
-        {
-            var state = new IntoChat.OS.Apps.Gallery.GalleryAppState().SelectPage(page);
-            var view = IntoChat.OS.Apps.Gallery.GalleryRendering.Render(state);
-            var shell = Assert.IsType<DigitalBrain.UI.AppShellNode>(view.Root);
-            Assert.NotNull(shell.Sidebar);
-            Assert.NotNull(shell.Toolbar);
-            Assert.NotNull(shell.Body);
-        }
     }
 }

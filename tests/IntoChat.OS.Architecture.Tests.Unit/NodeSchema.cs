@@ -33,7 +33,7 @@ internal static class NodeSchema
         ? type.GetGenericArguments()[0] : null;
 
     // NullabilityInfoContext caches without locking and is not thread-safe: one shared instance raced when the catalog, commands and
-    // UI Kit facts ran in parallel. A context per call costs little.
+    // Gallery catalog facts ran in parallel. A context per call costs little.
     internal static bool IsNullable(PropertyInfo property) => new NullabilityInfoContext().Create(property).ReadState == NullabilityState.Nullable;
 
     internal static string DartType(PropertyInfo property) => DartType(property.PropertyType) + (IsNullable(property) ? "?" : "");

@@ -186,7 +186,7 @@ public sealed class Creator3PaneFacts
 
         var summaries = await screenDirectory.List();
         var creatorSummary = Assert.Single(summaries, s => s.AppId == "creator");
-        Assert.Contains(summaries, s => s.AppId == "uikit");
+        Assert.Contains(summaries, s => s.AppId == "gallery");
         Assert.Equal(1, creatorSummary.PendingApprovals);
 
         var snapshot = await screenDirectory.Read("creator");

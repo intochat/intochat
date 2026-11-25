@@ -7,16 +7,16 @@ using DigitalBrain.Contracts;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.UI.Controls;
 
-namespace IntoChat.OS.Apps.UiKit;
+namespace IntoChat.OS.Apps.Gallery;
 
-/// <summary>A page of the UI Kit: a scenario or one catalog kind.</summary>
+/// <summary>A page of the Gallery: a scenario or one catalog kind.</summary>
 /// <param name="Id">The page id: the scenario id, or the kind (which is also the slot key of a control neuron's page).</param>
 /// <param name="Title">The nav title.</param>
 /// <param name="Group">Scenario, Control neuron or Data node.</param>
-public sealed record UiKitPage(string Id, string Title, string Group);
+public sealed record GalleryPage(string Id, string Title, string Group);
 
-/// <summary>The UI Kit's pages: the scenarios first, then every catalog kind (control neurons and data nodes) in kind order.</summary>
-public static class UiKitPages
+/// <summary>The Gallery's pages: the scenarios first, then every catalog kind (control neurons and data nodes) in kind order.</summary>
+public static class GalleryPages
 {
     public const string Scenario = "Scenarios";
     public const string ControlNeuron = "Controls";
@@ -42,14 +42,32 @@ public static class UiKitPages
     public const string Nav = "nav";
 
     /// <summary>The key of the sample table source the table pages read.</summary>
-    public const string SampleSourceKey = "uikit-samples";
+    public const string SampleSourceKey = "gallery-samples";
+
+    /// <summary>The child key of the query table page's table with inline rows.</summary>
+    public const string InlineTable = "queryTable-inline";
+
+    /// <summary>The key of the form page's secret field.</summary>
+    public const string SecretField = "apiKey";
+
+    /// <summary>The columns of the inline table.</summary>
+    public static IReadOnlyList<QueryTableColumn> InlineColumns { get; } = [new("task", "Task"), new("owner", "Owner"), new("stage", "Stage")];
+
+    /// <summary>The inline table's rows, keyed by task id: only these can be selected.</summary>
+    public static IReadOnlyList<QueryTableRow> InlineRows { get; } =
+    [
+        new("notes", ["Write release notes", "Ada", "To do"]),
+        new("ship", ["Ship 2.0", "Ben", "Doing"]),
+        new("plan", ["Plan", "Cy", "Done"]),
+        new("review", ["Review the board", "Ada", "Doing"]),
+    ];
 
     public const string First = Message;
 
     public static IReadOnlyList<ComboBoxOption> Models { get; } =
         [new("sonnet", "Claude Sonnet"), new("haiku", "Claude Haiku"), new("local", "Local model")];
 
-    public static IReadOnlyList<UiKitPage> Scenarios { get; } =
+    public static IReadOnlyList<GalleryPage> Scenarios { get; } =
     [
         new(Message, "Message", Scenario),
         new(FailedReply, "Failed reply", Scenario),
@@ -71,15 +89,15 @@ public static class UiKitPages
     public static IReadOnlyDictionary<string, Type> NodeKinds { get; } = ViewNodeAttribute.DiscoverAll();
 
     /// <summary>Every page, in nav order.</summary>
-    public static IReadOnlyList<UiKitPage> All { get; } =
+    public static IReadOnlyList<GalleryPage> All { get; } =
     [
         .. Scenarios,
-        .. NeuronKinds.Keys.Select(kind => new UiKitPage(kind, kind, ControlNeuron))
-            .Concat(NodeKinds.Keys.Select(kind => new UiKitPage(kind, kind, DataNode)))
+        .. NeuronKinds.Keys.Select(kind => new GalleryPage(kind, kind, ControlNeuron))
+            .Concat(NodeKinds.Keys.Select(kind => new GalleryPage(kind, kind, DataNode)))
             .OrderBy(page => page.Id, StringComparer.Ordinal),
     ];
 
-    public static UiKitPage? Find(string? id) => All.FirstOrDefault(page => page.Id == id);
+    public static GalleryPage? Find(string? id) => All.FirstOrDefault(page => page.Id == id);
 
     // The contracts assembly holds only control contracts (UiVerticalSliceFacts); each names its control.* neuron type.
     private static bool IsControl(Type type)
@@ -110,7 +128,7 @@ public static class UiKitPages
         return nodes;
     }
 
-    // Every command in an example (an object with a string target and signal) becomes a ShowcaseCommand to the UI Kit itself carrying the
+    // Every command in an example (an object with a string target and signal) becomes a ShowcaseCommand to the Gallery itself carrying the
     // original signal and args: the example's made-up signals are logged instead of refused. The [Showcase] examples stay as written.
     // The serializer reads a missing constructor parameter as default(T), not its declared default: an example that leaves out
     // Enabled or Visible would come out disabled and hidden. Fill in every declared default the example does not write.
@@ -134,7 +152,7 @@ public static class UiKitPages
         {
             case JsonObject command when command["target"] is JsonValue target && target.TryGetValue<string>(out _)
                 && command["signal"] is JsonValue signal && signal.TryGetValue<string>(out var alias):
-                var captured = new UiKitShowcaseCommand(kind, alias, command["args"]?.ToJsonString() ?? "null");
+                var captured = new GalleryShowcaseCommand(kind, alias, command["args"]?.ToJsonString() ?? "null");
                 return new JsonObject
                 {
                     ["target"] = ".",
@@ -152,8 +170,8 @@ public static class UiKitPages
         }
     }
 
-    /// <summary>The alias of <see cref="UiKitShowcaseCommand"/>.</summary>
-    public const string ShowcaseCommandSignal = "uikit.showcaseCommand";
+    /// <summary>The alias of <see cref="GalleryShowcaseCommand"/>.</summary>
+    public const string ShowcaseCommandSignal = "gallery.showcaseCommand";
 
     /// <summary>The kanban page's columns.</summary>
     public static IReadOnlyList<KanbanColumnItem> Columns { get; } = [new("todo", "To do"), new("doing", "Doing", WipLimit: 2), new("done", "Done", "check")];
@@ -218,5 +236,5 @@ public static class UiKitPages
 
     /// <summary>The next sample point the Append button adds.</summary>
     public static LivePoint Point(int number)
-        => new(string.Create(CultureInfo.InvariantCulture, $"uikit-{number}"), string.Create(CultureInfo.InvariantCulture, $"#{number}"), (number * 37 % 90) + 10);
+        => new(string.Create(CultureInfo.InvariantCulture, $"gallery-{number}"), string.Create(CultureInfo.InvariantCulture, $"#{number}"), (number * 37 % 90) + 10);
 }

@@ -55,7 +55,7 @@ public sealed class WebShellHost : IAsyncLifetime
     {
         try
         {
-            var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
+            var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/gallery/view");
             IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
             var originPort = FreePort();
             Origin = $"http://127.0.0.1:{originPort}";
@@ -154,8 +154,8 @@ public sealed class WebShellHost : IAsyncLifetime
 
 // The released web bundle, built once per input change into ui/build/web-scenarios (never the shell's own build/web): it carries a
 // stamp of the hash of the shell's sources and defines, and a bundle whose stamp matches is reused. The bundle mounts one app's
-// top-level view as its fixed root (INTOCHATOS_ROOT, the connector root the workspace already supports): the desktop's catalog
-// lists no UI Kit tile and its /open link does not show the app, so a scenario opens the app this way.
+// top-level view as its fixed root (INTOCHATOS_ROOT, the connector root the workspace already supports), so a scenario starts on the
+// app's own view instead of going through the desktop.
 public static class WebBundle
 {
     private const string StampName = ".scenario-inputs";

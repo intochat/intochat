@@ -1,7 +1,7 @@
 /*
 # Sample table source
 
-A table source of 120 sample rows (id, name, status) a query table can read by address; the uikit showcase uses it. The filter is a
+A table source of 120 sample rows (id, name, status) a query table can read by address; the Gallery uses it. The filter is a
 case-insensitive contains on the name; any column sorts (ordinal; the id numerically).
 */
 using System.Globalization;
@@ -9,7 +9,7 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 
-namespace IntoChat.OS.Apps.UiKit;
+namespace IntoChat.OS.Apps.Gallery;
 
 /// <summary>The sample table source's state: it has none, the rows are fixed.</summary>
 public sealed record SampleTableSourceState;

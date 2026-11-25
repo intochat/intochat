@@ -79,8 +79,8 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
     }
 
     // The control a user clicks to send the signal: a select clicks the item named by args.id (a selection control's item carries
-    // "item:<id>"), a retry the message's retry button, anything else the button keyed by the signal's last segment (the UI Kit's
-    // "Append point" is keyed "append" for uikit.append).
+    // "item:<id>"), a retry the message's retry button, anything else the button keyed by the signal's last segment (the Gallery's
+    // "Append point" is keyed "append" for gallery.append).
     private static ILocator Control(ILocator scope, Act step)
     {
         var id = step.Args is { ValueKind: JsonValueKind.Object } args && args.TryGetProperty("id", out var value) ? value.GetString() : null;

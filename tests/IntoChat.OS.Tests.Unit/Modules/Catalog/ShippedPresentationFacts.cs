@@ -13,7 +13,7 @@ public sealed class ShippedPresentationFacts
         [
             ("creator", "Creator", "cpu"), ("data", "Data Studio", "bar-chart-2"), ("desktop", "Desktop", "layout-grid"), ("files", "Files", "folder"),
             ("filmcraft", "FilmCraft", "artcraft:filmcraft"), ("gallery", "UI Gallery", "layout-grid"), ("ino", "Ino", "sparkles"), ("markdraw", "Markdraw", "pen-tool"),
-            ("photocraft", "PhotoCraft", "artcraft:photocraft"), ("post", "Post", "grid"), ("settings", "Settings", "settings"), ("tasks", "Tasks", "tasks"), ("uikit", "UI Kit", "widgets"),
+            ("photocraft", "PhotoCraft", "artcraft:photocraft"), ("post", "Post", "grid"), ("settings", "Settings", "settings"), ("tasks", "Tasks", "tasks"),
         ];
         foreach (var (app, title, icon) in expected)
         {

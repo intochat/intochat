@@ -21,7 +21,7 @@ void main() {
   test('scenarios.json holds the showcase scenarios', () {
     expect(scenarios, isNotEmpty);
     for (final scenario in scenarios) {
-      expect(scenario.appId, 'uikit');
+      expect(scenario.appId, 'gallery');
       expect(scenario.steps.first.kind, 'act');
       for (final step in scenario.steps) {
         expect(const {'act', 'expect', 'expectShown'}, contains(step.kind));

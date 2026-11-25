@@ -1,7 +1,7 @@
 [
   {
     "name": "message",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -24,7 +24,7 @@
   },
   {
     "name": "failed-reply",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -75,7 +75,7 @@
   },
   {
     "name": "card-in-chat",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -98,7 +98,7 @@
   },
   {
     "name": "activity-row",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -121,7 +121,7 @@
   },
   {
     "name": "composer",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -144,7 +144,7 @@
   },
   {
     "name": "empty",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -167,7 +167,7 @@
   },
   {
     "name": "waiting",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -190,7 +190,7 @@
   },
   {
     "name": "live-chart",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -221,7 +221,7 @@
       },
       {
         "step": "act",
-        "signal": "uikit.append",
+        "signal": "gallery.append",
         "args": null,
         "target": "."
       },
@@ -234,7 +234,7 @@
   },
   {
     "name": "table-query",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -257,7 +257,7 @@
   },
   {
     "name": "appShell",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -281,7 +281,7 @@
   },
   {
     "name": "appTile",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -305,7 +305,7 @@
   },
   {
     "name": "approvalCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -329,7 +329,7 @@
   },
   {
     "name": "badge",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -353,7 +353,7 @@
   },
   {
     "name": "brainScene",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -377,7 +377,7 @@
   },
   {
     "name": "button",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -401,7 +401,7 @@
   },
   {
     "name": "card",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -425,7 +425,7 @@
   },
   {
     "name": "chart",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -449,7 +449,7 @@
   },
   {
     "name": "chatThread",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -472,7 +472,7 @@
   },
   {
     "name": "chatThreadView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -496,7 +496,7 @@
   },
   {
     "name": "checkBox",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -519,7 +519,7 @@
   },
   {
     "name": "checkBoxView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -543,7 +543,7 @@
   },
   {
     "name": "choiceCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -567,7 +567,7 @@
   },
   {
     "name": "collection",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -591,7 +591,7 @@
   },
   {
     "name": "column",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -615,7 +615,7 @@
   },
   {
     "name": "comboBox",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -638,7 +638,7 @@
   },
   {
     "name": "comboBoxView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -662,7 +662,7 @@
   },
   {
     "name": "conversation",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -686,7 +686,7 @@
   },
   {
     "name": "dataTable",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -710,7 +710,7 @@
   },
   {
     "name": "diffCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -734,7 +734,7 @@
   },
   {
     "name": "divider",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -758,7 +758,7 @@
   },
   {
     "name": "draftCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -782,7 +782,7 @@
   },
   {
     "name": "emptyState",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -806,7 +806,7 @@
   },
   {
     "name": "errorLine",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -830,7 +830,7 @@
   },
   {
     "name": "expander",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -853,7 +853,7 @@
   },
   {
     "name": "expanderView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -877,7 +877,7 @@
   },
   {
     "name": "field",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -901,7 +901,7 @@
   },
   {
     "name": "form",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -924,7 +924,7 @@
   },
   {
     "name": "formView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -948,7 +948,7 @@
   },
   {
     "name": "grid",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -972,7 +972,7 @@
   },
   {
     "name": "heading",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -996,7 +996,7 @@
   },
   {
     "name": "iconButton",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1020,7 +1020,7 @@
   },
   {
     "name": "image",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1044,7 +1044,7 @@
   },
   {
     "name": "infoBar",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1068,7 +1068,7 @@
   },
   {
     "name": "intent",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1092,7 +1092,7 @@
   },
   {
     "name": "jobCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1116,7 +1116,7 @@
   },
   {
     "name": "jsonTree",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1140,7 +1140,7 @@
   },
   {
     "name": "kanban",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1163,7 +1163,7 @@
   },
   {
     "name": "kanbanView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1187,7 +1187,7 @@
   },
   {
     "name": "listBox",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1210,7 +1210,7 @@
   },
   {
     "name": "listBoxView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1234,7 +1234,7 @@
   },
   {
     "name": "liveChart",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1257,7 +1257,7 @@
   },
   {
     "name": "liveChartView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1281,7 +1281,7 @@
   },
   {
     "name": "markdown",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1305,7 +1305,7 @@
   },
   {
     "name": "metricTile",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1329,7 +1329,7 @@
   },
   {
     "name": "navItem",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1353,7 +1353,7 @@
   },
   {
     "name": "neuronRef",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1377,7 +1377,7 @@
   },
   {
     "name": "progress",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1401,7 +1401,7 @@
   },
   {
     "name": "queryTable",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1424,7 +1424,7 @@
   },
   {
     "name": "queryTableView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1448,7 +1448,7 @@
   },
   {
     "name": "recordCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1472,7 +1472,7 @@
   },
   {
     "name": "row",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1496,7 +1496,7 @@
   },
   {
     "name": "secretCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1520,7 +1520,7 @@
   },
   {
     "name": "slider",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1543,7 +1543,7 @@
   },
   {
     "name": "sliderView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1567,7 +1567,7 @@
   },
   {
     "name": "spacer",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1591,7 +1591,7 @@
   },
   {
     "name": "splitPane",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1615,7 +1615,7 @@
   },
   {
     "name": "statCard",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1639,7 +1639,7 @@
   },
   {
     "name": "stepper",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1662,7 +1662,7 @@
   },
   {
     "name": "stepperView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1686,7 +1686,7 @@
   },
   {
     "name": "surface",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1710,7 +1710,7 @@
   },
   {
     "name": "tabStrip",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1733,7 +1733,7 @@
   },
   {
     "name": "tabStripView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1757,7 +1757,7 @@
   },
   {
     "name": "tagPill",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1781,7 +1781,7 @@
   },
   {
     "name": "text",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1805,7 +1805,7 @@
   },
   {
     "name": "toast",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1829,7 +1829,7 @@
   },
   {
     "name": "toggleSwitch",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1852,7 +1852,7 @@
   },
   {
     "name": "toggleSwitchView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1876,7 +1876,7 @@
   },
   {
     "name": "tree",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1899,7 +1899,7 @@
   },
   {
     "name": "treeView",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",
@@ -1923,7 +1923,7 @@
   },
   {
     "name": "webBrowser",
-    "appId": "uikit",
+    "appId": "gallery",
     "steps": [
       {
         "step": "act",

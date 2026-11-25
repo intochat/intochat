@@ -121,24 +121,15 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var settingsView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/settings/view").Read();
         Assert.NotNull(settingsView);
 
-        // 3. GalleryApp lifecycle on the real silo.
+        // 3. The UI Gallery on the real silo: a typed open command shows a page, and its view mounts control children only.
         var gallery = fixture.AttachSilo<GalleryApp>(brain);
-        await gallery.Open(new GalleryOpen());
-        Assert.Equal("cyber-synaptic", gallery.State.StylePreset);
-        Assert.Equal("split-top-dock", gallery.State.BarLayout);
-
-        await gallery.Filter(new GalleryFilter("chat-lfp", "Table"));
-        Assert.Equal("table-card", gallery.State.SelectedId);
-
-        await gallery.Select(new GallerySelect("brain-scene-3d"));
-        Assert.Equal("brain-scene-3d", gallery.State.SelectedId);
-
-        await gallery.SwitchIdentity(new GallerySwitchIdentity("fluent-acrylic", "floating-glass"));
-        Assert.Equal("fluent-acrylic", (await settingsNeuron.Read()).StylePreset);
+        await gallery.Open(new GalleryOpen("form"));
+        Assert.Equal("form", gallery.State.Page);
 
         await fixture.PublishAppViewToSiloAsync(brain, "gallery", null, gallery.Render());
         var galleryView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/gallery/view").Read();
         Assert.NotNull(galleryView);
+        Assert.DoesNotContain("\"ui.", galleryView.View.GetRawText(), StringComparison.Ordinal);
 
         // 4. PhotoCraftApp honest disconnected backend + local UI mode/layer lifecycle on the real silo.
         var photo = fixture.AttachSilo<PhotoCraftApp>(brain);

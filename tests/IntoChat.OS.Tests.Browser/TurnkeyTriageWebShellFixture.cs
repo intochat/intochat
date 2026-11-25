@@ -92,7 +92,7 @@ public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
     {
         try
         {
-            var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
+            var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/gallery/view");
             IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
 
             var originPort = FreePort();

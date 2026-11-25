@@ -75,7 +75,7 @@ void main() {
                   'label': 'Append point',
                   'command': {
                     'target': '.',
-                    'signal': 'uikit.append',
+                    'signal': 'gallery.append',
                     'args': <String, Object?>{},
                   },
                 },
@@ -94,14 +94,18 @@ void main() {
   testWidgets('a root button of a view the server marks for /act sends /act', (
     tester,
   ) async {
-    final sent = await pressRoot(tester, 'local/apps/uikit/view', acts: 'act');
+    final sent = await pressRoot(
+      tester,
+      'local/apps/gallery/view',
+      acts: 'act',
+    );
 
     expect(sent, [
       {
         'kind': 'act',
-        'neuron': 'local/apps/uikit',
+        'neuron': 'local/apps/gallery',
         'target': '.',
-        'signal': 'uikit.append',
+        'signal': 'gallery.append',
         'args': <String, Object?>{},
       },
     ]);
@@ -125,7 +129,7 @@ void main() {
           'kind': 'act',
           'neuron': neuron,
           'target': '.',
-          'signal': 'uikit.append',
+          'signal': 'gallery.append',
           'args': <String, Object?>{},
         },
       ]);
@@ -248,7 +252,7 @@ void main() {
   ) async {
     final sent = <Map<String, dynamic>>[];
     final ctx = NodeContext(
-      view: 'local/apps/uikit/view',
+      view: 'local/apps/gallery/view',
       generation: 2,
       send: (event) async {
         sent.add(event);
@@ -269,7 +273,7 @@ void main() {
                 children: [
                   FieldNode(
                     key: 'search',
-                    name: 'apps/uikit/search',
+                    name: 'apps/gallery/search',
                     fieldKind: FieldKind.search,
                     placeholder: 'Filter controls',
                     onSubmit: Command(
@@ -289,7 +293,7 @@ void main() {
                     badge: null,
                     command: Command(
                       target: '.',
-                      signal: 'uikit.navigate',
+                      signal: 'gallery.navigate',
                       args: {'page': 'overview'},
                       props: null,
                     ),
@@ -312,9 +316,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(sent.last, {
       'kind': 'act',
-      'neuron': 'local/apps/uikit',
+      'neuron': 'local/apps/gallery',
       'target': '.',
-      'signal': 'uikit.navigate',
+      'signal': 'gallery.navigate',
       'args': {'page': 'overview'},
     });
 
@@ -323,7 +327,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(sent.last, {
       'kind': 'act',
-      'neuron': 'local/apps/uikit',
+      'neuron': 'local/apps/gallery',
       'target': 'filter-slot',
       'signal': 'control.submit',
       'args': {'scope': 'all'},
