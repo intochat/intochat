@@ -11,12 +11,8 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
+using DigitalBrain.UI.Commands;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Tasks;
@@ -103,124 +99,148 @@ public sealed class TasksAppFacts
         Assert.Contains("no_completed_tasks", clearAgain.Rejection!.Rules);
     }
 
-    // ── Live Modules.UI Composition (Kanban, Stepper, Tabs, Table, CommandBar) ──
+    // ── Control children (control.kanban, control.stepper, control.tabStrip, control.queryTable) ──
+    // Tasks owns the board, the lifecycle, the tab and the selection; each child draws them from its props and only signals the
+    // person's change, which Tasks follows, applies to its state and renders back as props.
 
     [Fact]
-    public async Task KanbanBoard_MountsFourCanonicalColumnsAndPipelinedMovesSyncWithoutClobbering()
+    public async Task The_board_is_a_kanban_child_whose_props_are_the_four_stages_and_the_visible_tasks()
     {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
 
-        var kanban = os.Get<IKanbanBoard>(new NeuronId(LocalBrain, "ui.kanban", TasksApp.KanbanKey));
-        var initialBoard = await kanban.Read();
-        Assert.Equal(["backlog", "in-progress", "review", "done"], initialBoard.Columns.Select(c => c.Id));
-        Assert.Equal(["Backlog", "In Progress", "Review", "Done"], initialBoard.Columns.Select(c => c.Title));
-        Assert.Contains(initialBoard.Cards, c => c.Id == "task-3" && c.ColumnId == "backlog");
+        var board = PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey);
+        Assert.Equal(["backlog", "in-progress", "review", "done"], board.Columns.Select(c => c.Id));
+        Assert.Equal(["Backlog", "In Progress", "Review", "Done"], board.Columns.Select(c => c.Title));
+        Assert.Contains(board.Cards, c => c.Id == "task-3" && c.ColumnId == "backlog");
+        Assert.Equal(tasks.App.State.Tasks.Length, board.Cards.Count);
+        Assert.DoesNotContain(Nodes(tasks.App.Render()).OfType<NeuronRef>(), n => n.Kind.StartsWith("ui.", StringComparison.Ordinal));
+    }
 
-        // Fire pipelined back-to-back sequential moves on IKanbanBoard and verify anti-clobber sync.
-        var move1 = kanban.MoveCard("task-3", "in-progress");
-        var move2 = kanban.MoveCard("task-3", "review");
-        var move3 = kanban.MoveCard("task-3", "done");
-        await Task.WhenAll(move1, move2, move3);
-        await os.Idle();
+    [Fact]
+    public async Task Moving_a_card_through_the_board_child_moves_the_task_and_redraws_board_and_stepper()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
+
+        await Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "in-progress"));
+        await Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "review"));
+        await Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "done"));
 
         Assert.Equal("task-3", tasks.App.State.SelectedTaskId);
         Assert.Equal("done", tasks.App.State.SelectedTask?.Stage);
-
-        var finalBoard = await kanban.Read();
-        Assert.Equal("done", finalBoard.Cards.Single(c => c.Id == "task-3").ColumnId);
-
-        var stepper = os.Get<IStepper>(new NeuronId(LocalBrain, "ui.stepper", TasksApp.StepperKey));
-        var stepperState = await stepper.Read();
-        Assert.Equal("done", stepperState.ActiveStepId);
+        var view = tasks.App.Render();
+        Assert.Equal("done", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).Cards.Single(c => c.Id == "task-3").ColumnId);
+        Assert.Equal("task-3", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).SelectedCardId);
+        Assert.Equal("done", PropsOf<StepperProps>(view, TasksApp.StepperKey).ActiveStepId);
     }
 
     [Fact]
-    public async Task Stepper_SelectAndAdvanceTransitionSelectedTaskAndSyncKanban()
+    public async Task A_move_the_board_refuses_leaves_the_task_where_it_was()
     {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
 
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "nowhere")));
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.KanbanKey, new MoveCard("no-such-task", "done")));
+
+        Assert.Equal("backlog", tasks.App.State.Tasks.Single(t => t.Id == "task-3").Stage);
+    }
+
+    [Fact]
+    public async Task Selecting_a_card_selects_the_task()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
+
+        await Send(tasks, TasksApp.KanbanKey, new Select("task-2"));
+
+        Assert.Equal("task-2", tasks.App.State.SelectedTaskId);
+        Assert.Equal("task-2", PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey).SelectedCardId);
+    }
+
+    [Fact]
+    public async Task Choosing_a_step_moves_the_selected_task_to_that_stage()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
         await tasks.Request("select", new TasksSelect("task-3"));
-        Assert.Equal("backlog", tasks.App.State.SelectedTask?.Stage);
 
-        var stepper = os.Get<IStepper>(new NeuronId(LocalBrain, "ui.stepper", TasksApp.StepperKey));
-        var kanban = os.Get<IKanbanBoard>(new NeuronId(LocalBrain, "ui.kanban", TasksApp.KanbanKey));
+        var stepper = PropsOf<StepperProps>(tasks.App.Render(), TasksApp.StepperKey);
+        Assert.Equal(["backlog", "in-progress", "review", "done"], stepper.Steps.Select(s => s.Id));
+        Assert.Equal("backlog", stepper.ActiveStepId);
+        Assert.Equal(StepperStatus.Active, stepper.Steps[0].Status);
 
-        // Advance backlog -> in-progress -> review back-to-back
-        await stepper.Advance();
-        await stepper.Advance();
-        await os.Idle();
+        await Send(tasks, TasksApp.StepperKey, new Select("review"));
 
         Assert.Equal("review", tasks.App.State.SelectedTask?.Stage);
-        Assert.Equal("review", (await kanban.Read()).Cards.Single(c => c.Id == "task-3").ColumnId);
-
-        // Select "done" directly on IStepper
-        await stepper.Select("done");
-        await os.Idle();
-
-        Assert.Equal("done", tasks.App.State.SelectedTask?.Stage);
-        Assert.Equal("done", (await kanban.Read()).Cards.Single(c => c.Id == "task-3").ColumnId);
+        var view = tasks.App.Render();
+        Assert.Equal("review", PropsOf<StepperProps>(view, TasksApp.StepperKey).ActiveStepId);
+        Assert.Equal([StepperStatus.Done, StepperStatus.Done, StepperStatus.Active, StepperStatus.Pending],
+            PropsOf<StepperProps>(view, TasksApp.StepperKey).Steps.Select(s => s.Status));
+        Assert.Equal("review", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).Cards.Single(c => c.Id == "task-3").ColumnId);
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.StepperKey, new Select("shipped")));
     }
 
     [Fact]
-    public async Task Tabs_CommandBar_And_Table_DriveWorkspaceStateCleanly()
+    public async Task The_tab_strip_child_switches_between_board_table_and_approvals()
     {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        Assert.Equal("board", PropsOf<TabStripProps>(tasks.App.Render(), TasksApp.TabsKey).SelectedId);
+        Assert.Equal(["board", "table", "approvals"], PropsOf<TabStripProps>(tasks.App.Render(), TasksApp.TabsKey).Items.Select(i => i.Id));
 
-        var tabs = os.Get<ITabs>(new NeuronId(LocalBrain, "ui.tabs", TasksApp.TabsKey));
-        var cmdBar = os.Get<ICommandBar>(new NeuronId(LocalBrain, "ui.command-bar", TasksApp.CommandBarKey));
-        var table = os.Get<ITable>(new NeuronId(LocalBrain, "ui.table", TasksApp.TableKey));
-        var kanban = os.Get<IKanbanBoard>(new NeuronId(LocalBrain, "ui.kanban", TasksApp.KanbanKey));
-
-        // Pipelined tab switches: board -> table -> approvals -> legacy list/details
-        await tabs.Select("table");
-        await tabs.Select("approvals");
-        await os.Idle();
+        await Send(tasks, TasksApp.TabsKey, new Select("approvals"));
         Assert.Equal("approvals", tasks.App.State.ActiveTab);
-        var detailsWire = (await tasks.Screen.Read())!.View.GetRawText();
-        Assert.Contains("Task Details", detailsWire, StringComparison.Ordinal);
+        Assert.Contains("Task Details", (await ReadView(tasks)).GetRawText(), StringComparison.Ordinal);
 
-        await tabs.Select("table");
-        await os.Idle();
+        await Send(tasks, TasksApp.TabsKey, new Select("table"));
         Assert.Equal("table", tasks.App.State.ActiveTab);
-        var listWire = (await tasks.Screen.Read())!.View.GetRawText();
-        Assert.Contains(TasksApp.TableKey, listWire, StringComparison.Ordinal);
+        Assert.Equal("table", PropsOf<TabStripProps>(tasks.App.Render(), TasksApp.TabsKey).SelectedId);
+        Assert.NotNull(PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey));
 
         await tasks.Request("view", new TasksView("list"));
         Assert.Equal("list", tasks.App.State.ActiveTab);
-        await tasks.Request("view", new TasksView("board"));
-        Assert.Equal("board", tasks.App.State.ActiveTab);
+        Assert.Equal("table", PropsOf<TabStripProps>(tasks.App.Render(), TasksApp.TabsKey).SelectedId);
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.TabsKey, new Select("timeline")));
+    }
 
-        // Select row 2 ("task-3") from ITable
-        await table.SelectRow(2);
-        await os.Idle();
+    [Fact]
+    public async Task Selecting_a_table_row_selects_its_task_by_id()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("view", new TasksView("table"));
+
+        var table = PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey);
+        Assert.Equal(["id", "title", "stage", "owner", "tag"], table.Columns.Select(c => c.Id));
+        Assert.Equal(tasks.App.State.Tasks.Select(t => t.Id), table.Rows!.Select(r => r.Id));
+
+        await Send(tasks, TasksApp.TableKey, new SelectRow("task-3"));
+
         Assert.Equal("task-3", tasks.App.State.SelectedTaskId);
+        Assert.Equal("task-3", PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey).SelectedRowId);
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.TableKey, new SelectRow("no-such-task")));
+    }
 
-        // CommandBar actions: add-task, advance-stage, complete-task, clear-done
-        var beforeCount = tasks.App.State.Tasks.Length;
-        await cmdBar.Invoke("add-task");
-        await os.Idle();
-        Assert.Equal(beforeCount + 1, tasks.App.State.Tasks.Length);
-        var addedId = tasks.App.State.SelectedTaskId!;
-        Assert.Equal("backlog", tasks.App.State.SelectedTask?.Stage);
+    [Fact]
+    public async Task The_toolbar_and_inspector_buttons_still_add_advance_complete_and_clear()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
 
-        await cmdBar.Invoke("advance-stage");
-        await os.Idle();
+        var before = tasks.App.State.Tasks.Length;
+        await tasks.App.AddTaskCommand();
+        Assert.Equal(before + 1, tasks.App.State.Tasks.Length);
+        var added = tasks.App.State.SelectedTaskId!;
+        await tasks.App.AdvanceStageCommand();
         Assert.Equal("in-progress", tasks.App.State.SelectedTask?.Stage);
-
-        await cmdBar.Invoke("complete-task");
-        await os.Idle();
+        await tasks.App.CompleteTaskCommand();
         Assert.Equal("done", tasks.App.State.SelectedTask?.Stage);
+        await tasks.App.ClearDoneCommand();
 
-        await cmdBar.Invoke("clear-done");
-        await os.Idle();
         Assert.DoesNotContain(tasks.App.State.Tasks, t => t.Stage == "done");
-        Assert.DoesNotContain((await kanban.Read()).Cards, c => c.Id == addedId);
+        Assert.DoesNotContain(PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey).Cards, c => c.Id == added);
     }
 
     // ── Live Brain Flows, Timeline, Approvals & Synapse Studio Integration ───
@@ -388,7 +408,7 @@ public sealed class TasksAppFacts
     public async Task ListFiltersByQuery()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         FakeFlows.Views =
         [
             Flow("a", FlowStatus.Running) with { Owner = "ann" },
@@ -399,10 +419,9 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         await tasks.Request("filter", new TasksFilter(Owner: "ann", Status: "Running"));
 
-        var table = os.Get<ITable>(new NeuronId(LocalBrain, "ui.table", TasksApp.TableKey));
-        var tableState = await table.Read();
-        var row = Assert.Single(tableState.Rows);
-        Assert.Equal("Task a", row[1]);
+        await tasks.Request("view", new TasksView("table"));
+        var row = Assert.Single(PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey).Rows!);
+        Assert.Equal("Task a", row.Cells[1]);
     }
 
     [Fact]
@@ -465,7 +484,7 @@ public sealed class TasksAppFacts
     public async Task FlowsChangedRefreshesTheBoard()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
         await tasks.Request("open", new TasksOpen());
         FakeFlows.Views = [Flow("late", FlowStatus.Running)];
@@ -473,8 +492,7 @@ public sealed class TasksAppFacts
         await tasks.App.OnFlowsChanged(new FlowsChanged(FakeFlows.Views[0].FlowId));
 
         Assert.Contains("Task late", Strings(tasks.App.Render()));
-        var kanban = os.Get<IKanbanBoard>(new NeuronId(LocalBrain, "ui.kanban", TasksApp.KanbanKey));
-        Assert.Contains((await kanban.Read()).Cards, c => c.Title == "Task late" && c.ColumnId == "in-progress");
+        Assert.Contains(PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey).Cards, c => c.Title == "Task late" && c.ColumnId == "in-progress");
     }
 
     [Fact]
@@ -498,7 +516,7 @@ public sealed class TasksAppFacts
     public async Task TasksShell_RendersSingleRowToolbarFullBleedKanbanAndTableWithZeroCommandBarClutter()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         var engFlow = Flow("eng-1", FlowStatus.Running, type: "flow.engineer");
         FakeFlows.Views = [engFlow];
         var tasks = await os.Install<TasksApp>();
@@ -510,12 +528,11 @@ public sealed class TasksAppFacts
         Assert.NotNull(shell.Sidebar);
         Assert.NotNull(shell.Inspector);
 
-        // Single <=44px horizontal Row top bar with ui.tabs, filter chips, New Task, and Engineer/Creator deep-links
+        // Single <=44px horizontal Row top bar with the tab strip child, filter chips, New Task, and Engineer/Creator deep-links
         var topRow = Assert.IsType<Row>(shell.Toolbar);
         var topNeuronRefs = Nodes(topRow).OfType<NeuronRef>().ToArray();
-        Assert.Contains(topNeuronRefs, n => n.Kind == "ui.tabs" && n.NeuronUri == TasksApp.TabsKey);
-        Assert.DoesNotContain(Nodes(view).OfType<NeuronRef>(), n => n.Kind == "ui.command-bar");
-        Assert.DoesNotContain(Nodes(topRow).OfType<NeuronRef>(), n => n.Kind == "ui.stepper");
+        Assert.Equal(TasksApp.TabsKey, ChildKey(Assert.Single(topNeuronRefs)));
+        Assert.DoesNotContain(Nodes(view).OfType<NeuronRef>(), n => n.Kind != "slot");
 
         var topButtons = Nodes(topRow).OfType<Button>().ToArray();
         Assert.Contains(topButtons, b => b.Key == "tasks:add" && b.Label == "New Task");
@@ -531,8 +548,7 @@ public sealed class TasksAppFacts
         var boardCol = Assert.IsType<Column>(shell.Body);
         Assert.Equal([1.0], boardCol.Extents);
         var kanbanRef = Assert.IsType<NeuronRef>(Assert.Single(boardCol.Children));
-        Assert.Equal("ui.kanban", kanbanRef.Kind);
-        Assert.Equal(TasksApp.KanbanKey, kanbanRef.NeuronUri);
+        Assert.Equal(TasksApp.KanbanKey, ChildKey(kanbanRef));
 
         // Switch to Table tab -> full-bleed Table body: Column with Extents = [1.0]
         await tasks.Request("view", new TasksView("table"));
@@ -540,15 +556,14 @@ public sealed class TasksAppFacts
         var tableCol = Assert.IsType<Column>(tableShell.Body);
         Assert.Equal([1.0], tableCol.Extents);
         var tableRef = Assert.IsType<NeuronRef>(Assert.Single(tableCol.Children));
-        Assert.Equal("ui.table", tableRef.Kind);
-        Assert.Equal(TasksApp.TableKey, tableRef.NeuronUri);
+        Assert.Equal(TasksApp.TableKey, ChildKey(tableRef));
     }
 
     [Fact]
     public async Task TasksInspector_SurfacesFlowStagesShaBoundConfirmationsAndGitHubIssueTriageDrafts()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         os.Register<FakeGitHubRepository>();
 
         const string commitSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -582,7 +597,7 @@ public sealed class TasksAppFacts
         var inspectorText = Strings(shell.Inspector).ToArray();
 
         // 1. Flow stages & Stepper inside collapsible right inspector
-        Assert.Contains(inspectorNodes.OfType<NeuronRef>(), n => n.Kind == "ui.stepper" && n.NeuronUri == TasksApp.StepperKey);
+        Assert.Contains(inspectorNodes.OfType<NeuronRef>(), n => ChildKey(n) == TasksApp.StepperKey);
         Assert.Contains(inspectorNodes.OfType<JobCardNode>(), j => j.Title == waitingFlow.Title);
 
         // 2. SHA-bound confirmation details + human Person rule reminder
@@ -603,7 +618,7 @@ public sealed class TasksAppFacts
     {
         var ct = TestContext.Current.CancellationToken;
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         var flow = Flow("nav-1", FlowStatus.Running);
         FakeFlows.Views = [flow];
         var tasks = await os.Install<TasksApp>();
@@ -636,7 +651,7 @@ public sealed class TasksAppFacts
     public async Task IssueTriageDraftActions_RenderButtonsInInspectorAndApprovalsTabAndApprovePostsCommentWithPersonAuthority()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         os.Register<FakeGitHubRepository>();
 
         const string previewId = "draft-approve-101";
@@ -654,11 +669,11 @@ public sealed class TasksAppFacts
         var tasks = await os.Install<TasksApp>();
         await tasks.Request("open", new TasksOpen());
 
-        // 1. On Board tab: body stays 100% full-bleed ui.kanban ([1.0]) and right inspector renders the 3 triage action buttons + Studio deep-link
+        // 1. On Board tab: body stays 100% full-bleed kanban child ([1.0]) and right inspector renders the 3 triage action buttons + Studio deep-link
         var boardShell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
         var boardCol = Assert.IsType<Column>(boardShell.Body);
         Assert.Equal([1.0], boardCol.Extents);
-        Assert.Equal("ui.kanban", Assert.IsType<NeuronRef>(Assert.Single(boardCol.Children)).Kind);
+        Assert.Equal(TasksApp.KanbanKey, ChildKey(Assert.IsType<NeuronRef>(Assert.Single(boardCol.Children))));
 
         var inspectorButtons = Nodes(boardShell.Inspector).OfType<Button>().ToArray();
         Assert.Contains(inspectorButtons, b => b.Key == $"tasks:approve-issue-draft:{previewId}");
@@ -699,7 +714,7 @@ public sealed class TasksAppFacts
     public async Task IssueTriageDraftDismiss_RemovesPendingDraftWithoutPostingToGitHub()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         os.Register<FakeGitHubRepository>();
 
         const string previewId = "draft-dismiss-102";
@@ -733,7 +748,7 @@ public sealed class TasksAppFacts
     public async Task IssueTriageEscalate_ReadsIssueStartsEngineerRunLinksStudioIntentAndPreservesFullBleedAndExplorerHealth()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
-        await using var os = FakeOsWithUi();
+        await using var os = FakeOs();
         os.Register<FakeGitHubRepository>();
 
         const string previewId = "draft-escalate-103";
@@ -822,14 +837,39 @@ public sealed class TasksAppFacts
         os.Register<FakeApprovals>();
         os.Register<FakeFocus>();
         os.Register<FakeSynapses>();
+        // Tasks mounts the UI module's control neurons as its children and follows their signals.
+        os.Register(typeof(UiModule).Assembly);
         return os;
     }
 
-    private static TestOS FakeOsWithUi()
+    // A command to Tasks' child `key`, sent through Tasks' gate as the person, as the client's /act does.
+    private static async Task Send(InstalledApp<TasksApp> tasks, string key, Signal command)
     {
-        var os = FakeOs();
-        os.Register(typeof(UiModule).Assembly);
-        return os;
+        var alias = command.GetType().GetCustomAttributes(typeof(SignalAttribute), false).Cast<SignalAttribute>().Single().Alias;
+        using (tasks.OS.Edge.Enter(tasks.OS.Edge.Person("local", "local", LocalBrain)))
+        {
+            await tasks.Screen.Dispatch(new Command(key, alias, JsonSerializer.SerializeToElement(command, command.GetType(), JsonSerializerOptions.Web)));
+        }
+        await tasks.OS.Idle();
+    }
+
+    private static async Task<JsonElement> ReadView(InstalledApp<TasksApp> tasks)
+    {
+        using var person = tasks.OS.Edge.Enter(tasks.OS.Edge.Person("local", "local", LocalBrain));
+        return (await tasks.Screen.Read())!.View;
+    }
+
+    private static string ChildKey(NeuronRef child)
+    {
+        Assert.Equal("slot", child.Kind);
+        return child.NeuronUri[(child.NeuronUri.LastIndexOf('/') + 1)..];
+    }
+
+    // The props Tasks drew for its child `key`.
+    private static T PropsOf<T>(View view, string key) where T : ControlProps
+    {
+        var child = Assert.Single(Nodes(view).OfType<NeuronRef>(), n => n.Kind == "slot" && ChildKey(n) == key);
+        return child.Props!.Value.Deserialize<T>(JsonSerializerOptions.Web)!;
     }
 
     private static IEnumerable<Node> Nodes(object? value) => value switch

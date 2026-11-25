@@ -34,63 +34,66 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 
         await page.GotoAsync(host.ShellFor("apps/tasks/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
         await page.KeyedNode("tasks-shell").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
-        await page.KanbanBoard(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
+        await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
 
         try
         {
-            // 1. Hard 1440x900 geometry & zero-clutter assertions: full-bleed ui.kanban (>= 70%h = >= 630px), <= 52px header, 0 duplicate ui.command-bar
-            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.command-bar:").CountAsync().WaitAsync(ct));
-            await page.Stepper(TasksApp.StepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.tabs", TasksApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.KanbanBoard(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            // 1. Hard 1440x900 geometry & zero-clutter assertions: full-bleed kanban child (>= 70%h = >= 630px), <= 52px header, no ui.* neuron
+            foreach (var oldKind in new[] { "ui.command-bar", "ui.kanban", "ui.stepper", "ui.tabs", "ui.table" })
+            {
+                Assert.Equal(0, await page.SemanticsPrefix($"neuron:{oldKind}:").CountAsync().WaitAsync(ct));
+            }
+            await page.SlotNode(TasksApp.StepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(TasksApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
 
-            var kanbanBox = await page.MeasureNeuronBoxAsync("ui.kanban", TasksApp.KanbanKey, minWidth: 450f, minHeight: 630f, ct);
+            var kanbanBox = await page.SlotNode(TasksApp.KanbanKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Studio Kanban Board: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
             Assert.True(
                 kanbanBox.HeightRatio(StudioViewportHeight) >= 0.70f && kanbanBox.Height >= 630f,
-                string.Create(CultureInfo.InvariantCulture, $"TasksApp ui.kanban must occupy >= 70% of 900px viewport (>= 630px), measured: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+                string.Create(CultureInfo.InvariantCulture, $"TasksApp kanban must occupy >= 70% of 900px viewport (>= 630px), measured: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
             Assert.True(
                 kanbanBox.Y <= 52f,
                 string.Create(CultureInfo.InvariantCulture, $"TasksApp top header must be <= 52px (kanban Y <= 52px), measured: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
             foreach (var cardId in new[] { "task-1", "task-2", "task-3" })
             {
-                await page.KanbanCard(cardId).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+                await page.SemanticsId($"card:{cardId}").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             }
 
             await page.WaitForTimeoutAsync(250).WaitAsync(ct);
 
-            var stepperInitial = await page.ReadStepperTextAsync(TasksApp.StepperKey, ct);
+            var stepperInitial = await page.ReadSemanticsSubtreeTextAsync($"slot:{TasksApp.StepperKey}", ct);
             Assert.Contains("Backlog", stepperInitial, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Done", stepperInitial, StringComparison.OrdinalIgnoreCase);
 
             // 2. Move seeded backlog card task-3 ("Verify Kanban & Stepper push sync") right -> In Progress
-            await page.MoveKanbanCardRightAsync("task-3", ct);
+            await MoveCardRightAsync(page, "task-3", ct);
             await WaitForSemanticsTextContainsAsync(page, "Moved 'Verify Kanban & Stepper push sync' to In Progress.", ct);
             await WaitForStepperContainsAsync(page, TasksApp.StepperKey, "Verify Kanban & Stepper push sync", ct);
 
-            // 3. Drive IStepper stage advancement -> moves task-3 from In Progress to Review via push sync
-            await page.AdvanceStepperAsync(TasksApp.StepperKey, ct);
+            // 3. The inspector's Advance button moves task-3 from In Progress to Review; board and stepper redraw from Tasks' props
+            await page.ClickButtonAsync("tasks:advance", ct);
             await WaitForSemanticsTextContainsAsync(page, "Moved 'Verify Kanban & Stepper push sync' to Review.", ct);
 
-            // 4. Drive ITabs across Table (ITable), Approvals, and back to Board (IKanbanBoard) via ViewHost push
-            await page.SelectTabAsync(TasksApp.TabsKey, "Table", ct);
-            await page.Neuron("ui.table", TasksApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            var tableBox = await page.MeasureNeuronBoxAsync("ui.table", TasksApp.TableKey, minWidth: 450f, minHeight: 630f, ct);
+            // 4. The tab strip child switches to Table, Approvals and back to Board via ViewHost push
+            await SelectTasksTabAsync(page, "Table", ct);
+            await page.SlotNode(TasksApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            var tableBox = await page.SlotNode(TasksApp.TableKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Studio Table View: {tableBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
             Assert.True(
                 tableBox.HeightRatio(StudioViewportHeight) >= 0.70f && tableBox.Y <= 52f,
-                string.Create(CultureInfo.InvariantCulture, $"TasksApp ui.table must occupy >= 70%h with <= 52px header, measured: {tableBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+                string.Create(CultureInfo.InvariantCulture, $"TasksApp table must occupy >= 70%h with <= 52px header, measured: {tableBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
-            await page.SelectTabAsync(TasksApp.TabsKey, "Approvals", ct);
+            await SelectTasksTabAsync(page, "Approvals", ct);
             await page.WaitForTimeoutAsync(200).WaitAsync(ct);
 
-            await page.SelectTabAsync(TasksApp.TabsKey, "Board", ct);
-            await page.KanbanBoard(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await SelectTasksTabAsync(page, "Board", ct);
+            await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
-            // 5. Exercise compact top-bar "New Task" button (tasks:add -> task-4 on KanbanBoard)
+            // 5. Exercise compact top-bar "New Task" button (tasks:add -> task-4 on the board)
             await page.ClickButtonAsync("tasks:add", ct);
-            await page.KanbanCard("task-4").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SemanticsId("card:task-4").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             // 6. Out-of-band server-side TasksMove (ZERO browser clicks!) -> pushes task-4 into Done
             using var kernel = host.CreateKernelClient();
@@ -203,13 +206,32 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
     {
         for (var i = 0; i < 60; i++)
         {
-            var current = await page.ReadStepperTextAsync(key, ct);
+            var current = await page.ReadSemanticsSubtreeTextAsync($"slot:{key}", ct);
             if (current.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
             await page.WaitForTimeoutAsync(150).WaitAsync(ct);
         }
-        Assert.Contains(expectedSubstring, await page.ReadStepperTextAsync(key, ct), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedSubstring, await page.ReadSemanticsSubtreeTextAsync($"slot:{key}", ct), StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The board's own "Move right" arrow on a card (control.kanban draws it as a tooltip button), which sends control.moveCard.
+    private static async Task MoveCardRightAsync(IPage page, string cardId, CancellationToken ct)
+    {
+        var card = page.SemanticsId($"card:{cardId}").First;
+        await card.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        var byRole = card.GetByRole(AriaRole.Button, new() { Name = "Move right" }).First;
+        var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : card.Locator("[aria-label='Move right']").First;
+        await target.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+    }
+
+    internal static async Task SelectTasksTabAsync(IPage page, string label, CancellationToken ct)
+    {
+        var strip = page.SlotNode(TasksApp.TabsKey).First;
+        await strip.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        var byRole = strip.GetByRole(AriaRole.Tab, new() { Name = label, Exact = true }).First;
+        var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : strip.GetByText(label, new() { Exact = true }).First;
+        await target.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
     }
 }

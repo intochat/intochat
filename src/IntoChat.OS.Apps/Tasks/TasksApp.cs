@@ -5,7 +5,7 @@ Shipped: true
 Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue, ui.command
 
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
-and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, `ITable`, `ICommandBar`).
+and `control.*` children (`IKanbanControl`, `IStepperControl`, `ITabStripControl`, `IQueryTableControl`).
 */
 using IntoChat.OS.Host.Apps;
 using System.Globalization;
@@ -21,20 +21,14 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Modules.UI.Controls;
+using CardMoved = DigitalBrain.UI.Commands.CardMoved;
+using RowSelected = DigitalBrain.UI.Commands.RowSelected;
+using SelectionChanged = DigitalBrain.UI.Commands.SelectionChanged;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.CommandBar.Signals;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.KanbanBoard.Signals;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Stepper.Signals;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Table.Signals;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -111,11 +105,11 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     public const string AppName = "tasks";
     public const string AppOwner = "app.tasks";
 
-    public const string KanbanKey = "tasks/kanban";
-    public const string StepperKey = "tasks/stepper";
-    public const string TabsKey = "tasks/tabs";
-    public const string TableKey = "tasks/table";
-    public const string CommandBarKey = "tasks/command-bar";
+    // The keys of Tasks' control children, each at {app id}/{key}.
+    public const string KanbanKey = "kanban";
+    public const string StepperKey = "stepper";
+    public const string TabsKey = "tabs";
+    public const string TableKey = "table";
 
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
@@ -128,11 +122,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     [Slot(Key = IFocus.DefaultKey, Required = false)] private partial IFocus? Focus { get; }
     [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
     [Slot(Key = "main", Required = false)] private partial IConnectionCatalog? ConnectionCatalog { get; }
-    [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
-    [Slot(Key = TabsKey, Required = false)] private partial ITabs? Tabs { get; }
-    [Slot(Key = StepperKey, Required = false)] private partial IStepper? Stepper { get; }
-    [Slot(Key = KanbanKey, Required = false)] private partial IKanbanBoard? Kanban { get; }
-    [Slot(Key = TableKey, Required = false)] private partial ITable? Table { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<TasksApp>();
@@ -143,9 +132,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     private Approval[] _approvals = [];
     private ConfirmationRequested[] _confirmations = [];
     private PendingIssueTriageDraft[] _issueDrafts = [];
-    private int _lastSyncedKanbanVersion;
-    private int _lastSyncedStepperVersion;
-    private int _lastSyncedTabsVersion;
 
     public TasksApp() : this(null, null) { }
 
@@ -196,7 +182,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     public View RenderSide() => RenderSideCore(State, _flows, _approvals, State.Source);
 
     protected override Node Render(TasksWorkspaceState state)
-        => RenderRootCore(state, LastRejection, _flows, _approvals, _confirmations, _issueDrafts, NowUtc(), ActiveTransition);
+        => RenderRootCore(Children, state, LastRejection, _flows, _approvals, _confirmations, _issueDrafts, NowUtc(), ActiveTransition);
 
     public async Task OnNavigatedTo(NavigationArrival<TasksNavArgs> arrival, CancellationToken cancellationToken = default)
     {
@@ -227,11 +213,11 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
 
-        await TryFollowOptionalAsync<IKanbanBoard, KanbanBoardChanged>(KanbanKey);
-        await TryFollowOptionalAsync<IStepper, StepperChanged>(StepperKey);
-        await TryFollowOptionalAsync<ITabs, TabChanged>(TabsKey);
-        await TryFollowOptionalAsync<ITable, TableRowSelected>(TableKey);
-        await TryFollowOptionalAsync<ICommandBar, CommandBarInvoked>(CommandBarKey);
+        await FollowChild<IKanbanControl, CardMoved>(KanbanKey);
+        await FollowChild<IKanbanControl, SelectionChanged>(KanbanKey);
+        await FollowChild<IStepperControl, SelectionChanged>(StepperKey);
+        await FollowChild<ITabStripControl, SelectionChanged>(TabsKey);
+        await FollowChild<IQueryTableControl, RowSelected>(TableKey);
         await TryFollowOptionalAsync<IFlows, FlowsChanged>(FlowsKey);
 
         await RefreshFlowsAndSyncAsync();
@@ -257,7 +243,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         await Show(State.SelectTab(request.View));
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -274,7 +259,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         await Show(State.SelectTaskOrFlow(request.FlowId));
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -300,13 +284,11 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             {
                 _logger.LogSwallowed(error, "The plan flow could not start; recording status on TasksWorkspaceState.");
                 await Show(State.WithStatus($"Could not start: {error.Message}"));
-                await SyncUiNeuronsAsync();
                 return;
             }
         }
 
         await ApplyDecisionAsync(State.AddTask(title, description, stage));
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -343,7 +325,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if (next != State)
         {
             await Show(next);
-            await SyncUiNeuronsAsync();
         }
     }
 
@@ -388,7 +369,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         var unit = await UnitOfAsync(flowId);
         var source = unit is null ? await StagedSourceAsync(flowId) : await SourceOfAsync(unit);
         await Show(State.WithSource(flowId, source));
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -403,7 +383,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             await focus.Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
         }
         await Show(State.WithStatus($"Asked Ino to change {alias}"));
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -412,7 +391,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.TaskId) is not { } taskId || Blank(request.Stage) is not { } stage) { return; }
         await ApplyDecisionAsync(State.MoveTask(taskId, stage));
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -420,7 +398,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         await ApplyDecisionAsync(State.AdvanceSelectedStage());
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -428,7 +405,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         await ApplyDecisionAsync(State.CompleteSelectedTask());
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -436,7 +412,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         await ApplyDecisionAsync(State.ClearDoneTasks());
-        await SyncUiNeuronsAsync();
     }
 
     [On]
@@ -446,7 +421,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if ((Blank(request.PreviewId) ?? Blank(State.FocusedDraftPreviewId)) is not { } previewId)
         {
             await Show(State.WithStatus("Select a pending issue triage draft to approve."));
-            await SyncUiNeuronsAsync();
             return;
         }
 
@@ -489,7 +463,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if ((Blank(request.PreviewId) ?? Blank(State.FocusedDraftPreviewId)) is not { } previewId)
         {
             await Show(State.WithStatus("Select a pending issue triage draft to dismiss."));
-            await SyncUiNeuronsAsync();
             return;
         }
 
@@ -534,7 +507,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if (issueNumber <= 0)
         {
             await Show(State.WithStatus("Select a GitHub issue with a valid number to escalate to Engineer Studio."));
-            await SyncUiNeuronsAsync();
             return;
         }
 
@@ -578,7 +550,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             {
                 _logger.LogSwallowed(error, "The Engineer flow could not start; recording status on TasksWorkspaceState.");
                 await Show(State.WithStatus($"Could not escalate issue: {error.Message}"));
-                await SyncUiNeuronsAsync();
                 return;
             }
         }
@@ -597,25 +568,21 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         var title = Blank(State.Draft.Title) ?? string.Create(CultureInfo.InvariantCulture, $"Task #{State.NextTaskSequence}");
         await ApplyDecisionAsync(State.AddTask(title, State.Draft.Description, "backlog"));
-        await SyncUiNeuronsAsync();
     }
 
     public async Task AdvanceStageCommand()
     {
         await ApplyDecisionAsync(State.AdvanceSelectedStage());
-        await SyncUiNeuronsAsync();
     }
 
     public async Task CompleteTaskCommand()
     {
         await ApplyDecisionAsync(State.CompleteSelectedTask());
-        await SyncUiNeuronsAsync();
     }
 
     public async Task ClearDoneCommand()
     {
         await ApplyDecisionAsync(State.ClearDoneTasks());
-        await SyncUiNeuronsAsync();
     }
 
     public Task SelectFlowCommand(string flowId) => Select(new TasksSelect(flowId));
@@ -648,162 +615,53 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         return Filter(new TasksFilter(Owner: nextOwner, Status: State.Query.Status?.ToString(), Type: State.Query.Type));
     }
 
-    // ── Modules.UI & Flows Synapse Reactions (Version-Guarded Anti-Clobber) ──
+    // ── Control children: each signals the person's change; Tasks applies it and renders it back as props ──
 
     [On]
-    public async Task OnKanbanChanged(KanbanBoardChanged? changed)
+    public async Task OnCardMoved(CardMoved moved)
     {
-        if (changed is null || string.IsNullOrWhiteSpace(changed.BoardId))
-        {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(changed.BoardId, KanbanKey) || changed.Version <= _lastSyncedKanbanVersion)
-        {
-            return;
-        }
-
-        _lastSyncedKanbanVersion = Math.Max(_lastSyncedKanbanVersion, changed.Version);
-
-        if (!string.IsNullOrWhiteSpace(changed.MovedCardId) && !string.IsNullOrWhiteSpace(changed.TargetColumnId))
-        {
-            var movedId = changed.MovedCardId.Trim();
-            var targetStage = TasksWorkspaceState.TryNormalizeStage(changed.TargetColumnId);
-            if (targetStage is not null)
-            {
-                await ApplyDecisionAsync(State.MoveTask(movedId, targetStage));
-                await SyncUiNeuronsAsync(skipKanbanConfigure: true);
-            }
-
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(changed.SelectedCardId)
-            && !string.Equals(changed.SelectedCardId, State.SelectedTaskId, StringComparison.Ordinal))
-        {
-            var selectedId = changed.SelectedCardId.Trim();
-            if (!State.Tasks.Any(t => string.Equals(t.Id, selectedId, StringComparison.Ordinal))
-                && Kanban is { } kanban)
-            {
-                var boardState = await kanban.Read();
-                if (boardState.Cards.FirstOrDefault(c => string.Equals(c.Id, selectedId, StringComparison.Ordinal)) is { } newCard)
-                {
-                    await ApplyDecisionAsync(State.AddTask(newCard.Title, newCard.Subtitle, newCard.ColumnId));
-                }
-            }
-
-            await Show(State.SelectTaskOrFlow(selectedId));
-            await SyncUiNeuronsAsync(skipKanbanConfigure: true);
-        }
+        ArgumentNullException.ThrowIfNull(moved);
+        if (SignalChild != KanbanKey || TasksWorkspaceState.TryNormalizeStage(moved.ColumnId) is not { } stage) { return; }
+        await ApplyDecisionAsync(State.MoveTask(moved.CardId, stage));
     }
 
     [On]
-    public async Task OnStepperChanged(StepperChanged? changed)
+    public Task OnSelectionChanged(SelectionChanged changed)
     {
-        if (changed is null || string.IsNullOrWhiteSpace(changed.StepperId) || string.IsNullOrWhiteSpace(changed.ActiveStepId))
+        ArgumentNullException.ThrowIfNull(changed);
+        return SignalChild switch
         {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(changed.StepperId, StepperKey) || changed.Version <= _lastSyncedStepperVersion)
-        {
-            return;
-        }
-
-        _lastSyncedStepperVersion = Math.Max(_lastSyncedStepperVersion, changed.Version);
-
-        var targetStage = TasksWorkspaceState.TryNormalizeStage(changed.ActiveStepId);
-        if (targetStage is null || State.SelectedTask is not { } selected)
-        {
-            return;
-        }
-
-        if (string.Equals(selected.Stage, targetStage, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        await ApplyDecisionAsync(State.MoveTask(selected.Id, targetStage));
-        await SyncUiNeuronsAsync(skipStepperConfigure: true);
-    }
-
-    [On]
-    public async Task OnTabChanged(TabChanged? changed)
-    {
-        if (changed is null || string.IsNullOrWhiteSpace(changed.TabsId) || string.IsNullOrWhiteSpace(changed.SelectedId))
-        {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(changed.TabsId, TabsKey) || changed.Version <= _lastSyncedTabsVersion)
-        {
-            return;
-        }
-
-        _lastSyncedTabsVersion = Math.Max(_lastSyncedTabsVersion, changed.Version);
-        var normalized = TasksWorkspaceState.NormalizeTab(changed.SelectedId);
-        if (string.Equals(State.ActiveTab, normalized, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        await Show(State.SelectTab(normalized));
-        await SyncUiNeuronsAsync(skipTabsConfigure: true);
-    }
-
-    [On]
-    public async Task OnTableRowSelected(TableRowSelected? selected)
-    {
-        if (selected is null || string.IsNullOrWhiteSpace(selected.TableId) || selected.RowIndex is not { } rowIndex || rowIndex < 0)
-        {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(selected.TableId, TableKey))
-        {
-            return;
-        }
-
-        var visible = State.FilteredTasks(_flows);
-        if (rowIndex < visible.Length)
-        {
-            var chosen = visible[rowIndex];
-            if (!string.Equals(State.SelectedTaskId, chosen.Id, StringComparison.Ordinal))
-            {
-                await Show(State.SelectTaskOrFlow(chosen.Id));
-                await SyncUiNeuronsAsync();
-            }
-        }
-    }
-
-    [On]
-    public Task OnCommandBarInvoked(CommandBarInvoked? invoked)
-    {
-        if (invoked is null || string.IsNullOrWhiteSpace(invoked.BarId) || string.IsNullOrWhiteSpace(invoked.ItemId))
-        {
-            return Task.CompletedTask;
-        }
-
-        if (!MatchesNeuronSourceKey(invoked.BarId, CommandBarKey))
-        {
-            return Task.CompletedTask;
-        }
-
-        return invoked.ItemId switch
-        {
-            "add-task" => AddTaskCommand(),
-            "advance-stage" => AdvanceStageCommand(),
-            "complete-task" => CompleteTaskCommand(),
-            "clear-done" => ClearDoneCommand(),
+            KanbanKey => Show(State.SelectTaskOrFlow(changed.Id)),
+            StepperKey => MoveSelectedTaskAsync(changed.Id),
+            TabsKey => Show(State.SelectTab(changed.Id)),
             _ => Task.CompletedTask,
         };
+    }
+
+    [On]
+    public Task OnRowSelected(RowSelected selected)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        return SignalChild == TableKey ? Show(State.SelectTaskOrFlow(selected.RowId)) : Task.CompletedTask;
+    }
+
+    // The stepper names a stage: the selected task moves there.
+    private async Task MoveSelectedTaskAsync(string stepId)
+    {
+        if (TasksWorkspaceState.TryNormalizeStage(stepId) is not { } stage || State.SelectedTask is not { } selected
+            || string.Equals(selected.Stage, stage, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await ApplyDecisionAsync(State.MoveTask(selected.Id, stage));
     }
 
     [On]
     public Task OnFlowsChanged(FlowsChanged? changed)
         => changed is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
 
-    // ── Live Synchronization with Modules.UI & Brain Flows ───────────────────
+    // ── Live Synchronization with Brain Flows ────────────────────────────────
 
     private async Task RefreshFlowsAndSyncAsync()
     {
@@ -836,7 +694,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
         var synced = State.SyncLiveFlows(_flows);
         await Show(synced with { Status = synced.Status });
-        await SyncUiNeuronsAsync();
     }
 
     private async Task<ConfirmationRequested[]> TryReadConfirmationsAsync()
@@ -941,8 +798,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         where TNeuron : class
         where TSignal : Signal
         => FollowOptionalAsync<TNeuron, TSignal>(key, _logger);
-
-    private static Node UiNeuron(string kind, string key) => new NeuronRef(kind, key);
 
     private static string FlowKey(string flowId) => flowId[(flowId.LastIndexOf('/') + 1)..];
 

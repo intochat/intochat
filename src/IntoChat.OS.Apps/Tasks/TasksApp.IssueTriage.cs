@@ -5,7 +5,7 @@ Shipped: true
 Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue, ui.command
 
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
-and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, `ITable`, `ICommandBar`).
+and `control.*` children (`IKanbanControl`, `IStepperControl`, `ITabStripControl`, `IQueryTableControl`).
 */
 using System.Globalization;
 using System.Text.Json;
@@ -25,16 +25,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.CommandBar.Signals;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.KanbanBoard.Signals;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Stepper.Signals;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Table.Signals;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

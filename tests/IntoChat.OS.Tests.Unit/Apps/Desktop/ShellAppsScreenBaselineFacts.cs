@@ -203,6 +203,8 @@ public sealed class ShellAppsScreenBaselineFacts
         {
             os.RegisterCatalog();
             os.Register(typeof(TasksApp).Assembly);
+            // Tasks mounts the control neurons of the UI module.
+            os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         });
 
         foreach (var testCase in cases)

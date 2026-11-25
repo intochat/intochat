@@ -5,7 +5,7 @@ Shipped: true
 Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue, ui.command
 
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
-and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, `ITable`, `ICommandBar`).
+and `control.*` children (`IKanbanControl`, `IStepperControl`, `ITabStripControl`, `IQueryTableControl`).
 */
 using System.Globalization;
 using System.Text.Json;
@@ -19,22 +19,13 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.CommandBar.Signals;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.KanbanBoard.Signals;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Stepper.Signals;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Table.Signals;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -44,7 +35,7 @@ namespace IntoChat.OS.Apps.Tasks;
 
 public sealed partial class TasksApp
 {
-    // ── Declarative View Composition (AppShellNode + Modules.UI) ─────────────
+    // ── Declarative View Composition (AppShellNode + control children) ───────
 
     public static string FieldKey(string field) => $"apps/{AppName}/{field}";
 
@@ -64,7 +55,94 @@ public sealed partial class TasksApp
                 FlowId: Blank(escalatedFlowId)));
     }
 
+    // What the Tasks view needs from its screen to draw a control child: only the screen can render one.
+    private sealed record TasksChildren(
+        Func<string, TabStripProps, Node> Tabs,
+        Func<string, KanbanProps, Node> Kanban,
+        Func<string, StepperProps, Node> Stepper,
+        Func<string, QueryTableProps, Node> Table);
+
+    private TasksChildren Children => new(
+        Child<ITabStripControl, TabStripProps>,
+        Child<IKanbanControl, KanbanProps>,
+        Child<IStepperControl, StepperProps>,
+        Child<IQueryTableControl, QueryTableProps>);
+
+    private static readonly KanbanColumnItem[] BoardColumns =
+    [
+        new("backlog", "Backlog", "list-todo"),
+        new("in-progress", "In Progress", "play"),
+        new("review", "Review", "eye"),
+        new("done", "Done", "circle-check"),
+    ];
+
+    private static readonly QueryTableColumn[] TableColumns =
+    [
+        new("id", "ID"),
+        new("title", "Title"),
+        new("stage", "Stage"),
+        new("owner", "Owner"),
+        new("tag", "Kind"),
+    ];
+
+    // Tasks owns the tab: the strip draws it and signals the person's choice.
+    private static TabStripProps TabsOf(TasksWorkspaceState state) => new(
+        [new("board", "Board"), new("table", "Table"), new("approvals", "Approvals")],
+        AutomationName: "Tasks views",
+        SelectedId: TasksWorkspaceState.UiTabId(state.ActiveTab));
+
+    // Tasks owns the cards and the selection: a move or a pick only signals, and Tasks renders the result back here.
+    private static KanbanProps BoardOf(TasksWorkspaceState state, TaskWorkItem[] visible)
+    {
+        KanbanCardItem[] cards =
+        [
+            .. TasksWorkspaceState.StageIds.SelectMany(stage => visible
+                .Where(t => string.Equals(t.Stage, stage, StringComparison.Ordinal))
+                .Select(t => new KanbanCardItem(
+                    t.Id,
+                    stage,
+                    t.Title,
+                    string.IsNullOrWhiteSpace(t.Description) ? $"Owner: {t.Owner}" : t.Description,
+                    t.Tag,
+                    t.Owner))),
+        ];
+        var selected = cards.Any(c => string.Equals(c.Id, state.SelectedTaskId, StringComparison.Ordinal))
+            ? state.SelectedTaskId
+            : cards.FirstOrDefault()?.Id;
+        return new KanbanProps("Tasks Board", BoardColumns, cards, SelectedCardId: selected);
+    }
+
+    // The selected task's lifecycle: one step per stage, the task's stage active. Choosing a step moves the task there.
+    private static StepperProps LifecycleOf(TasksWorkspaceState state)
+    {
+        var activeStage = state.SelectedTask?.Stage ?? "backlog";
+        var activeIdx = Math.Max(0, Array.IndexOf(TasksWorkspaceState.StageIds, activeStage));
+        StepperItem[] steps =
+        [
+            .. TasksWorkspaceState.StageIds.Select((stageId, idx) => new StepperItem(
+                stageId,
+                TasksWorkspaceState.StageTitle(stageId),
+                activeStage == "done" || idx < activeIdx ? StepperStatus.Done
+                    : idx == activeIdx ? StepperStatus.Active
+                    : StepperStatus.Pending)),
+        ];
+        var title = state.SelectedTask is { } task ? $"Lifecycle · {task.Title}" : "Task Lifecycle";
+        return new StepperProps(steps, title, ActiveStepId: activeStage);
+    }
+
+    // The visible tasks as inline rows keyed by task id; the client filters, sorts and pages them by the table's own query.
+    private static QueryTableProps TableOf(TasksWorkspaceState state, TaskWorkItem[] visible)
+    {
+        QueryTableRow[] rows =
+        [
+            .. visible.Select(t => new QueryTableRow(t.Id, [t.Id, t.Title, TasksWorkspaceState.StageTitle(t.Stage), t.Owner, t.Tag])),
+        ];
+        var selected = rows.Any(r => string.Equals(r.Id, state.SelectedTaskId, StringComparison.Ordinal)) ? state.SelectedTaskId : null;
+        return new QueryTableProps("Workspace Tasks & Brain Flows", TableColumns, Rows: rows, SelectedRowId: selected);
+    }
+
     private static Node RenderRootCore(
+        TasksChildren controls,
         TasksWorkspaceState state,
         Rejected? lastRejection,
         FlowView[] liveFlows,
@@ -77,15 +155,15 @@ public sealed partial class TasksApp
         var visible = state.FilteredTasks(liveFlows);
         var activeTab = TasksWorkspaceState.NormalizeTab(state.ActiveTab);
 
-        var toolbar = RenderTopBar(state, approvals, issueDrafts);
+        var toolbar = RenderTopBar(controls, state, approvals, issueDrafts);
         var sidebar = RenderSidebar(state, visible, liveFlows, approvals);
-        var inspector = RenderRightInspector(state, liveFlows, approvals, confirmations, issueDrafts);
+        var inspector = RenderRightInspector(controls, state, liveFlows, approvals, confirmations, issueDrafts);
 
         var body = activeTab switch
         {
-            "table" or "list" => RenderFullBleedStage(UiNeuron("ui.table", TableKey), lastRejection),
+            "table" or "list" => RenderFullBleedStage(controls.Table(TableKey, TableOf(state, visible)), lastRejection),
             "approvals" or "details" => RenderApprovalsAndDetailsTab(state, lastRejection, liveFlows, approvals, confirmations, issueDrafts, now),
-            _ => RenderFullBleedStage(UiNeuron("ui.kanban", KanbanKey), lastRejection),
+            _ => RenderFullBleedStage(controls.Kanban(KanbanKey, BoardOf(state, visible)), lastRejection),
         };
 
         return BindOwner(
@@ -101,6 +179,7 @@ public sealed partial class TasksApp
     }
 
     private static Node RenderTopBar(
+        TasksChildren controls,
         TasksWorkspaceState state,
         Approval[] approvals,
         PendingIssueTriageDraft[] issueDrafts)
@@ -113,7 +192,7 @@ public sealed partial class TasksApp
 
         List<Node?> items =
         [
-            UiNeuron("ui.tabs", TabsKey),
+            controls.Tabs(TabsKey, TabsOf(state)),
             (isAllFilter ? PrimaryButton("All") : GhostButton("All"))
                 .Key("tasks:filter:all")
                 .Small()
@@ -221,6 +300,7 @@ public sealed partial class TasksApp
     }
 
     private static Node RenderRightInspector(
+        TasksChildren controls,
         TasksWorkspaceState state,
         FlowView[] liveFlows,
         Approval[] approvals,
@@ -238,7 +318,7 @@ public sealed partial class TasksApp
             SectionHeader(
                 "Inspector",
                 selectedTask?.Title ?? matchingFlow?.Title ?? "Select a task or flow"),
-            UiNeuron("ui.stepper", StepperKey),
+            controls.Stepper(StepperKey, LifecycleOf(state)),
             HStack(Space.Xs)[
                 Button("Advance", "arrow-right")
                     .Key("tasks:advance")
