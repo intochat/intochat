@@ -211,20 +211,10 @@ public sealed class OrleansAppFacts
         await os.Idle();
         Assert.Contains("/orleans#/grains/EngineerFlow", (await orleans.Open())!.View.GetRawText(), StringComparison.Ordinal);
 
-        var lockOrleans = RuntimeProtocol.SerializeToElement(
-            new UiCommand("state", nameof(OrleansAppState.SetNavigationLock), [JsonSerializer.SerializeToElement(true)]),
-            typeof(UiCommand));
-        await orleans.Request(UiCommand.SignalAlias, lockOrleans);
-        await os.Idle();
-
-        var orleansRefused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            orleans.Dispatch(new Command(
-                ".",
-                UiNavigateFrom.SignalAlias,
-                RuntimeProtocol.SerializeToElement(
-                    new UiNavigateFrom(ToNeuron: "infra-test/apps/engineer", Force: false),
-                    typeof(UiNavigateFrom)))));
-        Assert.Contains("Rule:navigation_locked:", orleansRefused.Reason, StringComparison.Ordinal);
+        // No command pins the view (the method-name back door that reached SetNavigationLock is deleted), so the departure rule is judged on the state.
+        var pinned = new OrleansAppState().SetNavigationLock(true);
+        Assert.True(pinned.CanDepartRule(new NavigationDeparture(ToNeuron: "infra-test/apps/engineer")).Broken);
+        Assert.False(pinned.CanDepartRule(new NavigationDeparture(ToNeuron: "infra-test/apps/engineer", Force: true)).Broken);
 
         await orleans.Dispatch(new Command(
             ".",

@@ -2,7 +2,7 @@
 # Desktop
 Role: Shell
 Shipped: true
-Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, focus, tab, newtab, unpin, favourite, widget-open, widget-close, settings, ui.command
+Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, focus, tab, newtab, unpin, favourite, widget-open, widget-close, settings
 
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
@@ -118,7 +118,6 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             new("widget-open", "Open the widget named by Input."),
             new("widget-close", "Close the widget named by Input."),
             new("settings", "Open the settings."),
-            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
         ]);
 
     [Slot(Key = IDesktopRecords.Key, Required = false)] private partial IDesktopRecords? Records { get; }

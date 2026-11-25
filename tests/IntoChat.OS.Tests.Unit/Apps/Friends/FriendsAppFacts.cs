@@ -243,7 +243,6 @@ public sealed class FriendsAppFacts
         Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_handle", StringComparer.Ordinal));
 
         Assert.Contains("digraph FriendsAppState", graph.ToDot(), StringComparison.Ordinal);
-        Assert.Contains(FriendsApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
     }
 
     [Fact]

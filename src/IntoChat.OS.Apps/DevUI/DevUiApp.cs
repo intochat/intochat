@@ -2,7 +2,7 @@
 # DevUI Operator Console
 Role: Operator
 Shipped: true
-Operations: open, reload, ui.command
+Operations: open, reload
 
 Built-in full-bleed WebBrowser operator surface (`app.devui`) targeting IntoChat OS's co-hosted `/devui/` developer console.
 */
@@ -49,7 +49,6 @@ public sealed class DevUiApp : EmbeddedWebApp<DevUiAppState>
         [
             new("open", "Open the co-hosted /devui/ developer console."),
             new("reload", "Reload the active DevUI frame."),
-            new(UiCommand.SignalAlias, "Dispatch a typed DevUI command."),
         ]);
 
     public new DevUiAppState State => base.State;
@@ -88,7 +87,7 @@ public sealed class DevUiApp : EmbeddedWebApp<DevUiAppState>
             Button("Reload", Icons.RefreshCw)
                 .Key("devui:reload")
                 .Small()
-                .OnClick<DevUiAppState>(s => s.Reload()));
+                .Sends(new DevUiReload()));
 
         return RenderEmbeddedSurface(
             shellKey: "devui-shell",

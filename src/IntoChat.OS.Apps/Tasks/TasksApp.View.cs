@@ -2,7 +2,7 @@
 # Tasks
 Role: Default
 Shipped: true
-Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue, ui.command
+Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue
 
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
 and `control.*` children (`IKanbanControl`, `IStepperControl`, `ITabStripControl`, `IQueryTableControl`).
@@ -196,19 +196,19 @@ public sealed partial class TasksApp
             (isAllFilter ? PrimaryButton("All") : GhostButton("All"))
                 .Key("tasks:filter:all")
                 .Small()
-                .OnClickAsync<TasksApp>(app => app.ClearFilterCommand()),
+                .Sends(new TasksFilter()),
             (isRunningFilter ? PrimaryButton("Active") : GhostButton("Active"))
                 .Key("tasks:filter:running")
                 .Small()
-                .OnClickAsync<TasksApp>(app => app.ToggleStatusFilterCommand("Running")),
+                .Sends(new TasksToggleStatusFilter("Running")),
             (isWaitingFilter ? PrimaryButton("Review") : GhostButton("Review"))
                 .Key("tasks:filter:waiting")
                 .Small()
-                .OnClickAsync<TasksApp>(app => app.ToggleStatusFilterCommand("Waiting")),
+                .Sends(new TasksToggleStatusFilter("Waiting")),
             (isInoOwner ? PrimaryButton("Owner: ino") : GhostButton("Owner: ino"))
                 .Key("tasks:filter:ino")
                 .Small()
-                .OnClickAsync<TasksApp>(app => app.ToggleOwnerFilterCommand("ino")),
+                .Sends(new TasksToggleOwnerFilter("ino")),
             pendingGates > 0
                 ? StatusPill(StatusKind.NeedsYou, string.Create(CultureInfo.InvariantCulture, $"{pendingGates} Gate(s)"))
                 : null,
@@ -217,7 +217,7 @@ public sealed partial class TasksApp
                 .Key("tasks:add")
                 .Small()
                 .Guard(state.BoardHasCapacity())
-                .OnClickAsync<TasksApp>(app => app.AddTaskCommand()),
+                .Sends(new TasksAddTask()),
             new Button("tasks:open-engineer", "Engineer ↗", Intent: AppSignals.OpenApp("engineer", state.SelectedFlowId))
             {
                 Small = true,
@@ -272,9 +272,9 @@ public sealed partial class TasksApp
         [
             SectionHeader("Quick Task", string.Create(CultureInfo.InvariantCulture, $"{visible.Length} visible")),
             TextField(FieldKey("title"), "Title").Key("title").Value(state.Draft.Title)
-                .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("title", Arg.Text)),
+                .SendsOnChange(new TasksEditDraft("title")),
             TextField(FieldKey("description"), "Description").Key("description").Value(state.Draft.Description)
-                .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("description", Arg.Text)),
+                .SendsOnChange(new TasksEditDraft("description")),
             PrimaryButton("Start", Icons.Plus).Key("start").Small().Sends(start),
         ];
 
@@ -290,7 +290,7 @@ public sealed partial class TasksApp
                 children.Add(Button(flow.Title, "activity")
                     .Key($"open:{flow.FlowId}")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.SelectFlowCommand(flow.FlowId))
+                    .Sends(new TasksSelect(flow.FlowId))
                     .ToNode());
             }
         }
@@ -324,17 +324,17 @@ public sealed partial class TasksApp
                     .Key("tasks:advance")
                     .Small()
                     .Guard(state.CanAdvanceSelectedTask())
-                    .OnClickAsync<TasksApp>(app => app.AdvanceStageCommand()),
+                    .Sends(new TasksAdvance()),
                 Button("Complete", "circle-check")
                     .Key("tasks:complete")
                     .Small()
                     .Guard(state.CanCompleteSelectedTask())
-                    .OnClickAsync<TasksApp>(app => app.CompleteTaskCommand()),
+                    .Sends(new TasksComplete()),
                 GhostButton("Clear Done", "trash")
                     .Key("tasks:clear-done")
                     .Small()
                     .Guard(state.HasCompletedTasks())
-                    .OnClickAsync<TasksApp>(app => app.ClearDoneCommand())
+                    .Sends(new TasksClearDone())
             ],
         ];
 
@@ -375,11 +375,11 @@ public sealed partial class TasksApp
                 flowActions.Add(Button("Source", "code")
                     .Key("inspector:show-source")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.ShowSourceCommand(matchingFlow.FlowId)));
+                    .Sends(new TasksShowSource(matchingFlow.FlowId)));
                 flowActions.Add(Button("Ask Ino", Icons.Sparkles)
                     .Key("inspector:ask-ino")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.AskInoCommand(matchingFlow.FlowId)));
+                    .Sends(new TasksAskIno(matchingFlow.FlowId)));
             }
 
             children.Add(HStack(Space.Xs, [.. flowActions]));
@@ -494,15 +494,15 @@ public sealed partial class TasksApp
                 PrimaryButton("Approve & Post", "circle-check")
                     .Key($"{keyPrefix}tasks:approve-issue-draft:{draft.PreviewId}")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.ApproveIssueDraftCommand(draft.ConnectionKey, draft.IssueNumber, draft.PreviewId)),
+                    .Sends(new TasksApproveIssueDraft(draft.ConnectionKey, draft.IssueNumber, draft.PreviewId)),
                 GhostButton("Dismiss", "x")
                     .Key($"{keyPrefix}tasks:dismiss-issue-draft:{draft.PreviewId}")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.DismissIssueDraftCommand(draft.ConnectionKey, draft.PreviewId)),
+                    .Sends(new TasksDismissIssueDraft(draft.ConnectionKey, draft.PreviewId)),
                 Button("Fix in Studio ↗", Icons.Sparkles)
                     .Key($"{keyPrefix}tasks:escalate-issue:{draft.PreviewId}")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.EscalateIssueCommand(draft.ConnectionKey, draft.Repository, draft.IssueNumber, draft.PreviewId))
+                    .Sends(new TasksEscalateIssue(draft.ConnectionKey, draft.Repository, draft.IssueNumber, draft.PreviewId))
             ],
             HStack(Space.Xs)[
                 escalatedFlowId is not null
@@ -647,11 +647,11 @@ public sealed partial class TasksApp
                     flowActions.Add(Button("Show source", "code")
                         .Key("details:show-source")
                         .Small()
-                        .OnClickAsync<TasksApp>(app => app.ShowSourceCommand(matchingFlow.FlowId)));
+                        .Sends(new TasksShowSource(matchingFlow.FlowId)));
                     flowActions.Add(Button("Ask Ino to change", Icons.Sparkles)
                         .Key("details:ask-ino")
                         .Small()
-                        .OnClickAsync<TasksApp>(app => app.AskInoCommand(matchingFlow.FlowId)));
+                        .Sends(new TasksAskIno(matchingFlow.FlowId)));
                 }
 
                 detailNodes.Add(HStack(Space.Sm, [.. flowActions]));
@@ -799,7 +799,7 @@ public sealed partial class TasksApp
 
         children.Add(HStack(Space.Sm, [.. actions]));
         children.Add(TextField(FieldKey("lag"), "Lag in days (Follows)").Key("lag").Value(state.Draft.Lag)
-            .OnChange<TasksWorkspaceState>(s => s.UpdateDraftField("lag", Arg.Text)));
+            .SendsOnChange(new TasksEditDraft("lag")));
 
         if (source is not null)
         {

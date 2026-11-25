@@ -186,15 +186,9 @@
               "label": "Export CSV",
               "command": {
                 "target": ".",
-                "signal": "ui.command",
+                "signal": "data.export-csv",
                 "args": {
-                  "target": "screen",
-                  "method": "ExportCsvDefaultAsync",
-                  "args": null,
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": "Load a dataset before exporting.",
-                  "tooltip": null
+                  "guardReason": "Load a dataset before exporting."
                 }
               },
               "intent": null,
@@ -213,15 +207,10 @@
               "label": "Diagram in Markdraw",
               "command": {
                 "target": ".",
-                "signal": "ui.command",
+                "signal": "data.to-markdraw",
                 "args": {
-                  "target": "screen",
-                  "method": "DiagramInMarkdrawDefaultAsync",
-                  "args": null,
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": "Load a dataset before exporting.",
-                  "tooltip": null
+                  "document": "/work/data-lineage.markdraw",
+                  "guardReason": "Load a dataset before exporting."
                 }
               },
               "intent": null,
@@ -305,17 +294,9 @@
                       "label": "Bar",
                       "command": {
                         "target": ".",
-                        "signal": "ui.command",
+                        "signal": "data.switch-chart",
                         "args": {
-                          "target": "state",
-                          "method": "SwitchChart",
-                          "args": [
-                            "bar"
-                          ],
-                          "valueIndex": null,
-                          "value": null,
-                          "guardReason": null,
-                          "tooltip": null
+                          "kind": "bar"
                         }
                       },
                       "intent": null,
@@ -334,17 +315,9 @@
                       "label": "Line",
                       "command": {
                         "target": ".",
-                        "signal": "ui.command",
+                        "signal": "data.switch-chart",
                         "args": {
-                          "target": "state",
-                          "method": "SwitchChart",
-                          "args": [
-                            "line"
-                          ],
-                          "valueIndex": null,
-                          "value": null,
-                          "guardReason": null,
-                          "tooltip": null
+                          "kind": "line"
                         }
                       },
                       "intent": null,
@@ -363,17 +336,9 @@
                       "label": "Pie",
                       "command": {
                         "target": ".",
-                        "signal": "ui.command",
+                        "signal": "data.switch-chart",
                         "args": {
-                          "target": "state",
-                          "method": "SwitchChart",
-                          "args": [
-                            "pie"
-                          ],
-                          "valueIndex": null,
-                          "value": null,
-                          "guardReason": null,
-                          "tooltip": null
+                          "kind": "pie"
                         }
                       },
                       "intent": null,

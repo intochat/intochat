@@ -179,10 +179,6 @@ public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
         return Show(State with { ExecutionMode = nextMode, Status = $"Switched FilmCraft execution backend to {FormatModeLabel(nextMode)}" });
     }
 
-    public Task RazorSplitDefaultAsync() => RunCommand(new FilmCraftRunCommand("timeline.razor", Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
-    public Task LumetriAutoGradeAsync() => RunCommand(new FilmCraftRunCommand("color.lumetri.auto", Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
-    public Task RippleTrimAsync() => RunCommand(new FilmCraftRunCommand("timeline.rippleTrim", Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
-    public Task ExportMp4DefaultAsync() => Export(new FilmCraftExport(Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
 
     protected override Node Render(FilmCraftAppState state)
     {
@@ -190,9 +186,9 @@ public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
         var timelineCanvas = VStack(Space.Md)[
             Toolbar(
                 SectionHeader("Timeline Tools"),
-                Button("Razor Split", "scissors").Key("tool-razor").Small().OnClick(() => RazorSplitDefaultAsync()),
-                Button("Ripple Trim (-24f)").Key("tool-trim").Small().OnClick(() => RippleTrimAsync()),
-                Button("Lumetri Grade").Key("tool-lumetri").Small().OnClick(() => LumetriAutoGradeAsync())
+                Button("Razor Split", "scissors").Key("tool-razor").Small().Sends(new FilmCraftRunCommand("timeline.razor", Sequence: state.ActiveSequence, Mode: state.ExecutionMode)),
+                Button("Ripple Trim (-24f)").Key("tool-trim").Small().Sends(new FilmCraftRunCommand("timeline.rippleTrim", Sequence: state.ActiveSequence, Mode: state.ExecutionMode)),
+                Button("Lumetri Grade").Key("tool-lumetri").Small().Sends(new FilmCraftRunCommand("color.lumetri.auto", Sequence: state.ActiveSequence, Mode: state.ExecutionMode))
             ),
             Surface(SurfaceKind.Elevated, "Program Monitor", "Connect FilmCraft MCP in Settings to render preview frames.")[
                 MutedText($"No monitor frame rendered ({state.ActiveSequence} -> {state.OutputFile}).")
@@ -208,11 +204,11 @@ public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
             "Timeline Tracks", tracks,
             headerActions:
             [
-                (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("mcp")),
-                (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
-                (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
-                Button("Razor Split", "scissors").Key("razor-split").Small().OnClick(() => RazorSplitDefaultAsync()),
-                PrimaryButton("Export MP4", "film").Key("export-mp4").Small().OnClick(() => ExportMp4DefaultAsync()),
+                (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().Sends(new FilmCraftSwitchMode("mcp")),
+                (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().Sends(new FilmCraftSwitchMode("native-linux")),
+                (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().Sends(new FilmCraftSwitchMode("wasm-ui")),
+                Button("Razor Split", "scissors").Key("razor-split").Small().Sends(new FilmCraftRunCommand("timeline.razor", Sequence: state.ActiveSequence, Mode: state.ExecutionMode)),
+                PrimaryButton("Export MP4", "film").Key("export-mp4").Small().Sends(new FilmCraftExport(Sequence: state.ActiveSequence, Mode: state.ExecutionMode)),
             ],
             inspectorExtras: [Text(state.LastCommandTitle).Muted()],
             nativeCanvas: timelineCanvas,

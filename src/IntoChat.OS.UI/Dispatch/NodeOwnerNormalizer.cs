@@ -135,7 +135,6 @@ internal static class NodeOwnerNormalizer
         }
 
         return string.IsNullOrWhiteSpace(command.Target)
-            || command.Target == CommandBinding.PendingOwner
             || string.Equals(command.Target, owner, StringComparison.Ordinal)
             ? command with { Target = "." }
             : command;

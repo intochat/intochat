@@ -2,7 +2,7 @@
 # Creator
 Role: Default
 Shipped: true
-Operations: open, select, trace, replay, scenario, share, run, approve, reject, ui.command
+Operations: open, select, trace, replay, scenario, share, run, approve, reject
 
 Topology, Accordant state-space, scenario & 1-event-at-a-time time-travel debugger for the DigitalBrain OS.
 Left: catalog units, installed apps, active build/engineer flows, and studio launchers.

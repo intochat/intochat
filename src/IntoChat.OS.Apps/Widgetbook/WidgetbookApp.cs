@@ -2,7 +2,7 @@
 # Widgetbook UI Kit Workbench
 Role: Operator
 Shipped: true
-Operations: open, switch-source, set-theme, reload, ui.command
+Operations: open, switch-source, set-theme, reload
 
 Built-in full-bleed WebBrowser UI Kit workbench (`app.widgetbook`) hosting IntoChat OS's
 open-source Flutter Widgetbook catalog at `/widgetbook` (or live hot-reload on localhost:8090).
@@ -98,7 +98,6 @@ public sealed class WidgetbookApp : EmbeddedWebApp<WidgetbookAppState>
             new("switch-source", "Switch between bundled /widgetbook and Dev Hot-Reload (localhost:8090)."),
             new("set-theme", "Switch Widgetbook preview theme between dark and light."),
             new("reload", "Reload the active Widgetbook frame."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Widgetbook command."),
         ]);
 
     public new WidgetbookAppState State => base.State;

@@ -73,7 +73,7 @@ internal static class EngineerViewRenderer
                     .Key(EngineerApp.CandidateSelectKey(c.InstanceIndex))
                     .Small()
                     .Guard(state.ValidCandidateSelection(c.InstanceIndex))
-                    .OnClickAsync<EngineerApp>(app => app.SelectCandidateCommand(c.InstanceIndex));
+                    .Sends(new EngineerSelectCandidate(c.InstanceIndex));
             })
             .ToArray();
 
@@ -96,22 +96,22 @@ internal static class EngineerViewRenderer
             GhostButton("New Run", Icons.Plus)
                 .Key("engineer:new-run")
                 .Small()
-                .OnClickAsync<EngineerApp>(app => app.NewRunCommand()),
+                .Sends(new EngineerNewRun()),
             PrimaryButton("Ratify Plan", Icons.Check)
                 .Key("engineer:approve-plan")
                 .Small()
                 .Guard(state.PlanReadyToApprove())
-                .OnClickAsync<EngineerApp>(app => app.ApprovePlanCommand()),
+                .Sends(new EngineerApprovePlan()),
             Button("Run Verify", "play")
                 .Key("engineer:run-verify")
                 .Small()
                 .Guard(state.ReadyForVerification())
-                .OnClickAsync<EngineerApp>(app => app.RunVerifyCommand()),
+                .Sends(new EngineerRunVerify()),
             PrimaryButton("Ship PR", "git-pull-request")
                 .Key("engineer:approve-pr")
                 .Small()
                 .Guard(state.ReadyForPrApproval())
-                .OnClickAsync<EngineerApp>(app => app.ApprovePrCommand()),
+                .Sends(new EngineerApprovePr()),
         ];
 
         return HStack(Space.Xs, [.. barItems]);
@@ -150,23 +150,23 @@ internal static class EngineerViewRenderer
                 (state.InstanceCount == 1 ? PrimaryButton("1x") : GhostButton("1x"))
                     .Key("engineer:instances:1")
                     .Small()
-                    .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(1, state.BackendMode)),
+                    .Sends(new EngineerSetInstances(1, state.BackendMode)),
                 (state.InstanceCount == 2 ? PrimaryButton("2x") : GhostButton("2x"))
                     .Key("engineer:instances:2")
                     .Small()
-                    .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(2, state.BackendMode)),
+                    .Sends(new EngineerSetInstances(2, state.BackendMode)),
                 (state.InstanceCount == 3 ? PrimaryButton("3x") : GhostButton("3x"))
                     .Key("engineer:instances:3")
                     .Small()
-                    .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(3, state.BackendMode)),
+                    .Sends(new EngineerSetInstances(3, state.BackendMode)),
                 (state.BackendMode == "LocalGit" ? PrimaryButton("Local") : GhostButton("Local"))
                     .Key("engineer:backend:local")
                     .Small()
-                    .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(state.InstanceCount, "LocalGit")),
+                    .Sends(new EngineerSetInstances(state.InstanceCount, "LocalGit")),
                 (state.BackendMode == "ContainerVolume" ? PrimaryButton("Cloud") : GhostButton("Cloud"))
                     .Key("engineer:backend:volume")
                     .Small()
-                    .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(state.InstanceCount, "ContainerVolume"))
+                    .Sends(new EngineerSetInstances(state.InstanceCount, "ContainerVolume"))
             ],
             children?.Tree(EngineerApp.WorktreesKey, WorktreesOf(state)),
         ];
@@ -271,7 +271,7 @@ internal static class EngineerViewRenderer
                 Subtitle: c.BranchName,
                 Select: (DigitalBrain.UI.Button)(isSelected ? PrimaryButton($"w{c.InstanceIndex + 1}") : Button($"w{c.InstanceIndex + 1}"))
                     .Key($"graph:wt:{c.InstanceIndex}")
-                    .OnClickAsync<EngineerApp>(app => app.SelectCandidateCommand(c.InstanceIndex))
+                    .Sends(new EngineerSelectCandidate(c.InstanceIndex))
                     .ToNode()));
 
             foreach (var s in slices)
@@ -364,7 +364,7 @@ internal static class EngineerViewRenderer
             fileItems.Add(btn
                 .Key(string.Create(CultureInfo.InvariantCulture, $"engineer:diff-file:{i}"))
                 .Small()
-                .OnClickAsync<EngineerApp>(app => app.SelectFileCommand(file)));
+                .Sends(new EngineerSelectFile(file)));
         }
 
         for (var i = 0; i < deletedFiles.Length; i++)
@@ -374,7 +374,7 @@ internal static class EngineerViewRenderer
             fileItems.Add(GhostButton(label)
                 .Key(string.Create(CultureInfo.InvariantCulture, $"engineer:deleted-file:{i}"))
                 .Small()
-                .OnClickAsync<EngineerApp>(app => app.SelectFileCommand(del)));
+                .Sends(new EngineerSelectFile(del)));
         }
 
         var filesColumn = VStack(Space.Xs, [.. fileItems]);
@@ -410,21 +410,21 @@ internal static class EngineerViewRenderer
                     ? (state.LiveViewportPeek ? PrimaryButton("Hide Live Peek", "eye-off") : GhostButton("Live Peek", "eye"))
                         .Key("engineer:viewport-peek")
                         .Small()
-                        .OnClickAsync<EngineerApp>(app => app.ToggleViewportPeekCommand())
+                        .Sends(new EngineerTogglePeek())
                     : GhostButton("3D Flow", "git-branch")
                         .Key("engineer:back-to-flow")
                         .Small()
-                        .OnClickAsync<EngineerApp>(app => app.SelectTabCommand("plan")),
+                        .Sends(new EngineerSelectTab("plan")),
                 PrimaryButton("Approve & Open Draft PR", "git-pull-request")
                     .Key("engineer:pr:approve")
                     .Small()
                     .Guard(state.ReadyForPrApproval())
-                    .OnClickAsync<EngineerApp>(app => app.ApprovePrCommand()),
+                    .Sends(new EngineerApprovePr()),
                 DangerButton("Clean Worktrees", "trash")
                     .Key("engineer:pr:clean")
                     .Small()
                     .Guard(state.HasActiveWorktrees())
-                    .OnClickAsync<EngineerApp>(app => app.CleanWorktreeCommand())
+                    .Sends(new EngineerCleanWorktree())
             ],
             HStack(Space.Xs)[
                 new Button("engineer:open-github-settings", "Configure GitHub ↗", Intent: AppSignals.OpenApp("settings", "connections/github"))
@@ -499,7 +499,7 @@ internal static class EngineerViewRenderer
                     : (Node)GhostButton("Reply", "message-square")
                         .Key(string.Create(CultureInfo.InvariantCulture, $"engineer:pr:reply:{thread.CommentId}"))
                         .Small()
-                        .OnClickAsync<EngineerApp>(app => app.ReplyToReviewCommentCommand(thread.CommentId, "Addressed in verified candidate worktree."));
+                        .Sends(new EngineerReplyReview(state.LivePullRequestNumber ?? 0, thread.CommentId, "Addressed in verified candidate worktree."));
                 nodes.Add(HStack(Space.Xs)[
                     MutedText($"@{thread.Author}{location}: {thread.Body}"),
                     replyControl

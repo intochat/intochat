@@ -181,6 +181,8 @@ public sealed partial class DataStudioApp : AggregateScreen<DataStudioAppState>
     public async Task ExportCsv(DataStudioExportCsv request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // With no rows the export is refused by the same rule the button's guard shows.
+        if (State.HasDatasetRows().Broken) { await ApplyDecisionAsync(State.RecordCsvExport("/work/analytics-export.csv")); return; }
         var stem = Path.GetFileNameWithoutExtension(State.ActiveSource.Replace("postgres:", string.Empty, StringComparison.OrdinalIgnoreCase));
         var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{(string.IsNullOrWhiteSpace(stem) ? "analytics-export" : stem)}-export.csv" : DataStudioDecisions.NormalizeCsvExportPath(request.TargetPath);
         var failed = await WriteToWorkspaceAsync(targetPath, DataAnalyticsEngine.SerializeToCsv(State.Columns, State.Rows));
@@ -192,6 +194,7 @@ public sealed partial class DataStudioApp : AggregateScreen<DataStudioAppState>
     public async Task ToMarkdraw(DataStudioToMarkdraw request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (State.HasDatasetRows().Broken) { await ApplyDecisionAsync(State.RecordMarkdrawLineage("/work/data-lineage.markdraw")); return; }
         var docPath = string.IsNullOrWhiteSpace(request.Document) ? "/work/data-lineage.markdraw" : MarkdrawApp.NormalizeDocumentPath(request.Document);
         var summary = $"{State.Rows.Length} rows · Total €{State.Total:N0} · Avg €{State.Average:N0}";
         var failed = await WriteToWorkspaceAsync(docPath, MarkdrawSceneEngine.BuildDataLineageMarkdraw(State.ChartTitle, State.Columns, summary, State.SourceNeuronUri));
@@ -199,9 +202,6 @@ public sealed partial class DataStudioApp : AggregateScreen<DataStudioAppState>
         await Show(failed is null ? next : next with { Summary = $"{next.Summary} It is kept in this screen only: {failed}" });
     }
 
-    public Task GroupByColumnAsync(string column) => GroupBy(new DataStudioGroupBy(column, "SUM"));
-    public Task ExportCsvDefaultAsync() => State.HasDatasetRows().Broken ? ApplyDecisionAsync(State.RecordCsvExport("/work/analytics-export.csv")) : ExportCsv(new DataStudioExportCsv());
-    public Task DiagramInMarkdrawDefaultAsync() => State.HasDatasetRows().Broken ? ApplyDecisionAsync(State.RecordMarkdrawLineage("/work/data-lineage.markdraw")) : ToMarkdraw(new DataStudioToMarkdraw("/work/data-lineage.markdraw"));
 
     protected override Node Render(DataStudioAppState state) => DataStudioViewRenderer.RenderNode(state);
 

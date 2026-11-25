@@ -1342,7 +1342,6 @@ public sealed class InoAppFacts
         Assert.Contains("Open Engineer Workbench", engineerWire, StringComparison.Ordinal);
 
         Assert.Contains("digraph InoAppState", graph.ToDot(), StringComparison.Ordinal);
-        Assert.Contains(InoApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
     }
 
     [Fact]
@@ -1447,35 +1446,12 @@ public sealed class InoAppFacts
         await os.Idle();
         Assert.Null(ino.App.LastRejection);
 
-        await screen.Dispatch(new Command(
-            ".",
-            UiCommand.SignalAlias,
-            RuntimeProtocol.SerializeToElement(
-                new UiCommand("state", nameof(InoAppState.SetProviderSetupDraft), [JsonSerializer.SerializeToElement(true)]),
-                typeof(UiCommand))));
-        await os.Idle();
-        Assert.True(ino.App.State.HasUnsavedProviderDraft);
-
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Dispatch(new Command(
-                ".",
-                UiNavigateFrom.SignalAlias,
-                RuntimeProtocol.SerializeToElement(
-                    new UiNavigateFrom(ToNeuron: "app.settings", Route: "connections/github", Force: false),
-                    typeof(UiNavigateFrom)))));
-        Assert.StartsWith("Rule:ino_setup_unsaved:", refused.Reason, StringComparison.Ordinal);
-        Assert.Contains("Finish or discard provider credential setup before leaving.", refused.Reason, StringComparison.Ordinal);
-        Assert.Contains("Finish or discard provider credential setup before leaving.", (await screen.Open())!.View.GetRawText(), StringComparison.Ordinal);
-
-        await screen.Dispatch(new Command(
-            ".",
-            UiNavigateFrom.SignalAlias,
-            RuntimeProtocol.SerializeToElement(
-                new UiNavigateFrom(ToNeuron: "app.settings", Route: "connections/github", Force: true),
-                typeof(UiNavigateFrom))));
-        await os.Idle();
-        Assert.False(ino.App.State.HasUnsavedProviderDraft);
-        Assert.Null(ino.App.LastRejection);
+        // No command marks a provider draft unsaved (the method-name back door that reached SetProviderSetupDraft is deleted), so
+        // the departure rule is judged on the state.
+        var unsaved = new InoAppState().SetProviderSetupDraft(true);
+        Assert.True(unsaved.CanDepart().Broken);
+        Assert.Equal("Finish or discard provider credential setup before leaving.", unsaved.CanDepart().Message);
+        Assert.False(unsaved.CanDepart(force: true).Broken);
 
         await screen.Dispatch(new Command(
             ".",

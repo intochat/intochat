@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse, mcp-add, mcp-remove, ui.command
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse, mcp-add, mcp-remove
 
 Declarative macOS Sonoma-style System Settings application for IntoChat OS (`UK-16` / `INT-1364`).
 Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, `ConnectionPage`,
@@ -75,6 +75,9 @@ public sealed record SettingsNavigate(string? Section = "general", string? SubPa
 
 [Signal("settings.go-back")]
 public sealed record SettingsGoBack : Signal;
+
+[Signal("settings.clear-search")]
+public sealed record SettingsClearSearch : Signal;
 
 [Signal("settings.export-brain")]
 public sealed record SettingsExportBrain : Signal;
@@ -364,7 +367,6 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IStudio."),
             new("mcp-add", "Connect an MCP tool server to this brain."),
             new("mcp-remove", "Disconnect an MCP tool server from this brain."),
-            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
         ]);
 
     public static string NormalizeSection(string? section) => SettingsAppState.NormalizeSection(section);

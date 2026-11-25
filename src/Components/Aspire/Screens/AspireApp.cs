@@ -2,7 +2,7 @@
 # .NET Aspire Dashboard
 Role: Operator
 Shipped: true
-Operations: open, select-section, focus-trace, connect, reload, ui.command, ui.navigate-to, ui.navigate-from
+Operations: open, select-section, focus-trace, connect, reload, ui.navigate-to, ui.navigate-from
 
 Built-in full-bleed WebBrowser operator surface (`app.aspire`) targeting the live .NET Aspire Dashboard
 for resources, distributed traces (`traces/detail/{traceId}`), structured logs, console logs, and metrics.
@@ -37,7 +37,11 @@ public sealed record AspireSelectSection(string? Section = null) : Signal;
 public sealed record AspireFocusTrace(string? TraceId = null) : Signal;
 
 [Signal("aspire.connect")]
-public sealed record AspireConnect(string? BaseUrl = null) : Signal;
+/// <summary>Connects to <paramref name="BaseUrl"/>, or to the URL typed into the endpoint field (its value).</summary>
+public sealed record AspireConnect(string? BaseUrl = null, string? Value = null) : Signal;
+
+[Signal("aspire.toggle-connect")]
+public sealed record AspireToggleConnect : Signal;
 
 [Signal("aspire.reload")]
 public sealed record AspireReload : Signal;
@@ -76,7 +80,6 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
             new("focus-trace", "Deep-link directly to a distributed trace span tree."),
             new("connect", "Connect to a live http/https .NET Aspire Dashboard endpoint."),
             new("reload", "Reload the active .NET Aspire Dashboard frame."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Aspire aggregate command."),
             new(UiNavigateTo.SignalAlias, "Navigate into Aspire with typed BrowserNavArgs."),
             new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Aspire."),
         ]);
@@ -166,7 +169,14 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
     public Task Connect(AspireConnect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return ApplyDecisionAsync(State.ConnectEndpoint(request.BaseUrl));
+        return ApplyDecisionAsync(State.ConnectEndpoint(request.BaseUrl ?? request.Value));
+    }
+
+    [On]
+    public Task ToggleConnect(AspireToggleConnect request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Store(State.ToggleConnectBar());
     }
 
     [On]
@@ -233,11 +243,11 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
             GhostButton("Endpoint", Icons.Sliders)
                 .Key("aspire:toggle-connect")
                 .Small()
-                .OnClick<AspireAppState>(s => s.ToggleConnectBar()),
+                .Sends(new AspireToggleConnect()),
             Button("Reload", Icons.RefreshCw)
                 .Key("aspire:reload")
                 .Small()
-                .OnClick<AspireAppState>(s => s.Reload()));
+                .Sends(new AspireReload()));
 
         Node toolbar = state.ShowConnectBar
             ? VStack(
@@ -248,11 +258,11 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
                     TextField("Aspire Dashboard URL", AspireAppState.DefaultBaseUrl)
                         .Key("aspire:url-input")
                         .Value(state.BaseUrl)
-                        .OnSubmit<AspireAppState>(s => s.ConnectEndpoint(Arg.Text)),
+                        .Sends(new AspireConnect()),
                     GhostButton("Close")
                         .Key("aspire:close-connect")
                         .Small()
-                        .OnClick<AspireAppState>(s => s.ToggleConnectBar())))
+                        .Sends(new AspireToggleConnect())))
             : toolbarRow;
 
         var browser = WebBrowser(
@@ -281,7 +291,7 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
         return builder
             .Key($"aspire:section:{sectionId}")
             .Small()
-            .OnClick<AspireAppState>(s => s.SelectSection(sectionId));
+            .Sends(new AspireSelectSection(sectionId));
     }
 
     private string SafeScreenLabel()

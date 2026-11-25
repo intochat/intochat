@@ -172,7 +172,7 @@ public sealed record MarkdrawAppState(
 
     // ── Aggregate Commands & Transitions ─────────────────────────────────────
 
-    public Decision<MarkdrawAppState> SelectTool([Sample("select", "rect", "arrow", "laser-invalid")] string? tool)
+    public Decision<MarkdrawAppState> SelectTool([Sample("select", "rect", "diamond", "arrow", "laser-invalid")] string? tool)
     {
         if (Decision.Check("select-tool", SupportedToolRule(tool)) is { } refusal)
         {

@@ -2,7 +2,7 @@
 # Tasks
 Role: Default
 Shipped: true
-Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue, ui.command
+Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue
 
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
 and `control.*` children (`IKanbanControl`, `IStepperControl`, `ITabStripControl`, `IQueryTableControl`).
@@ -98,6 +98,19 @@ public sealed record TasksDismissIssueDraft(string? ConnectionKey = null, string
 [Signal("tasks.escalate-issue")]
 public sealed record TasksEscalateIssue(string? ConnectionKey = null, string? Repository = null, int IssueNumber = 0, string? PreviewId = null) : Signal;
 
+[Signal("tasks.add-task")]
+public sealed record TasksAddTask : Signal;
+
+[Signal("tasks.toggle-status-filter")]
+public sealed record TasksToggleStatusFilter(string? Status = null) : Signal;
+
+[Signal("tasks.toggle-owner-filter")]
+public sealed record TasksToggleOwnerFilter(string? Owner = null) : Signal;
+
+/// <summary>Keeps what a person types into one of the quick-task fields ("title", "description", "lag"); the text is the value.</summary>
+[Signal("tasks.edit-draft")]
+public sealed record TasksEditDraft(string? Field = null, string? Value = null) : Signal;
+
 [Neuron("app.tasks")]
 [Screen("app.tasks", Title = "Tasks", Icon = "tasks", Category = "Workspace")]
 public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INavigatedTo<TasksNavArgs>, INavigatedFrom
@@ -167,7 +180,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             new("approve-issue-draft", "Approve and post a pending GitHub issue triage comment draft."),
             new("dismiss-issue-draft", "Dismiss a pending GitHub issue triage comment draft."),
             new("escalate-issue", "Escalate a GitHub issue into an Engineer Studio run."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Tasks aggregate command."),
         ],
         toolbar:
         [
@@ -562,57 +574,39 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         await RefreshFlowsAndSyncAsync();
     }
 
-    // ── Screen Commands (Bound to Kit Buttons) ───────────────────────────────
+    // ── Toolbar and quick-task reactions ──────────────────────────────────────
 
-    public async Task AddTaskCommand()
+    [On]
+    public async Task AddTask(TasksAddTask request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         var title = Blank(State.Draft.Title) ?? string.Create(CultureInfo.InvariantCulture, $"Task #{State.NextTaskSequence}");
         await ApplyDecisionAsync(State.AddTask(title, State.Draft.Description, "backlog"));
     }
 
-    public async Task AdvanceStageCommand()
+    [On]
+    public Task ToggleStatusFilter(TasksToggleStatusFilter request)
     {
-        await ApplyDecisionAsync(State.AdvanceSelectedStage());
-    }
-
-    public async Task CompleteTaskCommand()
-    {
-        await ApplyDecisionAsync(State.CompleteSelectedTask());
-    }
-
-    public async Task ClearDoneCommand()
-    {
-        await ApplyDecisionAsync(State.ClearDoneTasks());
-    }
-
-    public Task SelectFlowCommand(string flowId) => Select(new TasksSelect(flowId));
-
-    public Task ShowSourceCommand(string flowId) => ShowSource(new TasksShowSource(flowId));
-
-    public Task AskInoCommand(string flowId) => AskIno(new TasksAskIno(flowId));
-
-    public Task ApproveIssueDraftCommand(string connectionKey, int issueNumber, string previewId)
-        => ApproveIssueDraft(new TasksApproveIssueDraft(connectionKey, issueNumber, previewId));
-
-    public Task DismissIssueDraftCommand(string connectionKey, string previewId)
-        => DismissIssueDraft(new TasksDismissIssueDraft(connectionKey, previewId));
-
-    public Task EscalateIssueCommand(string connectionKey, string repository, int issueNumber, string previewId)
-        => EscalateIssue(new TasksEscalateIssue(connectionKey, repository, issueNumber, previewId));
-
-    public Task ClearFilterCommand() => Filter(new TasksFilter());
-
-    public Task ToggleStatusFilterCommand(string status)
-    {
+        ArgumentNullException.ThrowIfNull(request);
         var current = State.Query.Status?.ToString();
-        var nextStatus = string.Equals(current, status, StringComparison.OrdinalIgnoreCase) ? null : status;
+        var nextStatus = string.Equals(current, request.Status, StringComparison.OrdinalIgnoreCase) ? null : request.Status;
         return Filter(new TasksFilter(Owner: State.Query.Owner, Status: nextStatus, Type: State.Query.Type));
     }
 
-    public Task ToggleOwnerFilterCommand(string owner)
+    [On]
+    public Task ToggleOwnerFilter(TasksToggleOwnerFilter request)
     {
-        var nextOwner = string.Equals(State.Query.Owner, owner, StringComparison.Ordinal) ? null : owner;
+        ArgumentNullException.ThrowIfNull(request);
+        var nextOwner = string.Equals(State.Query.Owner, request.Owner, StringComparison.Ordinal) ? null : request.Owner;
         return Filter(new TasksFilter(Owner: nextOwner, Status: State.Query.Status?.ToString(), Type: State.Query.Type));
+    }
+
+    [On]
+    public async Task EditDraft(TasksEditDraft request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Blank(request.Field) is not { } field) { return; }
+        await Store(State.UpdateDraftField(field, request.Value));
     }
 
     // ── Control children: each signals the person's change; Tasks applies it and renders it back as props ──

@@ -247,13 +247,6 @@ public sealed partial class AppSandboxHost
                         break;
 
                     case "signal":
-                        if (string.Equals(request.Name, IntoChat.OS.UI.UiCommand.SignalAlias, StringComparison.OrdinalIgnoreCase))
-                        {
-                            handled = true;
-                            invocationResult = DispatchReactorUiCommand(loaded, request.PayloadJson);
-                            break;
-                        }
-
                         if (loaded.IsSynapseUnit)
                         {
                             if (string.IsNullOrWhiteSpace(request.Name)
@@ -282,8 +275,9 @@ public sealed partial class AppSandboxHost
                         handled = true;
                         foreach (var method in signalMethods)
                         {
-                            invocationResult = await InvokeHandlerAsync(loaded.Instance!, method, request.PayloadJson, cancellationToken)
-                                .ConfigureAwait(false);
+                            invocationResult = ApplyStateOutcome(
+                                loaded,
+                                await InvokeHandlerAsync(loaded.Instance!, method, request.PayloadJson, cancellationToken).ConfigureAwait(false));
                         }
                         break;
 
@@ -322,13 +316,6 @@ public sealed partial class AppSandboxHost
                         break;
 
                     case "command":
-                        if (string.Equals(request.Name, IntoChat.OS.UI.UiCommand.SignalAlias, StringComparison.OrdinalIgnoreCase))
-                        {
-                            handled = true;
-                            invocationResult = DispatchReactorUiCommand(loaded, request.PayloadJson);
-                            break;
-                        }
-
                         if (string.IsNullOrWhiteSpace(request.Name)
                             || !loaded.Commands.TryGetValue(request.Name, out var command)
                             || loaded.Instance is null)

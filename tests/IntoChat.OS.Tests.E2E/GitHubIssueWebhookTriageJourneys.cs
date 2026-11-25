@@ -650,7 +650,7 @@ public sealed class GitHubIssueWebhookTriageJourneys
             {
                 typeof(Signal).Assembly,
                 typeof(View).Assembly,
-                typeof(UiCommand).Assembly,
+                typeof(UiInert).Assembly,
                 typeof(TriageHostTestModule).Assembly,
                 typeof(GitHubModule).Assembly,
                 typeof(IRepository).Assembly,

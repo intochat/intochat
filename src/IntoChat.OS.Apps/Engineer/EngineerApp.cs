@@ -2,7 +2,7 @@
 # IntoChat Engineer
 Role: Studio
 Shipped: true
-Operations: open, new-run, brainstorm, approve-plan, run-verify, approve-pr, clean-worktree, select-tab, select-instance, select-candidate, reply-review, ui.command
+Operations: open, new-run, brainstorm, approve-plan, run-verify, approve-pr, clean-worktree, select-tab, select-instance, select-candidate, reply-review
 
 Autonomous multi-worktree engineering workbench (`app.engineer`) orchestrating `flow.engineer` across 1..N isolated
 local git worktrees or cloud sandbox volumes with User + Architect + Critic brainstorming, Roslyn C# + Dart code edits,
@@ -64,6 +64,15 @@ public sealed record EngineerSelectCandidate(int CandidateIndex = 0, string? Fil
 [Signal("engineer.reply-review")]
 public sealed record EngineerReplyReview(int PullRequestNumber = 0, long CommentId = 0, string? Body = null) : Signal;
 
+[Signal("engineer.set-instances")]
+public sealed record EngineerSetInstances(int Count = 1, string? Backend = null) : Signal;
+
+[Signal("engineer.select-file")]
+public sealed record EngineerSelectFile(string? Path = null) : Signal;
+
+[Signal("engineer.toggle-peek")]
+public sealed record EngineerTogglePeek : Signal;
+
 [Neuron("app.engineer")]
 [Screen("app.engineer", Title = "IntoChat Engineer", Icon = "workflow", Category = "Studio")]
 public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
@@ -116,7 +125,6 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             new("select-instance", "Focus a parallel worktree instance or changed file."),
             new("select-candidate", "Promote a verified candidate worktree diff for PR approval."),
             new("reply-review", "Reply to a GitHub pull request review comment thread."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Engineer aggregate command."),
         ],
         toolbar:
         [
@@ -330,36 +338,26 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         await PushTranscriptAsync();
     }
 
-    public Task NewRunCommand() => NewRun(new EngineerNewRun());
+    [On]
+    public Task SetInstances(EngineerSetInstances request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ShowAndPushAsync(State.SetParallelInstances(request.Count, request.Backend ?? State.BackendMode));
+    }
 
-    public Task ApprovePlanCommand() => ApprovePlan(new EngineerApprovePlan());
+    [On]
+    public Task SelectFile(EngineerSelectFile request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ShowAndPushAsync(State.SelectChangedFile(request.Path ?? string.Empty));
+    }
 
-    public Task RunVerifyCommand() => RunVerify(new EngineerRunVerify());
-
-    public Task ApprovePrCommand() => ApprovePr(new EngineerApprovePr());
-
-    public Task CleanWorktreeCommand() => CleanWorktree(new EngineerCleanWorktree());
-
-    public Task SetInstancesCommand(int count, string backend)
-        => ShowAndPushAsync(State.SetParallelInstances(count, backend));
-
-    public Task SelectCandidateCommand(int candidateIndex)
-        => SelectCandidate(new EngineerSelectCandidate(candidateIndex));
-
-    public Task SelectFileCommand(string filePath)
-        => ShowAndPushAsync(State.SelectChangedFile(filePath));
-
-    public Task SelectTabCommand(string tabId)
-        => SelectTab(new EngineerSelectTab(tabId));
-
-    public Task SelectStageCommand(string stageId)
-        => ShowAndPushAsync(State.SelectStage(stageId));
-
-    public Task ToggleViewportPeekCommand()
-        => ShowAndPushAsync(State.ToggleViewportPeek());
-
-    public Task ReplyToReviewCommentCommand(long commentId, string body)
-        => ReplyReview(new EngineerReplyReview(State.LivePullRequestNumber ?? 0, commentId, body));
+    [On]
+    public Task TogglePeek(EngineerTogglePeek request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ShowAndPushAsync(State.ToggleViewportPeek());
+    }
 
     [On]
     public async Task ReplyReview(EngineerReplyReview request)

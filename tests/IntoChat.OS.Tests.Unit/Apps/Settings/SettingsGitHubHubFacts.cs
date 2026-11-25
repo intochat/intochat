@@ -271,18 +271,12 @@ public sealed class SettingsGitHubHubFacts
             // 3. INavigatedFrom: clean state allows departure; HasUnsavedChanges blocks unforced departure, passes when Force == true
             Assert.True(await settings.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer", Force: false), Ct));
 
-            var markDirty = RuntimeProtocol.SerializeToElement(
-                new UiCommand(Target: "state", Method: nameof(SettingsAppState.MarkUnsavedChanges), Args: [JsonSerializer.SerializeToElement(true)]),
-                typeof(UiCommand));
-            await screen.Dispatch(new Command(".", UiCommand.SignalAlias, markDirty));
-            await os.Idle();
-            Assert.True(settings.App.State.HasUnsavedChanges);
-
-            var unforcedLeave = RuntimeProtocol.SerializeToElement(
-                new UiNavigateFrom(ToNeuron: "app.engineer", Route: "flow", Force: false),
-                typeof(UiNavigateFrom));
-            var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => screen.Dispatch(new Command(".", UiNavigateFrom.SignalAlias, unforcedLeave)));
-            Assert.Contains("settings_unsaved_changes", refused.Reason, StringComparison.Ordinal);
+            // No command marks Settings dirty (the method-name back door that reached MarkUnsavedChanges is deleted), so the
+            // departure rule is judged on the state.
+            var dirty = new SettingsAppState().MarkUnsavedChanges();
+            Assert.True(dirty.CanDepart().Broken);
+            Assert.Equal("settings_unsaved_changes", dirty.CanDepart().Name);
+            Assert.False(dirty.CanDepart(force: true).Broken);
 
             var forcedLeave = RuntimeProtocol.SerializeToElement(
                 new UiNavigateFrom(ToNeuron: "app.engineer", Route: "flow", Force: true),

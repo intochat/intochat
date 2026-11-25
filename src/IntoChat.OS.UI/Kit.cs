@@ -267,7 +267,7 @@ public static class Kit
         bool edgeToEdge = false)
         => Ui.AppShell(key, sidebar, body, toolbar, inspector, automationName, transition, edgeToEdge);
 
-    /// <summary>Builds a <see cref="Command"/> dispatching typed <see cref="UiNavigateTo"/> arrival arguments to <paramref name="target"/> (via <see cref="UiCommand"/> for universal manifest compatibility).</summary>
+    /// <summary>Builds the <see cref="Command"/> that sends typed <see cref="UiNavigateTo"/> arrival arguments to <paramref name="target"/>.</summary>
     public static Command NavigateToCommand<TArgs>(
         TArgs args,
         string? fromNeuron = null,
@@ -278,42 +278,19 @@ public static class Kit
         var argsJson = args is null
             ? null
             : DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args, typeof(TArgs)).GetRawText();
-        var navPayload = new UiCommand(
-            Target: "navigate-to",
-            Method: UiNavigateTo.SignalAlias,
-            Args:
-            [
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(argsJson, typeof(string)),
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(fromNeuron, typeof(string)),
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(transition, typeof(string)),
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(correlationId, typeof(string)),
-            ]);
-        return new Command(
-            string.IsNullOrWhiteSpace(target) ? "." : target,
-            UiCommand.SignalAlias,
-            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(navPayload, typeof(UiCommand)));
+        var command = DigitalBrain.ScreenCommands.Sends(new UiNavigateTo(argsJson, fromNeuron, transition, correlationId));
+        return string.IsNullOrWhiteSpace(target) ? command : command with { Target = target };
     }
 
-    /// <summary>Builds a <see cref="Command"/> dispatching <see cref="UiNavigateFrom"/> departure checks to <paramref name="target"/> (via <see cref="UiCommand"/> for universal manifest compatibility).</summary>
+    /// <summary>Builds the <see cref="Command"/> that sends a <see cref="UiNavigateFrom"/> departure check to <paramref name="target"/>.</summary>
     public static Command NavigateFromCommand(
         string? toNeuron = null,
         string? route = null,
         bool force = false,
         string target = ".")
     {
-        var navPayload = new UiCommand(
-            Target: "navigate-from",
-            Method: UiNavigateFrom.SignalAlias,
-            Args:
-            [
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(toNeuron, typeof(string)),
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(route, typeof(string)),
-                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(force, typeof(bool)),
-            ]);
-        return new Command(
-            string.IsNullOrWhiteSpace(target) ? "." : target,
-            UiCommand.SignalAlias,
-            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(navPayload, typeof(UiCommand)));
+        var command = DigitalBrain.ScreenCommands.Sends(new UiNavigateFrom(toNeuron, route, force));
+        return string.IsNullOrWhiteSpace(target) ? command : command with { Target = target };
     }
 
     /// <summary>Creates a sidebar navigation item (forwards to <see cref="DigitalBrain.UI.Ui.NavItem"/>).</summary>

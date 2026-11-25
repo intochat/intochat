@@ -97,7 +97,6 @@ public sealed class MarkdrawAppFacts
         Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_export_format", StringComparer.Ordinal));
 
         Assert.Contains("digraph MarkdrawAppState", graph.ToDot(), StringComparison.Ordinal);
-        Assert.Contains(MarkdrawApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
     }
 
     [Fact]

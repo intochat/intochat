@@ -50,6 +50,9 @@ public sealed record NavSampleState(
     public NavSampleState RecordDeparture(string? target) => this with { LastDepartedTo = target };
 }
 
+[Signal("nav-sample.mark-dirty")]
+public sealed record NavSampleMarkDirty(bool Dirty = true) : Signal;
+
 [Neuron("app.test.nav-sample")]
 [Screen("app.test.nav-sample", Title = "Navigation Sample", Icon = Icons.Sliders)]
 public sealed class NavSampleScreen : AggregateScreen<NavSampleState>, INavigatedTo<BrowserNavArgs>, INavigatedFrom
@@ -61,6 +64,9 @@ public sealed class NavSampleScreen : AggregateScreen<NavSampleState>, INavigate
     }
 
     public Rule CanNavigateFrom(NavigationDeparture departure) => State.CleanBeforeDeparture;
+
+    [On]
+    public Task MarkDirty(NavSampleMarkDirty request) => Store(State.MarkDirty(request.Dirty));
 
     public async Task OnNavigatedFrom(NavigationDeparture departure, CancellationToken cancellationToken = default)
     {
@@ -90,7 +96,7 @@ public sealed class NavSampleScreen : AggregateScreen<NavSampleState>, INavigate
                     .Sends(NavigateFromCommand(toNeuron: "app.creator", route: "brain", force: true)),
                 Button("Toggle Dirty")
                     .Key("btn-toggle-dirty")
-                    .OnClick<NavSampleState>(x => x.MarkDirty(!state.HasUnsavedDraft))),
+                    .Sends(new NavSampleMarkDirty(!state.HasUnsavedDraft))),
             body: WebBrowser(
                 url: state.TraceId is { Length: > 0 } tid
                     ? $"https://dashboard.example.test/{state.Section}/detail/{tid}"
@@ -128,7 +134,7 @@ public sealed class NavigationLifecycleFacts
     public void BuiltInSignalAliasesExposeCommandAndNavigationSignals()
     {
         var aliases = AggregateScreenBase<NavSampleState>.BuiltInSignalAliases;
-        Assert.Contains(UiCommand.SignalAlias, aliases);
+        Assert.Contains(UiInert.SignalAlias, aliases);
         Assert.Contains(UiNavigateTo.SignalAlias, aliases);
         Assert.Contains(UiNavigateFrom.SignalAlias, aliases);
     }
@@ -167,7 +173,7 @@ public sealed class NavigationLifecycleFacts
         Assert.NotNull(initial);
         Assert.Contains("Section: resources", initial!.View.GetRawText(), StringComparison.Ordinal);
 
-        // 1. Trigger typed arrival via UiCommand button helper (NavigateToCommand -> INavigatedTo<BrowserNavArgs>)
+        // 1. Trigger typed arrival via the button helper (NavigateToCommand sends UiNavigateTo -> INavigatedTo<BrowserNavArgs>)
         await screen.Click("btn-nav-trace");
         await os.Idle();
 
@@ -184,7 +190,9 @@ public sealed class NavigationLifecycleFacts
         var dirtyView = await screen.Open();
         Assert.NotNull(dirtyView);
 
-        await screen.Click("btn-leave");
+        // The departure is refused by the screen's rule: the press fails with the rule's reason and the refusal is published.
+        var refusedLeave = await Assert.ThrowsAsync<DigitalBrain.Units.ActivationRefusedException>(() => screen.Click("btn-leave"));
+        Assert.StartsWith("Rule:unsaved_draft:", refusedLeave.Reason, StringComparison.Ordinal);
         await os.Idle();
 
         Assert.Contains(rejectedHeard, r => r.Rules.Contains("unsaved_draft"));

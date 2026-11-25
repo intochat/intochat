@@ -181,7 +181,6 @@ public sealed class DesktopAppFacts
         Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("widget_not_open", StringComparer.Ordinal));
 
         Assert.Contains("digraph DesktopAppState", graph.ToDot(), StringComparison.Ordinal);
-        Assert.Contains(DesktopApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
     }
 
     [Fact]

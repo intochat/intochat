@@ -126,9 +126,7 @@ public sealed partial class UsageApp : AggregateScreen<UsageAppState>
         return UpdateBudgetCapAsync(request.MonthlyBudgetMicros > 0 ? request.MonthlyBudgetMicros : ComputeState.DefaultMonthlyBudgetMicros);
     }
 
-    public Task RefreshUsageAsync() => ReadComputeAsync("Refreshed compute spending.");
-
-    public async Task UpdateBudgetCapAsync(long cap)
+    private async Task UpdateBudgetCapAsync(long cap)
     {
         if (State.ValidBudgetCap(cap).Broken) { await ApplyDecisionAsync(State.ApplyBudgetCap(cap)); return; }
         if (Compute is not { } computeSlot)
@@ -183,7 +181,7 @@ public sealed partial class UsageApp : AggregateScreen<UsageAppState>
                 "Usage",
                 $"Amounts in USD · 1,000,000 micro-credits = $1.00 · Monthly Cap: {budgetUsd}",
                 StatusPill(state.BudgetExceeded ? StatusKind.Error : StatusKind.Done, state.BudgetExceeded ? "Over Cap" : "Within Cap"),
-                PrimaryButton("Refresh usage", Icons.RefreshCw).Key("refresh-usage").Small().OnClick(() => RefreshUsageAsync())),
+                PrimaryButton("Refresh usage", Icons.RefreshCw).Key("refresh-usage").Small().Sends(new UsageRefresh())),
             Grid(3, Space.Sm)[
                 StatCard("kpi-usage-usd", "30-Day Spend", state.FormattedUsd, $"{state.SpentMicros:N0} µ-credits (Cap {budgetUsd})", spendTone, "dollar-sign"),
                 StatCard("kpi-usage-surfaces", "Active Surfaces", $"{rows.Length}", "Metered Neurons", BadgeTone.Done, "cpu"),
@@ -191,9 +189,9 @@ public sealed partial class UsageApp : AggregateScreen<UsageAppState>
             ],
             Card("Monthly Spend Cap", state.Status)[
                 HStack(Space.Sm)[
-                    Button("Cap $10", "gauge").Key("cap-10").Small().OnClick(() => UpdateBudgetCapAsync(10_000_000L)),
-                    Button("Cap $50", "gauge").Key("cap-50").Small().OnClick(() => UpdateBudgetCapAsync(50_000_000L)),
-                    Button("Cap $200", "gauge").Key("cap-200").Small().OnClick(() => UpdateBudgetCapAsync(200_000_000L))
+                    Button("Cap $10", "gauge").Key("cap-10").Small().Sends(new UsageSetBudget(10_000_000L)),
+                    Button("Cap $50", "gauge").Key("cap-50").Small().Sends(new UsageSetBudget(50_000_000L)),
+                    Button("Cap $200", "gauge").Key("cap-200").Small().Sends(new UsageSetBudget(200_000_000L))
                 ]
             ],
             rows.Length > 0

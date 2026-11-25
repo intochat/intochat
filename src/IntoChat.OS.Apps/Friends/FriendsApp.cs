@@ -2,7 +2,7 @@
 # Friends
 Role: Default
 Shipped: true
-Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, fork_app, filter-scope, publish-social-post, refresh-feed, react-to-post, open-friend-room, send-room-message, ui.command
+Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, fork_app, filter-scope, publish-social-post, refresh-feed, react-to-post, open-friend-room, send-room-message, edit-draft
 
 Personal social profile, friends, files shared with friends, and interactive App-Post feed.
 A friend is confirmed with a code: one person makes it, the other redeems it. A folder or file of the workspace is shared
@@ -81,6 +81,17 @@ public sealed record ReactToPost(string OwnerBrain = "", string PostId = "", str
 [Signal("friends.open-friend-room")]
 public sealed record OpenFriendRoom(string RoomKey = "", string FriendAccount = "", string RoomOwnerBrain = "") : Signal;
 
+/// <summary>Keeps what a person types into one Friends field (one of the constants below); the text is the value.</summary>
+[Signal("friends.edit-draft")]
+public sealed record FriendsEditDraft(string? Field = null, string? Value = null) : Signal
+{
+    public const string SocialPost = "social-post";
+    public const string RoomMessage = "room-message";
+    public const string Code = "code";
+    public const string Path = "path";
+    public const string SharedText = "shared-text";
+}
+
 [Signal("friends.send-room-message")]
 public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey = "", string Text = "") : Signal;
 
@@ -138,7 +149,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             new("react-to-post", "Add a reaction to a social post."),
             new("open-friend-room", "Create, invite to, or join a live friend chat room."),
             new("send-room-message", "Send a chat message to the active friend room."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Friends aggregate command."),
+            new("edit-draft", "Keep what the person types into a Friends field."),
         ]);
 
     public new FriendsAppState State => base.State;
@@ -358,13 +369,22 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         });
     }
 
-    public Task MakeCodeAsync() => MakeCode(new FriendsMakeCode());
-    public Task RedeemTypedCodeAsync() => RedeemCode(new FriendsRedeemCode());
-    public Task UnfriendAsync(string account) => Unfriend(new FriendsUnfriend(account));
-    public Task ShareTypedPathAsync(string account, string role) => ShareFolder(new FriendsShareFolder(account, "", role));
-    public Task UnshareAsync(string shareId) => Unshare(new FriendsUnshare(shareId));
-    public Task OpenSharedAsync(string ownerBrain, string shareId, string path) => OpenShared(new FriendsOpenShared(ownerBrain, shareId, path));
-    public Task SaveTypedTextAsync(string ownerBrain, string shareId, string path) => SaveShared(new FriendsSaveShared(ownerBrain, shareId, path));
+
+    [On]
+    public async Task EditDraft(FriendsEditDraft request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        FriendsAppState? next = request.Field switch
+        {
+            FriendsEditDraft.SocialPost => State.SetSocialPostDraft(request.Value),
+            FriendsEditDraft.RoomMessage => State.SetRoomMessageDraft(request.Value),
+            FriendsEditDraft.Code => State.SetCodeDraft(request.Value),
+            FriendsEditDraft.Path => State.SetPathDraft(request.Value),
+            FriendsEditDraft.SharedText => State.SetSharedTextDraft(request.Value),
+            _ => null,
+        };
+        if (next is not null) { await Store(next); }
+    }
 
     // Runs one friend or sharing step. A refusal or a mistake in what was typed leaves the screen as it was and says why.
     private async Task Attempt(string what, Func<Task<FriendsAppState>> step)
@@ -764,9 +784,6 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         post.ForkedFrom,
         mine);
 
-    public Task PublishQuickPostAsync() => Publish(new FriendsPublish("Interactive revenue & sketch board", "friends"));
-    public Task ForkAndInstallPostAsync(string postId) => ForkApp(new FriendsForkApp(postId));
-    public Task ForkPostTemplateAsync(string postId) => ForkPost(new FriendsForkPost(postId));
 
     private BrainId CurrentBrainId()
     {
@@ -840,7 +857,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 $"{state.DisplayName} (@{state.Handle})",
                 string.IsNullOrWhiteSpace(state.Bio) ? state.Status : $"{state.Bio} · {state.Status}",
                 StatusPill(StatusKind.Done, $"{roster.Length} friends"),
-                PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().OnClick(() => PublishQuickPostAsync())),
+                PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().Sends(new FriendsPublish("Interactive revenue & sketch board", "friends"))),
             HStack(Space.Sm)[
                 Child<ITabStripControl, TabStripProps>(SectionKey, new TabStripProps(
                     [new("all", "Overview"), new("feed", "Posts"), new("roster", "Roster"), new("shared", "Shared")],
@@ -889,7 +906,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     TextField("Social Post", "Share an update with friends")
                         .Key("input:social-post")
                         .Value(state.SocialPostDraft)
-                        .OnChange<FriendsAppState>(s => s.SetSocialPostDraft(Arg.Text)),
+                        .SendsOnChange(new FriendsEditDraft(FriendsEditDraft.SocialPost)),
                     PrimaryButton("Publish Post", "send")
                         .Key("btn:social-publish")
                         .Small()
@@ -925,7 +942,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     TextField("Room Message", "Say something in the room")
                         .Key("input:room-message")
                         .Value(state.RoomMessageDraft)
-                        .OnChange<FriendsAppState>(s => s.SetRoomMessageDraft(Arg.Text)),
+                        .SendsOnChange(new FriendsEditDraft(FriendsEditDraft.RoomMessage)),
                     PrimaryButton("Send", "send")
                         .Key("btn:room-send")
                         .Small()
@@ -943,9 +960,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             new TagPill($"{friend.Name} (@{friend.Account.Value})", "accent", "users"),
             Button("Chat", Icons.MessageSquare).Key($"btn:open-room:{friend.Account.Value}").Small().Sends(Sends(new OpenFriendRoom("chat", friend.Account.Value))),
             Button("Join Room", "door-open").Key($"btn:join-room:{friend.Brain.Value}:chat").Small().Sends(Sends(new OpenFriendRoom("chat", friend.Account.Value, friend.Brain.Value))),
-            Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account.Value}").Small().OnClick(() => ShareTypedPathAsync(friend.Account.Value, "viewer")),
-            Button("Share as editor", "pencil").Key($"share-editor:{friend.Account.Value}").Small().OnClick(() => ShareTypedPathAsync(friend.Account.Value, "editor")),
-            GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account.Value}").Small().OnClick(() => UnfriendAsync(friend.Account.Value)),
+            Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account.Value}").Small().Sends(new FriendsShareFolder(friend.Account.Value, "", "viewer")),
+            Button("Share as editor", "pencil").Key($"share-editor:{friend.Account.Value}").Small().Sends(new FriendsShareFolder(friend.Account.Value, "", "editor")),
+            GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account.Value}").Small().Sends(new FriendsUnfriend(friend.Account.Value)),
         ]));
 
         return Card("Friends", "A friend is confirmed with a code: one of you makes it, the other adds it.")[
@@ -953,14 +970,14 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             [
                 .. rows,
                 HStack(Space.Sm)[
-                    Button("Make a friend code", "key").Key("make-code").Small().OnClick(() => MakeCodeAsync()),
+                    Button("Make a friend code", "key").Key("make-code").Small().Sends(new FriendsMakeCode()),
                     Text(state.FriendCode)
                 ],
                 TextField(FieldKey(CodeField), "XXXX-XXXX-XXXX").Key(CodeField).Label("Friend code you received")
-                    .Value(state.CodeDraft).OnChange<FriendsAppState>(s => s.SetCodeDraft(Arg.Text)),
-                PrimaryButton("Add friend", "user-plus").Key("redeem-code").Small().OnClick(() => RedeemTypedCodeAsync()),
+                    .Value(state.CodeDraft).SendsOnChange(new FriendsEditDraft(FriendsEditDraft.Code)),
+                PrimaryButton("Add friend", "user-plus").Key("redeem-code").Small().Sends(new FriendsRedeemCode()),
                 TextField(FieldKey(PathField), "/work/folder").Key(PathField).Label("Folder or file of your workspace to share")
-                    .Value(state.PathDraft).OnChange<FriendsAppState>(s => s.SetPathDraft(Arg.Text)),
+                    .Value(state.PathDraft).SendsOnChange(new FriendsEditDraft(FriendsEditDraft.Path)),
             ])
         ];
     }
@@ -972,7 +989,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         return Card("Shared by me", "People with access to your files. Removing takes effect at once.")[
             VStack(Space.Xs, [.. shares.Select(share => (Node)HStack(Space.Sm)[
                 Text(share.Broken ? $"{share.Path} · {share.Account} · {share.Role} · Broken" : $"{share.Path} · {share.Account} · {share.Role}"),
-                GhostButton("Remove", "x").Key($"unshare:{share.Id}").Small().OnClick(() => UnshareAsync(share.Id))
+                GhostButton("Remove", "x").Key($"unshare:{share.Id}").Small().Sends(new FriendsUnshare(share.Id))
             ])])
         ];
     }
@@ -987,7 +1004,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 
         var list = pointers.Select(pointer => (Node)HStack(Space.Sm)[
             Text($"{pointer.OwnerAccount} · {pointer.Path} · {pointer.Role}"),
-            Button("Open", "folder-open").Key($"open-shared:{pointer.ShareId}").Small().OnClick(() => OpenSharedAsync(pointer.OwnerBrain, pointer.ShareId, ""))
+            Button("Open", "folder-open").Key($"open-shared:{pointer.ShareId}").Small().Sends(new FriendsOpenShared(pointer.OwnerBrain, pointer.ShareId, ""))
         ]);
 
         return Card("Shared with me", "The file stays with its owner. It is reachable while their brain is running; the last save wins.")[
@@ -1003,7 +1020,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             return VStack(Space.Xs, [.. opened.Entries.Select(entry => (Node)HStack(Space.Sm)[
                 Text(entry.IsFolder ? $"{entry.Path}/" : entry.Path),
                 Button("Open", entry.IsFolder ? "folder-open" : "file-text").Key($"open-entry:{opened.ShareId}:{entry.Path}").Small()
-                    .OnClick(() => OpenSharedAsync(opened.OwnerBrain, opened.ShareId, entry.Path))
+                    .Sends(new FriendsOpenShared(opened.OwnerBrain, opened.ShareId, entry.Path))
             ])]);
         }
 
@@ -1017,10 +1034,10 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         [
             MutedText(byAndWhen),
             opened.CanEdit
-                ? TextField(FieldKey(TextField), "").Key(TextField).Label("Text").Value(typed).OnChange<FriendsAppState>(s => s.SetSharedTextDraft(Arg.Text))
+                ? TextField(FieldKey(TextField), "").Key(TextField).Label("Text").Value(typed).SendsOnChange(new FriendsEditDraft(FriendsEditDraft.SharedText))
                 : Text(opened.Text),
             .. opened.CanEdit
-                ? new Node[] { PrimaryButton("Save", "save").Key($"save-shared:{opened.ShareId}").Small().OnClick(() => SaveTypedTextAsync(opened.OwnerBrain, opened.ShareId, opened.Path)) }
+                ? new Node[] { PrimaryButton("Save", "save").Key($"save-shared:{opened.ShareId}").Small().Sends(new FriendsSaveShared(opened.OwnerBrain, opened.ShareId, opened.Path)) }
                 : [],
         ]);
     }
@@ -1060,15 +1077,15 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                         fields,
                         Subtitle: post.Text,
                         LinkLabel: "Fork App-Post",
-                        Open: Button("Fork App-Post").Key($"fork-{post.PostId}").OnClick(() => ForkPostTemplateAsync(post.PostId)))
+                        Open: Button("Fork App-Post").Key($"fork-{post.PostId}").Sends(new FriendsForkPost(post.PostId)))
                     : new RecordCardNode($"App-Post · {audience}", post.PostId, fields, Subtitle: post.Text),
                 .. post.Mine ? embedded.Select(child => (Node)Kit.Slot(child.TargetNeuronUri)) : [],
                 .. post.Mine
                     ? new Node[]
                     {
                         HStack(Space.Sm)[
-                            Button("Fork & Install", "download").Key($"fork-and-install:{post.PostId}").Small().OnClick(() => ForkAndInstallPostAsync(post.PostId)),
-                            Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.PostId}").Small().OnClick(() => ForkPostTemplateAsync(post.PostId)),
+                            Button("Fork & Install", "download").Key($"fork-and-install:{post.PostId}").Small().Sends(new FriendsForkApp(post.PostId)),
+                            Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.PostId}").Small().Sends(new FriendsForkPost(post.PostId)),
                             GhostButton("Open in Creator", "wand-sparkles").Key($"open-in-creator:{post.PostId}").Small().WithIntent(IntentKind.OpenWindow, "creator")
                         ],
                     }

@@ -39,6 +39,24 @@ public sealed class ControlSchemaFacts
         Assert.Contains(typeof(ComposerNode), Reachable(Nodes));
     }
 
+    // A press is a typed signal, never a C# method name: no recorded app view (views/{app}/*.json) or Flutter scenario view sends
+    // the deleted "ui.command", and the Kit no longer has the type that carried it.
+    [Fact]
+    public void No_view_sends_the_method_name_command()
+    {
+        var views = Path.Combine(Repository.Projects["IntoChat.OS.Apps"].Directory, "views");
+        var scenarios = Path.Combine(Repository.Root, "ui", "test", "scenarios", "views");
+        var offenders = new[] { views, scenarios }
+            .Where(Directory.Exists)
+            .SelectMany(directory => Directory.EnumerateFiles(directory, "*.json", SearchOption.AllDirectories))
+            .Where(file => File.ReadAllText(file).Contains("\"ui.command\"", StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(Repository.Root, file))
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, "Views still send ui.command: " + string.Join(", ", offenders));
+        Assert.Null(typeof(Kit).Assembly.GetType("IntoChat.OS.UI.UiCommand"));
+    }
+
     // The UI model's types reachable from the view nodes through their public properties (element and nullable types unwrapped).
     private static HashSet<Type> Reachable(IEnumerable<Type> roots)
     {
