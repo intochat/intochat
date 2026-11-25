@@ -162,7 +162,7 @@ public sealed class WorkspaceWindowsFacts
         os.Register<DesktopRecordsNeuron>();
         os.RegisterCatalog();
         os.Register(typeof(FlutterModule).Assembly);
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var brain = new BrainId("owner");
         var desktopAppRef = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "desktop");

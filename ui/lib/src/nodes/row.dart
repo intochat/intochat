@@ -11,15 +11,13 @@ bool _isInlineControl(Node n) =>
     n is BadgeNode ||
     n is TagPillNode ||
     n is ButtonNode ||
-    n is IconButtonNode ||
-    n is SwitchNode;
+    n is IconButtonNode;
 
 bool _isCenterAlignedRowChild(Node n) =>
     _isInlineControl(n) ||
     n is HeadingNode ||
     n is TextNode ||
     n is SpacerNode ||
-    n is SelectNode ||
     n is FieldNode;
 
 bool _isFlexSpacer(Node n) => n is SpacerNode && n.size <= 0;
@@ -162,7 +160,6 @@ Widget renderRow(RowNode node, NodeContext ctx) {
           } else if (boundedWidth &&
               (childNode is HeadingNode ||
                   childNode is TextNode ||
-                  childNode is TabsNode ||
                   childNode is TabStripViewNode)) {
             rowChildren.add(Flexible(fit: FlexFit.loose, child: w));
           } else if (boundedWidth &&

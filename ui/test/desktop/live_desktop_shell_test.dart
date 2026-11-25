@@ -1023,16 +1023,16 @@ Map<String, dynamic> desktopViewJson({required Map<String, String> windows}) {
         ],
       },
       {
-        'kind': 'tabs',
-        'selectedId': '$id/0',
-        'items': [
-          {
-            'key': 'tab-$id-0',
-            'id': '$id/0',
-            'label': title,
-            'emit': {'owner': 'desktop', 'signal': 'tab', 'args': '$id/0'},
-          },
-        ],
+        'kind': 'neuronRef',
+        'refKind': 'slot',
+        'neuronUri':
+            'brain-1/control.tabStrip/brain-1/app.desktop/default/tabs-$id',
+        'props': {
+          'items': [
+            {'id': '$id/0', 'label': title},
+          ],
+          'selectedId': '$id/0',
+        },
       },
       {
         'kind': 'neuronRef',

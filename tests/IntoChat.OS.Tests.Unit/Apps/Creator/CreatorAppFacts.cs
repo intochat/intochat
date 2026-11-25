@@ -49,7 +49,6 @@ public sealed class CreatorAppFacts
         var shell = Assert.IsType<AppShellNode>(view.Root);
         Assert.Equal("creator-shell", shell.Key);
         Assert.IsType<BrainSceneNode>(shell.Body);
-        Assert.DoesNotContain(Nodes(shell.Inspector).OfType<Tabs>(), _ => true);
 
         var propGrid = await os.Get<IPropertyGrid>(new NeuronId(new BrainId("local"), "ui.property-grid", CreatorView.InspectorStateKey)).Read();
         Assert.Contains(propGrid.Entries, e => e.Name == "bumps" && e.Value == "3");
@@ -353,6 +352,7 @@ public sealed class CreatorAppFacts
         os.Register<FakeSynapses>();
         os.Register<FakeReads>();
         os.Register<FakeTraces>();
+        os.Register<IntoChat.OS.Modules.UI.Controls.TabStripNeuron>();
     }
 
     private static TestOS FakeOs()

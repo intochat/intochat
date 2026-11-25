@@ -2840,31 +2840,6 @@
     "examples": []
   },
   {
-    "kind": "select",
-    "isNeuron": false,
-    "props": [
-      {
-        "name": "label",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "selected",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "options",
-        "type": "List<Map<String, Object?>>",
-        "default": null
-      }
-    ],
-    "state": [],
-    "commands": [],
-    "signals": [],
-    "examples": []
-  },
-  {
     "kind": "spacer",
     "isNeuron": false,
     "props": [
@@ -2990,46 +2965,6 @@
     "examples": []
   },
   {
-    "kind": "switch",
-    "isNeuron": false,
-    "props": [
-      {
-        "name": "key",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "label",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "isOn",
-        "type": "bool",
-        "default": null
-      },
-      {
-        "name": "command",
-        "type": "Map<String, Object?>",
-        "default": null
-      },
-      {
-        "name": "locked",
-        "type": "bool",
-        "default": false
-      },
-      {
-        "name": "automationName",
-        "type": "String",
-        "default": ""
-      }
-    ],
-    "state": [],
-    "commands": [],
-    "signals": [],
-    "examples": []
-  },
-  {
     "kind": "tabStrip",
     "isNeuron": true,
     "props": [
@@ -3138,26 +3073,6 @@
       {
         "name": "selectedId",
         "type": "String?",
-        "default": null
-      }
-    ],
-    "state": [],
-    "commands": [],
-    "signals": [],
-    "examples": []
-  },
-  {
-    "kind": "tabs",
-    "isNeuron": false,
-    "props": [
-      {
-        "name": "items",
-        "type": "List<Map<String, Object?>>",
-        "default": null
-      },
-      {
-        "name": "selectedId",
-        "type": "String",
         "default": null
       }
     ],

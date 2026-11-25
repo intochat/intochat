@@ -13,7 +13,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.Friends;
 public sealed class FriendsAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> FriendsOperations
-        => ScreenBaseline.Cases(typeof(FriendsApp), os => os.RegisterCatalog());
+        => ScreenBaseline.Cases(typeof(FriendsApp), os => os.RegisterCatalog().Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly));
 
     [Theory, MemberData(nameof(FriendsOperations))]
     public Task FriendsBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -24,7 +24,7 @@ public sealed class FriendsAppFacts
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.RegisterCatalog();
-        os.Register(typeof(FriendsApp).Assembly);
+        os.Register(typeof(FriendsApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.friends", "default"));
         Assert.NotNull(await screen.Read());
     }

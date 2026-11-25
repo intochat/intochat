@@ -507,8 +507,6 @@ String shellBodyTransitionSignature(Node body, String transition) {
         'surf:$surfaceKind:${title ?? ''}:${children.isEmpty ? '' : describe(children.first, depth + 1)}',
       CardNode(:final title, :final children) =>
         'card:$title:${children.isEmpty ? '' : describe(children.first, depth + 1)}',
-      TabsNode(:final selectedId) => 'tabs:$selectedId',
-      SelectNode(:final selected) => 'sel:$selected',
       _ => n.kind,
     };
   }

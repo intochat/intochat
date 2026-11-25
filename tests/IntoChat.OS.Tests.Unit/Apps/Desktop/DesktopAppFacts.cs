@@ -15,7 +15,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 [Collection(nameof(RecordingApp))]
 public sealed class DesktopAppFacts
 {
-    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> DesktopOperations => ScreenBaseline.Cases(typeof(DesktopApp), os => os.Register<DesktopRecordsNeuron>());
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> DesktopOperations => ScreenBaseline.Cases(typeof(DesktopApp), os => os.Register<DesktopRecordsNeuron>().Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly));
 
     [Theory, MemberData(nameof(DesktopOperations))]
     public async Task DesktopBaseline(ScreenOperationCase operation)
@@ -31,7 +31,7 @@ public sealed class DesktopAppFacts
         await using var os = TestOS.Local();
         os.Register<DesktopRecordsNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.desktop", "default"));
         Assert.NotNull(await screen.Read());
     }
@@ -219,7 +219,7 @@ public sealed class DesktopAppFacts
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         os.Register<AgentContextNeuron>();
         os.Register<UiIntrospectorNeuron>();
 

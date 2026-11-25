@@ -733,6 +733,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 
+  // A window tab pick: Select to the window's tab strip child of the desktop screen, through POST /act.
+  void _selectWindowTab(Map<String, dynamic> tab) {
+    final event = desktopTabSelectEvent(tab, widget.name);
+    if (event == null) return;
+    unawaited(
+      widget.onAction(event).then((_) => _reload()).catchError(_refused),
+    );
+  }
+
   // A refused activation (a stale generation, a changed view): read the view again and say so.
   void _refused(Object error) {
     unawaited(_reload());
@@ -923,16 +932,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         }
       }
 
-      final tabsNode = frame.children.whereType<TabsNode>().firstOrNull;
-      final tabs = <Map<String, dynamic>>[
-        for (final item in tabsNode?.items ?? const <TabItem>[])
-          {
-            'key': item.key,
-            'text': item.label,
-            'selected': item.id == tabsNode!.selectedId,
-            'enabled': true,
-          },
-      ];
+      final tabs = desktopWindowTabs(frame.children);
 
       Map<String, dynamic>? viewportRef = {
         'kind': reference.refKind,
@@ -2059,9 +2059,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _viewKeys = {
       for (final node in _walk(effectiveRoot))
         if (node is AppTileNode) node.key else if (node is ButtonNode) node.key,
-      for (final node in _walk(effectiveRoot))
-        if (node is TabsNode)
-          for (final item in node.items) item.key,
     };
     final c = IcTheme.of(context);
     final dockTiles = _parseDockTiles(effectiveRoot);
@@ -2321,7 +2318,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                               key: '${t['key']}',
                               label: '${t['text'] ?? ''}',
                               selected: t['selected'] == true,
-                              onTap: () => _dispatchViewNode(t),
+                              onTap: () => _selectWindowTab(t),
                             ),
                         ],
                         onFocus: () => _focusWindow(spec),
@@ -2459,7 +2456,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                             key: '${t['key']}',
                                             label: '${t['text'] ?? ''}',
                                             selected: t['selected'] == true,
-                                            onTap: () => _dispatchViewNode(t),
+                                            onTap: () => _selectWindowTab(t),
                                           ),
                                       ],
                                 },
@@ -2858,6 +2855,53 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       },
     );
   }
+}
+
+/// The tabs of a desktop window frame, from its tab strip child (a `slot`
+/// reference whose props are the strip's [TabStripProps]): each tab's id,
+/// label, whether it is selected and enabled, and the child key a pick acts on.
+List<Map<String, dynamic>> desktopWindowTabs(List<Node> frameChildren) {
+  final strip = frameChildren
+      .whereType<NeuronRefNode>()
+      .where((ref) => ref.refKind == 'slot' && ref.props is Map)
+      .firstOrNull;
+  if (strip == null) return const [];
+  final props = TabStripProps.fromJson(
+    Map<String, dynamic>.from(strip.props as Map),
+  );
+  final child = strip.neuronUri.substring(strip.neuronUri.lastIndexOf('/') + 1);
+  return [
+    for (final item in props.items)
+      {
+        'key': item.id,
+        'text': item.label,
+        'selected': item.id == props.selectedId,
+        'enabled': props.isEnabled,
+        'child': child,
+      },
+  ];
+}
+
+/// The act a window tab pick sends: `Select` with the tab's id to the window's
+/// tab strip child of the desktop screen named by [view]; none for a tab that
+/// is disabled, already selected, or names no child.
+Map<String, dynamic>? desktopTabSelectEvent(
+  Map<String, dynamic> tab,
+  String view,
+) {
+  final child = tab['child'];
+  final id = tab['key'];
+  if (child is! String || id is! String) return null;
+  if (tab['enabled'] == false || tab['selected'] == true) return null;
+  return {
+    'kind': 'act',
+    'neuron': view.endsWith('/view')
+        ? view.substring(0, view.length - 5)
+        : view,
+    'target': child,
+    'signal': 'control.select',
+    'args': {'id': id},
+  };
 }
 
 /// The view event a desktop node sends: only a node the published view holds activates, only by its key; any

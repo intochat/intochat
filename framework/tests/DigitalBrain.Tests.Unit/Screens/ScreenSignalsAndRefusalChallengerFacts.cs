@@ -37,7 +37,7 @@ public sealed class ChallengerScreen : Screen<ChallengerScreenState>
                 new Heading($"Counter: {state.Counter}"),
                 new Button("btn-valid", "Valid Button", Sends(new ChallengerTick(1))),
                 new Button("btn-no-emit", "No Emit Button", Intent: new Intent(IntentKind.Copy, "clipboard")),
-                new Tabs([new TabItem("btn-alien-owner", "alien", "Alien Owner Button", new Emit("alien.screen", "challenger.tick"))], "alien"),
+                new Conversation("btn-alien-owner-thread", [], new ComposerNode("btn-alien-owner", new Emit("alien.screen", "challenger.tick"))),
                 new Field("fld-valid", "Valid Field", FieldKind.Text, state.Text, OnSubmit: Sends(new ChallengerSetText("default"))),
                 new Field("fld-no-submit", "Field Without OnSubmit", FieldKind.Text, state.Text, OnSubmit: null),
                 new Conversation("conv-alien", [], new ComposerNode("fld-alien-submit", new Emit("alien.screen", "challenger.set-text")))

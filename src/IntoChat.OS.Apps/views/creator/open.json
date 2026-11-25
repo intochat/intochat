@@ -1527,31 +1527,26 @@
         "kind": "row",
         "children": [
           {
-            "kind": "select",
-            "label": "segmented:",
-            "selected": "brain",
-            "options": [
-              {
-                "key": "mode-brain",
-                "id": "brain",
-                "label": "Brain Graph",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "select",
-                  "args": "mode:brain"
+            "kind": "neuronRef",
+            "refKind": "slot",
+            "neuronUri": "creator-graph-mode",
+            "props": {
+              "items": [
+                {
+                  "id": "brain",
+                  "label": "Brain Graph",
+                  "icon": null
+                },
+                {
+                  "id": "state",
+                  "label": "Accordant State Graph",
+                  "icon": null
                 }
-              },
-              {
-                "key": "mode-state",
-                "id": "state",
-                "label": "Accordant State Graph",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "select",
-                  "args": "mode:state"
-                }
-              }
-            ]
+              ],
+              "selectedId": "brain",
+              "isEnabled": true,
+              "automationName": "Graph mode"
+            }
           },
           {
             "kind": "button",

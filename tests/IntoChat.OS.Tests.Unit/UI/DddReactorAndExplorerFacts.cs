@@ -179,10 +179,9 @@ public sealed class WorkspaceFilterScreen : AggregateScreen<WorkspaceFilterState
                 $"Rate {s.SyncedRate:0.00} · {(s.SidebarOpen ? "Expanded" : "Compact")}",
                 IconButton(Icons.PanelLeft, tooltip: "Toggle Sidebar").OnClick<WorkspaceFilterState>(x => x.ToggleSidebar()),
                 GhostButton("Sync Rate", Icons.RefreshCw).OnClick(() => SyncExchangeRateAsync())),
-            Tabs(
-                s.SelectedTab,
-                Tab("overview", "Overview").OnSelect<WorkspaceFilterState>(x => x.SelectTab("overview")),
-                Tab("graph", "Graph").OnSelect<WorkspaceFilterState>(x => x.SelectTab("graph"))),
+            HStack(Space.Sm)[
+                Button("Overview").OnClick<WorkspaceFilterState>(x => x.SelectTab("overview")),
+                Button("Graph").OnClick<WorkspaceFilterState>(x => x.SelectTab("graph"))],
             SearchField("Filter items…")
                 .Key("search-box")
                 .OnChange<WorkspaceFilterState>(x => x.SetQuery(Arg.Text)),
@@ -463,8 +462,6 @@ public sealed class DddReactorAndExplorerFacts
             leading: Surface(SurfaceKind.Acrylic, "Sidebar")[
                 VStack(Space.Sm)[
                     done, working, error, idle, needsYou,
-                    ToggleSwitch("Auto-sync", true),
-                    SelectBox("Sort", "recent", Option("recent", "Recent"), Option("name", "Name")),
                     SecretField("API Key", "sk-...")
                 ]
             ],

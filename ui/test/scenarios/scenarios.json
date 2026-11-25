@@ -1424,30 +1424,6 @@
     ]
   },
   {
-    "name": "select",
-    "appId": "uikit",
-    "steps": [
-      {
-        "step": "act",
-        "signal": "control.select",
-        "args": {
-          "id": "select"
-        },
-        "target": "nav"
-      },
-      {
-        "step": "expect",
-        "contains": "select",
-        "target": "."
-      },
-      {
-        "step": "expect",
-        "contains": "The select node has no [Showcase] example yet.",
-        "target": "."
-      }
-    ]
-  },
-  {
     "name": "spacer",
     "appId": "uikit",
     "steps": [
@@ -1544,30 +1520,6 @@
     ]
   },
   {
-    "name": "switch",
-    "appId": "uikit",
-    "steps": [
-      {
-        "step": "act",
-        "signal": "control.select",
-        "args": {
-          "id": "switch"
-        },
-        "target": "nav"
-      },
-      {
-        "step": "expect",
-        "contains": "switch",
-        "target": "."
-      },
-      {
-        "step": "expect",
-        "contains": "The switch node has no [Showcase] example yet.",
-        "target": "."
-      }
-    ]
-  },
-  {
     "name": "tabStrip",
     "appId": "uikit",
     "steps": [
@@ -1610,30 +1562,6 @@
       {
         "step": "expect",
         "contains": "The tabStripView node has no [Showcase] example yet.",
-        "target": "."
-      }
-    ]
-  },
-  {
-    "name": "tabs",
-    "appId": "uikit",
-    "steps": [
-      {
-        "step": "act",
-        "signal": "control.select",
-        "args": {
-          "id": "tabs"
-        },
-        "target": "nav"
-      },
-      {
-        "step": "expect",
-        "contains": "tabs",
-        "target": "."
-      },
-      {
-        "step": "expect",
-        "contains": "The tabs node has no [Showcase] example yet.",
         "target": "."
       }
     ]

@@ -99,7 +99,7 @@ public static class TestOsAppExtensions
         os.Register<TApp>();
         // An app's views slot the shipped control neurons (the product registers them with the app assembly).
         os.Register<IntoChat.OS.Modules.UI.Controls.ToggleSwitchNeuron>().Register<IntoChat.OS.Modules.UI.Controls.ComboBoxNeuron>().Register<IntoChat.OS.Modules.UI.Controls.FormNeuron>()
-            .Register<IntoChat.OS.Modules.UI.Controls.ChatThreadNeuron>();
+            .Register<IntoChat.OS.Modules.UI.Controls.ChatThreadNeuron>().Register<IntoChat.OS.Modules.UI.Controls.TabStripNeuron>();
         var alias = PlainNeuronContracts.TypeOf(typeof(TApp))
             ?? typeof(TApp).GetCustomAttribute<NeuronAttribute>()?.Type
             ?? typeof(TApp).Name;

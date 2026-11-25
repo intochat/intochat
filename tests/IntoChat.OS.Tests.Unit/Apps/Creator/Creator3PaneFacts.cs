@@ -135,7 +135,6 @@ public sealed class Creator3PaneFacts
         Assert.DoesNotContain(neuronRefs, n => n.Kind == "ui.command-bar");
         Assert.Contains(neuronRefs, n => n.Kind == "ui.tabs" && n.NeuronUri == CreatorView.InspectorTabsKey);
         Assert.Contains(neuronRefs, n => n.Kind == "ui.property-grid" && n.NeuronUri == CreatorView.InspectorStateKey);
-        Assert.DoesNotContain(allNodes.OfType<Tabs>(), _ => true);
         Assert.DoesNotContain(allNodes.OfType<Card>(), c => c.Title == "State" || c.Title == "Published View" || c.Title == "spec.md");
 
         // Right Inspector buttons & approval gates

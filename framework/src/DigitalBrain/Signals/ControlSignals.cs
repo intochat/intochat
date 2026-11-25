@@ -1,4 +1,4 @@
-// Lives in the DigitalBrain assembly (DigitalBrain.UI cannot reference it) but in the UI.Commands namespace: the names (Select) match view nodes.
+// Lives in the DigitalBrain assembly (DigitalBrain.UI cannot reference it) but in the UI.Commands namespace, beside the control records.
 namespace DigitalBrain.UI.Commands;
 
 /// <summary>Flips a control between on and off.</summary>

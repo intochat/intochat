@@ -236,7 +236,7 @@ public sealed class ShellAppsScreenBaselineFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
         var desktopScreen = os.Get<IScreen>(new NeuronId(new BrainId("local"), "app.desktop", "default"));
@@ -343,7 +343,7 @@ public sealed class ShellAppsScreenBaselineFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
 
@@ -383,7 +383,7 @@ public sealed class ShellAppsScreenBaselineFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
 

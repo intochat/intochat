@@ -375,12 +375,10 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
 
-        var kind = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relation").Options.Single(o => o.Id == "Follows").Emit!;
-        await tasks.Request(kind.Signal, new TasksRelateKind(EmitArgs.Of(kind)[0]));
+        // The side view that drew the two relation selects is published by nothing; its operations are the screen's signals.
+        await tasks.Request("relate-kind", new TasksRelateKind("Follows"));
         await Field(tasks, "lag", "1");
-        var target = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relate to").Options.Single().Emit!;
-        var targetArgs = EmitArgs.Of(target);
-        await tasks.Request(target.Signal, new TasksRelate(targetArgs[0], targetArgs[1], targetArgs[2], targetArgs[3]));
+        await tasks.Request("relate", new TasksRelate(FakeFlows.Views[0].FlowId, tasks.App.State.RelateKind, FakeFlows.Views[1].FlowId, tasks.App.State.Draft.Lag));
 
         var (flowId, relation) = Assert.Single(FakeFlows.Relations);
         Assert.Equal(FakeFlows.Views[0].FlowId, flowId);

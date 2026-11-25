@@ -717,17 +717,7 @@ public sealed partial class TasksApp
         }
 
         children.Add(HStack(Space.Sm, [.. actions]));
-        children.Add(SelectBox(
-            "Relation",
-            state.RelateKind,
-            [.. Enum.GetNames<RelationKind>().Select(kind =>
-                Option(kind, kind).Key(kind).Emits(AppSignals.Emit(AppName, "relate-kind", kind)))]));
         children.Add(TextField(FieldKey("lag"), "Lag in days (Follows)").Key("lag"));
-        children.Add(SelectBox(
-            "Relate to",
-            "",
-            [.. flows.Where(f => f.FlowId != flow.FlowId).Select(f =>
-                Option(f.FlowId, f.Title).Key(f.FlowId).Emits(AppSignals.Emit(AppName, "relate", flow.FlowId, state.RelateKind, f.FlowId, state.Draft.Lag)))]));
 
         if (source is not null)
         {

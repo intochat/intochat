@@ -1,6 +1,6 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a combo box neuron (WinUI's ComboBox; the legacy <see cref="Select"/> data node is the old way): only what the user changes.</summary>
+/// <summary>The state of a combo box neuron (WinUI's ComboBox): only what the user changes.</summary>
 public sealed record ComboBoxState
 {
     /// <summary>The selected option's id; null selects none.</summary>

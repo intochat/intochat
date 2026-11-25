@@ -17,10 +17,12 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.UI;
+using IntoChat.OS.Modules.UI.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -85,10 +87,31 @@ public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey 
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends", Icon = "users", Category = "Social", Dock = 9)]
 public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 {
-    protected override Task OnActivate(CancellationToken cancellationToken)
+    /// <summary>The key of the tab strip child that picks the section.</summary>
+    public const string SectionKey = "friends-section";
+
+    /// <summary>The key of the tab strip child that filters the feed by audience.</summary>
+    public const string ScopeKey = "friends-scope";
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
-        return base.OnActivate(cancellationToken);
+        await base.OnActivate(cancellationToken);
+        await FollowChild<ITabStripControl, SelectionChanged>(SectionKey);
+        await FollowChild<ITabStripControl, SelectionChanged>(ScopeKey);
+    }
+
+    // The section and scope tab strips own nothing: Friends holds both selections and passes them down as props.
+    [On]
+    public Task OnSelectionChanged(SelectionChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        return SignalChild switch
+        {
+            SectionKey => ApplyDecisionAsync(State.SelectTab(changed.Id)),
+            ScopeKey => ApplyDecisionAsync(State.SelectScope(changed.Id)),
+            _ => Task.CompletedTask,
+        };
     }
 
     public static AppBundle Bundle => AppBundle.FromScreen<FriendsApp>(
@@ -822,19 +845,15 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 StatusPill(StatusKind.Done, $"{roster.Length} friends"),
                 PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().OnClick(() => PublishQuickPostAsync())),
             HStack(Space.Sm)[
-                Segmented(
-                    "Section",
-                    state.ActiveTab,
-                    Option("all", "Overview").Key("friends-tab:all").OnSelect<FriendsAppState>(x => x.SelectTab("all")),
-                    Option("feed", "Posts").Key("friends-tab:feed").OnSelect<FriendsAppState>(x => x.SelectTab("feed")),
-                    Option("roster", "Roster").Key("friends-tab:roster").OnSelect<FriendsAppState>(x => x.SelectTab("roster")),
-                    Option("shared", "Shared").Key("friends-tab:shared").OnSelect<FriendsAppState>(x => x.SelectTab("shared"))),
+                Child<ITabStripControl, TabStripProps>(SectionKey, new TabStripProps(
+                    [new("all", "Overview"), new("feed", "Posts"), new("roster", "Roster"), new("shared", "Shared")],
+                    AutomationName: "Section",
+                    SelectedId: state.ActiveTab)),
                 FlexSpacer(),
-                Tabs(
-                    state.SelectedScope,
-                    Tab("all", "All Posts", "layout-grid").Key("friends-scope:all").OnSelect<FriendsAppState>(x => x.SelectScope("all")),
-                    Tab("public", "Public", "globe").Key("friends-scope:public").OnSelect<FriendsAppState>(x => x.SelectScope("public")),
-                    Tab("friends", "Friends", "users").Key("friends-scope:friends").OnSelect<FriendsAppState>(x => x.SelectScope("friends")))
+                Child<ITabStripControl, TabStripProps>(ScopeKey, new TabStripProps(
+                    [new("all", "All Posts", "layout-grid"), new("public", "Public", "globe"), new("friends", "Friends", "users")],
+                    AutomationName: "Audience",
+                    SelectedId: state.SelectedScope))
             ],
             Grid(3, Space.Sm)[
                 StatCard("kpi-friends-posts", "Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),

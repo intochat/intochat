@@ -38,12 +38,10 @@ import 'progress.dart';
 import 'record_card.dart';
 import 'row.dart';
 import 'secret_card.dart';
-import 'select.dart';
 import 'spacer.dart';
 import 'split_pane.dart';
 import 'stat_card.dart';
 import 'surface.dart';
-import 'switch.dart';
 import 'chat_thread_view.dart';
 import 'combo_box_view.dart';
 import 'form_view.dart';
@@ -51,7 +49,6 @@ import 'list_box_view.dart';
 import 'live_chart_view.dart';
 import 'query_table_view.dart';
 import 'tab_strip_view.dart';
-import 'tabs.dart';
 import 'tag_pill.dart';
 import 'text.dart';
 import 'toggle_switch_view.dart';
@@ -124,7 +121,6 @@ abstract final class NodeRenderer {
     InfoBarNode(:final key) ||
     NavItemNode(:final key) ||
     StatCardNode(:final key) ||
-    SwitchNode(:final key) ||
     ToggleSwitchViewNode(:final key) ||
     WebBrowserNode(:final key) => key,
     _ => null,
@@ -137,7 +133,6 @@ abstract final class NodeRenderer {
       GridNode() => renderGrid(node, ctx),
       SplitPaneNode() => renderSplitPane(node, ctx),
       SurfaceNode() => renderSurface(node, ctx),
-      TabsNode() => renderTabs(node, ctx),
       DividerNode() => renderDivider(node, ctx),
       SpacerNode() => renderSpacer(node, ctx),
       CollectionNode() => renderCollection(node, ctx),
@@ -148,8 +143,6 @@ abstract final class NodeRenderer {
       TagPillNode() => renderTagPill(node, ctx),
       FieldNode() => renderField(node, ctx),
       IntentNode() => renderIntent(node, ctx),
-      SwitchNode() => renderSwitch(node, ctx),
-      SelectNode() => renderSelect(node, ctx),
       ProgressNode() => renderProgress(node, ctx),
       InfoBarNode() => renderInfoBar(node, ctx),
       ToastNode() => renderToast(node, ctx),

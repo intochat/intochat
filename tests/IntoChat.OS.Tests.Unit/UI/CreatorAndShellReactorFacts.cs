@@ -46,17 +46,22 @@ public sealed class CreatorAndShellReactorFacts
     public async Task CreatorApp_TogglesAccordantStateGraphAndInspectsUnitStateSpace()
     {
         await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
         os.Register<LocalCreatorReads>();
         var creator = await os.Install<CreatorApp>();
 
         await creator.Request("open", new CreatorOpen());
         Assert.False(creator.App.State.ShowStateGraph);
 
-        var switcher = Assert.Single(AllNodes(creator.App.Render()).OfType<Select>());
-        var stateOption = Assert.Single(switcher.Options, o => o.Key == "mode-state");
-        Assert.NotNull(stateOption.Emit);
-        await creator.Request("select", new CreatorSelect(CreatorView.ToggleStateGraphTarget));
+        // The graph mode is a control.tabStrip child: a select sent through Creator switches the mode and is drawn back as its prop.
+        var switcher = Assert.Single(AllNodes(creator.App.Render()).OfType<NeuronRef>(), r => r.NeuronUri.EndsWith("/" + CreatorView.GraphModeKey, StringComparison.Ordinal));
+        Assert.Equal("brain", switcher.Props!.Value.GetProperty("selectedId").GetString());
+        Assert.Contains(switcher.Props!.Value.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetString() == "state");
+        await creator.Screen.Dispatch(new Command(CreatorView.GraphModeKey, "control.select", JsonSerializer.SerializeToElement(new { id = "state" })));
+        await os.Idle();
         Assert.True(creator.App.State.ShowStateGraph);
+        switcher = Assert.Single(AllNodes(creator.App.Render()).OfType<NeuronRef>(), r => r.NeuronUri.EndsWith("/" + CreatorView.GraphModeKey, StringComparison.Ordinal));
+        Assert.Equal("state", switcher.Props!.Value.GetProperty("selectedId").GetString());
 
         var stateScene = Assert.Single(AllNodes(creator.App.Render()).OfType<BrainSceneNode>());
         Assert.True(stateScene.PauseRotation);

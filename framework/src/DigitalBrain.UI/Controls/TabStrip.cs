@@ -1,6 +1,6 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a tab strip neuron (WinUI's TabView header strip; the legacy <see cref="Tabs"/> data node is the old way): only what the user changes.</summary>
+/// <summary>The state of a tab strip neuron (WinUI's TabView header strip): only what the user changes.</summary>
 public sealed record TabStripState
 {
     /// <summary>The selected tab's id; null selects none.</summary>

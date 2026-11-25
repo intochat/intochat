@@ -103,16 +103,16 @@ Map<String, dynamic> desktopPublishedView(String brain) {
                         ],
                       },
                       {
-                        'kind': 'tabs',
-                        'selectedId': 'w1/0',
-                        'items': [
-                          {
-                            'key': 'tab-w1-0',
-                            'id': 'w1/0',
-                            'label': 'Ino',
-                            'emit': {'owner': 'desktop', 'signal': 'tab'},
-                          },
-                        ],
+                        'kind': 'neuronRef',
+                        'refKind': 'slot',
+                        'neuronUri':
+                            '$brain/control.tabStrip/$brain/app.desktop/default/tabs-w1',
+                        'props': {
+                          'items': [
+                            {'id': 'w1/0', 'label': 'Ino'},
+                          ],
+                          'selectedId': 'w1/0',
+                        },
                       },
                       {
                         'kind': 'neuronRef',
