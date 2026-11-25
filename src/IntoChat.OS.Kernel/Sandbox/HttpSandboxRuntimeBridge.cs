@@ -48,24 +48,59 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     private UnitHostChildSession? _unitHost;
     private int _disposed;
 
-    public async Task<SandboxDeploymentResult> DeployPackageAsync(
+    public Task<SandboxDeploymentResult> DeployPackageAsync(
         string brainId,
         AppPackage package,
         byte[] assemblyBytes,
         string? stateJson,
         string? settingsJson,
         CancellationToken cancellationToken = default)
+        => DeployPackageCoreAsync(ParseBrain(brainId), package, assemblyBytes, stateJson, settingsJson, allowedContracts: null, cancellationToken);
+
+    public Task<SandboxDeploymentResult> DeployScopedPackageAsync(
+        BrainId brainId,
+        AppPackage package,
+        byte[] assemblyBytes,
+        string? stateJson,
+        string? settingsJson,
+        IReadOnlyList<string> allowedContracts,
+        CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentNullException.ThrowIfNull(allowedContracts);
+        return DeployPackageCoreAsync(brainId, package, assemblyBytes, stateJson, settingsJson, allowedContracts, cancellationToken);
+    }
+
+    private static BrainId ParseBrain(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        return value.StartsWith('@') ? BrainId.System(value[1..]) : new BrainId(value);
+    }
+
+    private async Task<SandboxDeploymentResult> DeployPackageCoreAsync(
+        BrainId brainId,
+        AppPackage package,
+        byte[] assemblyBytes,
+        string? stateJson,
+        string? settingsJson,
+        IReadOnlyList<string>? allowedContracts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId.Value);
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(assemblyBytes);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var key = DeploymentKey(brainId, package.Key);
-        var token = tokens.Issue(brainId, package.Key);
+        var brainValue = brainId.Value;
+        var key = DeploymentKey(brainValue, package.Key);
+        var normalizedScope = allowedContracts is null
+            ? null
+            : IntoChat.OS.Host.Surface.NeuronContractDiscovery.NormalizeScopeList(allowedContracts);
+        var token = normalizedScope is null
+            ? tokens.Issue(brainValue, package.Key)
+            : tokens.IssueScoped(brainId, package.Key, normalizedScope);
         var kernelUrl = ResolveKernelCallbackUrl();
         var request = new DeployWorkerRequest(
-            brainId,
+            brainValue,
             package.Key,
             package.Version,
             package.Digest,
@@ -88,7 +123,7 @@ internal sealed partial class HttpSandboxRuntimeBridge(
             if (!frame.Ok || frame.Deploy is null)
             {
                 throw new InvalidOperationException(
-                    $"Sandbox --unit-host deploy failed for '{brainId}/{package.Key}': {frame.Error ?? "Empty deploy response."}");
+                    $"Sandbox --unit-host deploy failed for '{brainValue}/{package.Key}': {frame.Error ?? "Empty deploy response."}");
             }
 
             response = frame.Deploy;
@@ -104,7 +139,7 @@ internal sealed partial class HttpSandboxRuntimeBridge(
 
         var parsedView = DeserializeView(response.InitialViewJson);
         var entry = new DeployedAppEntry(
-            brainId,
+            brainValue,
             package.Key,
             package,
             response.Signals,
@@ -112,7 +147,8 @@ internal sealed partial class HttpSandboxRuntimeBridge(
             [.. response.Commands.Select(c => c.Name)],
             response.StateJson ?? stateJson,
             settingsJson,
-            parsedView);
+            parsedView,
+            normalizedScope);
         _deployments[key] = entry;
 
         await PublishViewAsync(entry, parsedView, cancellationToken).ConfigureAwait(false);
@@ -282,7 +318,9 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         var key = DeploymentKey(brainId, appKey);
         _deployments.TryGetValue(key, out var existing);
 
-        var token = tokens.Issue(brainId, appKey);
+        var token = existing?.AllowedContracts is { } scopedContracts
+            ? tokens.IssueScoped(ParseBrain(brainId), appKey, scopedContracts)
+            : tokens.Issue(brainId, appKey);
         var kernelUrl = ResolveKernelCallbackUrl();
         var request = new DispatchWorkerRequest(
             brainId,

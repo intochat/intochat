@@ -55,6 +55,8 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IHostedAppTypes, CatalogHostedAppTypes>();
         services.TryAddSingleton<FeatureLoader>();
         services.TryAddSingleton<AppPackageCompiler>();
+        services.TryAddSingleton<Flows.CodeOrchestrationCompiler>();
+        services.TryAddSingleton<Flows.ICodeOrchestrationModel, Flows.ModelInferenceCodeOrchestrationModel>();
         services.TryAddSingleton<SlotResolver>();
         services.TryAddSingleton<ISandboxRuntimeBridge, NullSandboxRuntimeBridge>();
         services.TryAddSingleton<MarketplaceView>();
@@ -66,6 +68,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();
         services.TryAddSingleton<IWorktreeRoslyn>(UnavailableWorktreeRoslyn.Instance);
+        services.TryAddSingleton<ICodeOrchestrationAstSanitizer>(UnavailableCodeOrchestrationAstSanitizer.Instance);
         services.TryAddSingleton<IEngineeringHarness>(sp => InoNativeHarness.CreateDefault(sp));
         services.TryAddSingleton<IEngineerPlanner, EngineerPlanner>();
         services.TryAddSingleton<IEngineerBuildVerifier, EngineerBuildVerifier>();

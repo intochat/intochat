@@ -501,7 +501,8 @@ internal sealed partial class HttpSandboxRuntimeBridge
         string[] commands,
         string? stateJson,
         string? settingsJson,
-        View? latestView)
+        View? latestView,
+        string[]? allowedContracts = null)
     {
         private long _viewGeneration;
 
@@ -514,6 +515,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
         public string? StateJson { get; set; } = stateJson;
         public string? SettingsJson { get; set; } = settingsJson;
         public View? LatestView { get; set; } = latestView;
+        public string[]? AllowedContracts { get; } = allowedContracts;
 
         public long NextViewGeneration() => Interlocked.Increment(ref _viewGeneration);
     }

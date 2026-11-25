@@ -34,6 +34,7 @@ public sealed class RoslynModule : DigitalBrain.Modules.Module
         services.TryAddSingleton<CodeFixCatalog>();
         services.TryAddSingleton<ChangeSetEditor>();
         services.AddSingleton<IWorktreeRoslyn, WorktreeRoslynAnalyzer>();
+        services.AddSingleton<ICodeOrchestrationAstSanitizer, CodeOrchestrationAstSanitizer>();
         services.TryAddSingleton<SolutionFileWatcher>();
         services.AddHostedService<WorkspaceWarmup>();
     }
