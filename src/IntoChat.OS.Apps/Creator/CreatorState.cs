@@ -26,6 +26,7 @@ public sealed record CreatorWorkspaceState(
     public int ReplayStepCount { get; init; }
     public bool ShowStateGraph { get; init; }
     public bool ScenarioInFlight { get; init; }
+    public Inspection Inspection { get; init; } = Inspection.None;
 
     [JsonIgnore]
     public bool IsReplayActive => ReplayCursor is not null;
@@ -124,6 +125,7 @@ public sealed record CreatorWorkspaceState(
     public CreatorWorkspaceState ClearSelection() => this with
     {
         Selected = null,
+        Inspection = Inspection.None,
         ActiveRunId = null,
         Transcript = null,
         SelectedSourceFile = null,
@@ -394,7 +396,9 @@ public sealed record Selection(string Kind, string Id)
     };
 }
 
-// What the inspector read for the selection in the last turn (Render cannot await).
+// What the inspector read for the selection (Render cannot await). It is stored with Creator's state, so a reactivated Creator draws
+// the same inspector without reading again. Hops is the replay timeline: the selection's own trace, or the one kept from the last
+// inspection that had one.
 public sealed record Inspection(string Kind, string Id)
 {
     public static readonly Inspection None = new("", "");
@@ -402,16 +406,30 @@ public sealed record Inspection(string Kind, string Id)
     public string? Alias { get; init; }
     public string? State { get; init; }
     public string? View { get; init; }
-    public IReadOnlyDictionary<string, string> Files { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
-    public IReadOnlyList<TraceEntry> Signals { get; init; } = [];
-    public IReadOnlyList<TraceHop> Hops { get; init; } = [];
+    public InspectedFile[] Files { get; init; } = [];
+    public TraceEntry[] Signals { get; init; } = [];
+    public TraceHop[] Hops { get; init; } = [];
     public string? Notice { get; init; }
     public IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition? Synapse { get; init; }
     public DigitalBrain.Units.DeployedSource? DeployedUnit { get; init; }
     public IntoChat.OS.Modules.AI.Agents.Context.UiStateGraphSnapshot? IntrospectedGraph { get; init; }
     public double? ScenarioPassRate { get; init; }
     public string? FailureSummary { get; init; }
+
+    public string? FileText(string path) => Array.Find(Files, file => string.Equals(file.Path, path, StringComparison.Ordinal))?.Text;
+
+    public IReadOnlyDictionary<string, string> FileMap()
+        => Files.ToDictionary(static file => file.Path, static file => file.Text, StringComparer.Ordinal);
+
+    public static InspectedFile[] FilesOf(IReadOnlyDictionary<string, string> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        return [.. files.OrderBy(static file => file.Key, StringComparer.Ordinal).Select(static file => new InspectedFile(file.Key, file.Value))];
+    }
 }
+
+// One file of the inspected unit or app: its path and its text.
+public sealed record InspectedFile(string Path, string Text);
 
 // One journaled signal of a trace, folded: Depth is its causation chain length to a root hop.
 public sealed record TraceHop(

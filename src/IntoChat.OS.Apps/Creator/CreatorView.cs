@@ -17,17 +17,22 @@ public static class CreatorView
     public const string App = "creator";
     public const string ToggleStateGraphTarget = "view:state-graph";
 
-    // Brain-local keys for Creator's live Modules.UI time-travel & inspector neurons.
-    public const string ReplaySliderKey = "creator/replay/slider";
-    public const string ReplayCommandBarKey = "creator/replay/transport";
-    public const string InspectorTabsKey = "creator/inspector/tabs";
-    public const string InspectorStateKey = "creator/inspector/state";
-    public const string InspectorSourceKey = "creator/inspector/source";
-    public const string InspectorSignalsKey = "creator/inspector/signals";
-
     // Child keys of Creator's control.tabStrip selectors: the graph mode in the toolbar and the live preview's viewport width.
     public const string GraphModeKey = "creator-graph-mode";
     public const string ViewportKey = "creator-viewport";
+
+    // Child keys of the time-travel slider (control.slider), the inspector's tab strip (control.tabStrip) and its signals table
+    // (control.queryTable). Creator owns the cursor, the tab and the rows; each child only signals the person's change.
+    public const string ReplaySliderKey = "creator-replay";
+    public const string InspectorTabsKey = "creator-inspector-tabs";
+    public const string InspectorSignalsKey = "creator-signals";
+
+    // What the Creator view needs from its screen to draw a control child: only the screen can render one. A view drawn without the
+    // screen (a static render) has no children and leaves them out.
+    public sealed record Children(
+        Func<string, TabStripProps, Node> TabStrip,
+        Func<string, SliderProps, Node> Slider,
+        Func<string, QueryTableProps, Node> Table);
 
     public static View Render(
         CreatorWorkspaceState state,
@@ -39,11 +44,8 @@ public static class CreatorView
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
         string transition = "",
         DigitalBrain.Units.DeployedSource[]? deployedUnits = null,
-        Func<string, TabStripProps, Node>? tabStrip = null)
-        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition, deployedUnits, tabStrip));
-
-    // The selectors are tab strip children of the Creator screen, which passes its Child for tabStrip; a view drawn without the
-    // screen (a static render) has no children and leaves them out.
+        Children? children = null)
+        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition, deployedUnits, children));
 
     public static Node RenderNode(
         CreatorWorkspaceState state,
@@ -55,7 +57,7 @@ public static class CreatorView
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
         string transition = "",
         DigitalBrain.Units.DeployedSource[]? deployedUnits = null,
-        Func<string, TabStripProps, Node>? tabStrip = null)
+        Children? children = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -64,10 +66,10 @@ public static class CreatorView
         ArgumentNullException.ThrowIfNull(inspection);
         ArgumentNullException.ThrowIfNull(timelineHops);
 
-        var toolbar = TopToolbar(state, timelineHops, tabStrip);
+        var toolbar = TopToolbar(state, timelineHops, children);
         var left = LeftPane(state, topology, flows, approvals, synapses, deployedUnits);
-        var center = CenterPane(state, topology, inspection, timelineHops, flows, tabStrip);
-        var right = CreatorInspector.Render(state, inspection, timelineHops, flows, approvals);
+        var center = CenterPane(state, topology, inspection, timelineHops, flows, children);
+        var right = CreatorInspector.Render(state, inspection, timelineHops, flows, approvals, children);
 
         return AppShell(
             key: "creator-shell",
@@ -79,13 +81,13 @@ public static class CreatorView
             transition: transition);
     }
 
-    public static Node TopToolbar(CreatorWorkspaceState state, IReadOnlyList<TraceHop> timelineHops, Func<string, TabStripProps, Node>? tabStrip = null)
+    public static Node TopToolbar(CreatorWorkspaceState state, IReadOnlyList<TraceHop> timelineHops, Children? children = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(timelineHops);
 
         var activeGraphMode = state.ShowStateGraph || state.CanvasMode == "state" ? "state" : "brain";
-        var modeSwitcher = tabStrip?.Invoke(GraphModeKey, new TabStripProps(
+        var modeSwitcher = children?.TabStrip(GraphModeKey, new TabStripProps(
             [new("brain", "Brain Graph"), new("state", "Accordant State Graph")],
             AutomationName: "Graph mode",
             SelectedId: activeGraphMode));
@@ -134,7 +136,8 @@ public static class CreatorView
                 .Key("replay-cursor-readout")
                 .Small()
                 .Sends(new CreatorReplay("toggle")),
-            new NeuronRef("ui.slider", ReplaySliderKey),
+            // A zero spacer keeps the extents' indexes when the view is drawn without the screen.
+            children?.Slider(ReplaySliderKey, ReplaySliderOf(state, steps.Length)) ?? new Spacer(0),
             new Button("open-engineer-studio", "Open Studio (Engineer) ↗", Intent: AppSignals.OpenApp("engineer", state.ActiveRunId))
             {
                 Small = true,
@@ -142,9 +145,27 @@ public static class CreatorView
             },
         ];
 
-        // Extent index 8 gives `creator/replay/slider` a compact 144px inline width inside the single <=44px row.
+        // Extent index 8 gives the replay slider child a compact 144px inline width inside the single <=44px row.
         double[] extents = [0, 0, 0, 0, 0, 0, 0, 0, 144, 0];
         return new Row(items) { Gap = Space.Xs, Extents = extents };
+    }
+
+    // Creator owns the cursor: the slider draws it (step n of the timeline is value n) and signals where the person let go.
+    public static SliderProps ReplaySliderOf(CreatorWorkspaceState state, int stepCount)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var cursor = state.ReplayCursor is { } c && stepCount > 0 ? Math.Clamp(c, 0, stepCount - 1) : (long?)null;
+        var min = stepCount >= 2 ? 1d : 0d;
+        var max = stepCount >= 2 ? stepCount : 1d;
+        var value = stepCount == 0 ? 0d : cursor is { } at ? at + 1d : stepCount;
+        return new SliderProps(
+            ReplayScript.FormatCursorReadout(cursor, stepCount),
+            Min: min,
+            Max: max,
+            Step: 1,
+            IsEnabled: stepCount > 0,
+            AutomationName: "Replay timeline",
+            Value: value);
     }
 
     public static Node LeftPane(
@@ -340,7 +361,7 @@ public static class CreatorView
         Inspection inspection,
         IReadOnlyList<TraceHop> timelineHops,
         FlowView[]? flows = null,
-        Func<string, TabStripProps, Node>? tabStrip = null)
+        Children? children = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -351,7 +372,7 @@ public static class CreatorView
 
         if (state.CanvasMode == "live")
         {
-            return RenderLiveStudioPreview(state, inspection, tabStrip);
+            return RenderLiveStudioPreview(state, inspection, children);
         }
 
         if (state.CanvasMode == "state" || state.ShowStateGraph)
@@ -439,7 +460,7 @@ public static class CreatorView
         return false;
     }
 
-    private static Node RenderLiveStudioPreview(CreatorWorkspaceState state, Inspection inspection, Func<string, TabStripProps, Node>? tabStrip)
+    private static Node RenderLiveStudioPreview(CreatorWorkspaceState state, Inspection inspection, Children? children)
     {
         if (!TryResolveLivePreviewTarget(state, inspection, out var slotUri, out var slotKind, out var openAppId, out var title))
         {
@@ -460,7 +481,7 @@ public static class CreatorView
                 .Key("preview-back-graph")
                 .Small()
                 .Sends(new CreatorSelect("mode:brain")),
-            tabStrip?.Invoke(ViewportKey, new TabStripProps(
+            children?.TabStrip(ViewportKey, new TabStripProps(
                 [new("fill", "Fill"), new("720", "720px"), new("390", "390px")],
                 AutomationName: "Preview width",
                 SelectedId: state.PreviewViewport)),

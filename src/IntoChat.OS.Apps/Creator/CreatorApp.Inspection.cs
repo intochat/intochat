@@ -7,8 +7,9 @@ Operations: open, select, trace, replay, scenario, share, run, approve, reject, 
 Topology, Accordant state-space, scenario & 1-event-at-a-time time-travel debugger for the DigitalBrain OS.
 Left: catalog units, installed apps, active build/engineer flows, and studio launchers.
 Center: live BrainScene topology (with causal replay pulses and Flame camera HUD), embedded Live Studio preview,
-Accordant StateGraphView, and the ISlider + ICommandBar time-travel transport bar.
-Right: 5-tab Modules.UI Inspector (State via IPropertyGrid, Source via ICodeEditor, Signals via ITable, State Graph, Scenarios).
+Accordant StateGraphView, and the time-travel transport bar with a control.slider child.
+Right: 5-tab inspector on a control.tabStrip child (State as a jsonTree node, Source as a code block, Signals on a control.queryTable
+child, State Graph, Scenarios), drawn from the inspection Creator keeps in its stored state.
 */
 using System.Globalization;
 using DigitalBrain;
@@ -22,16 +23,6 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.CommandBar.Signals;
-using IntoChat.OS.Modules.UI.PropertyGrid;
-using IntoChat.OS.Modules.UI.Slider;
-using IntoChat.OS.Modules.UI.Slider.Signals;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Table.Signals;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -73,7 +64,7 @@ public sealed partial class CreatorApp
         return new Inspection(Selection.Node, flow.FlowId)
         {
             Alias = subjectAlias ?? flow.Type,
-            Files = files,
+            Files = Inspection.FilesOf(files),
             Synapse = matchedSynapse,
             DeployedUnit = deployed,
             ScenarioPassRate = passRate,
@@ -155,7 +146,7 @@ public sealed partial class CreatorApp
             Alias = alias,
             State = state,
             View = view,
-            Files = files,
+            Files = Inspection.FilesOf(files),
             Notice = notice,
             Synapse = matchedSynapse,
             DeployedUnit = deployed,

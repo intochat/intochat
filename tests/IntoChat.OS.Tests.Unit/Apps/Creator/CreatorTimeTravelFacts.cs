@@ -1,7 +1,9 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Modules.Apps;
@@ -10,12 +12,6 @@ using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.PropertyGrid;
-using IntoChat.OS.Modules.UI.Slider;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Tabs;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
 
@@ -25,8 +21,11 @@ public sealed class CreatorTimeTravelFacts
     private const string Unit = "local/ctr/default";
     private static readonly DateTimeOffset T0 = new(2026, 11, 19, 10, 0, 0, TimeSpan.Zero);
 
+    // The time-travel slider, the inspector tabs and the signals table are control.* children of Creator: Creator owns the cursor, the
+    // tab and the rows, draws them as props, and follows each child's ValueChanged, SelectionChanged and RowSelected. The state tab is
+    // a jsonTree data node and the source tab a code block, both drawn from the inspection Creator keeps in its stored state.
     [Fact]
-    public async Task TimeTravelTransportAndKeyboardBindingsStepOneEventAtATimeAndSyncPropertyGrid()
+    public async Task TimeTravelStepsOneEventAtATimeAndTheSliderChildScrubsTheCursor()
     {
         await using var os = CreateOs();
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
@@ -34,66 +33,59 @@ public sealed class CreatorTimeTravelFacts
 
         await creator.Request("open", new CreatorOpen("trace/t-travel"));
         await os.Idle();
+        Assert.Equal("signals", creator.App.State.InspectorTab);
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("state"));
 
-        var propGrid = os.Get<IPropertyGrid>(new NeuronId(new BrainId("local"), "ui.property-grid", CreatorView.InspectorStateKey));
-        var slider = os.Get<ISlider>(new NeuronId(new BrainId("local"), "ui.slider", CreatorView.ReplaySliderKey));
-        var transport = os.Get<ICommandBar>(new NeuronId(new BrainId("local"), "ui.command-bar", CreatorView.ReplayCommandBarKey));
-
-        // Initially live at latest state (bumps: 2)
+        // Initially live at the latest state (bumps: 2), with no ui.* control mounted anywhere.
         Assert.Null(creator.App.State.ReplayCursor);
         Assert.Equal(4, creator.App.State.ReplayStepCount);
-        var liveGrid = await propGrid.Read();
-        Assert.Contains(liveGrid.Entries, e => e.Name == "bumps" && e.Value == "2");
+        Assert.Equal(2, Bumps(creator.App.Render()));
+        Assert.DoesNotContain(AllNodes(creator.App.Render()).OfType<NeuronRef>(), n => n.Kind != "slot");
+        var live = PropsOf<SliderProps>(creator.App.Render(), CreatorView.ReplaySliderKey);
+        Assert.Equal((1d, 4d, 4d, true), (live.Min, live.Max, live.Value!.Value, live.IsEnabled));
+        Assert.Equal("Live · Event 4 / 4", live.Label);
 
-        // Space -> pause / toggle into Replay at latest event (index 3 -> Event 4 / 4)
+        // Space -> pause / toggle into Replay at the latest event (index 3 -> Event 4 / 4)
         await creator.Request("replay", new CreatorReplay("space"));
-        await os.Idle();
         Assert.Equal(3L, creator.App.State.ReplayCursor);
-        Assert.Equal(4d, (await slider.Read()).Value);
+        Assert.Equal(4d, PropsOf<SliderProps>(creator.App.Render(), CreatorView.ReplaySliderKey).Value);
 
-        // ArrowLeft -> step backward 1 signal to index 2, then ArrowLeft -> index 1 (StateChanged: bumps = 1)
+        // ArrowLeft twice -> index 1 (StateChanged: bumps = 1)
         await creator.Request("replay", new CreatorReplay("arrowleft"));
         await creator.Request("replay", new CreatorReplay("arrowleft"));
-        await os.Idle();
         Assert.Equal(1L, creator.App.State.ReplayCursor);
         Assert.Equal("Event 2 / 4", creator.App.State.Status);
-        Assert.Equal(2d, (await slider.Read()).Value);
+        Assert.Equal(2d, PropsOf<SliderProps>(creator.App.Render(), CreatorView.ReplaySliderKey).Value);
+        Assert.Equal(1, Bumps(creator.App.Render()));
+        Assert.Equal("State · Event 2 / 4", JsonTreeOf(creator.App.Render()).Title);
 
-        var step2Grid = await propGrid.Read();
-        Assert.Contains(step2Grid.Entries, e => e.Name == "bumps" && e.Value == "1");
-
-        // Home -> jump to first event (index 0 -> Event 1 / 4)
+        // Home -> first event, ArrowRight -> second, End -> latest (bumps = 2)
         await creator.Request("replay", new CreatorReplay("home"));
-        await os.Idle();
         Assert.Equal(0L, creator.App.State.ReplayCursor);
         Assert.Equal("Event 1 / 4", creator.App.State.Status);
-
-        // ArrowRight -> step forward 1 signal (index 1 -> Event 2 / 4)
         await creator.Request("replay", new CreatorReplay("arrowright"));
-        await os.Idle();
         Assert.Equal(1L, creator.App.State.ReplayCursor);
-
-        // End -> jump to latest event (index 3 -> Event 4 / 4, bumps = 2)
         await creator.Request("replay", new CreatorReplay("end"));
-        await os.Idle();
         Assert.Equal(3L, creator.App.State.ReplayCursor);
-        var step4Grid = await propGrid.Read();
-        Assert.Contains(step4Grid.Entries, e => e.Name == "bumps" && e.Value == "2");
+        Assert.Equal(2, Bumps(creator.App.Render()));
 
-        // Dragging ISlider scrubs directly to step 2 (value = 2 -> cursor = 1)
-        await slider.SetValue(2);
-        await os.Idle();
+        // Letting go of the slider child at 2 scrubs to step 2 (value 2 -> cursor 1); Creator draws the value back as its prop.
+        await Send(creator, CreatorView.ReplaySliderKey, new SetValue(2));
+        Assert.Equal(1L, creator.App.State.ReplayCursor);
+        Assert.Equal(2d, PropsOf<SliderProps>(creator.App.Render(), CreatorView.ReplaySliderKey).Value);
+
+        // A value outside the timeline is refused by the slider's gate and moves nothing.
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(creator, CreatorView.ReplaySliderKey, new SetValue(9)));
         Assert.Equal(1L, creator.App.State.ReplayCursor);
 
-        // Clicking ICommandBar "toggle" returns to Live mode (ReplayCursor == null)
-        await transport.Invoke("toggle");
-        await os.Idle();
+        // The transport's toggle returns to Live mode (ReplayCursor == null)
+        await creator.Request("replay", new CreatorReplay("toggle"));
         Assert.Null(creator.App.State.ReplayCursor);
         Assert.Equal("Live · Event 4 / 4", creator.App.State.Status);
     }
 
     [Fact]
-    public async Task InspectorTabsSwitchCleanlyAndSelectingASignalRowScrubsTimeline()
+    public async Task InspectorTabsSwitchThroughTheTabChildAndSelectingASignalRowScrubsTheTimeline()
     {
         await using var os = CreateOs();
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
@@ -102,54 +94,84 @@ public sealed class CreatorTimeTravelFacts
         await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
         await os.Idle();
 
-        var tabs = os.Get<ITabs>(new NeuronId(new BrainId("local"), "ui.tabs", CreatorView.InspectorTabsKey));
-        var propGrid = os.Get<IPropertyGrid>(new NeuronId(new BrainId("local"), "ui.property-grid", CreatorView.InspectorStateKey));
-        var codeEditor = os.Get<ICodeEditor>(new NeuronId(new BrainId("local"), "ui.code-editor", CreatorView.InspectorSourceKey));
-        var signalsTable = os.Get<ITable>(new NeuronId(new BrainId("local"), "ui.table", CreatorView.InspectorSignalsKey));
+        // 1. The state tab shows the live unit JSON in a jsonTree node.
+        Assert.Equal(5, Bumps(creator.App.Render()));
+        Assert.Equal("Live State · ctr", JsonTreeOf(creator.App.Render()).Title);
+        var tabs = PropsOf<TabStripProps>(creator.App.Render(), CreatorView.InspectorTabsKey);
+        Assert.Equal(["state", "source", "signals", "state-graph", "scenarios"], tabs.Items.Select(i => i.Id));
+        Assert.Equal("state", tabs.SelectedId);
 
-        // 1. State tab shows live unit JSON in IPropertyGrid
-        var gridState = await propGrid.Read();
-        Assert.Contains(gridState.Entries, e => e.Name == "bumps" && e.Value == "5");
-
-        // 2. Switch to Source tab via ITabs -> ICodeEditor holds C# unit source
-        await tabs.Select("source");
-        await os.Idle();
+        // 2. Switch to the source tab through the tab child -> a code block holds the C# unit source
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("source"));
         Assert.Equal("source", creator.App.State.InspectorTab);
-        var editorState = await codeEditor.Read();
-        Assert.Equal("Counter.cs", editorState.Title);
-        Assert.Equal("csharp", editorState.Language);
-        Assert.Contains("public sealed record CounterState", editorState.Content, StringComparison.Ordinal);
+        Assert.Equal("source", PropsOf<TabStripProps>(creator.App.Render(), CreatorView.InspectorTabsKey).SelectedId);
+        var source = Assert.Single(AllNodes(creator.App.Render()).OfType<Surface>(), s => s.Kind == "code:csharp");
+        Assert.Equal("Counter.cs", source.Title);
+        Assert.Contains("public sealed record CounterState", source.Subtitle, StringComparison.Ordinal);
 
-        // 3. Switch to State Graph tab -> mounts Accordant BrainSceneNode
-        await tabs.Select("state-graph");
-        await os.Idle();
+        // 3. Switch to the state graph tab -> mounts the Accordant BrainSceneNode
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("state-graph"));
         Assert.Equal("state-graph", creator.App.State.InspectorTab);
-        var stateGraphNodes = AllNodes(creator.App.Render()).OfType<BrainSceneNode>().ToArray();
-        Assert.True(stateGraphNodes.Length >= 2);
+        Assert.True(AllNodes(creator.App.Render()).OfType<BrainSceneNode>().Count() >= 2);
 
-        // 4. Open trace and select a row in ITable -> scrubs ReplayCursor to that signal
+        // An unknown tab is refused by the strip's gate.
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(creator, CreatorView.InspectorTabsKey, new Select("timeline")));
+        Assert.Equal("state-graph", creator.App.State.InspectorTab);
+
+        // 4. Open the trace and select a row of the signals table child (rows keyed by sequence) -> scrubs ReplayCursor to that signal
         await creator.Request("trace", new CreatorTrace("t-travel"));
-        await os.Idle();
         Assert.Equal("signals", creator.App.State.InspectorTab);
+        var table = PropsOf<QueryTableProps>(creator.App.Render(), CreatorView.InspectorSignalsKey);
+        Assert.Equal(["1", "2", "3", "4"], table.Rows!.Select(r => r.Id));
+        Assert.Null(table.SelectedRowId);
 
-        await signalsTable.SelectRow(1);
-        await os.Idle();
+        await Send(creator, CreatorView.InspectorSignalsKey, new SelectRow("2"));
         Assert.Equal(1L, creator.App.State.ReplayCursor);
-        Assert.Contains((await propGrid.Read()).Entries, e => e.Name == "bumps" && e.Value == "1");
+        Assert.Equal("2", PropsOf<QueryTableProps>(creator.App.Render(), CreatorView.InspectorSignalsKey).SelectedRowId);
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(creator, CreatorView.InspectorSignalsKey, new SelectRow("99")));
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("state"));
+        Assert.Equal(1, Bumps(creator.App.Render()));
 
-        // 5. Switch to Scenarios tab and run scenario (including back-to-back sequential ITabs switches without Idle in between)
-        await tabs.Select("source");
-        await tabs.Select("signals");
-        await tabs.Select("state-graph");
-        await tabs.Select("scenarios");
-        await os.Idle();
+        // 5. Back-to-back tab switches, then scenarios: each select is an absolute choice, so the last one wins.
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("source"));
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("signals"));
+        await Send(creator, CreatorView.InspectorTabsKey, new Select("scenarios"));
         Assert.Equal("scenarios", creator.App.State.InspectorTab);
-        Assert.Equal("scenarios", (await tabs.Read()).SelectedId);
+        Assert.Equal("scenarios", PropsOf<TabStripProps>(creator.App.Render(), CreatorView.InspectorTabsKey).SelectedId);
 
         creator.App.RunScenarios = (_, _, _, _) => Task.FromResult("✓ Counter increments by 1");
         await creator.Request("scenario", new CreatorScenario("ctr"));
-        await os.Idle();
         Assert.Equal("✓ Counter increments by 1", creator.App.State.Transcript);
+    }
+
+    // Owner decision 8: the inspection is stored state, so a Creator that is deactivated and activated again draws the same inspector
+    // without reading the unit or the trace again.
+    [Fact]
+    public async Task AReactivatedCreatorDrawsItsInspectionFromStoredState()
+    {
+        await using var os = CreateOs();
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
+        var creator = await os.Install<CreatorApp>();
+
+        await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
+        var unit = await Reactivated(os, creator.App);
+        Assert.Equal(5, Bumps(unit.Render()));
+        Assert.Equal("Live State · ctr", JsonTreeOf(unit.Render()).Title);
+        Assert.Equal(["Counter.cs", "scenarios.json", "spec.md"], unit.State.Inspection.Files.Select(f => f.Path).Order(StringComparer.Ordinal));
+
+        await creator.Request("trace", new CreatorTrace("t-travel"));
+        await creator.Request("replay", new CreatorReplay("2"));
+        var before = unit.Render();
+        var traced = await Reactivated(os, unit);
+        var after = traced.Render();
+
+        Assert.Equal(2L, traced.State.ReplayCursor);
+        Assert.Equal(4, traced.State.Inspection.Hops.Length);
+        Assert.Equal(
+            PropsOf<QueryTableProps>(before, CreatorView.InspectorSignalsKey).Rows!.Select(r => (r.Id, string.Join('|', r.Cells))),
+            PropsOf<QueryTableProps>(after, CreatorView.InspectorSignalsKey).Rows!.Select(r => (r.Id, string.Join('|', r.Cells))));
+        Assert.Equal("3", PropsOf<QueryTableProps>(after, CreatorView.InspectorSignalsKey).SelectedRowId);
+        Assert.Equal(PropsOf<SliderProps>(before, CreatorView.ReplaySliderKey), PropsOf<SliderProps>(after, CreatorView.ReplaySliderKey));
     }
 
     [Fact]
@@ -179,6 +201,41 @@ public sealed class CreatorTimeTravelFacts
         os.Register<TimeTravelReads>();
         os.Register<TimeTravelTraces>();
         return os;
+    }
+
+    // Sends a control command to Creator's child `key` as the person, through Creator's own gate, as the client's /act does.
+    private static async Task Send(InstalledApp<CreatorApp> creator, string key, Signal command)
+    {
+        var alias = command.GetType().GetCustomAttributes(typeof(SignalAttribute), false).Cast<SignalAttribute>().Single().Alias;
+        await creator.Screen.Dispatch(new Command(key, alias, JsonSerializer.SerializeToElement(command, command.GetType(), JsonSerializerOptions.Web)));
+        await creator.OS.Idle();
+    }
+
+    // The props Creator drew for its child `key`.
+    private static T PropsOf<T>(View view, string key) where T : ControlProps
+    {
+        var child = Assert.Single(AllNodes(view).OfType<NeuronRef>(), n => n.Kind == "slot" && n.NeuronUri.EndsWith("/" + key, StringComparison.Ordinal));
+        return child.Props!.Value.Deserialize<T>(JsonSerializerOptions.Web)!;
+    }
+
+    private static JsonTree JsonTreeOf(View view) => Assert.Single(AllNodes(view).OfType<JsonTree>());
+
+    private static int Bumps(View view) => JsonDocument.Parse(JsonTreeOf(view).Json).RootElement.GetProperty("bumps").GetInt32();
+
+    // Deactivates Creator and activates it again: the new instance has only what Creator stored.
+    private static async Task<CreatorApp> Reactivated(TestOS os, CreatorApp before)
+    {
+        var id = new NeuronId(new BrainId("local"), "app.creator", "default");
+        await os.Deactivate(id);
+        CreatorApp? again = null;
+        using (IntoChat.OS.Host.Apps.AppActivationScope.Capture(neuron => again ??= neuron as CreatorApp))
+        {
+            await os.Activate(id);
+        }
+        await os.Idle();
+        Assert.NotNull(again);
+        Assert.NotSame(before, again);
+        return again;
     }
 
     private static IEnumerable<Node> AllNodes(object? value) => value switch

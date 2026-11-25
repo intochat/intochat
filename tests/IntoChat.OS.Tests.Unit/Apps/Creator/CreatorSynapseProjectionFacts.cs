@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
@@ -13,8 +14,6 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Synapses;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.Tabs;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
 
@@ -109,18 +108,15 @@ public sealed class CreatorSynapseProjectionFacts
         Assert.Contains(scene.Synapses, e => e.SignalLabel is { } lbl && lbl.Contains("[refused: policy_guard]", StringComparison.Ordinal) && !e.Active);
         Assert.Contains(scene.Synapses, e => e.SignalLabel is { } lbl && lbl.Contains("[refused: untrusted_evidence]", StringComparison.Ordinal) && !e.Active);
 
-        // 3. Switch Inspector to Source tab -> live C# source from ISynapseStudio is loaded into ICodeEditor & badge shows 100%
-        var tabs = os.Get<ITabs>(new NeuronId(LocalBrain, "ui.tabs", CreatorView.InspectorTabsKey));
-        var codeEditor = os.Get<ICodeEditor>(new NeuronId(LocalBrain, "ui.code-editor", CreatorView.InspectorSourceKey));
-        await tabs.Select("source");
+        // 3. Switch the inspector's tab strip child to Source -> the live C# source from ISynapseStudio is drawn as a code block
+        await creator.Screen.Dispatch(new Command(CreatorView.InspectorTabsKey, "control.select", JsonSerializer.SerializeToElement(new { id = "source" })));
         await os.Idle();
 
         Assert.Equal("source", creator.App.State.InspectorTab);
-        var editorState = await codeEditor.Read();
-        Assert.Equal("IssueTriager.cs", editorState.Title);
-        Assert.Equal("csharp", editorState.Language);
-        Assert.Contains("Follow<IRepository, IssueChanged>", editorState.Content, StringComparison.Ordinal);
-        Assert.Contains("CommentOnIssue", editorState.Content, StringComparison.Ordinal);
+        var source = Assert.Single(AllNodes(creator.App.Render()).OfType<Surface>(), s => s.Kind == "code:csharp");
+        Assert.Equal("IssueTriager.cs", source.Title);
+        Assert.Contains("Follow<IRepository, IssueChanged>", source.Subtitle, StringComparison.Ordinal);
+        Assert.Contains("CommentOnIssue", source.Subtitle, StringComparison.Ordinal);
 
         // 4. Run scenario with 1 pass + 1 failure -> 3D progress ring updates dynamically from 100% to 50%
         creator.App.RunScenarios = (_, _, _, _) => Task.FromResult("✓ triages opened issue\n✗ blocks untrusted injection");

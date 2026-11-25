@@ -7,8 +7,9 @@ Operations: open, select, trace, replay, scenario, share, run, approve, reject, 
 Topology, Accordant state-space, scenario & 1-event-at-a-time time-travel debugger for the DigitalBrain OS.
 Left: catalog units, installed apps, active build/engineer flows, and studio launchers.
 Center: live BrainScene topology (with causal replay pulses and Flame camera HUD), embedded Live Studio preview,
-Accordant StateGraphView, and the ISlider + ICommandBar time-travel transport bar.
-Right: 5-tab Modules.UI Inspector (State via IPropertyGrid, Source via ICodeEditor, Signals via ITable, State Graph, Scenarios).
+Accordant StateGraphView, and the time-travel transport bar with a control.slider child.
+Right: 5-tab inspector on a control.tabStrip child (State as a jsonTree node, Source as a code block, Signals on a control.queryTable
+child, State Graph, Scenarios), drawn from the inspection Creator keeps in its stored state.
 */
 using IntoChat.OS.Host.Apps;
 using System.Globalization;
@@ -24,16 +25,6 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.CommandBar.Signals;
-using IntoChat.OS.Modules.UI.PropertyGrid;
-using IntoChat.OS.Modules.UI.Slider;
-using IntoChat.OS.Modules.UI.Slider.Signals;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Table.Signals;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
 using IntoChat.OS.Modules.UI.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -102,7 +93,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         await RefreshAsync();
         await InspectAsync();
-        await SyncUiNeuronsAsync();
     }
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
@@ -129,46 +119,21 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         await base.OnActivate(cancellationToken);
 
         await TryFollowOptionalAsync<IntoChat.OS.Modules.Apps.Runs.IRuns, IntoChat.OS.Modules.Apps.Runs.RunsChanged>("runs/index");
-        await TryFollowOptionalAsync<ITabs, TabChanged>(CreatorView.InspectorTabsKey);
-        await TryFollowOptionalAsync<ISlider, SliderChanged>(CreatorView.ReplaySliderKey);
-        await TryFollowOptionalAsync<ICommandBar, CommandBarInvoked>(CreatorView.ReplayCommandBarKey);
-        await TryFollowOptionalAsync<ITable, TableRowSelected>(CreatorView.InspectorSignalsKey);
         await FollowChild<ITabStripControl, DigitalBrain.UI.Commands.SelectionChanged>(CreatorView.GraphModeKey);
         await FollowChild<ITabStripControl, DigitalBrain.UI.Commands.SelectionChanged>(CreatorView.ViewportKey);
+        await FollowChild<ITabStripControl, DigitalBrain.UI.Commands.SelectionChanged>(CreatorView.InspectorTabsKey);
+        await FollowChild<ISliderControl, DigitalBrain.UI.Commands.ValueChanged>(CreatorView.ReplaySliderKey);
+        await FollowChild<IQueryTableControl, DigitalBrain.UI.Commands.RowSelected>(CreatorView.InspectorSignalsKey);
 
         await RefreshAsync();
-        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
     public Task RunsChanged(IntoChat.OS.Modules.Apps.Runs.RunsChanged? changed)
         => changed is null ? Task.CompletedTask : RefreshAsync();
 
-    [DigitalBrain.Neurons.On]
-    public async Task OnInspectorTabChanged(TabChanged? changed)
-    {
-        if (changed is null || string.IsNullOrWhiteSpace(changed.TabsId) || string.IsNullOrWhiteSpace(changed.SelectedId))
-        {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(changed.TabsId, CreatorView.InspectorTabsKey) || changed.Version <= _lastSyncedTabsVersion)
-        {
-            return;
-        }
-
-        _lastSyncedTabsVersion = Math.Max(_lastSyncedTabsVersion, changed.Version);
-        var normalized = CreatorWorkspaceState.TryNormalizeInspectorTab(changed.SelectedId);
-        if (normalized is null || string.Equals(State.InspectorTab, normalized, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        await ApplyDecisionAsync(State.SelectInspectorTab(normalized));
-        await SyncUiNeuronsAsync(skipTabsConfigure: true);
-    }
-
-    // The graph mode and the preview width are tab strip children that own nothing: Creator holds both and draws them as props.
+    // The graph mode, the preview width and the inspector tab are tab strip children that own nothing: Creator holds all three and
+    // draws them as props.
     [DigitalBrain.Neurons.On]
     public async Task OnSelectionChanged(DigitalBrain.UI.Commands.SelectionChanged changed)
     {
@@ -177,29 +142,21 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         {
             case CreatorView.GraphModeKey:
                 await ApplyDecisionAsync(State.SwitchCanvasMode(changed.Id));
-                await SyncUiNeuronsAsync();
                 break;
             case CreatorView.ViewportKey:
                 await Show(State.SetPreviewViewport(changed.Id));
                 break;
+            case CreatorView.InspectorTabsKey:
+                await ApplyDecisionAsync(State.SelectInspectorTab(changed.Id));
+                break;
         }
     }
 
+    // The replay slider draws Creator's cursor: step n of the timeline is value n. Letting go moves the cursor to that step.
     [DigitalBrain.Neurons.On]
-    public async Task OnReplaySliderChanged(SliderChanged? changed)
+    public async Task OnReplayScrubbed(DigitalBrain.UI.Commands.ValueChanged changed)
     {
-        if (changed is null || string.IsNullOrWhiteSpace(changed.SliderId))
-        {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(changed.SliderId, CreatorView.ReplaySliderKey) || changed.Version <= _lastSyncedSliderVersion)
-        {
-            return;
-        }
-
-        _lastSyncedSliderVersion = Math.Max(_lastSyncedSliderVersion, changed.Version);
-
+        ArgumentNullException.ThrowIfNull(changed);
         var steps = ReplayScript.Steps(ActiveTimelineHops);
         if (steps.Length == 0)
         {
@@ -207,65 +164,38 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         }
 
         var index = Math.Clamp((long)Math.Round(changed.Value) - 1L, 0L, steps.Length - 1L);
-        if (State.ReplayCursor == index)
+        if (State.ReplayCursor != index)
         {
-            return;
+            await ApplyDecisionAsync(State.StepTimeline(index.ToString(CultureInfo.InvariantCulture), steps.Length));
         }
-
-        await ApplyDecisionAsync(State.StepTimeline(index.ToString(CultureInfo.InvariantCulture), steps.Length));
-        await SyncUiNeuronsAsync();
     }
 
+    // A row of the signals table is a journal sequence: a timeline hop steps the cursor to it; an edge signal of another trace opens it.
     [DigitalBrain.Neurons.On]
-    public async Task OnReplayCommandBarInvoked(CommandBarInvoked? invoked)
+    public async Task OnSignalRowSelected(DigitalBrain.UI.Commands.RowSelected selected)
     {
-        if (invoked is null || string.IsNullOrWhiteSpace(invoked.BarId) || string.IsNullOrWhiteSpace(invoked.ItemId))
+        ArgumentNullException.ThrowIfNull(selected);
+        if (!long.TryParse(selected.RowId, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence))
         {
             return;
         }
 
-        if (!MatchesNeuronSourceKey(invoked.BarId, CreatorView.ReplayCommandBarKey))
+        var steps = ReplayScript.Steps(ActiveTimelineHops);
+        var stepIndex = Array.FindIndex(steps, s => s.Sequence == sequence);
+        if (stepIndex >= 0)
         {
-            return;
-        }
-
-        await Replay(new CreatorReplay(invoked.ItemId));
-    }
-
-    [DigitalBrain.Neurons.On]
-    public async Task OnSignalsRowSelected(TableRowSelected? selected)
-    {
-        if (selected is null || string.IsNullOrWhiteSpace(selected.TableId) || selected.RowIndex is not { } rowIndex || rowIndex < 0)
-        {
-            return;
-        }
-
-        if (!MatchesNeuronSourceKey(selected.TableId, CreatorView.InspectorSignalsKey))
-        {
-            return;
-        }
-
-        var hops = ActiveTimelineHops;
-        if (rowIndex < hops.Count)
-        {
-            var chosenHop = hops[rowIndex];
-            var steps = ReplayScript.Steps(hops);
-            var stepIndex = Array.FindIndex(steps, s => s.Sequence == chosenHop.Sequence);
-            if (stepIndex >= 0 && State.ReplayCursor != stepIndex)
+            if (State.ReplayCursor != stepIndex)
             {
                 await ApplyDecisionAsync(State.StepTimeline(stepIndex.ToString(CultureInfo.InvariantCulture), steps.Length));
-                await SyncUiNeuronsAsync();
-                return;
             }
+
+            return;
         }
 
-        if (_inspection.Kind == Selection.Edge && rowIndex < _inspection.Signals.Count)
+        if (State.Inspection is { Kind: Selection.Edge } edge
+            && Array.Find(edge.Signals, s => s.Sequence == sequence) is { TraceId: { Length: > 0 } traceId })
         {
-            var entry = _inspection.Signals[rowIndex];
-            if (!string.IsNullOrWhiteSpace(entry.TraceId))
-            {
-                await Trace(new CreatorTrace(entry.TraceId));
-            }
+            await Trace(new CreatorTrace(traceId));
         }
     }
 
@@ -301,12 +231,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     [Slot(Key = IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector.DefaultKey, Required = false)] private partial IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector? UiIntrospector { get; }
     [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Social.IPosts? Posts { get; }
     [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
-    [Slot(Key = CreatorView.InspectorTabsKey, Required = false)] private partial ITabs? InspectorTabs { get; }
-    [Slot(Key = CreatorView.ReplaySliderKey, Required = false)] private partial ISlider? ReplaySlider { get; }
-    [Slot(Key = CreatorView.ReplayCommandBarKey, Required = false)] private partial ICommandBar? ReplayCommandBar { get; }
-    [Slot(Key = CreatorView.InspectorStateKey, Required = false)] private partial IPropertyGrid? InspectorState { get; }
-    [Slot(Key = CreatorView.InspectorSourceKey, Required = false)] private partial ICodeEditor? InspectorSource { get; }
-    [Slot(Key = CreatorView.InspectorSignalsKey, Required = false)] private partial ITable? InspectorSignals { get; }
     [Slot(Required = false)] private partial SlotCollection<IntoChat.OS.Modules.AI.Workflows.IWorkflowRun> WorkflowRuns { get; }
     [Slot(Required = false)] private partial SlotCollection<IApp> Apps { get; }
     public const int EdgeSignals = 20;
@@ -317,14 +241,9 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     private Approval[] _approvals = [];
     private IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[] _synapses = [];
     private DigitalBrain.Units.DeployedSource[] _deployedUnits = [];
-    private Inspection _inspection = Inspection.None;
-    private TraceHop[] _retainedTimelineHops = [];
-    private int _lastSyncedSliderVersion;
-    private int _lastSyncedTabsVersion;
     private readonly HashSet<string> _running = new(StringComparer.Ordinal);
 
-    private IReadOnlyList<TraceHop> ActiveTimelineHops
-        => _inspection.Hops.Count > 0 ? _inspection.Hops : _retainedTimelineHops;
+    private TraceHop[] ActiveTimelineHops => State.Inspection.Hops;
 
     public TimeSpan ScenarioBudget { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -368,7 +287,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         await RefreshAsync();
         await InspectAsync();
-        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
@@ -379,28 +297,24 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         if (string.Equals(raw, CreatorView.ToggleStateGraphTarget, StringComparison.Ordinal))
         {
             await Show(State.ToggleStateGraph());
-            await SyncUiNeuronsAsync();
             return;
         }
 
         if (raw is not null && raw.StartsWith("mode:", StringComparison.Ordinal))
         {
             await ApplyDecisionAsync(State.SwitchCanvasMode(raw["mode:".Length..]));
-            await SyncUiNeuronsAsync();
             return;
         }
 
         if (raw is not null && raw.StartsWith("tab:", StringComparison.Ordinal))
         {
             await ApplyDecisionAsync(State.SelectInspectorTab(raw["tab:".Length..]));
-            await SyncUiNeuronsAsync();
             return;
         }
 
         if (raw is not null && raw.StartsWith("file:", StringComparison.Ordinal))
         {
             await Show(State.SetSourceFile(raw["file:".Length..]));
-            await SyncUiNeuronsAsync();
             return;
         }
 
@@ -418,24 +332,23 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         if (selection is not null && !Known(selection))
         {
-            _inspection = new Inspection(selection.Kind, selection.Id) { Notice = "Not in the brain graph." };
-            await Show(State with { Selected = selection, Transcript = null });
-            await SyncUiNeuronsAsync();
+            await Show(State with
+            {
+                Selected = selection,
+                Transcript = null,
+                Inspection = new Inspection(selection.Kind, selection.Id) { Notice = "Not in the brain graph.", Hops = ActiveTimelineHops },
+            });
             return;
         }
 
         if (selection is null)
         {
-            _inspection = Inspection.None;
-            _retainedTimelineHops = [];
             await Show(State.ClearSelection());
-            await SyncUiNeuronsAsync();
             return;
         }
 
-        await Show(State.SelectSelection(selection, ActiveTimelineHops.Count));
+        await Show(State.SelectSelection(selection, ActiveTimelineHops.Length));
         await InspectAsync();
-        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
@@ -453,7 +366,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         ArgumentNullException.ThrowIfNull(request);
         var stepCount = ReplayScript.Steps(ActiveTimelineHops).Length;
         await Show(State.StepReplay(request.Cursor, stepCount));
-        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
@@ -500,17 +412,16 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             lock (_running) { _running.Remove(alias); }
         }
 
-        _inspection = _inspection with
-        {
-            ScenarioPassRate = CreatorStateSpaceInspector.ComputeTranscriptPassRate(transcript) ?? _inspection.ScenarioPassRate,
-        };
         await Show(State with
         {
+            Inspection = State.Inspection with
+            {
+                ScenarioPassRate = CreatorStateSpaceInspector.ComputeTranscriptPassRate(transcript) ?? State.Inspection.ScenarioPassRate,
+            },
             Transcript = transcript,
             InspectorTab = "scenarios",
             Status = $"Ran the scenarios of {alias}",
         });
-        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
@@ -581,7 +492,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         await RefreshAsync();
         await InspectAsync();
-        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
@@ -670,8 +580,8 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     public new CreatorWorkspaceState State => base.State;
     public View Render() => PreviewView(State);
     protected override Node Render(CreatorWorkspaceState state)
-        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses, ActiveTransition, _deployedUnits,
-            Child<ITabStripControl, TabStripProps>);
+        => CreatorView.RenderNode(state, _topology, _flows, _approvals, state.Inspection, state.Inspection.Hops, _synapses, ActiveTransition, _deployedUnits,
+            new CreatorView.Children(Child<ITabStripControl, TabStripProps>, Child<ISliderControl, SliderProps>, Child<IQueryTableControl, QueryTableProps>));
 
     private async Task RefreshAsync()
     {
@@ -704,9 +614,10 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         await Show(State with { Status = State.Status });
     }
 
+    // Reads the selection into the stored inspection. A selection without a trace of its own keeps the last timeline.
     private async Task InspectAsync()
     {
-        _inspection = State.Selected switch
+        var inspection = State.Selected switch
         {
             null when State.ActiveRunId is { Length: > 0 } runId => await FlowRunAsync(runId),
             null => Inspection.None,
@@ -715,13 +626,12 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             { } node => await NodeAsync(node.Id),
         };
 
-        if (_inspection.Hops.Count > 0)
+        if (inspection.Hops.Length == 0)
         {
-            _retainedTimelineHops = [.. _inspection.Hops];
+            inspection = inspection with { Hops = ActiveTimelineHops };
         }
 
-        var stepCount = ReplayScript.Steps(ActiveTimelineHops).Length;
-        await Show(State with { ReplayStepCount = stepCount });
+        await Show(State with { Inspection = inspection, ReplayStepCount = ReplayScript.Steps(inspection.Hops).Length });
     }
 
     private Task TryFollowOptionalAsync<TNeuron, TSignal>(string key)
