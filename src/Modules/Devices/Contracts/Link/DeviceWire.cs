@@ -49,8 +49,18 @@ public static class DeviceRoutes
     public const string Catalog = CircleRoutes.Prefix + "/compute/models";
     public const string Chat = CircleRoutes.Prefix + "/compute/chat";
 
+    // Connected client compute capability advertisement, heartbeat, discovery, and scoped sandbox dispatch.
+    public const string ComputeCapability = CircleRoutes.Prefix + "/compute/capability";
+    public const string ComputeNodes = CircleRoutes.Prefix + "/compute/nodes";
+    public const string SandboxNext = CircleRoutes.Prefix + "/compute/sandbox/next";
+    public const string SandboxDispatch = CircleRoutes.Prefix + "/compute/sandbox/dispatch";
+    public const string SandboxResult = CircleRoutes.Prefix + "/compute/sandbox/{jobId}/result";
+
     public static string StreamFor(string jobId)
         => CircleRoutes.Prefix + "/compute/" + Uri.EscapeDataString(jobId) + "/stream";
+
+    public static string SandboxResultFor(string jobId)
+        => CircleRoutes.Prefix + "/compute/sandbox/" + Uri.EscapeDataString(jobId) + "/result";
 }
 
 // MachinePublicKeySpki is the base64url SubjectPublicKeyInfo of the machine P-256 key.
@@ -128,10 +138,26 @@ public sealed record BrainDevicesResponse(string Brain, BrainDeviceModels[] Devi
 // A chat for one device of the credential's brain; Brain is what the caller expects and must equal the credential's.
 public sealed record BrainChatRequest(string Brain, string Device, DeviceChatJob Job);
 
+// Online compute-capable devices for the credential's brain returned by GET /circle/v1/compute/nodes.
+public sealed record BrainComputeNodesResponse(string Brain, ComputeCapabilityAdvertisement[] Nodes);
+
+// Scoped sandbox dispatch targeted at one connected auto-all device of the credential's brain.
+public sealed record BrainSandboxDispatchRequest(string Brain, string MachineId, ConnectedSandboxRequest Request);
+
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(BrainDeviceModels))]
 [JsonSerializable(typeof(BrainDevicesResponse))]
 [JsonSerializable(typeof(BrainChatRequest))]
+[JsonSerializable(typeof(BrainComputeNodesResponse))]
+[JsonSerializable(typeof(BrainSandboxDispatchRequest))]
+[JsonSerializable(typeof(ComputeConsentMode))]
+[JsonSerializable(typeof(ComputeNodeStatus))]
+[JsonSerializable(typeof(ComputeExecutionTarget))]
+[JsonSerializable(typeof(ComputeCapabilityAdvertisement))]
+[JsonSerializable(typeof(ConnectedComputeNode))]
+[JsonSerializable(typeof(ConnectedComputeNode[]))]
+[JsonSerializable(typeof(ConnectedSandboxRequest))]
+[JsonSerializable(typeof(ConnectedSandboxResponse))]
 [JsonSerializable(typeof(EnrollRequest))]
 [JsonSerializable(typeof(EnrollResponse))]
 [JsonSerializable(typeof(EnrollError))]

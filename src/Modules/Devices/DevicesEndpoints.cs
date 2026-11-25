@@ -27,6 +27,8 @@ internal sealed record DeviceErrorResponse(string Error);
 [JsonSerializable(typeof(DeviceInstallRequest))]
 [JsonSerializable(typeof(DeviceErrorResponse))]
 [JsonSerializable(typeof(DeviceView))]
+[JsonSerializable(typeof(ConnectedComputeNode))]
+[JsonSerializable(typeof(ConnectedComputeNode[]))]
 internal sealed partial class DevicesHttpJson : JsonSerializerContext;
 
 internal static class DevicesEndpoints
@@ -37,8 +39,30 @@ internal static class DevicesEndpoints
 
         var group = OsBrainRoutes.Group(endpoints, "/devices");
         group.MapGet("/this", GetThisAsync);
+        group.MapGet("/compute/nodes", GetComputeNodesAsync);
         group.MapGet("/{machineId}", GetDeviceAsync);
         group.MapPost("/{machineId}/install", PostInstallAsync);
+    }
+
+    private static async Task GetComputeNodesAsync(HttpContext http)
+    {
+        if (!IsDirectPersonCaller(http))
+        {
+            http.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        var router = http.RequestServices.GetService<IConnectedComputeRouter>();
+        var nodes = router is null
+            ? []
+            : await router.ListNodesAsync(new DigitalBrain.BrainId(BrainScope.CurrentId()), http.RequestAborted).ConfigureAwait(false);
+
+        http.Response.ContentType = "application/json; charset=utf-8";
+        await JsonSerializer.SerializeAsync(
+            http.Response.Body,
+            nodes,
+            DevicesHttpJson.Default.ConnectedComputeNodeArray,
+            http.RequestAborted).ConfigureAwait(false);
     }
 
     private static async Task GetThisAsync(HttpContext http)

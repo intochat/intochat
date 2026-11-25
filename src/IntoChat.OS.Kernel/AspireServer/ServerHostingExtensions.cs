@@ -166,6 +166,8 @@ public static class ServerHostingExtensions
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>();
         builder.Services.Replace(ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.ISandboxRuntimeBridge>(
             static sp => sp.GetRequiredService<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>()));
+        builder.Services.TryAddSingleton<IntoChat.OS.Modules.Devices.ILocalSandboxExecutor>(
+            static sp => sp.GetRequiredService<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>());
         // Storage, clustering and reminders are the topology's; the platform composes over whatever it registered.
         builder.AddIntoChatOSPlatform();
         // The silo's own platform pieces (store custody, diagnostics, the gRPC edge) right after identity's.

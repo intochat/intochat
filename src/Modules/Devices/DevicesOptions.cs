@@ -28,6 +28,21 @@ public sealed class AttachedRuntimeOptions
     public string Url { get; set; } = string.Empty;
 }
 
+public sealed class ComputeCapabilityOptions
+{
+    public ComputeConsentMode ConsentMode { get; set; } = ComputeConsentMode.AutoAll;
+
+    public bool SandboxEnabled { get; set; } = true;
+
+    public int MaxConcurrency { get; set; } = 2;
+
+    public int HeartbeatIntervalSeconds { get; set; } = 15;
+
+    public int HeartbeatTtlSeconds { get; set; } = 45;
+
+    public int AvailabilityTimeoutMs { get; set; } = 400;
+}
+
 public sealed partial class DevicesOptions : IModuleOptions
 {
     [GeneratedRegex("^[a-z0-9-]{1,32}$", RegexOptions.CultureInvariant)]
@@ -38,6 +53,8 @@ public sealed partial class DevicesOptions : IModuleOptions
     public FoundryLocalRuntimeOptions FoundryLocal { get; set; } = new();
 
     public SherpaOnnxRuntimeOptions SherpaOnnx { get; set; } = new();
+
+    public ComputeCapabilityOptions Compute { get; set; } = new();
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, AttachedRuntimeOptions> Attach { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -63,6 +80,27 @@ public sealed partial class DevicesOptions : IModuleOptions
         if (SherpaOnnx is null)
         {
             throw new ArgumentException("Devices SherpaOnnx options cannot be null.", nameof(SherpaOnnx));
+        }
+
+        if (Compute is null)
+        {
+            throw new ArgumentException("Devices Compute options cannot be null.", nameof(Compute));
+        }
+        if (Compute.MaxConcurrency is < 1 or > 64)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Compute), Compute.MaxConcurrency, "Devices Compute.MaxConcurrency must be between 1 and 64.");
+        }
+        if (Compute.HeartbeatIntervalSeconds is < 1 or > 300)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Compute), Compute.HeartbeatIntervalSeconds, "Devices Compute.HeartbeatIntervalSeconds must be between 1 and 300.");
+        }
+        if (Compute.HeartbeatTtlSeconds < Compute.HeartbeatIntervalSeconds || Compute.HeartbeatTtlSeconds > 3600)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Compute), Compute.HeartbeatTtlSeconds, "Devices Compute.HeartbeatTtlSeconds must be >= HeartbeatIntervalSeconds and <= 3600.");
+        }
+        if (Compute.AvailabilityTimeoutMs is < 50 or > 500)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Compute), Compute.AvailabilityTimeoutMs, "Devices Compute.AvailabilityTimeoutMs must be between 50 and 500 ms.");
         }
 
         foreach (var (name, entry) in Attach)

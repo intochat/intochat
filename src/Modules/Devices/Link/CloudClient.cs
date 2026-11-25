@@ -134,6 +134,97 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
             HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
     }
 
+    public async Task<bool> ReportComputeCapabilityAsync(ComputeCapabilityAdvertisement capability, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+        using var response = await SendSignedAsync(
+            HttpMethod.Put,
+            DeviceRoutes.ComputeCapability,
+            () => JsonContent(capability, DeviceWireJson.Default.ComputeCapabilityAdvertisement),
+            ct).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
+    public async Task<BrainComputeNodesResponse?> BrainComputeNodesAsync(string brain, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
+        using var response = await SendSignedAsync(
+            HttpMethod.Get,
+            DeviceRoutes.ComputeNodes + "?brain=" + Uri.EscapeDataString(brain),
+            createContent: null,
+            ct).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.BrainComputeNodesResponse, ct).ConfigureAwait(false);
+    }
+
+    public async Task<ConnectedSandboxResponse?> DispatchBrainSandboxAsync(
+        BrainSandboxDispatchRequest dispatch,
+        TimeSpan availabilityTimeout,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(dispatch);
+        using var availabilityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        availabilityCts.CancelAfter(availabilityTimeout);
+
+        using var response = await SendSignedAsync(
+            HttpMethod.Post,
+            DeviceRoutes.SandboxDispatch,
+            () => JsonContent(dispatch, DeviceWireJson.Default.BrainSandboxDispatchRequest),
+            availabilityCts.Token,
+            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedSandboxResponse, ct).ConfigureAwait(false);
+    }
+
+    public async Task<ConnectedSandboxRequest?> PollNextSandboxAsync(CancellationToken ct = default)
+    {
+        using var response = await SendSignedAsync(
+            HttpMethod.Get,
+            DeviceRoutes.SandboxNext,
+            createContent: null,
+            ct).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedSandboxRequest, ct).ConfigureAwait(false);
+    }
+
+    public async Task ReportSandboxResultAsync(string jobId, ConnectedSandboxResponse result, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        ArgumentNullException.ThrowIfNull(result);
+        using var response = await SendSignedAsync(
+            HttpMethod.Post,
+            DeviceRoutes.SandboxResultFor(jobId),
+            () => JsonContent(result, DeviceWireJson.Default.ConnectedSandboxResponse),
+            ct).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task StreamAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);

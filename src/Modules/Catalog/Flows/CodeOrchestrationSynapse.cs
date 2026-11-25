@@ -2,7 +2,6 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
-using DigitalBrain.Log;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
@@ -45,6 +44,10 @@ internal sealed class CodeOrchestrationInner
     public string? ResultJson { get; set; }
 
     public CodeOrchestrationResult? Result { get; set; }
+
+    public string? ExecutionTarget { get; set; }
+
+    public string? ExecutedByMachineId { get; set; }
 
     public string? Error { get; set; }
 }
@@ -246,38 +249,28 @@ internal sealed class CodeOrchestrationSynapse(
                 inner.AllowedContracts.Length > 0 ? inner.AllowedContracts : null,
                 inner.InferredContracts);
 
-        await sandbox.DeployScopedPackageAsync(
+        var inputArg = string.IsNullOrWhiteSpace(inner.InputJson) ? "{}" : inner.InputJson;
+        var payload = JsonSerializer.Serialize(inputArg, Json);
+        var dispatch = await sandbox.ExecuteScopedCommandAsync(
             Id.Brain,
             compiled.EnrichedPackage,
             compiled.AssemblyBytes,
-            stateJson: null,
-            settingsJson: null,
-            allowedContracts: effectiveScope,
+            CodeOrchestrationScriptWrapper.Command,
+            payload,
+            effectiveScope,
             cancellationToken: ct).ConfigureAwait(true);
 
-        SandboxDispatchResult dispatch;
-        try
+        inner.ExecutionTarget = dispatch.ExecutionTarget;
+        inner.ExecutedByMachineId = dispatch.ExecutedByMachineId;
+
+        if (!string.IsNullOrWhiteSpace(dispatch.ExecutionTarget))
         {
-            var inputArg = string.IsNullOrWhiteSpace(inner.InputJson) ? "{}" : inner.InputJson;
-            var payload = JsonSerializer.Serialize(inputArg, Json);
-            dispatch = await sandbox.DispatchCommandAsync(
-                Id.Brain.Value,
+            (logger ?? OsConsoleLog.For<CodeOrchestrationSynapse>()).LogInformation(
+                "Code orchestration '{AppKey}' for brain '{BrainId}' executed via '{ExecutionTarget}' (machine='{MachineId}').",
                 appKey,
-                CodeOrchestrationScriptWrapper.Command,
-                payload,
-                cancellationToken: ct).ConfigureAwait(true);
-        }
-        finally
-        {
-            try
-            {
-                await sandbox.UnloadAsync(Id.Brain.Value, appKey, CancellationToken.None).ConfigureAwait(true);
-            }
-            catch (Exception unloadError) when (unloadError is not OperationCanceledException)
-            {
-                (logger ?? OsConsoleLog.For<CodeOrchestrationSynapse>())
-                    .LogSwallowed(unloadError, $"Sandbox unload failed for code orchestration app '{appKey}'.");
-            }
+                Id.Brain.Value,
+                dispatch.ExecutionTarget,
+                dispatch.ExecutedByMachineId ?? "fallback");
         }
 
         if (!string.IsNullOrWhiteSpace(dispatch.Error))
