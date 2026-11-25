@@ -151,14 +151,15 @@ internal sealed class LocalDiskNeuron(
     // agent) or the host's (a module or the kernel of this brain). The caller is the one the runtime stamped.
     private void RequireRootsChanger()
     {
-        var caller = Context.Caller;
-        var allowed = caller is not null && caller.Brain == Id.Brain && caller.Actor switch
+        static UnauthorizedAccessException Refused() => new("Only the person of this brain or the host changes the local folders it may reach.");
+        var caller = RequireSameBrain(Refused);
+        var allowed = caller.Actor switch
         {
             DigitalBrain.Access.Actor.Person => caller.Direct,
             DigitalBrain.Access.Actor.Module or DigitalBrain.Access.Actor.Kernel => true,
             _ => false,
         };
-        if (!allowed) { throw new UnauthorizedAccessException("Only the person of this brain or the host changes the local folders it may reach."); }
+        if (!allowed) { throw Refused(); }
     }
 
     private LocalRoot[] Current()

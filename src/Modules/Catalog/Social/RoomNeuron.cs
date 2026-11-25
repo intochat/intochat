@@ -189,7 +189,8 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
     // until the room hears of the removal. One message for every refusal.
     private async Task<string> RequireSeat()
     {
-        if (Context.Caller is not { } caller || caller.Brain == Id.Brain) { return ResolveCallerAccount(); }
+        var caller = RequireCaller();
+        if (IsSameBrainCaller()) { return caller.For?.Account ?? Id.Brain.Value; }
 
         var account = caller.For?.Account;
         if (string.IsNullOrEmpty(account)

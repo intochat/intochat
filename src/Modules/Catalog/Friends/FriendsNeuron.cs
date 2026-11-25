@@ -396,7 +396,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private void RequireIsFriendCaller(AccountId account)
     {
         var caller = RequireCaller();
-        if (caller.Brain == Id.Brain || caller.Via?.Brain == Id.Brain) { return; }
+        if (IsSameBrainCaller() || caller.Via?.Brain == Id.Brain) { return; }
         if (caller.Actor is Actor.Person person && string.Equals(person.Account, account.Value, StringComparison.Ordinal)) { return; }
         throw PersonActs.Refused();
     }

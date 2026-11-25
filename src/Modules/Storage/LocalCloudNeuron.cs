@@ -159,8 +159,7 @@ internal sealed class LocalCloudNeuron(
     // confirmation, and a host without the confirmation gate refuses.
     private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
     {
-        var caller = Context.Caller;
-        if (caller is not null && caller.Brain == Id.Brain && caller.Actor switch
+        if (IsSameBrainCaller() && Context.Caller is { } caller && caller.Actor switch
         {
             DigitalBrain.Access.Actor.Person => caller.Direct,
             DigitalBrain.Access.Actor.Module or DigitalBrain.Access.Actor.Kernel => true,

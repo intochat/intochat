@@ -180,15 +180,15 @@ public static class ArtCraftEngineRunner
         var descriptor = ArtCraftCatalog.Get(app);
         if (descriptor.Id == ShippedApps.PhotoCraft)
         {
-            return await ExecutePhotoCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            return await ExecutePhotoCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
         }
         if (descriptor.Id == ShippedApps.FilmCraft)
         {
-            return await ExecuteFilmCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            return await ExecuteFilmCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
         }
 
         var mode = NormalizeMode(executionMode);
-        var inputDoc = await ResolveStudioInputDocumentAsync(descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(false);
+        var inputDoc = await ResolveStudioInputDocumentAsync(descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(true);
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
             return CreateClarificationResult(descriptor.Id, mode, inputDoc, $"Specify a {descriptor.Title} command or instruction.");
@@ -207,7 +207,7 @@ public static class ArtCraftEngineRunner
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
             descriptor.DefaultLayersOrTracks, "Input", isNewGradient: false,
-            studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
     }
 
     internal static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
@@ -222,7 +222,7 @@ public static class ArtCraftEngineRunner
     {
         var descriptor = ArtCraftCatalog.Get(ShippedApps.PhotoCraft);
         var mode = NormalizeMode(executionMode);
-        var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(false);
+        var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(true);
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
@@ -233,14 +233,14 @@ public static class ArtCraftEngineRunner
         var isNewGradient = cmdId == "layer.newFillLayer.gradient";
         if (vfs is not null && !isNewGradient)
         {
-            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "PhotoCraft input file", onRecoverableError).ConfigureAwait(false);
+            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "PhotoCraft input file", onRecoverableError).ConfigureAwait(true);
         }
 
         var cliInvocation = string.Empty;
 
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
-            layers, "Input", isNewGradient, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            layers, "Input", isNewGradient, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
     }
 
     internal static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
@@ -255,7 +255,7 @@ public static class ArtCraftEngineRunner
     {
         var descriptor = ArtCraftCatalog.Get(ShippedApps.FilmCraft);
         var mode = NormalizeMode(executionMode);
-        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(false);
+        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(true);
 
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
@@ -265,13 +265,13 @@ public static class ArtCraftEngineRunner
         var (cmdId, title, paramsJson, inputDoc, outputDoc, tracks) = resolved;
         if (vfs is not null)
         {
-            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "FilmCraft sequence", onRecoverableError).ConfigureAwait(false);
+            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "FilmCraft sequence", onRecoverableError).ConfigureAwait(true);
         }
 
         var cliInvocation = string.Empty;
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
-            tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(true);
     }
 
     private static ArtCraftEngineResult CreateClarificationResult(string appId, string mode, string inputDoc, string summary) => new(
@@ -375,7 +375,7 @@ public static class ArtCraftEngineRunner
                 var bytes = DecodeDataUrlBytes(previewUrl);
                 if (bytes.Length > 0)
                 {
-                    _ = await vfs.Write(outputDoc, bytes).ConfigureAwait(false);
+                    _ = await vfs.Write(outputDoc, bytes).ConfigureAwait(true);
                     outputNeuronUri = BrainWorkspaceFiles.Stored(outputDoc);
                 }
             }
@@ -420,10 +420,10 @@ public static class ArtCraftEngineRunner
 
         try
         {
-            if (await vfs.Located(inputDoc).ConfigureAwait(false) is { } located) { return located; }
+            if (await vfs.Located(inputDoc).ConfigureAwait(true) is { } located) { return located; }
             if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
             {
-                var files = await vfs.Search(null).ConfigureAwait(false);
+                var files = await vfs.Search(null).ConfigureAwait(true);
                 if (files.FirstOrDefault(f => descriptor.SupportedExtensions.Any(ext => f.Item.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) is var candidate && candidate.Path is not null)
                 {
                     return BrainWorkspaceFiles.Stored(candidate.Path);
@@ -444,7 +444,7 @@ public static class ArtCraftEngineRunner
     {
         try
         {
-            if (await vfs.Located(inputDoc).ConfigureAwait(false) is { } located) { return located; }
+            if (await vfs.Located(inputDoc).ConfigureAwait(true) is { } located) { return located; }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -469,17 +469,17 @@ public static class ArtCraftEngineRunner
             var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
             if (!string.IsNullOrWhiteSpace(extracted))
             {
-                return await vfs.Located(extracted).ConfigureAwait(false) ?? currentDocument;
+                return await vfs.Located(extracted).ConfigureAwait(true) ?? currentDocument;
             }
 
             if (!string.IsNullOrWhiteSpace(currentDocument))
             {
-                if (await vfs.Located(currentDocument).ConfigureAwait(false) is { } matchedCurrent) { return matchedCurrent; }
+                if (await vfs.Located(currentDocument).ConfigureAwait(true) is { } matchedCurrent) { return matchedCurrent; }
                 var defaultDoc = isVideo ? "/work/launch-trailer.fcproj" : "/work/portrait.png";
                 if (!string.Equals(currentDocument, defaultDoc, StringComparison.OrdinalIgnoreCase)) { return currentDocument; }
             }
 
-            var files = await vfs.Search(null).ConfigureAwait(false);
+            var files = await vfs.Search(null).ConfigureAwait(true);
             if (files.FirstOrDefault(f => isVideo ? IsVideoExtension(f.Item.Name) : IsImageExtension(f.Item.Name)) is var candidate && candidate.Path is not null)
             {
                 return BrainWorkspaceFiles.Stored(candidate.Path);

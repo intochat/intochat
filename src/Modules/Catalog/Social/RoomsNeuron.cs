@@ -74,7 +74,7 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
 
     public Task<ConversationInvite[]> Conversations(CancellationToken ct = default)
     {
-        if (Context.Caller is not { } caller || caller.Brain != Id.Brain) { throw FriendRelay.Refused(); }
+        _ = RequireSameBrain(FriendRelay.Refused);
         return Task.FromResult((State.Conversations ?? [])
             .Select(static pointer => new ConversationInvite(pointer.Brain, new ConversationId { Value = pointer.Conversation }, pointer.Title, new AccountId(pointer.By)))
             .ToArray());
@@ -88,7 +88,7 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
 
     // The call the kernel stamped came through the proxy of this brain's own roster, inside the cluster.
     private bool FromOwnRoster()
-        => Context.Caller is { Inside: true, Via: { } via } caller && caller.Brain == Id.Brain && via == FriendsDefaults.Id(Id.Brain.Value);
+        => IsSameBrainCaller() && Context.Caller is { Inside: true, Via: { } via } && via == FriendsDefaults.Id(Id.Brain.Value);
 
     // An invitation is taken from this brain's roster, which has checked it, or from the conversation itself: the stamped
     // caller came through that conversation's proxy in the inviter's own brain, the inviter owns that brain and is the
