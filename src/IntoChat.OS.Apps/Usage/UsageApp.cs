@@ -79,10 +79,7 @@ public sealed record UsageAppState(
 [Neuron("app.usage"), Screen("app.usage", Title = "Usage", Icon = "wallet", Category = "System")]
 public sealed partial class UsageApp : AggregateScreen<UsageAppState>
 {
-    public const string UsageSpendChartKey = "usage/charts/spend";
-
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
-    [Slot(Key = UsageSpendChartKey, Required = false)] private partial IntoChat.OS.Modules.UI.Chart.IChart? SpendChart { get; }
     public static AppBundle Bundle => AppBundle.FromScreen<UsageApp>(
         "usage",
         "1.0.0",
@@ -163,26 +160,6 @@ public sealed partial class UsageApp : AggregateScreen<UsageAppState>
         {
             var compute = await computeSlot.Read();
             var rows = compute.Rows ?? [];
-            if (SpendChart is { } chart)
-            {
-                try
-                {
-                    await chart.Render(new IntoChat.OS.Modules.UI.Chart.ChartSpec(
-                        Title: "Spend by Surface (USD)",
-                        Kind: IntoChat.OS.Modules.UI.Chart.ChartKinds.Columns,
-                        Series:
-                        [
-                            new IntoChat.OS.Modules.UI.Chart.ChartSeries("Spend",
-                            [
-                                .. rows.Select(r => new IntoChat.OS.Modules.UI.Chart.ChartPoint(r.Key, Math.Round(r.Micros / 1_000_000d, 2))),
-                            ]),
-                        ],
-                        Description: "Live metered compute spend per surface (last 30 days).",
-                        Prefix: "$",
-                        From: "Compute"));
-                }
-                catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Usage IChart sync skipped in minimal test host."); }
-            }
             await Show(State.ApplySnapshot(compute, $"{statusPrefix} Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)} across {rows.Length} surface(s)."));
         }
         catch (Exception ex)
@@ -220,7 +197,7 @@ public sealed partial class UsageApp : AggregateScreen<UsageAppState>
                 ]
             ],
             rows.Length > 0
-                ? new NeuronRef("ui.chart", UsageSpendChartKey)
+                ? BarChart("Spend by Surface (USD)", [.. rows.Select(static r => (r.Key, Math.Round(r.Micros / 1_000_000d, 2)))], seriesName: "Spend", prefix: "$") with { From = "Compute" }
                 : null,
             Table(
                 "Metered Compute by Surface",

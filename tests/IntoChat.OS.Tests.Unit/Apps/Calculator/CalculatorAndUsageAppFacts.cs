@@ -109,6 +109,50 @@ public sealed class CalculatorAndUsageAppFacts
         }
     }
 
+    // The spend chart is a `chart` data node drawn from Usage's own state; no ui.chart neuron is mounted (step P-Data/Usage).
+    [Fact]
+    public async Task UsageDrawsItsSpendChartFromState()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        FakeComputeNeuron.Reset();
+        try
+        {
+            await using var os = TestOS.Local()
+                .RegisterCatalog()
+                .Register<FakeComputeNeuron>();
+            var usage = await os.Install<UsageApp>();
+            Assert.Empty(Find<DigitalBrain.UI.Chart>(usage.App.Render().Root));
+
+            var compute = os.Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>(
+                new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "ui.compute", "compute"));
+            await compute.Record("ino/chat:gpt-5", 12_500_000L);
+            await compute.Record("creator/image", 1_250_000L);
+            await usage.Request("refresh", new UsageRefresh());
+
+            var root = usage.App.Render().Root;
+            var chart = Assert.Single(Find<DigitalBrain.UI.Chart>(root));
+            Assert.Equal("columns", chart.Kind);
+            Assert.Equal("Spend by Surface (USD)", chart.Title);
+            Assert.Equal([new DigitalBrain.UI.ChartPointNode("ino/chat:gpt-5", 12.5), new DigitalBrain.UI.ChartPointNode("creator/image", 1.25)], chart.Points);
+            Assert.Equal("$", chart.Prefix);
+            Assert.Equal("Compute", chart.From);
+            Assert.Empty(Find<DigitalBrain.UI.NeuronRef>(root));
+        }
+        finally
+        {
+            FakeComputeNeuron.Reset();
+        }
+    }
+
+    private static IEnumerable<T> Find<T>(object? value) where T : DigitalBrain.UI.Node => value switch
+    {
+        null or string => [],
+        T match => [match, .. match.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => Find<T>(p.GetValue(match)))],
+        System.Collections.IEnumerable items => items.Cast<object?>().SelectMany(Find<T>),
+        DigitalBrain.UI.Node or DigitalBrain.UI.View => value.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => Find<T>(p.GetValue(value))),
+        _ => [],
+    };
+
     [Fact]
     public async Task InoAndCreatorPauseExecutionWhenMonthlyComputeBudgetIsExceeded()
     {
