@@ -299,7 +299,7 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
         var studioCanvas = VStack(Space.Md)[
             presetBar,
             !string.IsNullOrWhiteSpace(state.PreviewDataUrl)
-                ? ImageView(
+                ? Image(
                     state.PreviewDataUrl,
                     $"Canvas Preview · {state.LastCommandTitle} ({state.ActiveDocument} -> {state.OutputDocument})",
                     height: 300)

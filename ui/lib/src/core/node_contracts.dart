@@ -64,10 +64,6 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.UI.GridView.IGridView',
       'GridViewChanged',
     ),
-    'ui.image-viewer': NodeContract(
-      'IntoChat.OS.Modules.UI.ImageViewer.IImageViewer',
-      'ImageViewerChanged',
-    ),
     'ui.command-bar': NodeContract(
       'IntoChat.OS.Modules.UI.CommandBar.ICommandBar',
       'CommandBarInvoked',

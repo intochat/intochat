@@ -21,6 +21,8 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
         ["heading"] = typeof(Heading),
         ["text"] = typeof(Text),
         ["markdown"] = typeof(Markdown),
+        ["image"] = typeof(Image),
+        ["jsonTree"] = typeof(JsonTree),
         ["badge"] = typeof(Badge),
         ["tagPill"] = typeof(TagPill),
         ["field"] = typeof(Field),
@@ -97,6 +99,8 @@ public sealed record View(string Title, Node Root)
 [JsonDerivedType(typeof(Heading), "heading")]
 [JsonDerivedType(typeof(Text), "text")]
 [JsonDerivedType(typeof(Markdown), "markdown")]
+[JsonDerivedType(typeof(Image), "image")]
+[JsonDerivedType(typeof(JsonTree), "jsonTree")]
 [JsonDerivedType(typeof(Badge), "badge")]
 [JsonDerivedType(typeof(TagPill), "tagPill")]
 [JsonDerivedType(typeof(Field), "field")]

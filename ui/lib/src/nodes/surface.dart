@@ -1,11 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../components/image/ui_image.dart';
 import '../primitives/surface.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
@@ -15,18 +12,6 @@ import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 import 'node_renderer.dart';
-
-Uint8List? _tryDecodeDataUrl(String raw) {
-  final trimmed = raw.trim();
-  if (!trimmed.startsWith('data:image/')) return null;
-  final comma = trimmed.indexOf(',');
-  if (comma <= 0 || comma + 1 >= trimmed.length) return null;
-  try {
-    return base64Decode(trimmed.substring(comma + 1));
-  } catch (_) {
-    return null;
-  }
-}
 
 Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
   builder: (context) {
@@ -80,96 +65,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
       );
     }
 
-    // 3. Inline raster / SVG / network Image canvas (`kind: "image"` | `"image:contain"` | `"image:cover"`)
-    if (variant.kind == SurfaceVariantKind.image) {
-      final boxFit = variant.boxFit;
-      final src = (node.subtitle ?? '').trim();
-      final caption = (node.title ?? '').trim();
-      final height = node.padding > 0
-          ? node.padding.clamp(80.0, 1200.0)
-          : 320.0;
-      final bytes = _tryDecodeDataUrl(src);
-
-      Widget content;
-      if (bytes != null) {
-        content = ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: SizedBox(
-            height: height,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _StudioCheckerboardPainter(
-                cellA: c.isDark
-                    ? const Color(0xFF181A20)
-                    : const Color(0xFFE8E6E1),
-                cellB: c.isDark
-                    ? const Color(0xFF22252E)
-                    : const Color(0xFFF3F1EC),
-              ),
-              child: Image.memory(
-                bytes,
-                fit: boxFit,
-                filterQuality: FilterQuality.medium,
-              ),
-            ),
-          ),
-        );
-      } else if (src.isNotEmpty) {
-        content = SizedBox(
-          height: height,
-          width: double.infinity,
-          child: UiImage.network(url: src, caption: caption),
-        );
-      } else {
-        content = SizedBox(
-          height: height,
-          child: Center(
-            child: Text(
-              'No image preview available',
-              style: UiType.of(context).bodyMuted,
-            ),
-          ),
-        );
-      }
-
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: c.surfaceSunk,
-          borderRadius: BorderRadius.circular(tokens.surfaceRadius),
-          border: Border.all(color: c.borderHairline),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 8,
-          children: [
-            if (caption.isNotEmpty)
-              Row(
-                children: [
-                  Icon(LucideIcons.image, size: 14, color: c.muted),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      caption,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: UiType.textStyle(
-                        12.5,
-                        weight: FontWeight.w600,
-                        color: c.textStrong,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            content,
-          ],
-        ),
-      );
-    }
-
-    // 4. IDE Code viewer (`kind: "code"` | `"code:<lang>"`)
+    // 3. IDE Code viewer (`kind: "code"` | `"code:<lang>"`)
     if (variant.kind == SurfaceVariantKind.code) {
       final lang = variant.language;
       final title = (node.title ?? '').trim();
@@ -185,7 +81,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
       );
     }
 
-    // 5. Interactive collapsible Expander (`kind: "expander"` | `"expander:open"` | `"expander:closed"`)
+    // 4. Interactive collapsible Expander (`kind: "expander"` | `"expander:open"` | `"expander:closed"`)
     if (variant.kind == SurfaceVariantKind.expander) {
       return _ExpanderSurfaceView(
         title: node.title ?? 'Details',
@@ -195,7 +91,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
       );
     }
 
-    // 6. Bounded vertical ScrollBox (`kind: "scroll"`)
+    // 5. Bounded vertical ScrollBox (`kind: "scroll"`)
     if (variant.kind == SurfaceVariantKind.scroll) {
       final maxHeight = node.padding > 0
           ? node.padding.clamp(100.0, 1400.0)
@@ -214,7 +110,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
       );
     }
 
-    // 7. Live App Studio device/viewport frame (`kind: "studio-frame"` | `"studio-frame:<width>"`)
+    // 6. Live App Studio device/viewport frame (`kind: "studio-frame"` | `"studio-frame:<width>"`)
     if (variant.kind == SurfaceVariantKind.studioFrame) {
       final targetWidth = variant.targetWidth;
       final singleFill =
@@ -624,31 +520,4 @@ class _ExpanderSurfaceViewState extends State<_ExpanderSurfaceView> {
       ),
     );
   }
-}
-
-class _StudioCheckerboardPainter extends CustomPainter {
-  const _StudioCheckerboardPainter({required this.cellA, required this.cellB});
-
-  final Color cellA;
-  final Color cellB;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const step = 16.0;
-    final paintA = Paint()..color = cellA;
-    final paintB = Paint()..color = cellB;
-    canvas.drawRect(Offset.zero & size, paintA);
-    for (var y = 0.0; y < size.height; y += step) {
-      final row = (y / step).floor();
-      for (var x = (row.isEven ? step : 0.0); x < size.width; x += step * 2) {
-        final w = (x + step > size.width) ? (size.width - x) : step;
-        final h = (y + step > size.height) ? (size.height - y) : step;
-        canvas.drawRect(Rect.fromLTWH(x, y, w, h), paintB);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _StudioCheckerboardPainter oldDelegate) =>
-      oldDelegate.cellA != cellA || oldDelegate.cellB != cellB;
 }

@@ -445,9 +445,9 @@ public sealed class FilesMediaPreviewFacts
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
         Assert.Contains(
             Walk.Nodes(screen.Main),
-            n => Walk.Kind(n) == "surface"
-                && Walk.Str(n, "surfaceKind") == "image:contain"
-                && Walk.Str(n, "subtitle") == app.Snapshot.PreviewUrl);
+            n => Walk.Kind(n) == "image"
+                && Walk.Str(n, "fit") == "Contain"
+                && Walk.Str(n, "url") == app.Snapshot.PreviewUrl);
     }
 }
 

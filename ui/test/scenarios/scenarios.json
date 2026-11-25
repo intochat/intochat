@@ -1019,6 +1019,30 @@
     ]
   },
   {
+    "name": "image",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "image"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "image",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Design preview",
+        "target": "."
+      }
+    ]
+  },
+  {
     "name": "infoBar",
     "appId": "uikit",
     "steps": [
@@ -1086,6 +1110,30 @@
       {
         "step": "expect",
         "contains": "The jobCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "jsonTree",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "jsonTree"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "jsonTree",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Account state",
         "target": "."
       }
     ]

@@ -102,6 +102,40 @@ public sealed record Markdown(
     [Showcase(@"""## Release notes\n\n- **Faster** sync\n- A new `Card` footer\n\nSee [the docs](https://intochat.io).""")]
     string Value) : Node;
 
+/// <summary>An image drawn by the client from a URL or a <c>data:image/*;base64,...</c> URL. Zoom and rotation are the viewer's own:
+/// the client keeps them and never sends them.</summary>
+/// <param name="Url">The image URL or data URL; empty draws a "no preview" box.</param>
+/// <param name="Caption">A line shown above the image; empty shows none.</param>
+/// <param name="Height">The height of the image box in logical pixels.</param>
+/// <param name="Fit">How the image fills its box.</param>
+[ViewNode("image")]
+public sealed record Image(
+    [Showcase("""{"kind":"image","url":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgOTAnPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nOTAnIGZpbGw9JyM0ZjQ2ZTUnLz48Y2lyY2xlIGN4PSc4MCcgY3k9JzQ1JyByPScyNCcgZmlsbD0nI2ZmZicvPjwvc3ZnPg==","caption":"Design preview","height":180,"fit":"Contain"}""")]
+    string Url,
+    string Caption = "",
+    double Height = 320,
+    ImageFit Fit = ImageFit.Contain) : Node;
+
+/// <summary>How an <see cref="Image"/> fills its box.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ImageFit>))]
+public enum ImageFit
+{
+    /// <summary>The whole image is visible, letterboxed when its shape differs from the box.</summary>
+    Contain,
+
+    /// <summary>The image fills the box and is cropped when its shape differs.</summary>
+    Cover,
+}
+
+/// <summary>Read-only JSON drawn as a tree the person can expand and filter; both stay in the client.</summary>
+/// <param name="Title">The heading above the tree.</param>
+/// <param name="Json">The JSON text; text that does not parse is shown as it is.</param>
+[ViewNode("jsonTree")]
+public sealed record JsonTree(
+    [Showcase("""{"kind":"jsonTree","title":"Account state","json":"{\"balance\":42,\"owner\":{\"name\":\"Ada\",\"tags\":[\"admin\",\"ops\"]},\"closed\":false}"}""")]
+    string Title,
+    string Json) : Node;
+
 /// <summary>A transient message.</summary>
 [ViewNode("toast")]
 public sealed record Toast(string Message) : Node;

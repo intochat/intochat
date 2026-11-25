@@ -1,4 +1,3 @@
-import 'package:flutter/painting.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../primitives/button.dart';
@@ -39,7 +38,6 @@ enum WireViewTransition {
 enum SurfaceVariantKind {
   toolbar,
   breadcrumb,
-  image,
   code,
   expander,
   scroll,
@@ -53,14 +51,12 @@ enum SurfaceVariantKind {
 final class ParsedSurfaceVariant {
   const ParsedSurfaceVariant(
     this.kind, {
-    this.boxFit = BoxFit.contain,
     this.language = 'code',
     this.initiallyOpen = false,
     this.targetWidth,
   });
 
   final SurfaceVariantKind kind;
-  final BoxFit boxFit;
   final String language;
   final bool initiallyOpen;
   final double? targetWidth;
@@ -313,14 +309,6 @@ ParsedSurfaceVariant parseSurfaceVariant(String surfaceKind) {
       return const ParsedSurfaceVariant(SurfaceVariantKind.elevated);
     case 'acrylic':
       return const ParsedSurfaceVariant(SurfaceVariantKind.acrylic);
-  }
-  if (kind == 'image' || kind.startsWith('image:')) {
-    final idx = kind.indexOf(':');
-    final fitMode = idx >= 0 ? kind.substring(idx + 1).trim() : 'contain';
-    return ParsedSurfaceVariant(
-      SurfaceVariantKind.image,
-      boxFit: fitMode == 'cover' ? BoxFit.cover : BoxFit.contain,
-    );
   }
   if (kind == 'code' || kind.startsWith('code:')) {
     final idx = kind.indexOf(':');
