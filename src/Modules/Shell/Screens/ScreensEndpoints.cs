@@ -35,15 +35,7 @@ internal static class ScreensEndpoints
             var result = await dir.Act(appId, input.Key, input.Value, input.Generation, input.InstanceId ?? "main").WaitAsync(ct);
             return result.Accepted ? Results.Ok(result) : Results.BadRequest(result);
         });
-
-        group.MapPost("/approvals/{approvalId}", async (string approvalId, ScreenApproveRequest input, INeuronProxies brain, CancellationToken ct) =>
-        {
-            var dir = brain.Get<IScreenDirectory>(IScreenDirectory.Key(BrainScope.CurrentId()));
-            var result = await dir.Approve(approvalId, input.Approved, input.Reason).WaitAsync(ct);
-            return result.Accepted ? Results.Ok(result) : Results.Conflict(result);
-        });
     }
 
     internal sealed record ScreenActRequest(string Key, string? Value = null, long? Generation = null, string? InstanceId = null);
-    internal sealed record ScreenApproveRequest(bool Approved, string? Reason = null);
 }

@@ -268,17 +268,10 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         var planId = ExtractPlanIdFromScreen(withApproval.RawJson);
         Assert.False(string.IsNullOrWhiteSpace(planId));
 
+        // The agent has no tool that answers a confirmation: the person answers it on /confirmations/{planId}.
         await using var mcp = await CreateMcpClientAsync();
-        var approveAttempt = await mcp.CallToolAsync(
-            "screen_approve",
-            new Dictionary<string, object?>
-            {
-                ["approvalId"] = planId,
-                ["approved"] = true,
-                ["reason"] = "Agent attempting self-approval",
-            },
-            cancellationToken: Ct);
-        Assert.True(approveAttempt.IsError == true || ToolText(approveAttempt).Contains("person", StringComparison.OrdinalIgnoreCase));
+        var tools = await mcp.ListToolsAsync(cancellationToken: Ct);
+        Assert.DoesNotContain(tools, tool => tool.Name.Contains("approve", StringComparison.OrdinalIgnoreCase));
 
         using var stillPending = await host.Http.GetAsync($"/brains/{host.Scope}/screens/ino", Ct);
         stillPending.EnsureSuccessStatusCode();

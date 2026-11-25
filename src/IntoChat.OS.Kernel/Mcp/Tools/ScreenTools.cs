@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Confirmation;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Flutter.Screens;
@@ -17,8 +16,8 @@ namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 /// <summary>
 /// First-class MCP screen tools backed by <see cref="IScreenDirectory"/> so any MCP client
-/// can discover open/available screens, inspect UI trees and controls, click/submit controls,
-/// and resolve pending approval gates without manual grain-key choreography.
+/// can discover open/available screens, inspect UI trees and controls, and click/submit controls without manual grain-key
+/// choreography. No tool answers a confirmation: MCP is stamped as the agent, and a person answers on /confirmations/{planId}.
 /// </summary>
 [McpServerToolType]
 internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
@@ -29,13 +28,8 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
     private const string ListName = "screen_list";
     private const string ReadName = "screen_read";
     private const string ActName = "screen_act";
-    private const string ApproveName = "screen_approve";
 
     private IScreenDirectory Directory(string tool) => brain.Get<IScreenDirectory>(IScreenDirectory.Key(caller.Stamp(tool).Brain.Value));
-
-    // Only a person calling directly, outside a conversation, answers a confirmation card (the inbox's own Answerer rule).
-    internal static bool MayAnswerConfirmation(DigitalBrain.Access.Caller caller)
-        => caller is { Direct: true, Conversation: null, Actor: DigitalBrain.Access.Actor.Person };
 
     // A guest opens the shipped demo screens only, named exactly.
     private void Admit(string tool, string appId)
@@ -63,7 +57,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
     }
 
-    [McpServerTool(Name = ReadName), Description("Read the current rendered UI view, flat interactive controls list, generation token, and pending approvals for an app or runtime unit screen.")]
+    [McpServerTool(Name = ReadName), Description("Read the current rendered UI view, flat interactive controls list, generation token, and pending approvals for an app or runtime unit screen. A pending approval is the person's to answer in the shell; no tool answers it.")]
     public async Task<CallToolResult> Read(
         [Description("App id or runtime unit alias (for example 'creator', 'settings', 'datastudio', 'tasks', 'ino', 'confirmations', or a deployed unit alias).")] string appId,
         [Description("Optional workspace instance id (defaults to 'main').")] string instanceId = "main",
@@ -97,87 +91,6 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         {
             Admit(ActName, appId);
             var result = await Directory(ActName).Act(appId, key, value, generation, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false);
-            return Text(JsonSerializer.Serialize(result, Json));
-        }
-        catch (Exception error) when (Mapped(error))
-        {
-            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
-            return Failure(error);
-        }
-    }
-
-    [McpServerTool(Name = ApproveName), Description("Approve or deny a pending approval gate (FeatureToPrFlow promotion, unit deploy, synapse staged install, or confirmation card) by approvalId.")]
-    public async Task<CallToolResult> Approve(
-        [Description("Pending approval id / plan id from screen_read or screen_list.")] string approvalId,
-        [Description("True to approve and execute; false to deny/reject.")] bool approved,
-        [Description("Optional reason recorded with the resolution.")] string? reason = null,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var stamped = caller.Stamp(ApproveName);
-            var inbox = brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(stamped.Brain.Value));
-            var current = await inbox.Read().WaitAsync(cancellationToken).ConfigureAwait(false);
-            var wasPendingInInbox = current.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal));
-            if (wasPendingInInbox)
-            {
-                // MCP is stamped as the agent: a confirmation card is the person's to answer in the shell (owner decision 3). The
-                // inbox would refuse a person-only plan and record any other answer from an agent as a self-approval denial.
-                if (!MayAnswerConfirmation(stamped))
-                {
-                    return Text(JsonSerializer.Serialize(
-                        new ScreenActionResult(false, $"Approval '{approvalId}' is a confirmation; the person answers it in the shell."),
-                        Json));
-                }
-                await inbox.Resolve(approvalId, approved).WaitAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                var requests = brain.Get<IConfirmationRequests>(IConfirmationRequests.Of(stamped.Brain));
-                if (await requests.Outcome(approvalId).WaitAsync(cancellationToken).ConfigureAwait(false) is not null)
-                {
-                    return Text(JsonSerializer.Serialize(
-                        new ScreenActionResult(false, $"Approval '{approvalId}' has already been resolved."),
-                        Json));
-                }
-            }
-
-            string? unitAlias = null;
-            if (approved && approvalId.StartsWith("install:", StringComparison.Ordinal))
-            {
-                var parts = approvalId.Split(':');
-                if (parts.Length >= 2)
-                {
-                    unitAlias = parts[1];
-                    var deployment = brain.Get<DigitalBrain.Units.IUnitDeployment>(
-                        new NeuronId(stamped.Brain, "synapse.deployment", unitAlias));
-                    for (var attempt = 0; attempt < 40; attempt++)
-                    {
-                        if (await deployment.Ref(DigitalBrain.Units.UnitView.Live, cancellationToken).ConfigureAwait(false) is not null)
-                        {
-                            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
-                            break;
-                        }
-
-                        await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                    }
-                }
-            }
-
-            var result = await Directory(ApproveName).Approve(approvalId, approved, reason).WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (result.Accepted && approved && unitAlias is not null)
-            {
-                for (var attempt = 0; attempt < 20; attempt++)
-                {
-                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                    var updated = await Directory(ApproveName).Read(unitAlias).WaitAsync(cancellationToken).ConfigureAwait(false);
-                    if (updated is { Controls.Length: > 0 })
-                    {
-                        break;
-                    }
-                }
-            }
-
             return Text(JsonSerializer.Serialize(result, Json));
         }
         catch (Exception error) when (Mapped(error))

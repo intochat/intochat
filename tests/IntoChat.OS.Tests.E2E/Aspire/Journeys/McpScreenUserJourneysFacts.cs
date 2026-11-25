@@ -35,7 +35,8 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         Assert.Contains("screen_list", toolNames);
         Assert.Contains("screen_read", toolNames);
         Assert.Contains("screen_act", toolNames);
-        Assert.Contains("screen_approve", toolNames);
+        // A confirmation is the person's to answer on /confirmations/{planId}; no MCP tool answers one.
+        Assert.DoesNotContain(toolNames, name => name.Contains("approve", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("neurons_list", toolNames);
         Assert.Contains("neurons_call", toolNames);
 
@@ -100,7 +101,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
             seedActionRaw = deployAction.RootElement.GetRawText();
         }
 
-        // J2: Wait for confirmation gate to surface the staged unit install, then approve via screen_approve
+        // J2: Wait for confirmation gate to surface the staged unit install, then the person approves it on /confirmations/{planId}
         string? installApprovalId = null;
         string lastConfRaw = "";
         for (var attempt = 0; attempt < 80; attempt++)
@@ -129,20 +130,6 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
 
         Assert.False(string.IsNullOrWhiteSpace(installApprovalId), $"No pending approval for {seededAlias}. Seed action: {seedActionRaw}. Last confirmations: {lastConfRaw}");
 
-        // Gate 2.0: MCP callers run as Actor.Agent and cannot self-approve RequiresPerson unit installs.
-        using (var agentApproveAttempt = await TryCallToolJsonAsync("screen_approve", new
-        {
-            approvalId = installApprovalId!,
-            approved = true,
-            reason = "Agent self-approve attempt must be refused",
-        }, ct))
-        {
-            // The refusal now comes back as the tool's answer: accepted false, the person answers confirmations in the shell (by design).
-            Assert.NotNull(agentApproveAttempt);
-            Assert.False(agentApproveAttempt.RootElement.GetProperty("accepted").GetBoolean());
-            Assert.Contains("the person answers it in the shell", agentApproveAttempt.RootElement.GetProperty("message").GetString(), StringComparison.Ordinal);
-        }
-
         // Approve the staged unit install through the human presence-proved HTTP edge.
         using (var personApproveReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{McpScope}/confirmations/{Uri.EscapeDataString(installApprovalId!)}")
         {
@@ -151,19 +138,6 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         {
             using var personApproveRes = await host.Os.SendAsync(personApproveReq, ct);
             Assert.Equal(HttpStatusCode.OK, personApproveRes.StatusCode);
-        }
-
-        using (var duplicateApprove = await TryCallToolJsonAsync("screen_approve", new
-        {
-            approvalId = installApprovalId!,
-            approved = true,
-            reason = "Duplicate approval guard",
-        }, ct))
-        {
-            if (duplicateApprove is not null)
-            {
-                Assert.False(duplicateApprove.RootElement.GetProperty("accepted").GetBoolean(), $"Duplicate approve should be false: {duplicateApprove.RootElement.GetRawText()}");
-            }
         }
 
         // Poll screen_read for the deployed runtime unit until it has rendered controls
@@ -233,14 +207,6 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         using var confSnapshot = await CallToolJsonAsync("screen_read", new { appId = "confirmations" }, ct);
         Assert.Equal("confirmations", confSnapshot.RootElement.GetProperty("appId").GetString());
 
-        // J4: Approval gate double-resolution safety via screen_approve
-        using var approveResult = await CallToolJsonAsync("screen_approve", new
-        {
-            approvalId = "nonexistent-e2e-approval-check",
-            approved = true,
-            reason = "e2e verification",
-        }, ct);
-        Assert.False(approveResult.RootElement.GetProperty("accepted").GetBoolean());
     }
 
     private async Task InitializeMcpAsync(CancellationToken ct)

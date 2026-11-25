@@ -5,7 +5,8 @@ using DigitalBrain.UI;
 namespace IntoChat.OS.Modules.Flutter.Screens;
 
 /// <summary>
-/// Unified screen gateway for listing, reading, acting on, and approving UI across built-in apps and runtime units.
+/// Unified screen gateway for listing, reading and acting on UI across built-in apps and runtime units. It answers no confirmation:
+/// a person answers one on POST /brains/{id}/confirmations/{planId}.
 /// </summary>
 [NeuronAlias("ui.screens"), DefaultNeuronType("ui.screens")]
 public interface IScreenDirectory
@@ -21,8 +22,6 @@ public interface IScreenDirectory
     Task<ScreenSnapshot?> Read(string appId, string instanceId = "main");
 
     Task<ScreenActionResult> Act(string appId, string key, string? value = null, long? generation = null, string instanceId = "main");
-
-    Task<ScreenActionResult> Approve(string approvalId, bool approved, string? reason = null);
 }
 
 [GenerateSerializer, Alias("ui.screen-summary")]

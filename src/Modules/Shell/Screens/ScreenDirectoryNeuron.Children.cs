@@ -259,7 +259,7 @@ internal sealed partial class ScreenDirectoryNeuron
             {
                 if (appId == "confirmations" || string.Equals(a.Subject, appId, StringComparison.OrdinalIgnoreCase) || a.Detail.Contains(appId, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (seenIds.Add(a.PlanId) && !CurrentState.ResolvedApprovals.Contains(a.PlanId, StringComparer.Ordinal))
+                    if (seenIds.Add(a.PlanId))
                     {
                         items.Add(new ScreenApprovalItem(a.PlanId, a.Title, a.Detail, appId, "pending"));
                     }
@@ -274,7 +274,7 @@ internal sealed partial class ScreenDirectoryNeuron
                 var inbox = await ResolveNeuron<IConfirmationInbox>(IConfirmationInbox.Key(brain)).Read();
                 foreach (var req in inbox.Pending)
                 {
-                    if (seenIds.Add(req.PlanId) && !CurrentState.ResolvedApprovals.Contains(req.PlanId, StringComparer.Ordinal))
+                    if (seenIds.Add(req.PlanId))
                     {
                         items.Add(new ScreenApprovalItem(req.PlanId, req.Plan.Title, req.Plan.Body, appId, "pending"));
                     }
@@ -299,7 +299,7 @@ internal sealed partial class ScreenDirectoryNeuron
                         && res.TryGetProperty("planId", out var pid) && pid.ValueKind == JsonValueKind.String)
                     {
                         var planId = pid.GetString()!;
-                        if (seenIds.Add(planId) && !CurrentState.ResolvedApprovals.Contains(planId, StringComparer.Ordinal))
+                        if (seenIds.Add(planId))
                         {
                             var title = el.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()! : "Approval Request";
                             var summary = el.TryGetProperty("subtitle", out var s) && s.ValueKind == JsonValueKind.String ? s.GetString()! : "";
@@ -360,10 +360,6 @@ internal sealed partial class ScreenDirectoryNeuron
 
 [GenerateSerializer, Alias("ui.screen-directory-state")]
 [ExportableState]
-internal sealed record ScreenDirectoryState
-{
-    [Id(0)] public string[] ResolvedApprovals { get; init; } = [];
-}
-
-[Signal("ui.screens.approval-resolved")]
-internal sealed record ApprovalResolved(string BrainId, string ApprovalId, bool Approved) : DigitalBrain.Signal;
+// Holds nothing now. Id(0) was ResolvedApprovals, the ids the deleted screen approve route had answered; stored state that still
+// carries it reads with the field skipped (the inbox is the one record of an answer). Do not reuse Id(0).
+internal sealed record ScreenDirectoryState;

@@ -286,31 +286,31 @@ public sealed class ScreenDirectoryNeuronFacts
         Assert.Empty(mockView.Dispatched);
     }
 
+    // Acting on the confirmations screen answers no plan: a person answers on POST /brains/{id}/confirmations/{planId} only.
     [Fact]
-    public async Task ScreenDirectory_Approve_ResolvesApproval_AndRefusesDoubleResolution()
+    public async Task ScreenDirectory_Act_OnConfirmations_AnswersNoPlan()
     {
         using var person = AsPerson();
         var proxies = new MockNeuronProxies();
         var inbox = new MockConfirmationInbox("plan-42");
         proxies.Register<IConfirmationInbox>(IConfirmationInbox.Key(Scope), inbox);
         proxies.Register<IConfirmationRequests>(IConfirmationRequests.Of(new BrainId(Scope)), inbox);
+        proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
+        proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
 
         var services = new ServiceCollection()
             .AddSingleton<INeuronProxies>(proxies)
             .BuildServiceProvider();
-        await using var osWithProxies = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+        var neuron = os.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
+        Assert.NotNull(await neuron.Read("confirmations"));
 
-        var neuron = osWithProxies.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
+        var approve = await neuron.Act("confirmations", "plan-42", "approve");
+        var deny = await neuron.Act("confirmations", "plan-42", "deny");
 
-        // First approval: accepted
-        var first = await neuron.Approve("plan-42", approved: true);
-        Assert.True(first.Accepted);
-        Assert.Contains("approved", first.Message);
-
-        // Second approval for same planId: refused
-        var second = await neuron.Approve("plan-42", approved: true);
-        Assert.False(second.Accepted);
-        Assert.Contains("already been resolved", second.Message);
+        Assert.False(approve.Accepted);
+        Assert.False(deny.Accepted);
+        Assert.Empty(inbox.Resolved);
     }
 
     [Fact]
