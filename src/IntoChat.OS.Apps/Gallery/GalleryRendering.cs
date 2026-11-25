@@ -525,16 +525,18 @@ internal static class GalleryRendering
         ];
     }
 
+    private const string DemoImage = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgOTAnPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nOTAnIGZpbGw9JyM0ZjQ2ZTUnLz48Y2lyY2xlIGN4PSc4MCcgY3k9JzQ1JyByPScyNCcgZmlsbD0nI2ZmZicvPjwvc3ZnPg==";
+
     private static Node RenderMediaPage() => VStack(Space.Lg)[
-        Heading("Menus, Grid & Media Controls", 1, "WinUI 3 ContextMenu, GridView, and ImageViewer neurons."),
+        Heading("Menus, Grid & Media Controls", 1, "WinUI 3 ContextMenu and GridView neurons, and the image data node."),
         Card("ContextMenu (IContextMenu)", $"Key: {GalleryApp.DemoContextMenuKey}")[
             UiNeuron("ui.context-menu", GalleryApp.DemoContextMenuKey)
         ],
         Card("GridView (IGridView)", $"Key: {GalleryApp.DemoGridViewKey}")[
             UiNeuron("ui.grid-view", GalleryApp.DemoGridViewKey)
         ],
-        Card("ImageViewer (IImageViewer)", $"Key: {GalleryApp.DemoImageViewerKey}")[
-            UiNeuron("ui.image-viewer", GalleryApp.DemoImageViewerKey)
+        Card("Image", "A data node: zoom and rotation stay in the client.")[
+            Image(DemoImage, "Design System Preview", height: 180)
         ]
     ];
 

@@ -24,7 +24,6 @@ using IntoChat.OS.Modules.UI.ContextMenu;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.GridView;
-using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.KanbanBoard;
 using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.Modules.UI.PropertyGrid;
@@ -219,7 +218,7 @@ public sealed record GalleryAppState(
         "tabs" => "Tabs (ITabs)",
         "dialog" => "Dialog (IDialog)",
         "winui-nav" => "WinUI 3 Nav (Breadcrumb, Tree)",
-        "media" => "Menus, Grid & Media (ContextMenu, GridView, ImageViewer)",
+        "media" => "Menus, Grid & Media (ContextMenu, GridView, Image)",
         "workspace" => "Workspace Kit (CommandBar, CodeEditor, Markdown)",
         "wave3" => "WinUI 3 Wave 3 (Stepper, PropertyGrid, Kanban)",
         "charts" => "Charts (IChart)",
@@ -250,7 +249,6 @@ public sealed partial class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoTreeViewKey = "gallery/tree-view/demo";
     public const string DemoContextMenuKey = "gallery/context-menu/demo";
     public const string DemoGridViewKey = "gallery/grid-view/demo";
-    public const string DemoImageViewerKey = "gallery/image-viewer/demo";
     public const string DemoCommandBarKey = "gallery/command-bar/demo";
     public const string DemoCodeEditorKey = "gallery/code-editor/demo";
     public const string DemoMarkdownKey = "gallery/markdown/demo";
@@ -272,7 +270,6 @@ public sealed partial class GalleryApp : AggregateScreen<GalleryAppState>
     [Slot(Key = DemoTreeViewKey, Required = false)] private partial ITreeView? DemoTreeView { get; }
     [Slot(Key = DemoContextMenuKey, Required = false)] private partial IContextMenu? DemoContextMenu { get; }
     [Slot(Key = DemoGridViewKey, Required = false)] private partial IGridView? DemoGridView { get; }
-    [Slot(Key = DemoImageViewerKey, Required = false)] private partial IImageViewer? DemoImageViewer { get; }
     [Slot(Key = DemoCommandBarKey, Required = false)] private partial ICommandBar? DemoCommandBar { get; }
     [Slot(Key = DemoCodeEditorKey, Required = false)] private partial ICodeEditor? DemoCodeEditor { get; }
     [Slot(Key = DemoMarkdownKey, Required = false)] private partial IMarkdownViewer? DemoMarkdown { get; }
@@ -608,10 +605,6 @@ public sealed partial class GalleryApp : AggregateScreen<GalleryAppState>
                     new GridViewItem("demo", "walkthrough.mp4", "24 MB · Video", "film", Badge: "VID"),
                     new GridViewItem("data", "q4-metrics.csv", "82 KB · Table", "table", Badge: "CSV"),
                 ], selectedId: "arch", columns: 2);
-            }
-            if (DemoImageViewer is { } img && (await img.Read()).Version == 0)
-            {
-                await img.Configure("Design System Preview", "", "Interactive zoom & rotation backed by IImageViewer neuron");
             }
             if (DemoCommandBar is { } cb && (await cb.Read()).Version == 0)
             {

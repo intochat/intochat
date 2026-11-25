@@ -226,11 +226,8 @@ void main() {
     expect(calls, contains('IntoChat.OS.Modules.UI.TreeView.ITreeView.Select'));
   });
 
-  testWidgets('Tier 2/3 GridView and ImageViewer invoke gRPC methods', (
-    tester,
-  ) async {
+  testWidgets('Tier 2/3 GridView invokes gRPC methods', (tester) async {
     final calls = <String>[];
-    var rotation = 0;
 
     Future<Map<String, dynamic>?> callNeuron(
       String contract,
@@ -261,17 +258,6 @@ void main() {
           ],
         };
       }
-      if (contract.endsWith('IImageViewer')) {
-        if (method == 'Rotate') rotation = (rotation + 90) % 360;
-        return {
-          'version': calls.length,
-          'title': 'Preview',
-          'sourceUrl': '',
-          'zoom': 1.0,
-          'rotationDegrees': rotation,
-          'fitMode': 'contain',
-        };
-      }
       return {'version': 1};
     }
 
@@ -288,11 +274,6 @@ void main() {
                   neuronKey: 'gallery/grid-view/demo',
                   callNeuron: callNeuron,
                 )!,
-                buildUiNeuronWidget(
-                  kind: 'ui.image-viewer',
-                  neuronKey: 'gallery/image-viewer/demo',
-                  callNeuron: callNeuron,
-                )!,
               ],
             ),
           ),
@@ -304,13 +285,6 @@ void main() {
     await tester.tap(find.text('hero-banner.png'));
     await tester.pumpAndSettle();
     expect(calls, contains('IntoChat.OS.Modules.UI.GridView.IGridView.Select'));
-
-    await tester.tap(find.byIcon(Icons.rotate_right));
-    await tester.pumpAndSettle();
-    expect(
-      calls,
-      contains('IntoChat.OS.Modules.UI.ImageViewer.IImageViewer.Rotate'),
-    );
   });
 
   testWidgets('Wave 2 CommandBar invokes gRPC methods', (tester) async {

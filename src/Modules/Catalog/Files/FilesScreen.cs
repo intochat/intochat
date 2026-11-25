@@ -652,7 +652,7 @@ internal static class FilesScreen
             if (mediaKind == "image")
             {
                 children.Add(VStack(Space.Xs)[
-                    ImageView(url, cardTitle),
+                    Image(url, cardTitle),
                     MutedText($"image · {cardTitle}")
                 ]);
             }

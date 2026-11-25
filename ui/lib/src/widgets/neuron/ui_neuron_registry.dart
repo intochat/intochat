@@ -9,7 +9,6 @@ import 'context_menu_widget.dart';
 import 'dialog_widget.dart';
 import 'form_widget.dart';
 import 'grid_view_widget.dart';
-import 'image_viewer_widget.dart';
 import 'kanban_board_widget.dart';
 import 'markdown_viewer_widget.dart';
 import 'neuron_widget.dart';
@@ -33,7 +32,6 @@ bool isUiNeuronKind(String refKind) => switch (refKind.trim().toLowerCase()) {
   'ui.tree-view' ||
   'ui.context-menu' ||
   'ui.grid-view' ||
-  'ui.image-viewer' ||
   'ui.command-bar' ||
   'ui.code-editor' ||
   'ui.markdown' ||
@@ -114,12 +112,6 @@ Widget? buildUiNeuronWidget({
     ),
     'ui.grid-view' => GridViewNeuronWidget(
       key: ValueKey('ui.grid-view:$neuronKey'),
-      neuronKey: neuronKey,
-      callNeuron: callNeuron,
-      watch: watch,
-    ),
-    'ui.image-viewer' => ImageViewerNeuronWidget(
-      key: ValueKey('ui.image-viewer:$neuronKey'),
       neuronKey: neuronKey,
       callNeuron: callNeuron,
       watch: watch,

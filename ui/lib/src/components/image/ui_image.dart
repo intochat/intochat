@@ -27,25 +27,7 @@ final class UiImage extends StatelessWidget {
   final String? url;
   final String caption;
 
-  Uri? get _remote {
-    final raw = url?.trim() ?? '';
-    if (raw.isEmpty) return null;
-    final uri = Uri.tryParse(raw);
-    if (uri != null &&
-        uri.host.isNotEmpty &&
-        const {'http', 'https'}.contains(uri.scheme)) {
-      return uri;
-    }
-    if (raw.startsWith('/')) {
-      try {
-        final base = IntoChatOSHostEnv.requireUiBaseUri();
-        return base.resolve(raw);
-      } catch (_) {
-        return Uri.tryParse('http://127.0.0.1:5000$raw');
-      }
-    }
-    return null;
-  }
+  Uri? get _remote => resolveImageUri(url);
 
   @override
   Widget build(BuildContext context) {
@@ -129,4 +111,26 @@ final class UiImage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The address an image [url] loads from: an http(s) URL as it is, or a path on
+/// the shell's own host (`/brains/...`); null for anything else.
+Uri? resolveImageUri(String? url) {
+  final raw = url?.trim() ?? '';
+  if (raw.isEmpty) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri != null &&
+      uri.host.isNotEmpty &&
+      const {'http', 'https'}.contains(uri.scheme)) {
+    return uri;
+  }
+  if (raw.startsWith('/')) {
+    try {
+      final base = IntoChatOSHostEnv.requireUiBaseUri();
+      return base.resolve(raw);
+    } catch (_) {
+      return Uri.tryParse('http://127.0.0.1:5000$raw');
+    }
+  }
+  return null;
 }

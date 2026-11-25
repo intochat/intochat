@@ -9,6 +9,7 @@ import 'node_common.dart' show keyedControl;
 import 'brain_scene.dart';
 import 'button.dart';
 import 'icon_button.dart';
+import 'image.dart';
 import 'markdown.dart';
 import 'card.dart';
 import 'chart.dart';
@@ -30,6 +31,7 @@ import 'heading.dart';
 import 'info_bar.dart';
 import 'intent.dart';
 import 'job_card.dart';
+import 'json_tree.dart';
 import 'kanban_view.dart';
 import 'metric_tile.dart';
 import 'nav_item.dart';
@@ -147,6 +149,8 @@ abstract final class NodeRenderer {
       HeadingNode() => renderHeading(node, ctx),
       TextNode() => renderText(node, ctx),
       MarkdownNode() => renderMarkdown(node, ctx),
+      ImageNode() => renderImage(node, ctx),
+      JsonTreeNode() => renderJsonTree(node, ctx),
       BadgeNode() => renderBadge(node, ctx),
       TagPillNode() => renderTagPill(node, ctx),
       FieldNode() => renderField(node, ctx),

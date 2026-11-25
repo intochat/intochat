@@ -1800,6 +1800,44 @@
     ]
   },
   {
+    "kind": "image",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "url",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "caption",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "height",
+        "type": "double",
+        "default": 320
+      },
+      {
+        "name": "fit",
+        "type": "ImageFit",
+        "default": "Contain"
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "image",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNjAgOTAnPjxyZWN0IHdpZHRoPScxNjAnIGhlaWdodD0nOTAnIGZpbGw9JyM0ZjQ2ZTUnLz48Y2lyY2xlIGN4PSc4MCcgY3k9JzQ1JyByPScyNCcgZmlsbD0nI2ZmZicvPjwvc3ZnPg==",
+        "caption": "Design preview",
+        "height": 180,
+        "fit": "Contain"
+      }
+    ]
+  },
+  {
     "kind": "infoBar",
     "isNeuron": false,
     "props": [
@@ -1924,6 +1962,32 @@
     "commands": [],
     "signals": [],
     "examples": []
+  },
+  {
+    "kind": "jsonTree",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "json",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "jsonTree",
+        "title": "Account state",
+        "json": "{\"balance\":42,\"owner\":{\"name\":\"Ada\",\"tags\":[\"admin\",\"ops\"]},\"closed\":false}"
+      }
+    ]
   },
   {
     "kind": "kanban",

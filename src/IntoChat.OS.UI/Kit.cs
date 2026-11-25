@@ -154,9 +154,13 @@ public static class Kit
     public static Surface Breadcrumb(params Node?[] segments)
         => new(StackBuilder.FilterNulls(segments), "breadcrumb", Padding: 0);
 
-    /// <summary>Raster/URL image canvas supporting both <c>data:image/*;base64,...</c> inline previews and remote URLs.</summary>
-    public static Surface ImageView(string src, string caption = "", double height = 320, string fit = "contain")
-        => new([], $"image:{fit}", caption, src, height);
+    /// <summary>An image from a URL or a <c>data:image/*;base64,...</c> URL (<see cref="DigitalBrain.UI.Image"/>); zoom and rotation stay in the client.</summary>
+    public static Image Image(string url, string caption = "", double height = 320, ImageFit fit = ImageFit.Contain)
+        => new(url ?? string.Empty, caption ?? string.Empty, height, fit);
+
+    /// <summary>Read-only JSON drawn as a tree (<see cref="DigitalBrain.UI.JsonTree"/>); expanding and filtering stay in the client.</summary>
+    public static JsonTree JsonTree(string title, string json)
+        => new(title ?? string.Empty, json ?? string.Empty);
 
     /// <summary>Recessed monospace code viewer with line numbers and one-click copy (<c>Surface("code:...")</c>).</summary>
     public static Surface CodeBlock(string title, string code, string language = "csharp", double maxHeight = 360)

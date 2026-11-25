@@ -7,9 +7,9 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // some lowers the number in the same commit, and nothing may raise it.
 public sealed partial class UiControlRatchetFacts
 {
-    private const int UiNeuronTypes = 20;
-    private const int UiNeuronMounts = 34;
-    private const int DartInvokeCalls = 43;
+    private const int UiNeuronTypes = 19;
+    private const int UiNeuronMounts = 33;
+    private const int DartInvokeCalls = 39;
 
     [GeneratedRegex(@"\[Neuron\(""ui\.", RegexOptions.CultureInvariant)]
     private static partial Regex UiNeuronAttribute();

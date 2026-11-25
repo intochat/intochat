@@ -97,6 +97,18 @@ const nodeSamples = <String, Map<String, dynamic>>{
   },
   'toast': {'kind': 'toast', 'message': 'Saved'},
   'markdown': {'kind': 'markdown', 'value': '**Notes**: one, *two*'},
+  'image': {
+    'kind': 'image',
+    'url': '',
+    'caption': 'Preview',
+    'height': 160,
+    'fit': 'Contain',
+  },
+  'jsonTree': {
+    'kind': 'jsonTree',
+    'title': 'State',
+    'json': '{"balance":42,"owner":{"name":"Ada"}}',
+  },
   'card': {
     'kind': 'card',
     'title': 'Card',

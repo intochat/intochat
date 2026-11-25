@@ -54,6 +54,8 @@ enum FieldKind { text, search, number, password, secret, suggest, multiline }
 
 enum FormFieldKind { text, multiline, secret, number }
 
+enum ImageFit { contain, cover }
+
 enum IntentKind { copy, openWindow, openSettings }
 
 enum ListSelectionMode { single, none }
@@ -79,6 +81,8 @@ sealed class Node {
     'heading' => HeadingNode.fromJson(json),
     'text' => TextNode.fromJson(json),
     'markdown' => MarkdownNode.fromJson(json),
+    'image' => ImageNode.fromJson(json),
+    'jsonTree' => JsonTreeNode.fromJson(json),
     'badge' => BadgeNode.fromJson(json),
     'tagPill' => TagPillNode.fromJson(json),
     'field' => FieldNode.fromJson(json),
@@ -1505,6 +1509,30 @@ final class IconButtonNode extends Node {
   );
 }
 
+final class ImageNode extends Node {
+  const ImageNode({
+    required this.url,
+    required this.caption,
+    required this.height,
+    required this.fit,
+  });
+
+  @override
+  String get kind => 'image';
+
+  final String url;
+  final String caption;
+  final double height;
+  final ImageFit fit;
+
+  factory ImageNode.fromJson(Map<String, dynamic> json) => ImageNode(
+    url: _string(json['url']),
+    caption: _string(json['caption']),
+    height: _double(json['height'], 320.0),
+    fit: _enum(ImageFit.values, json['fit']),
+  );
+}
+
 final class InfoBarNode extends Node {
   const InfoBarNode({
     required this.title,
@@ -1605,6 +1633,19 @@ final class JobStepNode {
     status: _string(json['status'], 'waiting'),
     detail: _stringOrNull(json['detail']),
   );
+}
+
+final class JsonTreeNode extends Node {
+  const JsonTreeNode({required this.title, required this.json});
+
+  @override
+  String get kind => 'jsonTree';
+
+  final String title;
+  final String json;
+
+  factory JsonTreeNode.fromJson(Map<String, dynamic> json) =>
+      JsonTreeNode(title: _string(json['title']), json: _string(json['json']));
 }
 
 final class KanbanCardItem {

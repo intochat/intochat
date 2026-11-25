@@ -10,7 +10,6 @@ using IntoChat.OS.Modules.UI.ContextMenu;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.GridView;
-using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.KanbanBoard;
 using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.Modules.UI.PropertyGrid;
@@ -204,7 +203,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
     }
 
     [Fact]
-    public async Task WinUi3Tier2And3MenuGridAndImageNeuronsMaintainState()
+    public async Task WinUi3Tier2And3MenuAndGridNeuronsMaintainState()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
         await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
@@ -217,12 +216,6 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var grid = os.Get<IGridView>(new NeuronId(Brain, "ui.grid-view", "gv1"));
         await grid.Configure("Files", [new GridViewItem("a", "A.md"), new GridViewItem("b", "B.png")], "a", 2);
         Assert.Equal("b", (await grid.Select("b")).SelectedId);
-
-        var img = os.Get<IImageViewer>(new NeuronId(Brain, "ui.image-viewer", "iv1"));
-        await img.Configure("Preview", "https://example.com/a.png");
-        Assert.Equal(1.5, (await img.SetZoom(1.5)).Zoom);
-        Assert.Equal(90, (await img.Rotate(90)).RotationDegrees);
-        Assert.Equal((1.0, 0), ((await img.ResetView()).Zoom, (await img.Read()).RotationDegrees));
     }
 
     [Fact]
