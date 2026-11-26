@@ -462,10 +462,14 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
+      - name: Install Microsoft WinApp CLI
+        uses: microsoft/setup-WinAppCli@v0.3
+
       - name: Dry-run the release packaging script
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
+          winapp --version
           dotnet run eng/package.cs --platform win-x64 --version 0.24.0 --dry-run
           dotnet run eng/package.cs --platform linux-x64 --version 0.24.0 --dry-run
           dotnet run eng/package.cs --platform osx-arm64 --version 0.24.0 --dry-run
