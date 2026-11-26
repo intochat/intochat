@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.Aspire;
 
@@ -50,15 +51,29 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
         services.TryAddSingleton<Bridge.IAspireRuntimeBridge>(provider => provider.GetRequiredService<Bridge.AspireBridgeClient>());
         services.AddHostedService(provider => provider.GetRequiredService<Bridge.AspireBridgeClient>());
         services.TryAddSingleton(AspireInstance.FromEnvironment());
+        services.TryAddSingleton<Candidates.ICandidateSlotPool>(provider =>
+        {
+            var options = provider.GetService<IOptions<AspireOptions>>()?.Value ?? new AspireOptions();
+            return new Candidates.CandidateSlotLeasePool(options.ToSlotPoolOptions());
+        });
+
         var modeValue = configuration.GetSection(ModuleConfiguration.ModuleOptionsSection(ManifestName))[nameof(AspireOptions.CandidateHostMode)];
-        if (Enum.TryParse<CandidateHostMode>(modeValue, ignoreCase: true, out var hostMode) && hostMode == CandidateHostMode.Process)
+        var parsedMode = Enum.TryParse<CandidateHostMode>(modeValue, ignoreCase: true, out var hostMode)
+            ? hostMode
+            : CandidateHostMode.Docker;
+        switch (parsedMode)
         {
-            services.TryAddSingleton<Candidates.ICandidateHost, Candidates.ProcessCandidateHost>();
+            case CandidateHostMode.Process:
+                services.TryAddSingleton<Candidates.ICandidateHost, Candidates.ProcessCandidateHost>();
+                break;
+            case CandidateHostMode.AgentDevSlots:
+                services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AgentDevSlotsCandidateHost>();
+                break;
+            default:
+                services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
+                break;
         }
-        else
-        {
-            services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
-        }
+
         services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
         // The Aspire app (Screens/AspireApp) ships with this component.
