@@ -160,8 +160,8 @@ public sealed class WorkspaceFilesFacts : IDisposable
     {
         var os = TestOS.Local();
         os.RegisterCatalog();
-        os.With<IStorage>(BrainWorkspaceFiles.ConnectionKey(new BrainId(brain)), new LocalDiskStorage([new LocalRoot(LocalCloudNeuron.RootId, _workspace)], new InMemoryOperations(), coordinator: new LocalDiskCoordinator(),
-            shape: new LocalDiskShape("Workspace", "local-cloud", null, WorkspaceNames.IsHiddenOrSecretSegment)));
+        os.With<IStorage>(BrainWorkspaceFiles.ConnectionKey(new BrainId(brain)), new ConfinedDiskStorage([new LocalRoot(LocalCloudNeuron.RootId, _workspace)], new InMemoryOperations(), coordinator: new ConfinedDiskCoordinator(),
+            shape: ConfinedDiskShape.Workspace(null, WorkspaceNames.IsHiddenOrSecretSegment)));
         return os;
     }
 }

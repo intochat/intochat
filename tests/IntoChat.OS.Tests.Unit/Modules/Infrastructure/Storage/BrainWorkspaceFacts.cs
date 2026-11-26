@@ -93,7 +93,7 @@ public sealed class BrainWorkspaceFacts : IDisposable
         Seed(Path.Combine(LegacyFolder, "drive", "d.txt"), "legacy d");
         Seed(Path.Combine(WorkspaceFolder, "a.txt"), "already in the workspace");
         // A copy interrupted earlier left its staging file behind.
-        Seed(Path.Combine(WorkspaceFolder, "sub", ".b.txt.migrating" + LocalDiskStorage.PartialSuffix), "half");
+        Seed(Path.Combine(WorkspaceFolder, "sub", ".b.txt.migrating" + ConfinedDiskStorage.PartialSuffix), "half");
 
         await using var os = Host();
         await Touch(os);
@@ -102,7 +102,7 @@ public sealed class BrainWorkspaceFacts : IDisposable
         Assert.Equal("legacy b", await File.ReadAllTextAsync(Path.Combine(WorkspaceFolder, "sub", "b.txt"), Ct));
         Assert.Equal("legacy c", await File.ReadAllTextAsync(Path.Combine(WorkspaceFolder, "Recovered", "local", "c.txt"), Ct));
         Assert.Equal("legacy d", await File.ReadAllTextAsync(Path.Combine(WorkspaceFolder, "Recovered", "drive", "d.txt"), Ct));
-        Assert.False(File.Exists(Path.Combine(WorkspaceFolder, "sub", ".b.txt.migrating" + LocalDiskStorage.PartialSuffix)));
+        Assert.False(File.Exists(Path.Combine(WorkspaceFolder, "sub", ".b.txt.migrating" + ConfinedDiskStorage.PartialSuffix)));
         // The originals are left where they were.
         Assert.Equal("legacy a", await File.ReadAllTextAsync(Path.Combine(LegacyFolder, "work", "a.txt"), Ct));
         Assert.Equal("legacy b", await File.ReadAllTextAsync(Path.Combine(LegacyFolder, "work", "sub", "b.txt"), Ct));
@@ -158,8 +158,8 @@ public sealed class BrainWorkspaceFacts : IDisposable
         var folder = Directory.CreateTempSubdirectory("workspace-cap-").FullName;
         try
         {
-            var shape = new LocalDiskShape("Workspace", "local-cloud", 100, WorkspaceNames.IsHiddenOrSecretSegment);
-            var storage = new LocalDiskStorage([new LocalRoot("workspace", folder)], shape: shape);
+            var shape = ConfinedDiskShape.Workspace(100, WorkspaceNames.IsHiddenOrSecretSegment);
+            var storage = new ConfinedDiskStorage([new LocalRoot("workspace", folder)], shape: shape);
             var root = LocalItemId.Of("workspace", "");
             await File.WriteAllBytesAsync(Path.Combine(folder, "already.bin"), new byte[40], Ct);
 
@@ -186,8 +186,8 @@ public sealed class BrainWorkspaceFacts : IDisposable
             Seed(Path.Combine(folder, ".env"), "SECRET_KEY=topsecret");
             Seed(Path.Combine(folder, "private.pem"), "PRIVATE KEY");
             Seed(Path.Combine(folder, ".git", "config"), "git config");
-            var shape = new LocalDiskShape("Workspace", "local-cloud", null, WorkspaceNames.IsHiddenOrSecretSegment);
-            var storage = new LocalDiskStorage([new LocalRoot("workspace", folder)], shape: shape);
+            var shape = ConfinedDiskShape.Workspace(null, WorkspaceNames.IsHiddenOrSecretSegment);
+            var storage = new ConfinedDiskStorage([new LocalRoot("workspace", folder)], shape: shape);
             var root = LocalItemId.Of("workspace", "");
 
             var listed = (await storage.List(root, new ListQuery(), Ct)).Items.Select(item => item.Name).ToArray();
@@ -230,7 +230,7 @@ public sealed class BrainWorkspaceFacts : IDisposable
         }
     }
 
-    private static async Task Commit(LocalDiskStorage storage, ItemId root, string name, int bytes, ConflictPolicy conflict)
+    private static async Task Commit(ConfinedDiskStorage storage, ItemId root, string name, int bytes, ConflictPolicy conflict)
     {
         var plan = WritePlan.WriteFile(root, name, ReadOnlyMemory<byte>.Empty, conflict) with { Inline = null };
         await using var writer = await storage.OpenWrite(plan, Ct);

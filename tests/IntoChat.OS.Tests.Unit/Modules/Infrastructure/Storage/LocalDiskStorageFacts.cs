@@ -22,7 +22,7 @@ public sealed class LocalDiskStorageFacts
         try
         {
             var rootId = "root-" + Guid.NewGuid().ToString("N");
-            var storage = new LocalDiskStorage([new LocalRoot(rootId, tempFolder)]);
+            var storage = new ConfinedDiskStorage([new LocalRoot(rootId, tempFolder)]);
             var hostileId = LocalItemId.Of(rootId, hostileRelative);
 
             await Assert.ThrowsAsync<Denied>(() => storage.Stat(hostileId, Ct));
@@ -50,7 +50,7 @@ public sealed class LocalDiskStorageFacts
         try
         {
             var rootId = "root-" + Guid.NewGuid().ToString("N");
-            var storage = new LocalDiskStorage([new LocalRoot(rootId, tempFolder)]);
+            var storage = new ConfinedDiskStorage([new LocalRoot(rootId, tempFolder)]);
             var targetFolder = LocalItemId.Of(rootId, "");
             var plan = new WritePlan(WriteKind.WriteFile, Source: null, TargetFolder: targetFolder, Name: unsafeName, Conflict: ConflictPolicy.Overwrite);
 
@@ -75,8 +75,8 @@ public sealed class LocalDiskStorageFacts
             var rootIdA = "root-a-" + Guid.NewGuid().ToString("N");
             var rootIdB = "root-b-" + Guid.NewGuid().ToString("N");
 
-            var storageA = new LocalDiskStorage([new LocalRoot(rootIdA, folderA)]);
-            var storageB = new LocalDiskStorage([new LocalRoot(rootIdB, folderB)]);
+            var storageA = new ConfinedDiskStorage([new LocalRoot(rootIdA, folderA)]);
+            var storageB = new ConfinedDiskStorage([new LocalRoot(rootIdB, folderB)]);
 
             // Write to storage A
             var planA = new WritePlan(WriteKind.WriteFile, Source: null, TargetFolder: LocalItemId.Of(rootIdA, ""), Name: "isolated.txt", Conflict: ConflictPolicy.Overwrite);
@@ -114,7 +114,7 @@ public sealed class LocalDiskStorageFacts
         try
         {
             // Instance 1: write file to disk
-            var storage1 = new LocalDiskStorage([new LocalRoot(rootId, tempFolder)]);
+            var storage1 = new ConfinedDiskStorage([new LocalRoot(rootId, tempFolder)]);
             var targetFolder = LocalItemId.Of(rootId, "");
             var plan = new WritePlan(WriteKind.WriteFile, Source: null, TargetFolder: targetFolder, Name: "durable.dat", Conflict: ConflictPolicy.Overwrite);
 
@@ -132,7 +132,7 @@ public sealed class LocalDiskStorageFacts
             Assert.Equal(expectedBytes, diskBytes);
 
             // Instance 2: new storage instance pointing to same root (simulating restart / reload)
-            var storage2 = new LocalDiskStorage([new LocalRoot(rootId, tempFolder)]);
+            var storage2 = new ConfinedDiskStorage([new LocalRoot(rootId, tempFolder)]);
             var fileId = LocalItemId.Of(rootId, "durable.dat");
 
             // Read via OpenRead

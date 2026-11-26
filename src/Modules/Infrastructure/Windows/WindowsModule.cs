@@ -6,6 +6,7 @@ using DigitalBrain.Identity.Local.Custody;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +40,7 @@ public sealed class WindowsModule : DigitalBrain.Modules.Module, IHttpModule
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<WindowsStorageCoordinator>();
+        services.TryAddSingleton<ConfinedDiskCoordinator>();
         services.TryAddSingleton<WindowsFolderWatcher>();
         services.AddHostedService(sp => sp.GetRequiredService<WindowsFolderWatcher>());
         services.TryAddSingleton<LocalWindowsDeviceBootstrap>();

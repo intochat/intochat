@@ -23,6 +23,6 @@ public sealed class LocalDiskModule : DigitalBrain.Modules.Module, IHttpModule
     public static void ConfigureServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<LocalDiskCoordinator>();
+        services.TryAddSingleton<ConfinedDiskCoordinator>();
     }
 }

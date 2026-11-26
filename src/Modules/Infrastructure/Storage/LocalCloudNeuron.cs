@@ -46,7 +46,7 @@ public sealed class CloudModule : Module
         services.TryAddSingleton(sp => new BrainWorkspaceRoots(
             StateHome.Resolve(sp.GetService<IConfiguration>() ?? configuration, sp.GetService<RuntimeOptions>() ?? runtime).Path,
             Path.GetTempPath()));
-        services.TryAddSingleton<LocalDiskCoordinator>();
+        services.TryAddSingleton<ConfinedDiskCoordinator>();
     }
 }
 
@@ -90,7 +90,7 @@ internal sealed class LocalCloudNeuron(
     BrainWorkspaceRoots? workspaces = null,
     IConfirmations? confirmations = null,
     IStorageWriteAuthorizer? authorizer = null,
-    LocalDiskCoordinator? coordinator = null,
+    ConfinedDiskCoordinator? coordinator = null,
     ILogger<LocalCloudNeuron>? logger = null) : Neuron<LocalCloudState>, IStorage, IStorageUpload
 {
     public const string RootId = "workspace";
@@ -99,8 +99,8 @@ internal sealed class LocalCloudNeuron(
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<LocalCloudNeuron>();
     private StorageUploadSessions? _uploads;
 
-    private LocalDiskStorage Engine => new([new LocalRoot(RootId, Root())], operations, DriveVolumeSource.Instance, coordinator,
-        new LocalDiskShape("Workspace", CloudModule.WorkspaceNeuronType, State.MaxStorageBytes, WorkspaceNames.IsHiddenOrSecretSegment));
+    private ConfinedDiskStorage Engine => new([new LocalRoot(RootId, Root())], operations, DriveVolumeSource.Instance, coordinator,
+        ConfinedDiskShape.Workspace(State.MaxStorageBytes, WorkspaceNames.IsHiddenOrSecretSegment));
 
     private StorageUploadSessions Uploads => _uploads ??= new(() => Engine, () => DigitalBrain.Access.UploadScope.Of(Context.Caller), Context.Time);
 
@@ -247,9 +247,9 @@ internal static class WorkspaceMigration
             if (IsLink(entry.FullName)) { continue; }
             var target = Path.Combine(destination, entry.Name);
             if (entry is DirectoryInfo) { CopyTree(entry.FullName, target, logger, ref copied, ref failed); continue; }
-            if (entry.Name.EndsWith(LocalDiskStorage.PartialSuffix, StringComparison.OrdinalIgnoreCase)) { continue; }
+            if (entry.Name.EndsWith(ConfinedDiskStorage.PartialSuffix, StringComparison.OrdinalIgnoreCase)) { continue; }
             if (File.Exists(target) || Directory.Exists(target)) { continue; }
-            var stage = Path.Combine(destination, "." + entry.Name + ".migrating" + LocalDiskStorage.PartialSuffix);
+            var stage = Path.Combine(destination, "." + entry.Name + ".migrating" + ConfinedDiskStorage.PartialSuffix);
             try
             {
                 Directory.CreateDirectory(destination);

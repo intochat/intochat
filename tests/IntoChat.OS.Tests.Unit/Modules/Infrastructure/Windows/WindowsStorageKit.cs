@@ -2,10 +2,11 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
+using IntoChat.OS.Modules.LocalDisk;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
-// storage@1 of a Windows PC, against the neuron's storage over a fresh folder (CAP-04). Each fact gets its own root.
+// storage@1 of a Windows PC, against the unified confined-disk engine over a fresh folder (CAP-04). Each fact gets its own root.
 public sealed class WindowsStorageKit : StorageConformance<IStorage>, IDisposable
 {
     private readonly List<string> _roots = [];
@@ -31,14 +32,14 @@ public sealed class WindowsStorageKit : StorageConformance<IStorage>, IDisposabl
         }
 
         var operations = new InMemoryOperations();
-        var storage = new WindowsStorage([root], new WindowsStorageCoordinator(), operations: operations);
+        var storage = new ConfinedDiskStorage([LocalRoot.FromPath(root)], operations: operations, coordinator: new ConfinedDiskCoordinator(), shape: ConfinedDiskShape.Windows);
         var outside = PathConfinement.Normalize(Path.Combine(Directory.GetParent(root)!.FullName, "escape.txt"));
         var windows = PathConfinement.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "win.ini"));
-        return new StorageSubject(storage, operations, [WindowsStorage.IdOf(outside), WindowsStorage.IdOf(windows)]);
+        return new StorageSubject(storage, operations, [WindowsPathIdCodec.Of(outside), WindowsPathIdCodec.Of(windows)]);
     }
 
     protected override ItemId MissingId()
-        => WindowsStorage.IdOf(Path.Combine(_root ?? throw new InvalidOperationException("Connect runs first."), $"missing-{Guid.NewGuid():N}.txt"));
+        => WindowsPathIdCodec.Of(Path.Combine(_root ?? throw new InvalidOperationException("Connect runs first."), $"missing-{Guid.NewGuid():N}.txt"));
 
     public void Dispose()
     {

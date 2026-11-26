@@ -21,8 +21,8 @@ public sealed class BrainWorkspaceConformance : StorageConformance<IStorage>
             }
         }
         var operations = new InMemoryOperations();
-        var shape = new LocalDiskShape("Workspace", "local-cloud", LocalCloudNeuron.DefaultMaxStorageBytes, WorkspaceNames.IsHiddenOrSecretSegment);
-        var storage = new LocalDiskStorage([new LocalRoot(LocalCloudNeuron.RootId, root)], operations, shape: shape);
+        var shape = ConfinedDiskShape.Workspace(LocalCloudNeuron.DefaultMaxStorageBytes, WorkspaceNames.IsHiddenOrSecretSegment);
+        var storage = new ConfinedDiskStorage([new LocalRoot(LocalCloudNeuron.RootId, root)], operations, shape: shape);
         return new StorageSubject(storage, operations, [LocalItemId.Of(LocalCloudNeuron.RootId, "../escape"), LocalItemId.Of(LocalCloudNeuron.RootId, "C:/Windows/win.ini")]);
     }
 

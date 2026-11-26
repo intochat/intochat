@@ -27,7 +27,7 @@ public sealed class LocalDiskConformance : StorageConformance<IStorage>, IDispos
         var rootId = Guid.NewGuid().ToString("N");
         _rootId = rootId;
         var operations = new InMemoryOperations();
-        var storage = new LocalDiskStorage([new LocalRoot(rootId, root)], operations);
+        var storage = new ConfinedDiskStorage([new LocalRoot(rootId, root)], operations);
         return new StorageSubject(storage, operations, [LocalItemId.Of(rootId, "../escape"), LocalItemId.Of(rootId, "C:/Windows/win.ini")]);
     }
 

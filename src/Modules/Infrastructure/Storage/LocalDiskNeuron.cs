@@ -16,18 +16,18 @@ internal sealed class LocalDiskState
 [DigitalBrain.Signal("local-disk.roots")]
 internal sealed record LocalDiskRootsChanged(string Action) : DigitalBrain.Signal;
 
-// Local disks on this computer. Every call is confined; the filesystem work is LocalDiskStorage.
+// Local disks on this computer. Every call is confined; the filesystem work is ConfinedDiskStorage.
 [DigitalBrain.Neurons.Neuron("local-disk", State = "local-disk")]
 internal sealed class LocalDiskNeuron(
     IOperations operations,
     IConfirmations? confirmations = null,
     IStorageWriteAuthorizer? authorizer = null,
-    LocalDiskCoordinator? coordinator = null) : DigitalBrain.Neurons.Neuron<LocalDiskState>, ILocalDisk, IStorage
+    ConfinedDiskCoordinator? coordinator = null) : DigitalBrain.Neurons.Neuron<LocalDiskState>, ILocalDisk, IStorage
 {
     internal const string TypeName = "local-disk";
     internal const string KeyName = "main";
 
-    private LocalDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance, coordinator);
+    private ConfinedDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance, coordinator);
 
     public Task<string[]> Roots() => Task.FromResult(Paths());
 

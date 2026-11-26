@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Testing;
+using IntoChat.OS.Modules.LocalDisk;
 using IntoChat.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,7 +41,7 @@ public sealed class WindowsFolderMediationFacts : IDisposable
         var services = new ServiceCollection();
         services.Configure<WindowsOptions>(options => options.AutoEnrollThisPc = false);
         services.AddSingleton(new DigitalBrain.Identity.Local.Machine.MachineId(Path.Combine(_sandboxRoot, "machine-id")));
-        services.AddSingleton<WindowsStorageCoordinator>();
+        services.AddSingleton<ConfinedDiskCoordinator>();
         services.AddSingleton(watcher ?? new WindowsFolderWatcher());
 
         return TestOS.Local(options => options.Services = services.BuildServiceProvider())

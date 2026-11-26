@@ -14,7 +14,7 @@ public static class TestWorkspace
         ArgumentNullException.ThrowIfNull(services);
         var root = Directory.CreateTempSubdirectory("intochat-workspace-test-").FullName;
         services.TryAddSingleton(new BrainWorkspaceRoots(Path.Combine(root, "home"), Path.Combine(root, "temp")));
-        services.TryAddSingleton<LocalDiskCoordinator>();
+        services.TryAddSingleton<ConfinedDiskCoordinator>();
         services.AddJournalPayloads(typeof(CloudModule).Assembly);
         return services;
     }
