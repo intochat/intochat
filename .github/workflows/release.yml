@@ -258,8 +258,14 @@ jobs:
             Write-Host "No Azure Artifact Signing vars or WINDOWS_DEV_CERT_PFX_BASE64 secret configured; MSIX will be built unsigned."
             exit 0
           }
+          $raw = ($env:WINDOWS_DEV_CERT_PFX_BASE64 -replace '\s+', '')
+          if ([string]::IsNullOrWhiteSpace($raw)) {
+            "active=false" >> $env:GITHUB_OUTPUT
+            Write-Host "WINDOWS_DEV_CERT_PFX_BASE64 secret contained only whitespace; MSIX will be built unsigned."
+            exit 0
+          }
           $pfxPath = Join-Path $env:RUNNER_TEMP 'intochat-devcert.pfx'
-          $bytes = [Convert]::FromBase64String($env:WINDOWS_DEV_CERT_PFX_BASE64.Trim())
+          $bytes = [Convert]::FromBase64String($raw)
           [System.IO.File]::WriteAllBytes($pfxPath, $bytes)
           "active=true" >> $env:GITHUB_OUTPUT
           Write-Host "Decoded persistent Windows dev signing certificate into RUNNER_TEMP."
