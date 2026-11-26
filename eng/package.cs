@@ -398,7 +398,7 @@ internal static class ReleasePackageScript
 
     private static async Task BuildFlutterDesktopShellAsync(string uiDir, string shellDir, string rid)
     {
-        var flutterCmd = OperatingSystem.IsWindows() ? "flutter.bat" : "flutter";
+        var flutterCmd = ResolveFlutterCommand();
         if (rid == "win-x64")
         {
             await StepAsync("Building Flutter Windows shell...");
@@ -1075,7 +1075,7 @@ internal static class ReleasePackageScript
         CancellationToken cancellationToken)
     {
         var uiDir = Path.Combine(repoRoot, "ui");
-        var flutterCmd = OperatingSystem.IsWindows() ? "flutter.bat" : "flutter";
+        var flutterCmd = ResolveFlutterCommand();
 
         if (!options.SkipFlutter)
         {
@@ -1116,7 +1116,7 @@ internal static class ReleasePackageScript
         CancellationToken cancellationToken)
     {
         var uiDir = Path.Combine(repoRoot, "ui");
-        var flutterCmd = OperatingSystem.IsWindows() ? "flutter.bat" : "flutter";
+        var flutterCmd = ResolveFlutterCommand();
 
         if (!options.SkipFlutter)
         {
@@ -1277,6 +1277,12 @@ internal static class ReleasePackageScript
         }
     }
 
+    private static string ResolveFlutterCommand()
+    {
+        var executable = OperatingSystem.IsWindows() ? "flutter.bat" : "flutter";
+        return ResolveOnPath(executable) ?? executable;
+    }
+
     private static string? ResolveOnPath(string executable)
     {
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
@@ -1284,12 +1290,18 @@ internal static class ReleasePackageScript
             ? (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';', StringSplitOptions.RemoveEmptyEntries)
             : [string.Empty];
 
-        foreach (var dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var rawDir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
+            var dir = rawDir.Trim().Trim('"');
+            if (string.IsNullOrEmpty(dir))
+            {
+                continue;
+            }
+
             var direct = Path.Combine(dir, executable);
             if (File.Exists(direct))
             {
-                return direct;
+                return Path.GetFullPath(direct);
             }
 
             foreach (var ext in extensions)
@@ -1297,7 +1309,7 @@ internal static class ReleasePackageScript
                 var candidate = direct + ext;
                 if (File.Exists(candidate))
                 {
-                    return candidate;
+                    return Path.GetFullPath(candidate);
                 }
             }
         }
