@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -206,16 +207,21 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("IntoChat-*-win-x64.msix", upload.Value, StringComparison.Ordinal);
         Assert.Contains("IntoChat-win-x64.msix", upload.Value, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.appinstaller", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("IntoChat-DevCert.cer", upload.Value, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", upload.Value, StringComparison.Ordinal);
         Assert.Contains("latest.json", upload.Value, StringComparison.Ordinal);
         Assert.Contains("winget/IntoChat.OS.yaml", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("../../eng/install/trust-dev-cert.ps1", upload.Value, StringComparison.Ordinal);
 
-        // Only Azure OIDC login secrets (gated on AZURE_ARTIFACT_SIGNING_* repo vars), and only action versions another job already uses.
+        // Only Azure OIDC login secrets (gated on AZURE_ARTIFACT_SIGNING_* repo vars) and persistent Windows dev-cert signing secrets,
+        // and only action versions another job already uses.
         var allowedSecrets = new HashSet<string>(StringComparer.Ordinal)
         {
             "AZURE_CLIENT_ID",
             "AZURE_TENANT_ID",
             "AZURE_SUBSCRIPTION_ID",
+            "WINDOWS_DEV_CERT_PFX_BASE64",
+            "WINDOWS_DEV_CERT_PASSWORD",
         };
         var usedSecrets = Regex.Matches(job, @"secrets\.([A-Za-z0-9_]+)").Select(m => m.Groups[1].Value).Distinct().ToArray();
         Assert.All(usedSecrets, secret => Assert.Contains(secret, allowedSecrets));
@@ -259,6 +265,7 @@ public sealed partial class CiWorkflowFacts
 
         Assert.Contains("downloaded-bundles/*.msix", publishChecksums, StringComparison.Ordinal);
         Assert.Contains("downloaded-bundles/*.appinstaller", publishChecksums, StringComparison.Ordinal);
+        Assert.Contains("downloaded-bundles/*.cer", publishChecksums, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", publishChecksums, StringComparison.Ordinal);
         Assert.Contains("gh release upload", publishChecksums, StringComparison.Ordinal);
     }
@@ -316,6 +323,7 @@ public sealed partial class CiWorkflowFacts
             Assert.Contains("IntoChat-0.24.0-win-x64.msix", stdout, StringComparison.Ordinal);
             Assert.Contains("IntoChat-win-x64.msix", stdout, StringComparison.Ordinal);
             Assert.Contains("IntoChat.OS.appinstaller", stdout, StringComparison.Ordinal);
+            Assert.Contains("IntoChat-DevCert.cer", stdout, StringComparison.Ordinal);
             Assert.Contains("SHA256SUMS.win-x64", stdout, StringComparison.Ordinal);
             Assert.Contains("SHA256SUMS", stdout, StringComparison.Ordinal);
 
@@ -678,6 +686,122 @@ public sealed partial class CiWorkflowFacts
         Assert.True(portableIdx < msixIdx && installerIdx < msixIdx,
             "Windows CTA must place Portable (.zip) and Installer (.exe) ahead of MSIX.");
         Assert.Contains("dev cert", cell, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IntoChat-DevCert.cer", cell, StringComparison.Ordinal);
+        Assert.Contains("trust-dev-cert.ps1", cell, StringComparison.Ordinal);
         Assert.Contains("Microsoft Store", cell, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private const string ExpectedWindowsDevCertThumbprint = "3365BF08BBE6D23778CE1B61715C1AD6DDDDAD7E";
+
+    [Fact]
+    public void PublicWindowsDevCertExistsIsValidPublicOnlyAndMatchesPinnedIdentity()
+    {
+        var certPath = Path.Combine(Repository.Root, "eng", "release", "windows", "IntoChat-DevCert.cer");
+        Assert.True(File.Exists(certPath), "Public Windows dev certificate eng/release/windows/IntoChat-DevCert.cer must exist.");
+
+        using var cert = X509CertificateLoader.LoadCertificateFromFile(certPath);
+        Assert.False(cert.HasPrivateKey, "Committed IntoChat-DevCert.cer must never contain private key material.");
+        Assert.Equal("CN=IntoChat Dev", cert.Subject);
+        Assert.Equal(ExpectedWindowsDevCertThumbprint, cert.Thumbprint);
+    }
+
+    [Fact]
+    public void NoPrivateKeyCertificateFilesExistInRepository()
+    {
+        var skippedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".git", ".claude", "bin", "obj", "artifacts", "ephemeral", "node_modules", ".dart_tool", "build",
+        };
+        var forbiddenExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pfx", ".p12",
+        };
+
+        var offenders = Directory.EnumerateFiles(Repository.Root, "*", SearchOption.AllDirectories)
+            .Where(file =>
+            {
+                var parts = Path.GetRelativePath(Repository.Root, file)
+                    .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return !parts.Any(skippedDirectories.Contains);
+            })
+            .Where(file => forbiddenExtensions.Contains(Path.GetExtension(file)))
+            .Select(Repository.Relative)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, "Private key certificate files (.pfx/.p12) must never exist in the repository:\n" + string.Join("\n", offenders));
+    }
+
+    [Fact]
+    public async Task TrustDevCertPs1DryRunSucceedsPinsThumbprintAndHasNoInvokeExpression()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scriptPath = Path.Combine(Repository.Root, "eng", "install", "trust-dev-cert.ps1");
+        Assert.True(File.Exists(scriptPath), "eng/install/trust-dev-cert.ps1 must exist.");
+
+        var scriptText = await File.ReadAllTextAsync(scriptPath, ct);
+        Assert.DoesNotContain("Invoke-Expression", scriptText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(ExpectedWindowsDevCertThumbprint, scriptText, StringComparison.Ordinal);
+        Assert.Contains(@"Cert:\LocalMachine\TrustedPeople", scriptText, StringComparison.Ordinal);
+        Assert.Contains(@"Cert:\LocalMachine\Root", scriptText, StringComparison.Ordinal);
+        Assert.Contains("-Verb RunAs", scriptText, StringComparison.Ordinal);
+        Assert.Contains("cert install", scriptText, StringComparison.Ordinal);
+
+        var (dryExit, dryOut, dryErr) = await RunPowerShellAsync(["-File", scriptPath, "-DryRun"], ct);
+        Assert.True(dryExit == 0, $"trust-dev-cert.ps1 -DryRun failed (exit {dryExit}):\n{dryOut}\n{dryErr}");
+        Assert.Contains("[DryRun]", dryOut, StringComparison.Ordinal);
+        Assert.Contains(ExpectedWindowsDevCertThumbprint, dryOut, StringComparison.Ordinal);
+
+        var (uninstallExit, uninstallOut, uninstallErr) = await RunPowerShellAsync(["-File", scriptPath, "-DryRun", "-Uninstall"], ct);
+        Assert.True(uninstallExit == 0, $"trust-dev-cert.ps1 -DryRun -Uninstall failed (exit {uninstallExit}):\n{uninstallOut}\n{uninstallErr}");
+        Assert.Contains("[DryRun]", uninstallOut, StringComparison.Ordinal);
+        Assert.Contains(ExpectedWindowsDevCertThumbprint, uninstallOut, StringComparison.Ordinal);
+
+        var escapedPath = scriptPath.Replace("'", "''", StringComparison.Ordinal);
+        var astInspection = $$"""
+            $errors = $null
+            $tokens = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{escapedPath}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+                throw ("Parse errors: " + (($errors | ForEach-Object { $_.Message }) -join '; '))
+            }
+            $params = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+            foreach ($required in @('CertPath', 'Url', 'DryRun', 'Uninstall')) {
+                if ($params -notcontains $required) {
+                    throw "Missing parameter -$required in trust-dev-cert.ps1 AST."
+                }
+            }
+            Write-Output 'AST_OK'
+            """;
+
+        var (astExit, astOut, astErr) = await RunPowerShellAsync(["-Command", astInspection], ct);
+        Assert.True(astExit == 0, $"trust-dev-cert.ps1 AST inspection failed (exit {astExit}):\n{astOut}\n{astErr}");
+        Assert.Contains("AST_OK", astOut, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackageWindowsGuardsMsixSignatureScrubsTempPfxAndUploadsDevCertAssets()
+    {
+        var release = Workflow("release.yml");
+        var job = Job(release, "package-windows");
+
+        // Precedence: Azure Artifact Signing first, otherwise persistent dev-cert PFX from secrets.
+        Assert.Contains("WINDOWS_DEV_CERT_PFX_BASE64", job, StringComparison.Ordinal);
+        Assert.Contains("WINDOWS_DEV_CERT_PASSWORD", job, StringComparison.Ordinal);
+        Assert.Contains("intochat-devcert.pfx", job, StringComparison.Ordinal);
+
+        // Temp PFX must always be overwritten and deleted in an if: always() step.
+        Assert.Matches(@"(?ms)name:\s*Scrub temporary Windows dev signing certificate\s+if:\s*always\(\).*?intochat-devcert\.pfx.*?WriteAllBytes.*?Remove-Item", job);
+
+        // Hard release guard against unsigned MSIX trap when signing is active.
+        Assert.Contains("AppxSignature.p7x", job, StringComparison.Ordinal);
+        Assert.Contains("ZipFile]::OpenRead", job, StringComparison.Ordinal);
+
+        // Public dev cert and trust helper are included in artifacts and GitHub Release uploads.
+        Assert.Contains("artifacts/release/IntoChat-DevCert.cer", job, StringComparison.Ordinal);
+        Assert.Contains("../../eng/install/trust-dev-cert.ps1", job, StringComparison.Ordinal);
+
+        // Guard against YAML tag syntax trap: unquoted `if: !...` fails GitHub Actions workflow validation.
+        Assert.DoesNotMatch(@"(?m)^\s*if:\s*!", release);
     }
 }
