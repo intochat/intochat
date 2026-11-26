@@ -800,5 +800,8 @@ public sealed partial class CiWorkflowFacts
         // Public dev cert and trust helper are included in artifacts and GitHub Release uploads.
         Assert.Contains("artifacts/release/IntoChat-DevCert.cer", job, StringComparison.Ordinal);
         Assert.Contains("../../eng/install/trust-dev-cert.ps1", job, StringComparison.Ordinal);
+
+        // Guard against YAML tag syntax trap: unquoted `if: !...` fails GitHub Actions workflow validation.
+        Assert.DoesNotMatch(@"(?m)^\s*if:\s*!", release);
     }
 }

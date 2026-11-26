@@ -247,7 +247,7 @@ jobs:
 
       - name: Prepare persistent Windows dev signing certificate
         id: dev-cert
-        if: !(vars.AZURE_ARTIFACT_SIGNING_ENDPOINT != '' && vars.AZURE_ARTIFACT_SIGNING_ACCOUNT != '' && vars.AZURE_ARTIFACT_SIGNING_PROFILE != '')
+        if: vars.AZURE_ARTIFACT_SIGNING_ENDPOINT == '' || vars.AZURE_ARTIFACT_SIGNING_ACCOUNT == '' || vars.AZURE_ARTIFACT_SIGNING_PROFILE == ''
         shell: pwsh
         env:
           WINDOWS_DEV_CERT_PFX_BASE64: ${{ secrets.WINDOWS_DEV_CERT_PFX_BASE64 }}
