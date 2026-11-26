@@ -15,9 +15,7 @@ public sealed class RepositoryLayoutFacts
 
     private static readonly Dictionary<string, string> RootNamespaces = new(StringComparer.Ordinal)
     {
-        ["IntoChat.OS.Modules.Catalog"] = "IntoChat.OS.Modules.Apps",
         ["IntoChat.OS.Modules.Roslyn"] = "IntoChat.OS.Modules.Microsoft.Roslyn",
-        ["IntoChat.OS.Modules.Shell"] = "IntoChat.OS.Modules.Flutter",
     };
 
     [Fact]

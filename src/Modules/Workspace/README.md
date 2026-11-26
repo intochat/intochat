@@ -1,21 +1,19 @@
-# IntoChat.OS.Modules.Flutter
+# IntoChat.OS.Modules.Workspace
 
-Flutter module integration for the neuron kernel.
+Workspace bounded context: shell surfaces (workspaces, views, viewports, browser, sessions), apps catalog, authoring, runs, social, files, and diagnostics. Invariants are rules in `Rules/` and `DB0040` is on.
 
-Module id: `flutter`.
+Module id: `apps`.
 
-How to test: `dotnet test --project src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Hosting/IntoChat.OS.Modules.Flutter.Tests.Hosting.csproj`
+How to test: `dotnet test --project src/IntoChat.OS.Modules/IntoChat.OS/Apps/tests/IntoChat.OS.Modules.Apps.Tests.Integration/IntoChat.OS.Modules.Apps.Tests.Integration.csproj`
 
 Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
-Configuration section: `IntoChatOS:Modules:flutter:Options` (environment prefix `IntoChatOS__Modules__flutter__Options__`).
+Configuration section: `IntoChatOS:Modules:apps:Options` (environment prefix `IntoChatOS__Modules__apps__Options__`).
 
 Options:
 
-| Option | Type | Default | Required |
-| --- | --- | --- | --- |
-| `Hosting` | `FlutterHostingOptions` | `FlutterHostingOptions { Kind = Window, ResourceName = , DeviceTarget = auto, ShellName = desk, ChatName = main, FlutterCommand = , WorkingDirectory = , ReleaseBuild = False, WebContainer = False, AndroidTransport = Wireless, AndroidDevice = , IosTransport = Auto, IosDevice = , IosUiBase =  }` | no |
+None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 

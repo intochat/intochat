@@ -11,8 +11,6 @@ public sealed partial class Meai001Facts
     private static readonly HashSet<string> AllowedProjects = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI",
-        "IntoChat.OS.Modules.Devices",
-        "IntoChat.OS.Modules.Devices.Contracts",
     };
 
     [GeneratedRegex(@"#\s*pragma\s+warning\s+disable\b[^\r\n]*\bMEAI001\b", RegexOptions.CultureInvariant)]
@@ -27,8 +25,7 @@ public sealed partial class Meai001Facts
         var offenders = Offenders();
         Assert.True(
             offenders.Length == 0,
-            "MEAI001 suppression is allowed only in IntoChat.OS.Modules.AI, IntoChat.OS.Modules.Devices, "
-            + "and IntoChat.OS.Modules.Devices.Contracts:\n"
+            "MEAI001 suppression is allowed only in IntoChat.OS.Modules.AI:\n"
             + string.Join('\n', offenders));
     }
 

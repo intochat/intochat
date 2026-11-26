@@ -32,7 +32,7 @@ public sealed class MissionCollaboratorResolverFacts
             TestContext.Current.CancellationToken);
 
         Assert.Contains(collaborators, c => c is { Id: "ben", Kind: "friend", DisplayName: "Ben" });
-        var resolverPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Modules.Catalog"), "Flows", "MissionCollaboratorResolver.cs");
+        var resolverPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Modules.Workspace"), "Flows", "MissionCollaboratorResolver.cs");
         Assert.DoesNotContain("GetAssemblies", File.ReadAllText(resolverPath), StringComparison.Ordinal);
         Assert.DoesNotContain("System.Reflection", File.ReadAllText(resolverPath), StringComparison.Ordinal);
     }

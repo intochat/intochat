@@ -1,7 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>AI module: multi-provider LLM and embedding clients, agents, and voice transcription.</Description>
+    <Description>Intelligence and compute bounded context: multi-provider LLM and embedding clients, agents, memory, voice, local device runtimes, and device link.</Description>
     <NoWarn>$(NoWarn);CA1812;MEAI001</NoWarn>
     <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>
   </PropertyGroup>
@@ -11,11 +11,15 @@
     <None Remove="Generators/**" />
   </ItemGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="IntoChat.OS.Modules.Devices" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
-    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="ModelContextProtocol.Core" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
@@ -28,14 +32,18 @@
     <PackageReference Include="Concentus" />
     <PackageReference Include="Concentus.Oggfile" />
     <PackageReference Include="NAudio" />
+    <PackageReference Include="OllamaSharp" />
+    <PackageReference Include="Microsoft.AI.Foundry.Local" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" />
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../Plugins/IntoChat.OS.Modules.Plugins.csproj" />
   </ItemGroup>

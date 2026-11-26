@@ -359,7 +359,7 @@ public sealed class FriendsStoredStateFacts
         Assert.NotEmpty(actual);
         if (Environment.GetEnvironmentVariable("UPDATE_GOLDEN") == "1")
         {
-            var source = Path.Combine(Path.GetDirectoryName(IntoChat.OS.Aspire.Hosting.Tests.Unit.DeploymentSnapshot.ProjectPath("IntoChat.OS.Tests.Unit"))!, "Modules", "Catalog", "Friends", "Golden", name);
+            var source = Path.Combine(Path.GetDirectoryName(IntoChat.OS.Aspire.Hosting.Tests.Unit.DeploymentSnapshot.ProjectPath("IntoChat.OS.Tests.Unit"))!, "Modules", "Workspace", "Friends", "Golden", name);
             Directory.CreateDirectory(Path.GetDirectoryName(source)!);
             File.WriteAllBytes(source, actual);
             Directory.CreateDirectory(Path.GetDirectoryName(Golden(name))!);

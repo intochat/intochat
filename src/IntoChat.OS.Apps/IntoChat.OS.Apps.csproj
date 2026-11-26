@@ -17,11 +17,9 @@
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
-    <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
-    <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../Modules/Workspace/IntoChat.OS.Modules.Workspace.csproj" />
     <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />

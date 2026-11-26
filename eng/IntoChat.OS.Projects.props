@@ -40,14 +40,12 @@
 
     <!-- Modules (IntoChat.OS.Modules.*) -->
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.AI" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Catalog" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Devices" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Identity" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Identity.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Infrastructure" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Plugins" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Roslyn" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Shell" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="IntoChat.OS.Modules.UI" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/UI/IntoChat.OS.Modules.UI.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Workspace" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Workspace/IntoChat.OS.Modules.Workspace.csproj" IsAnalyzer="false" />
   </ItemGroup>
 </Project>

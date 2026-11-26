@@ -49,11 +49,9 @@
     <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
     <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
     <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" />
-    <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
+    <ProjectReference Include="../Modules/Workspace/IntoChat.OS.Modules.Workspace.csproj" />
     <ProjectReference Include="../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" Condition="'$(IntoChatOSAot)' != 'true'" />
     <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
-    <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -7,7 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
-    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
+    <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />

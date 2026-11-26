@@ -22,7 +22,11 @@ public sealed class NotificationsSlotFacts
 
         var forwarded = typeof(AppsModule).Assembly.GetType(typeof(INotifications).FullName!, throwOnError: false);
         Assert.Same(typeof(INotifications), forwarded);
-        Assert.Same(typeof(INotifications), Type.GetType($"{typeof(INotifications).FullName}, IntoChat.OS.Modules.Catalog", throwOnError: false));
+        Assert.Same(typeof(INotifications), Type.GetType($"{typeof(INotifications).FullName}, IntoChat.OS.Modules.Workspace", throwOnError: false));
+        Assert.Contains(
+            typeof(AppsModule).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), inherit: false)
+                .OfType<System.Reflection.AssemblyMetadataAttribute>(),
+            attr => attr.Key == "DigitalBrain.ReplacesAssembly" && attr.Value == "IntoChat.OS.Modules.Catalog");
     }
 
     [Fact]

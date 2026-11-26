@@ -23,7 +23,9 @@ public sealed partial class OneUiPathFacts
     public void NoNeuronOutsideTheKeptUiKinds()
     {
         var aliases = ProductionArchitecture.Types
-            .Where(type => type.Assembly.GetName().Name is "IntoChat.OS.Modules.Shell" or "IntoChat.OS.Modules.Flutter")
+            .Where(type => type.Assembly.GetName().Name == "IntoChat.OS.Modules.Workspace"
+                && (type.Namespace == "IntoChat.OS.Modules.Flutter"
+                    || (type.Namespace?.StartsWith("IntoChat.OS.Modules.Flutter.", StringComparison.Ordinal) ?? false)))
             .Select(type => type.GetCustomAttribute<DigitalBrain.Neurons.NeuronAttribute>(inherit: false)?.Type)
             .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);

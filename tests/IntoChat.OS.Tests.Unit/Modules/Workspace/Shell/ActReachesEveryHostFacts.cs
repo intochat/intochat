@@ -4,6 +4,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps.Tests.Unit.Desktop;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Views;
@@ -164,7 +165,7 @@ public sealed class ActReachesEveryHostFacts
     private static async Task<TestOS> SandboxedOnTestOS()
     {
         RecordingApp.Requests.Clear();
-        var os = TestOS.Local().Register(typeof(FlutterModule).Assembly);
+        var os = TestOS.Local().RegisterModule<FlutterModule>();
         os.Register<RecordingApp>();
         using (Edge.AsPerson()) { await os.Get<IView>(TasksView).Publish(1, Sandboxed); }
         return os;

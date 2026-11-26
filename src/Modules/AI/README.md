@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.AI
 
-AI module: multi-provider LLM and embedding clients, agents, and voice transcription.
+Intelligence and compute bounded context: multi-provider LLM and embedding clients, agents, memory, voice, local device runtimes, and device link.
 
 Module id: `ai`.
 

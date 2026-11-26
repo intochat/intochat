@@ -27,13 +27,12 @@ public static class OperatingSystemModules
         typeof(IntoChat.OS.Modules.AI.AIModule).Assembly,
         typeof(IntoChat.Aspire.AspireModule).Assembly,
         typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly,
-        typeof(IntoChat.OS.Modules.Devices.DevicesModule).Assembly,
         typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
         typeof(IntoChat.OS.Modules.Mcp.McpModule).Assembly,
 #if !INTOCHAT_OS_AOT
         typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule).Assembly,
 #endif
-        typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly,
+        typeof(IntoChat.OS.Modules.UI.UiModule).Assembly,
     ];
 
     public static IReadOnlyList<OsModule> Modules { get; } = Discover(typeof(OperatingSystemModules).Assembly);
@@ -160,12 +159,11 @@ public static class OperatingSystemModules
     private static readonly HashSet<string> PrivilegedBindingComponents = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI",
-        "IntoChat.OS.Modules.Catalog",
-        "IntoChat.OS.Modules.Devices",
         "IntoChat.OS.Modules.Identity",
         "IntoChat.OS.Modules.Infrastructure",
         "IntoChat.OS.Modules.Plugins",
         "IntoChat.OS.Modules.Roslyn",
+        "IntoChat.OS.Modules.Workspace",
     };
 
     // Composes the given modules (the portable composition by default) and the OS apps.

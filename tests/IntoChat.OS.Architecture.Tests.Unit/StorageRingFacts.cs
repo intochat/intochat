@@ -7,7 +7,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 public sealed class StorageRingFacts
 {
-    private static readonly Assembly Apps = Assembly.Load("IntoChat.OS.Modules.Catalog");
+    private static readonly Assembly Apps = Assembly.Load("IntoChat.OS.Modules.Workspace");
 
     // Brain state and platform authority remain separate storage boundaries in one runtime.
     [Fact]

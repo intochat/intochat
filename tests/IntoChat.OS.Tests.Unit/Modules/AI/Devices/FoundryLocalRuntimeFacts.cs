@@ -185,8 +185,14 @@ public sealed class FoundryLocalRuntimeFacts
     }
 
     [Fact]
-    public void TheAiModuleNoLongerReferencesFoundryLocal() =>
+    public void FoundryLocalStaysEncapsulatedInTheAiBoundedContext()
+    {
+        Assert.Equal("IntoChat.OS.Modules.AI", typeof(FoundryLocalRuntime).Assembly.GetName().Name);
         Assert.DoesNotContain(
-            typeof(AIModule).Assembly.GetReferencedAssemblies(),
+            typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly.GetReferencedAssemblies(),
             static a => a.Name!.StartsWith("Microsoft.AI.Foundry", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            typeof(IntoChat.OS.Host.Configuration.IntoChatOSNames).Assembly.GetReferencedAssemblies(),
+            static a => a.Name!.StartsWith("Microsoft.AI.Foundry", StringComparison.Ordinal));
+    }
 }

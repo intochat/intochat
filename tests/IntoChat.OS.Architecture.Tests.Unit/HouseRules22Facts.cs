@@ -718,8 +718,8 @@ public sealed class HouseRules22Facts
             ("IntoChat.OS.Host", "AppRef.cs"),
             ("IntoChat.OS.Host", "SafeRelativePath.cs"),
             ("IntoChat.OS.Modules.Roslyn", "CodeGraphService.cs"),
-            ("IntoChat.OS.Modules.Shell", "ViewportNeuron.cs"),
-            ("IntoChat.OS.Modules.Shell", "WorkspaceNeuron.cs"),
+            ("IntoChat.OS.Modules.Workspace", "ViewportNeuron.cs"),
+            ("IntoChat.OS.Modules.Workspace", "WorkspaceNeuron.cs"),
             ("IntoChat.OS.Modules.Infrastructure", "WindowsStorageWrites.cs"),
         };
         var offenders = new List<string>();
@@ -1713,12 +1713,11 @@ public sealed class HouseRules22Facts
     private static readonly HashSet<string> PrivilegedSiloNeuronModules = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI",
-        "IntoChat.OS.Modules.Catalog",
-        "IntoChat.OS.Modules.Devices",
         "IntoChat.OS.Modules.Identity",
         "IntoChat.OS.Modules.Infrastructure",
         "IntoChat.OS.Modules.Plugins",
         "IntoChat.OS.Modules.Roslyn",
+        "IntoChat.OS.Modules.Workspace",
     };
 
     [Fact]

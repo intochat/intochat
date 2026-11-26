@@ -44,15 +44,13 @@
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
   <Project Path="src/Modules/AI/Generators/IntoChat.OS.Modules.AI.Generators.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-  <Project Path="src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-  <Project Path="src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
   <Project Path="src/Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
   <Project Path="src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
   <Project Path="src/Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
   <Project Path="src/Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
   <Project Path="src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
-  <Project Path="src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
   <Project Path="src/Modules/UI/IntoChat.OS.Modules.UI.csproj" />
+  <Project Path="src/Modules/Workspace/IntoChat.OS.Modules.Workspace.csproj" />
   <Project Path="tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj" />

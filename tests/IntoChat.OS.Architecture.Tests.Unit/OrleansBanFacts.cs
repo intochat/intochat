@@ -12,7 +12,6 @@ public sealed class OrleansBanFacts
     private static readonly string[] Allow =
     [
         "IntoChat.OS.Modules.AI",
-        "IntoChat.OS.Modules.Shell",
     ];
 
     private static readonly string[] SiloHost =
@@ -26,7 +25,7 @@ public sealed class OrleansBanFacts
 
     private static readonly string[] UnportedGrainModules =
     [
-        "IntoChat.OS.Modules.Catalog",
+        "IntoChat.OS.Modules.Workspace",
         // Shared contract records (formerly Catalog.Contracts) still carry Orleans serializer attributes ([GenerateSerializer], [Id]).
         "IntoChat.OS.Contracts",
         "IntoChat.OS.Apps",
@@ -35,7 +34,7 @@ public sealed class OrleansBanFacts
     [Fact]
     public void TheModuleAllowListIsExactlyTheLedgerFive()
         => Assert.Equal(
-            ["IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Shell"],
+            ["IntoChat.OS.Modules.AI"],
             Allow.Order(StringComparer.Ordinal).ToArray());
 
     [Fact]
