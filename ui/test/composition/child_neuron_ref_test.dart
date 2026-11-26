@@ -458,7 +458,7 @@ void main() {
                           'role': 'assistant',
                           'text': 'Here is the live account widget:',
                           'status': 'completed',
-                          'children': [
+                          'cards': [
                             {
                               'kind': 'neuronRef',
                               'refKind': 'child',

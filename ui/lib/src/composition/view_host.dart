@@ -509,8 +509,6 @@ class _ViewHostState extends State<ViewHost> {
             ),
           );
         }
-        final normalizedView = _normalizeViewJson(rawView);
-        final buttonHints = _extractButtonHints(normalizedView);
         final activeChildAncestors = {...widget.childAncestors, widget.name};
         final ctx = NodeContext(
           view: widget.name,
@@ -539,14 +537,13 @@ class _ViewHostState extends State<ViewHost> {
           actNeuron: widget.actNeuron,
           childPath: widget.childPath,
           childProps: widget.childProps,
-          buttonHints: buttonHints,
           transcribe: widget.transcribe,
           talk: widget.talk,
           speak: widget.speak,
           storeSecret: widget.storeSecret,
         );
         ViewHost.debugOnContext?.call(widget.name, ctx);
-        final appView = AppView.fromJson(normalizedView);
+        final appView = AppView.fromJson(Map<String, dynamic>.from(rawView));
         final fills = NodeRenderer.fills(appView.root);
         final renderedView = FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
@@ -663,87 +660,6 @@ class _ViewHostState extends State<ViewHost> {
   }
 }
 
-/// Normalizes optional inline child/child fields on conversation messages so
-/// `MessageNode.fromJson` populates `cards` seamlessly for inline UI kit nodes
-/// and `NeuronRef` composition (`UK-18` readiness).
-Map<String, dynamic> _normalizeViewJson(Map raw) {
-  Object? walk(Object? value, {bool inMessages = false}) {
-    if (value is List) {
-      return [for (final item in value) walk(item, inMessages: inMessages)];
-    }
-    if (value is! Map) return value;
-    final map = <String, dynamic>{
-      for (final entry in value.entries)
-        '${entry.key}': walk(
-          entry.value,
-          inMessages: '${entry.key}' == 'messages',
-        ),
-    };
-    if (inMessages) {
-      final merged = <Object?>[
-        if (map['cards'] is List) ...(map['cards'] as List),
-        if (map['children'] is List) ...(map['children'] as List),
-        if (map['nodes'] is List) ...(map['nodes'] as List),
-        if (map['slot'] is Map) map['slot'],
-      ];
-      if (merged.isNotEmpty && map['cards'] == null) {
-        map['cards'] = merged;
-      } else if (merged.length >
-          (map['cards'] is List ? (map['cards'] as List).length : 0)) {
-        map['cards'] = merged;
-      }
-    }
-    return map;
-  }
-
-  return walk(raw) as Map<String, dynamic>;
-}
-
-/// Extracts optional `.Guard(rule)` / tooltip / hint strings keyed by button `key`
-/// from raw view JSON without requiring manual edits to `generated/node_models.dart`.
-Map<String, String> _extractButtonHints(Map<String, dynamic> viewJson) {
-  final hints = <String, String>{};
-  const hintKeys = [
-    'tooltip',
-    'disabledReason',
-    'guardReason',
-    'reason',
-    'hint',
-    'subtitle',
-  ];
-
-  void walk(Object? node) {
-    if (node is List) {
-      for (final item in node) {
-        walk(item);
-      }
-      return;
-    }
-    if (node is! Map) return;
-    final key = node['key'];
-    final looksLikeButton =
-        node['kind'] == 'button' ||
-        (key is String && key.isNotEmpty && node.containsKey('label'));
-    if (looksLikeButton && key is String && key.isNotEmpty) {
-      for (final hk in hintKeys) {
-        final raw = node[hk];
-        if (raw is String && raw.trim().isNotEmpty) {
-          hints[key] = raw.trim();
-          break;
-        }
-      }
-    }
-    for (final value in node.values) {
-      walk(value);
-    }
-  }
-
-  walk(viewJson['root']);
-  return hints;
-}
-
-/// Extracts optional activation `key` strings for `chart` and `dataTable` nodes
-/// from raw view JSON without altering `generated/node_models.dart`.
 class _ReadState extends StatelessWidget {
   const _ReadState({
     required this.viewName,

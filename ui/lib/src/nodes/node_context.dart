@@ -107,7 +107,6 @@ class NodeContext {
     this.childAncestors = const {},
     this.actNeuron,
     this.childPath = '',
-    this.buttonHints = const {},
     this.transcribe,
     this.talk,
     this.speak,
@@ -171,9 +170,6 @@ class NodeContext {
   /// every act goes to the root and the path routes it hop by hop.
   final String childPath;
 
-  /// Optional per-button tooltip / `.Guard(rule)` disabled reasons extracted from view metadata.
-  final Map<String, String> buttonHints;
-
   /// Transcribes recorded voice drafts into text without submitting them.
   final VoiceTranscriber? transcribe;
 
@@ -221,7 +217,6 @@ class NodeContext {
     childAncestors: childAncestors,
     actNeuron: actNeuron,
     childPath: childPath,
-    buttonHints: buttonHints,
     transcribe: transcribe,
     talk: talk,
     speak: speak,
