@@ -26,7 +26,9 @@ public sealed class CompiledTypes
             screenAssemblies ?? [],
             assembly => modules.Declaring(assembly)?.Id.ToString() ?? assembly.GetName().Name!,
             modules.Modules,
-            sources) { }
+            sources)
+    {
+    }
 
     // Without a module composition an assembly names itself and no connectors are declared.
     public CompiledTypes(IEnumerable<Assembly> assemblies, IEnumerable<Assembly>? screenAssemblies = null)

@@ -346,7 +346,8 @@ public sealed class InoSiloFixture : IAsyncLifetime
                 services.AddNeuronProxies();
                 services.RemoveAll<IBrainObserver>();
                 services.AddSingleton<IBrainObserver>(_observer);
-                services.TryAddSingleton<IContractAssemblySource>(_ => new ModuleInventory(OperatingSystemModules.Modules));
+                services.RemoveAll<IContractAssemblySource>();
+                services.AddSingleton<IContractAssemblySource>(_observer);
                 services.RemoveAll<NeuronSurface>();
                 services.AddSingleton(sp => new NeuronSurface(
                     sp.GetRequiredService<INeuronProxies>(),
@@ -430,16 +431,21 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public void ObserveInstance(string type, string key) => _observer.Record(type, key);
 
-    private sealed class CompiledBrainObserver : IBrainObserver
+    private sealed class CompiledBrainObserver : IBrainObserver, IContractAssemblySource
     {
         private readonly ConcurrentQueue<BrainInstance> _recorded = new();
-        private static readonly BrainType[] HostedTypes = new CompiledTypes(
+        private static readonly System.Reflection.Assembly[] HostedAssemblies =
         [
             typeof(IMemory).Assembly,
             typeof(IUserSettings).Assembly,
             typeof(IAspire).Assembly,
             typeof(InoWiringTestModule).Assembly,
-        ]).Entries;
+        ];
+        private static readonly System.Reflection.Assembly[] AllowedAssemblies =
+            [.. new ModuleInventory(OperatingSystemModules.Modules).ContractAssemblies().Concat(HostedAssemblies).Distinct()];
+        private static readonly BrainType[] HostedTypes = new CompiledTypes(HostedAssemblies).Entries;
+
+        public IReadOnlyList<System.Reflection.Assembly> ContractAssemblies() => AllowedAssemblies;
 
         public void Record(string type, string key)
             => _recorded.Enqueue(new BrainInstance(type, key, DateTimeOffset.UtcNow, "test"));
