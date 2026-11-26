@@ -1,13 +1,12 @@
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.AI.Agents.Observers;
 
-// One observer per agent (ai.tone-observer, key observer/tone/{agent key}). After each completed turn the last three
-// user messages decide: all under ShortLimit characters sets the concise persona, anything else clears it.
+// One observer per conversation (ai.tone-observer, key observer/tone/{conversation key}). After each completed turn
+// the last three user messages decide: all under ShortLimit characters sets the concise persona, anything else clears it.
 [Neuron("ai.tone-observer")]
 internal sealed class ToneObserverNeuron : StatelessAiNeuron, IToneObserver
 {
@@ -16,26 +15,31 @@ internal sealed class ToneObserverNeuron : StatelessAiNeuron, IToneObserver
 
     private IAgentContext Tone => Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", "context/conversation.inference.tone"));
 
-    // The agent this observer watches, by the key it was created with.
-    private NeuronId AgentId => new(Id.Brain, AgentSignals.NeuronType, Id.Key[KeyPrefix.Length..]);
+    // The conversation this observer watches, by the key it was created with.
+    private NeuronId ConversationNeuronId => new(Id.Brain, IConversation.Type, Id.Key[KeyPrefix.Length..]);
 
-    public async Task Follow(string agentKey)
+    public async Task Follow(string conversationKey)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(agentKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(conversationKey);
         var prefix = Id.Brain.Value + "/";
-        var relative = agentKey.StartsWith(prefix, StringComparison.Ordinal) ? agentKey[prefix.Length..] : agentKey;
-        if (!string.Equals(relative, AgentId.Key, StringComparison.Ordinal)) { throw new ArgumentException("This observer watches another agent.", nameof(agentKey)); }
-        await Context.Wires.Ensure<TurnCompleted>(AgentId);
+        var relative = conversationKey.StartsWith(prefix, StringComparison.Ordinal) ? conversationKey[prefix.Length..] : conversationKey;
+        if (!string.Equals(relative, ConversationNeuronId.Key, StringComparison.Ordinal)) { throw new ArgumentException("This observer watches another conversation.", nameof(conversationKey)); }
+        await Context.Wires.Ensure<ConversationChanged>(ConversationNeuronId);
     }
 
     [On]
-    public async Task OnTurnCompleted(TurnCompleted completed)
+    public async Task OnConversationChanged(ConversationChanged changed)
     {
-        ArgumentNullException.ThrowIfNull(completed);
-        var transcript = await Get<IAgent>(AgentId).Transcript();
-        var users = transcript.Where(message => message.Role == "user")
-            .Select(message => string.Concat(message.Content.OfType<AiText>().Select(part => part.Text))).TakeLast(Streak).ToArray();
-        if (users.Length == Streak && users.All(text => text.Length < ShortLimit)) { await Tone.Set(new ContextEntry(EntryName, Persona, [], [ContextTags.Inference])); }
+        ArgumentNullException.ThrowIfNull(changed);
+        var view = await Get<IConversation>(ConversationNeuronId).Read();
+        if (view.Active is not null) { return; }
+        var users = view.Entries
+            .OfType<Said>()
+            .Where(static entry => entry.By is Participant.Human)
+            .Select(static entry => entry.Text)
+            .TakeLast(Streak)
+            .ToArray();
+        if (users.Length == Streak && users.All(static text => text.Length < ShortLimit)) { await Tone.Set(new ContextEntry(EntryName, Persona, [], [ContextTags.Inference])); }
         else { await Tone.Remove(EntryName); }
     }
 }

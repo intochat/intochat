@@ -4,9 +4,10 @@ using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,12 +16,23 @@ using Xunit;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
 
-// The flow agent of the facts: Start answers at once with the reply Replies holds for the prompt, as TurnCompleted, and records the prompt.
-[DigitalBrain.Neurons.Neuron(Alias)]
-public sealed class ScriptedAgent : DigitalBrain.Neurons.Neuron<PumpState>, IAgent
+public interface IScriptedConversationDriver
 {
-    // Not "agent": the AI module's AgentNeuron owns that type, and fixtures load both.
-    public const string Alias = "test.scripted-agent";
+    Task Finish(string runId, string text, string reply);
+}
+
+public sealed record ScriptedConversationState(long Revision = 0, AgentRun? Active = null, AgentRun[]? Runs = null)
+{
+    public ScriptedConversationState() : this(0, null, []) { }
+}
+
+// The flow conversation of the facts: Say records an active run and defers completion (as ConversationNeuron does),
+// publishing ConversationChanged on both transitions and recording the prompt keyed by flow key.
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class ScriptedConversation : DigitalBrain.Neurons.Neuron<ScriptedConversationState>, IConversation, IScriptedConversationDriver
+{
+    // Not "conversation": the AI module's ConversationNeuron owns that type, and fixtures load both.
+    public const string Alias = "test.scripted-conversation";
 
     internal static readonly ConcurrentDictionary<string, string> Prompts = new(StringComparer.Ordinal);
 
@@ -29,36 +41,55 @@ public sealed class ScriptedAgent : DigitalBrain.Neurons.Neuron<PumpState>, IAge
 
     internal static readonly ConcurrentDictionary<string, string> Replies = new(StringComparer.Ordinal);
 
-    public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
+    private ConversationId ConvId => ConversationId.Parse(Id.Key.Replace('/', '-'));
 
-    public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
 
-    public async Task<string> Start(AgentTurn turn, string? flowId = null)
+    public async Task Say(string text, ModelId? model = null)
     {
-        ArgumentNullException.ThrowIfNull(turn);
-        var prompt = string.Concat(turn.Message.Content.OfType<AiText>().Select(text => text.Text));
-        var runId = turn.RunId ?? Guid.NewGuid().ToString("N");
-        Prompts[flowId ?? runId] = prompt;
-        // The longest matching prefix wins; the reply Fail publishes TurnFailed instead.
-        var reply = Replies.Where(entry => prompt.StartsWith(entry.Key, StringComparison.Ordinal)).OrderByDescending(entry => entry.Key.Length).Select(entry => entry.Value).FirstOrDefault() ?? "{}";
-        await Save(State with { Sent = State.Sent + 1 }, reply == Fail
-            ? new TurnFailed(Id.ToString(), runId, "the model is unavailable", false)
-            : new TurnCompleted(Id.ToString(), runId, reply));
-        return runId;
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        var flowKey = Id.Key.StartsWith("flow-conv/", StringComparison.Ordinal) ? Id.Key["flow-conv/".Length..] : Id.Key;
+        Prompts[flowKey] = text;
+        // The longest matching prefix wins; the reply Fail records a Failed run instead.
+        var reply = Replies.Where(entry => text.StartsWith(entry.Key, StringComparison.Ordinal))
+            .OrderByDescending(entry => entry.Key.Length)
+            .Select(entry => entry.Value)
+            .FirstOrDefault() ?? "{}";
+        var runId = Guid.NewGuid().ToString("N");
+        var active = new AgentRun(runId, AgentRunStatus.Running, text, DateTimeOffset.UtcNow);
+        var revision = State.Revision + 1;
+        await Save(State with { Revision = revision, Active = active }, new ConversationChanged(ConvId, revision));
+        Context.Defer(() => Context.Get<IScriptedConversationDriver>(Id).Finish(runId, text, reply));
     }
 
-    public Task Cancel() => Task.CompletedTask;
+    public async Task Finish(string runId, string text, string reply)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var finished = reply == Fail
+            ? new AgentRun(runId, AgentRunStatus.Failed, text, now, now, Error: "the model is unavailable")
+            : new AgentRun(runId, AgentRunStatus.Completed, text, now, now, Reply: reply);
+        var revision = State.Revision + 1;
+        var existing = State.Runs ?? [];
+        await Save(
+            State with { Revision = revision, Active = null, Runs = [.. existing, finished] },
+            new ConversationChanged(ConvId, revision));
+    }
 
-    public Task CancelRun(string runId) => Task.CompletedTask;
+    public Task Stop() => Task.CompletedTask;
 
-    // Configured already: the flow does not configure it again.
-    public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
+    public Task Regenerate(EntryId reply) => Task.CompletedTask;
 
-    public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([]);
+    public Task<ConversationView> Read(long? sinceRevision = null)
+    {
+        var runs = State.Runs ?? [];
+        return Task.FromResult(new ConversationView(ConvId, State.Revision, [], [], State.Active, [.. runs], false, []));
+    }
 
-    public Task Clear() => Task.CompletedTask;
+    public Task Invite(AccountId friend) => Task.CompletedTask;
 
     public Task Post(string text, string id) => Task.CompletedTask;
+
+    public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
 }
 
 public interface IRepositoryScript
@@ -127,10 +158,10 @@ public sealed class FlowTypesFixture : BothRuntimesFixture
         services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);
         services.AddJournalPayloads(typeof(FlowStarted).Assembly);
         services.AddJournalPayloads(typeof(TestFlow).Assembly);
-        services.AddJournalPayloads(typeof(TurnCompleted).Assembly);
+        services.AddJournalPayloads(typeof(ConversationChanged).Assembly);
         services.AddJournalPayloads(typeof(PullRequestChanged).Assembly);
         services.TryAddSingleton(TimeProvider.System);
-        services.AddSingleton(new AgentStepOptions { AgentType = ScriptedAgent.Alias });
+        services.AddSingleton(new AgentStepOptions { ConversationType = ScriptedConversation.Alias });
     }
 }
 

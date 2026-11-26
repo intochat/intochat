@@ -1,10 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
-using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -20,25 +18,32 @@ public abstract class AgentInner
     public string? AgentError { get; set; }
 }
 
-// The neuron type an agent step's agent has: the AI module's "agent" unless a host (a test) registers another.
+// The neuron type an agent step's conversation has: the AI module's "conversation" unless a host (a test) registers another.
 public sealed class AgentStepOptions
 {
-    public const string DefaultAgentType = "agent";
+    public const string DefaultConversationType = IConversation.Type;
 
-    public string AgentType { get; init; } = DefaultAgentType;
+    public string ConversationType { get; init; } = DefaultConversationType;
 }
 
-// A flow whose steps may ask the model. Ask starts a run on the flow's own agent ({brain}/{AgentStepOptions.AgentType}/flow-agent/{flowKey}) and returns an
-// External wait; the run's TurnCompleted (by run id) stores the reply and resumes the step, TurnFailed records the error and resumes it,
-// and the next step fails the flow with that error. The reply is written to the inner state the resume saves.
+// A flow whose steps may ask the model. Ask starts a run on the flow's own one-seat conversation
+// ({brain}/{AgentStepOptions.ConversationType}/flow-conv/{flowKey}) and returns an External wait; ConversationChanged
+// reads the completed or failed run (by run id), stores the reply or error, and resumes the step, and the next step
+// fails the flow with that error. The reply is written to the inner state the resume saves.
 public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> where T : AgentInner, new()
 {
+    private const string SeatId = "flow";
+
     private static readonly AgentDefinition FlowAgent = new()
     {
         DisplayName = "Flow agent",
         Description = "Answers one step of a flow.",
         Instructions = "You answer one step of a durable flow. Reply with exactly what the step asks for, as JSON when it asks for JSON.",
     };
+
+    private NeuronId ConversationNeuronId => new(Id.Brain, options?.ConversationType ?? AgentStepOptions.DefaultConversationType, "flow-conv/" + Id.Key);
+
+    private IConversation Conversation => Context.Get<IConversation>(ConversationNeuronId);
 
     protected abstract Task<StepResult<T>> RunStep(string step, T inner, CancellationToken ct);
 
@@ -50,51 +55,85 @@ public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> w
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Wires.EnsureBrainWide(typeof(TurnCompleted), typeof(TurnFailed));
+        await Context.Wires.Ensure<ConversationChanged>(ConversationNeuronId);
         await base.OnActivate(cancellationToken);
     }
 
-    // The run id is the flow's key and the step, so a step run again asks the same run.
     protected async Task<StepResult<T>> Ask(string step, T inner, string prompt)
     {
-        var type = options?.AgentType ?? AgentStepOptions.DefaultAgentType;
-        var agent = Context.Get<IAgent>(new NeuronId(Id.Brain, type, "flow-agent/" + Id.Key));
-        if ((await agent.Read()).Revision == 0)
-        {
-            try { await agent.Configure(FlowAgent, 0); }
-            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase))
-            {
-                OsConsoleLog.For(GetType()).LogSwallowed(error, "Flow agent already configured by a concurrent turn.");
-            }
-        }
+        var conversation = Conversation;
+        await conversation.Seat(SeatId, FlowAgent);
+        var before = await conversation.Read();
+
         inner.AgentStep = step;
         inner.Reply = null;
         inner.AgentError = null;
-        inner.RunId = await agent.Start(AgentTurn.Text(prompt, runId: $"{Id.Key}/{step}"), Id.ToString());
+
+        if (before.Active is { } running && string.Equals(running.UserText, prompt, StringComparison.Ordinal))
+        {
+            inner.RunId = running.RunId;
+            return inner.WaitExternal(step);
+        }
+
+        await conversation.Say(prompt);
+        var after = await conversation.Read();
+        if (after.Active is { } active)
+        {
+            inner.RunId = active.RunId;
+            return inner.WaitExternal(step);
+        }
+
+        var priorIds = before.Runs.Select(static r => r.RunId).ToHashSet(StringComparer.Ordinal);
+        var finished = after.Runs.LastOrDefault(r => !priorIds.Contains(r.RunId)) ?? after.Runs.LastOrDefault();
+        if (finished is not null)
+        {
+            inner.RunId = finished.RunId;
+            if (finished.Status == AgentRunStatus.Completed)
+            {
+                inner.Reply = finished.Reply ?? "";
+                return inner.Advance();
+            }
+
+            inner.AgentError = FailureMessageOf(finished);
+            throw new FlowFailed(step, inner.AgentError);
+        }
+
+        inner.RunId = null;
         return inner.WaitExternal(step);
     }
 
     [On]
-    public Task OnTurnCompleted(TurnCompleted done)
+    public async Task OnConversationChanged(ConversationChanged changed)
     {
-        ArgumentNullException.ThrowIfNull(done);
-        if (WaitingStep(done.RunId) is not { } step) { return Task.CompletedTask; }
-        State.Inner.Reply = done.Reply;
-        return Resume(step, WaitOutcome.Arrived, done.AgentId);
+        ArgumentNullException.ThrowIfNull(changed);
+        if (WaitingStep() is not { } step) { return; }
+        var view = await Conversation.Read();
+        var run = State.Inner.RunId is { } runId
+            ? view.Runs.LastOrDefault(item => string.Equals(item.RunId, runId, StringComparison.Ordinal))
+            : (view.Active is null ? view.Runs.LastOrDefault() : null);
+        if (run is null) { return; }
+
+        State.Inner.RunId = run.RunId;
+        if (run.Status == AgentRunStatus.Completed)
+        {
+            State.Inner.Reply = run.Reply ?? "";
+        }
+        else
+        {
+            State.Inner.AgentError = FailureMessageOf(run);
+        }
+
+        await Resume(step, WaitOutcome.Arrived, ConversationNeuronId.ToString());
     }
 
-    [On]
-    public Task OnTurnFailed(TurnFailed failed)
-    {
-        ArgumentNullException.ThrowIfNull(failed);
-        if (WaitingStep(failed.RunId) is not { } step) { return Task.CompletedTask; }
-        State.Inner.AgentError = failed.Cancelled ? "the agent run was cancelled" : failed.Error;
-        return Resume(step, WaitOutcome.Arrived, failed.AgentId);
-    }
-
-    private string? WaitingStep(string runId)
-        => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External } waiting } && State.Inner.RunId == runId && waiting.Step == State.Inner.AgentStep
+    private string? WaitingStep()
+        => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External } waiting } && waiting.Step == State.Inner.AgentStep
             ? waiting.Step : null;
+
+    private static string FailureMessageOf(AgentRun run)
+        => run.Status == AgentRunStatus.Cancelled
+            ? "the agent run was cancelled"
+            : (run.Error ?? "the agent run failed");
 
     // The JSON object in a model reply: from the first '{' to the last '}', so a fenced or prefaced reply still parses.
     internal static TReply? ParseReply<TReply>(string step, string? reply, JsonSerializerOptions options)
