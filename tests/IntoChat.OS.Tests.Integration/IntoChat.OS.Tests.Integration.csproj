@@ -46,7 +46,7 @@
     <ProjectReference Include="../../src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
     <ProjectReference Include="../../src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
     <ProjectReference Include="../../src/Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
-    <ProjectReference Include="../../src/Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../../src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../../src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../../src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />

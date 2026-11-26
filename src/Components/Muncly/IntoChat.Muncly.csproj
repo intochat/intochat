@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>IntoChat.OS.Components.Muncly</PackageId>
@@ -5,19 +6,13 @@
     <NoWarn>$(NoWarn);DB0033;CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="Contracts/**" />
-    <None Remove="Contracts/**" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="Contracts/IntoChat.Muncly.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
-    <ProjectReference Include="../../Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
-    <ProjectReference Include="../../Modules/Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
+    </ItemGroup>
 </Project>

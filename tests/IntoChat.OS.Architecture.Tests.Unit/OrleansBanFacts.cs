@@ -27,8 +27,8 @@ public sealed class OrleansBanFacts
     private static readonly string[] UnportedGrainModules =
     [
         "IntoChat.OS.Modules.Catalog",
-        // Catalog's contract records still carry Orleans serializer attributes ([GenerateSerializer], [Id]).
-        "IntoChat.OS.Modules.Catalog.Contracts",
+        // Shared contract records (formerly Catalog.Contracts) still carry Orleans serializer attributes ([GenerateSerializer], [Id]).
+        "IntoChat.OS.Contracts",
         "IntoChat.OS.Apps",
     ];
 

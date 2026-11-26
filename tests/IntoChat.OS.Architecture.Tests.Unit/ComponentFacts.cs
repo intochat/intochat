@@ -120,23 +120,20 @@ public sealed partial class ComponentFacts
     // Challengers: each rule runs on a sample and must flag it, and must pass a clean one.
 
     [Fact]
-    public void LayoutChallengerFlagsAMissingContractsProjectAndAStrayProject()
+    public void LayoutChallengerFlagsAMissingOrStrayComponentProject()
     {
         using var sample = new Sample();
         sample.Write("Good/IntoChat.Good.csproj", "<Project />");
-        sample.Write("Good/Contracts/IntoChat.Good.Contracts.csproj", "<Project />");
         sample.Write("Good/obj/IntoChat.Ignored.csproj", "<Project />");
-        sample.Write("NoContracts/IntoChat.NoContracts.csproj", "<Project />");
         sample.Write("Stray/IntoChat.Stray.csproj", "<Project />");
         sample.Write("Stray/Contracts/IntoChat.Stray.Contracts.csproj", "<Project />");
         sample.Write("Stray/Other/IntoChat.Stray.Other.csproj", "<Project />");
         sample.Write("Misnamed/IntoChat.Other.csproj", "<Project />");
-        sample.Write("Misnamed/Contracts/IntoChat.Misnamed.Contracts.csproj", "<Project />");
 
         var findings = LayoutFindings(sample.Root);
 
         Assert.DoesNotContain(findings, finding => finding.StartsWith("Good", StringComparison.Ordinal));
-        Assert.Contains(findings, finding => finding.Contains("NoContracts/Contracts/IntoChat.NoContracts.Contracts.csproj", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.Contains("Stray/Contracts/IntoChat.Stray.Contracts.csproj", StringComparison.Ordinal));
         Assert.Contains(findings, finding => finding.Contains("Stray/Other/IntoChat.Stray.Other.csproj", StringComparison.Ordinal));
         Assert.Contains(findings, finding => finding.Contains("Misnamed/IntoChat.Misnamed.csproj", StringComparison.Ordinal));
         Assert.Contains(findings, finding => finding.Contains("Misnamed/IntoChat.Other.csproj", StringComparison.Ordinal));
@@ -149,18 +146,15 @@ public sealed partial class ComponentFacts
         using var sample = new Sample();
         static string Package(string id) => $"<Project><PropertyGroup><PackageId>{id}</PackageId></PropertyGroup></Project>";
         sample.Write("Good/IntoChat.Good.csproj", Package("IntoChat.OS.Components.Good"));
-        sample.Write("Good/Contracts/IntoChat.Good.Contracts.csproj", Package("IntoChat.OS.Components.Good.Contracts"));
         sample.Write("Bare/IntoChat.Bare.csproj", "<Project />");
         sample.Write("Wrong/IntoChat.Wrong.csproj", Package("IntoChat.OS.Wrong"));
-        sample.Write("Wrong/Contracts/IntoChat.Wrong.Contracts.csproj", Package("IntoChat.OS.Components.Wrong"));
 
         var findings = PackageIdFindings(sample.Root);
 
         Assert.DoesNotContain(findings, finding => finding.StartsWith("Good", StringComparison.Ordinal));
         Assert.Contains(findings, finding => finding.StartsWith("Bare/IntoChat.Bare.csproj", StringComparison.Ordinal));
         Assert.Contains(findings, finding => finding.StartsWith("Wrong/IntoChat.Wrong.csproj", StringComparison.Ordinal));
-        Assert.Contains(findings, finding => finding.StartsWith("Wrong/Contracts/IntoChat.Wrong.Contracts.csproj", StringComparison.Ordinal));
-        Assert.Equal(3, findings.Count);
+        Assert.Equal(2, findings.Count);
     }
 
     [Fact]
@@ -285,7 +279,7 @@ public sealed partial class ComponentFacts
             {
                 continue;
             }
-            var expected = new[] { $"{name}/IntoChat.{name}.csproj", $"{name}/Contracts/IntoChat.{name}.Contracts.csproj" };
+            var expected = new[] { $"{name}/IntoChat.{name}.csproj" };
             var present = Repository.SourceFiles(directory, "*.csproj", path => !IsBuildOutput(directory, path))
                 .Select(path => name + "/" + Path.GetRelativePath(directory, path).Replace('\\', '/'))
                 .ToArray();
@@ -295,7 +289,7 @@ public sealed partial class ComponentFacts
         return findings;
     }
 
-    // Each project directly in <Name>/ or <Name>/Contracts/ carries the PackageId the rule names.
+    // Each project directly in <Name>/ carries the PackageId the rule names.
     private static List<string> PackageIdFindings(string root)
     {
         var findings = new List<string>();
@@ -306,7 +300,7 @@ public sealed partial class ComponentFacts
         foreach (var directory in Directory.EnumerateDirectories(root).Order(StringComparer.Ordinal))
         {
             var name = Path.GetFileName(directory);
-            foreach (var (relative, expected) in new[] { ($"IntoChat.{name}.csproj", $"IntoChat.OS.Components.{name}"), ($"Contracts/IntoChat.{name}.Contracts.csproj", $"IntoChat.OS.Components.{name}.Contracts") })
+            foreach (var (relative, expected) in new[] { ($"IntoChat.{name}.csproj", $"IntoChat.OS.Components.{name}") })
             {
                 var path = Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar));
                 if (!File.Exists(path))

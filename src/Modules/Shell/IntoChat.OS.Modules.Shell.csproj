@@ -16,17 +16,11 @@
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="Contracts/**" />
-    <EmbeddedResource Remove="Contracts/**" />
-    <None Remove="Contracts/**" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../Playwright/IntoChat.OS.Modules.Playwright.csproj" />
-    <ProjectReference Include="../../Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" />
+    <ProjectReference Include="../../Components/Aspire/IntoChat.Aspire.csproj" />
   </ItemGroup>
 </Project>

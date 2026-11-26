@@ -68,7 +68,7 @@
     <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
     <ProjectReference Include="../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" Condition="'$(IntoChatOSAot)' != 'true'" />
     <ProjectReference Include="../Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
-    <ProjectReference Include="../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../Modules/Time/IntoChat.OS.Modules.Time.csproj" />
@@ -82,13 +82,9 @@
     <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
   </ItemGroup>
-  <Target Name="IncludeKernelDepsJsonInPublish"
-          DependsOnTargets="GenerateBuildDependencyFile"
-          BeforeTargets="GetCopyToPublishDirectoryItems">
+  <Target Name="IncludeKernelDepsJsonInPublish" DependsOnTargets="GenerateBuildDependencyFile" BeforeTargets="GetCopyToPublishDirectoryItems">
     <ItemGroup Condition="Exists('$(ProjectDepsFilePath)')">
-      <AllPublishItemsFullPathWithTargetPath Include="$(ProjectDepsFilePath)"
-                                             TargetPath="$(ProjectDepsFileName)"
-                                             CopyToPublishDirectory="PreserveNewest" />
+      <AllPublishItemsFullPathWithTargetPath Include="$(ProjectDepsFilePath)" TargetPath="$(ProjectDepsFileName)" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
   <ItemGroup>

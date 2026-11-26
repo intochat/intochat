@@ -26,6 +26,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `ApiKey` | yes |
 | `ApiKey` | yes |
 
-Contracts: assembly `IntoChat.OS.Modules.Web.Contracts` (`IWebRead`, `IWebSearch`).
+Contracts: assembly `IntoChat.OS.Modules.Web` (`IWebRead`, `IWebSearch`).
 Hosting: runs in process.
 <!-- END GENERATED -->

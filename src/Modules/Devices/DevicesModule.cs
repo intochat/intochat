@@ -111,7 +111,7 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetService<IOptionsMonitor<DevicesOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<IConnectedComputeTransport>(),
-            sp.GetService<Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>()));
+            sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>()));
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());

@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <Compile Include="../IntoChat.OS.Tests.Unit/TestEdge.cs" Link="TestEdge.cs" />
@@ -7,7 +8,7 @@
     <ProjectReference Include="../../src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
     <ProjectReference Include="../../src/Modules/AI/Generators/IntoChat.OS.Modules.AI.Generators.csproj" ReferenceOutputAssembly="true" />
     <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../../src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Tests.Support/IntoChat.OS.Tests.Support.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />

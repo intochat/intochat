@@ -18,7 +18,7 @@ public sealed class AspireDiscoveryFacts
         Assert.Equal("IntoChat.Aspire", aspire.Type.Assembly.GetName().Name);
         Assert.True(OperatingSystemModules.DeclaresModule(aspire.Type.Assembly));
         Assert.Same(typeof(IAspire).Assembly, aspire.Contracts);
-        Assert.Equal("IntoChat.Aspire.Contracts", aspire.Contracts!.GetName().Name);
+        Assert.Equal("IntoChat.Aspire", aspire.Contracts!.GetName().Name);
         Assert.True(aspire.LoadsUnder("local"));
         Assert.False(aspire.RequiresContainer);
         Assert.Contains(OperatingSystemModules.InProcessModules, module => module.Type == typeof(AspireModule));

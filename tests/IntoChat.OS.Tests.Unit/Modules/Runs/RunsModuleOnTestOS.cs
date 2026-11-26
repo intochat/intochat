@@ -31,8 +31,8 @@ public sealed class RunsModuleOnTestOS : ModuleOnTestOSFacts<RunsModule>
         Assert.Equal("IntoChat.OS.Modules.Apps.Runs.RunsState", typeof(RunsState).FullName);
         Assert.Equal("owner/runs/runs/index", IRuns.Key("owner").ToString());
         Assert.Equal("owner/synapse.definitions/synapses/definitions", ISynapseDefinitions.Key("owner").ToString());
-        Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", typeof(IRuns).Assembly.GetName().Name);
-        Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", typeof(ISynapseDefinitions).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Contracts", typeof(IRuns).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Contracts", typeof(ISynapseDefinitions).Assembly.GetName().Name);
     }
 
     [Fact]

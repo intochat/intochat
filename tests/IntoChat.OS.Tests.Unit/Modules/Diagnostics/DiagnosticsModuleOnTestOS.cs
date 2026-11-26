@@ -38,7 +38,7 @@ public sealed class DiagnosticsModuleOnTestOS : ModuleOnTestOSFacts<DiagnosticsM
         Assert.Equal("IntoChat.OS.Modules.Apps.Trace.ITraceReader", typeof(ITraceReader).FullName);
         foreach (var contract in (Type[])[typeof(IDebuggerReads), typeof(ITraceReader), typeof(TraceEntry), typeof(TracePage), typeof(BrainTopology), typeof(ICompiledApps)])
         {
-            Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", contract.Assembly.GetName().Name);
+            Assert.Equal("IntoChat.OS.Contracts", contract.Assembly.GetName().Name);
         }
         Assert.Equal("unit", BrainTopologyNode.UnitRole);
         Assert.Equal("app", BrainTopologyNode.AppRole);

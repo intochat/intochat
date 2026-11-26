@@ -54,8 +54,8 @@ public sealed class StoredUnitBuildFacts
         Assert.Contains("IntoChat.OS.Modules.Catalog.Contracts", references);
         Assert.DoesNotContain("IntoChat.OS.Modules.Catalog", references);
         Assert.DoesNotContain("IntoChat.OS.Modules.Authoring", references);
-        // The contract the build names is still where the build looks for it.
-        Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", typeof(Notifications.INotifications).Assembly.GetName().Name);
+        // The contract the build names now lives in IntoChat.OS.Contracts and resolves via DigitalBrain.ReplacesAssembly.
+        Assert.Equal("IntoChat.OS.Contracts", typeof(Notifications.INotifications).Assembly.GetName().Name);
         Assert.Equal("IntoChat.OS.Modules.Apps.Notifications.INotifications", typeof(Notifications.INotifications).FullName);
     }
 

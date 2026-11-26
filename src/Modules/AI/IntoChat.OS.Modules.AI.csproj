@@ -5,15 +5,12 @@
     <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="Contracts/**" />
-    <EmbeddedResource Remove="Contracts/**" />
-    <None Remove="Contracts/**" />
     <Compile Remove="Generators/**" />
     <EmbeddedResource Remove="Generators/**" />
     <None Remove="Generators/**" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
@@ -40,11 +37,9 @@
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
-    <ProjectReference Include="../Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
+    <ProjectReference Include="../Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
-    <ProjectReference Include="../Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
-    <ProjectReference Include="../Web/Contracts/IntoChat.OS.Modules.Web.Contracts.csproj" />
+    <ProjectReference Include="../Web/IntoChat.OS.Modules.Web.csproj" />
   </ItemGroup>
 </Project>

@@ -44,7 +44,7 @@ public sealed class AuthoringModuleOnTestOS : ModuleOnTestOSFacts<AuthoringModul
         foreach (var contract in (Type[])[typeof(BuildInner), typeof(SynapseStudioState), typeof(SynapseStudioChanged), typeof(ISynapseStudio),
             typeof(IBuildChoices), typeof(IDrafter), typeof(ICreator), typeof(IUnitVerifier), typeof(IPolicyModel), typeof(AppsOptions)])
         {
-            Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", contract.Assembly.GetName().Name);
+            Assert.Equal("IntoChat.OS.Contracts", contract.Assembly.GetName().Name);
         }
         Assert.Equal("IntoChat.OS.Modules.Apps.ISynapseStudio", typeof(ISynapseStudio).FullName);
     }

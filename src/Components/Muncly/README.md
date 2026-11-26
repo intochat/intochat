@@ -36,6 +36,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `McpToken` | no |
 | `WebPassword` | no |
 
-Contracts: assembly `IntoChat.Muncly.Contracts`.
+Contracts: assembly `IntoChat.Muncly`.
 Hosting: runs in process.
 <!-- END GENERATED -->

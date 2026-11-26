@@ -82,7 +82,7 @@ public sealed class IntoChatClientFacts
             .Order(StringComparer.Ordinal)
             .ToArray();
         Assert.Contains("IntoChat.OS.Modules.Windows", modules);
-        Assert.Contains("IntoChat.OS.Modules.AI.Contracts", modules);
+        Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Contracts"));
 
         var wrong = modules.Where(name => AppLoadContext.IsAssemblyAllowed(name) != ShouldAdmit(name))
             .Select(name => $"{name}: {(AppLoadContext.IsAssemblyAllowed(name) ? "admitted" : "refused")}")
@@ -93,7 +93,7 @@ public sealed class IntoChatClientFacts
             => name.EndsWith(".Contracts", StringComparison.Ordinal) && !name.StartsWith("IntoChat.OS.Modules.Identity", StringComparison.Ordinal);
     }
 
-    // Component assemblies (IntoChat.<Name>, IntoChat.<Name>.Contracts) are refused, as the Aspire contracts were when they sat
+    // Component assemblies (IntoChat.<Name>) are refused, as the Aspire contracts were when they sat
     // inside IntoChat.OS.Modules.Azure. Admitting a component's contracts is an owner decision per component (OWED.md).
     [Fact]
     public void AppLoadContextRefusesComponentAssemblies()
@@ -102,7 +102,7 @@ public sealed class IntoChatClientFacts
             .Select(path => Path.GetFileNameWithoutExtension(path)!)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        Assert.Equal(["IntoChat.Aspire", "IntoChat.Aspire.Contracts"], components);
+        Assert.Equal(["IntoChat.Aspire"], components);
 
         foreach (var name in components)
         {
@@ -126,6 +126,7 @@ public sealed class IntoChatClientFacts
             Assert.Same(typeof(ISandboxBrain).Assembly, osAssembly);
 
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Contracts"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.UI"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.AI.Contracts"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Catalog.Contracts"));

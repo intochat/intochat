@@ -20,14 +20,9 @@ public sealed class RepositoryLayoutFacts
         ["IntoChat.OS.Modules.GitHub"] = "IntoChat.OS.Modules.Microsoft.GitHub",
         ["IntoChat.OS.Modules.Playwright"] = "IntoChat.OS.Modules.Microsoft.Playwright",
         ["IntoChat.OS.Modules.Roslyn"] = "IntoChat.OS.Modules.Microsoft.Roslyn",
-        ["IntoChat.OS.Modules.Roslyn.Contracts"] = "IntoChat.OS.Modules.Microsoft.Roslyn",
         ["IntoChat.OS.Modules.Shell"] = "IntoChat.OS.Modules.Flutter",
-        ["IntoChat.OS.Modules.Shell.Contracts"] = "IntoChat.OS.Modules.Flutter",
         ["IntoChat.OS.Modules.Storage"] = "IntoChat.OS.Modules.LocalDisk",
-        ["IntoChat.OS.Modules.UI.Contracts"] = "IntoChat.OS.Modules.UI",
         ["IntoChat.OS.Modules.Windows"] = "IntoChat.OS.Modules.Microsoft.Windows",
-        ["IntoChat.Aspire.Contracts"] = "IntoChat.Aspire",
-        ["IntoChat.Muncly.Contracts"] = "IntoChat.Muncly",
     };
 
     [Fact]

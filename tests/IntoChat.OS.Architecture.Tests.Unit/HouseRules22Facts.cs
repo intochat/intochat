@@ -502,8 +502,8 @@ public sealed class HouseRules22Facts
             {
                 offenders.Add($"{DisplayPath(src)}:{line}");
             }
-            // The settings contract lives in the Catalog contracts folder, whichever project scanned it first.
-            if (!(src.FileName == "IUserSettings.cs" && src.FullPath.Split(Path.DirectorySeparatorChar).Contains("Contracts", StringComparer.Ordinal)))
+            // The settings contract lives in IntoChat.OS.Contracts (formerly Catalog/Contracts).
+            if (!(src.FileName == "IUserSettings.cs" && (src.ProjectName == "IntoChat.OS.Contracts" || src.FullPath.Split(Path.DirectorySeparatorChar).Contains("Contracts", StringComparer.Ordinal))))
             {
                 foreach (var line in FindSettingsKeyInterpolations(src.Root))
                 {

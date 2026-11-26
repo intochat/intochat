@@ -41,6 +41,7 @@ internal static class ContractsHost
             .Concat(type.GetConstructors().SelectMany(constructor => constructor.GetParameters()).Select(parameter => parameter.ParameterType))
             .Concat(type.CustomAttributes.Select(attribute => attribute.AttributeType))
             .Concat(type.GetCustomAttributes<System.Text.Json.Serialization.JsonDerivedTypeAttribute>().Select(derived => derived.DerivedType))
+            .Concat(type.GetCustomAttributes<System.Text.Json.Serialization.JsonConverterAttribute>().Select(converter => converter.ConverterType).OfType<Type>())
             .Concat(type.GetInterfaces())
             .Concat(type.GetNestedTypes(BindingFlags.Public))
             .Concat(type.BaseType is { } baseType ? [baseType] : []);

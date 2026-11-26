@@ -17,6 +17,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.UI.Contracts` (`IChatThreadControl`, `ICheckBoxControl`, `IComboBoxControl`, `IExpanderControl`, `IFormControl`, `IKanbanControl`, `IListBoxControl`, `ILiveChartControl`, `IQueryTableControl`, `ISliderControl`, `IStepperControl`, `ITabStripControl`, `IToggleSwitchControl`, `ITreeControl`).
+Contracts: assembly `IntoChat.OS.Modules.UI` (`IChatThreadControl`, `ICheckBoxControl`, `IComboBoxControl`, `IExpanderControl`, `IFormControl`, `IKanbanControl`, `ILegacyChatThread`, `IListBoxControl`, `ILiveChartControl`, `IQueryTableControl`, `ISliderControl`, `IStepperControl`, `ITabStripControl`, `IToggleSwitchControl`, `ITreeControl`).
 Hosting: runs in process.
 <!-- END GENERATED -->

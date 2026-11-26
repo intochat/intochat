@@ -60,6 +60,7 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
         }
 
         if (string.Equals(assemblyName, "IntoChat.OS", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(assemblyName, "IntoChat.OS.Contracts", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "IntoChat.OS.UI", StringComparison.OrdinalIgnoreCase)
             || IsModuleContracts(assemblyName)
             || string.Equals(assemblyName, "Microsoft.Extensions.Logging.Abstractions", StringComparison.OrdinalIgnoreCase)

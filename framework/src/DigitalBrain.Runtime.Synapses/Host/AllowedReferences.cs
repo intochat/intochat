@@ -351,7 +351,10 @@ internal static class AllowedReferences
     private static bool IsCapabilityNamed(Assembly[] loaded, string assemblyName, string fullName)
     {
         var type = loaded
-            .Where(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.Ordinal))
+            .Where(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.Ordinal)
+                || a.GetCustomAttributes<AssemblyMetadataAttribute>().Any(meta =>
+                    string.Equals(meta.Key, "DigitalBrain.ReplacesAssembly", StringComparison.Ordinal)
+                    && string.Equals(meta.Value, assemblyName, StringComparison.Ordinal)))
             .Select(a => a.GetType(fullName, throwOnError: false))
             .FirstOrDefault(t => t is not null);
         return type is { IsInterface: true } && type.IsDefined(typeof(CapabilityAttribute), inherit: false);
