@@ -1,5 +1,3 @@
-import 'marketplace.dart';
-
 class InstalledAppSummary {
   const InstalledAppSummary({
     required this.id,
@@ -10,14 +8,12 @@ class InstalledAppSummary {
     required this.operations,
     this.icon,
     this.publishedVersion,
-    this.origin,
     this.edited = false,
     this.updateAvailable = false,
   });
   final String id, title, description, status, version;
   final List<String> operations;
   final String? icon, publishedVersion;
-  final AppOrigin? origin;
   final bool edited, updateAvailable;
   factory InstalledAppSummary.fromJson(Map<String, dynamic> json) =>
       InstalledAppSummary(
@@ -32,11 +28,6 @@ class InstalledAppSummary {
         ],
         icon: json['icon'] as String?,
         publishedVersion: json['publishedVersion'] as String?,
-        origin: json['origin'] is Map
-            ? AppOrigin.fromJson(
-                Map<String, dynamic>.from(json['origin'] as Map),
-              )
-            : null,
         edited: json['edited'] == true,
         updateAvailable: json['updateAvailable'] == true,
       );

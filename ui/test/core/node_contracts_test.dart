@@ -18,7 +18,7 @@ void main() {
     }
   });
 
-  test('the per-widget kinds are gone', () {
+  test('the per-widget and retired legacy kinds are gone', () {
     for (final kind in [
       'button',
       'text',
@@ -29,6 +29,10 @@ void main() {
       'composer',
       // A field's text travels with its command; no field neuron is watched.
       'field',
+      'person',
+      'collection',
+      'card',
+      'friends.space',
     ]) {
       expect(() => NodeContracts.of(kind), throwsArgumentError, reason: kind);
     }

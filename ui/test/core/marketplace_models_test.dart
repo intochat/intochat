@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test('an installed copy carries its origin and update offer', () {
+  test('an installed app summary decodes its metadata and update offer', () {
     final app = InstalledAppSummary.fromJson({
       'name': 'customer-researcher',
       'title': 'Customer Researcher',
@@ -16,57 +16,25 @@ void main() {
       'operations': ['open'],
       'icon': 'icon.svg',
       'publishedVersion': null,
-      'origin': {
-        'publisher': 'intochat',
-        'name': 'customer-researcher',
-        'version': '1.2.0',
-      },
       'edited': false,
       'updateAvailable': true,
     });
+    expect(app.id, 'customer-researcher');
     expect(app.icon, 'icon.svg');
-    expect(app.origin!.publisher, 'intochat');
-    expect(app.origin!.version, '1.2.0');
     expect(app.edited, isFalse);
     expect(app.updateAvailable, isTrue);
   });
 
-  test('an app of the brain\'s own has no origin and no update offer', () {
+  test('an app of the brain\'s own defaults optional metadata cleanly', () {
     final app = InstalledAppSummary.fromJson({
       'name': 'shouter',
       'status': 'Live',
       'version': '0.2.0',
       'operations': <String>[],
     });
-    expect(app.origin, isNull);
     expect(app.icon, isNull);
     expect(app.edited, isFalse);
     expect(app.updateAvailable, isFalse);
-  });
-
-  test('a marketplace entry reads its listing and install state', () {
-    final entry = MarketplaceEntry.fromJson({
-      'listing': {
-        'publisher': 'intochat',
-        'source': {
-          r'$source': 'brain',
-          'accountId': 'acc-1',
-          'brainId': 'account-acc-1',
-        },
-        'name': 'customer-researcher',
-        'title': 'Customer Researcher',
-        'description': 'Research companies',
-        'version': '1.3.0',
-        'icon': 'icon.svg',
-      },
-      'installed': true,
-      'updateAvailable': true,
-    });
-    expect(entry.listing.title, 'Customer Researcher');
-    expect(entry.listing.source.brainId, 'account-acc-1');
-    expect(entry.listing.source.isShipped, isFalse);
-    expect(entry.installed, isTrue);
-    expect(entry.updateAvailable, isTrue);
   });
 
   test(
@@ -113,13 +81,4 @@ void main() {
       client.close();
     },
   );
-
-  test('a missing icon reads as null', () async {
-    final client = IntoChatOSUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async => http.Response('', 404)),
-    );
-    expect(await client.readBytes('/brains/b1/apps/x/icon'), isNull);
-    client.close();
-  });
 }

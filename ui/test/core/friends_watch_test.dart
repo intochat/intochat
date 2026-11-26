@@ -1,4 +1,4 @@
-﻿import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -23,29 +23,23 @@ void main() {
     ]);
   });
 
-  test(
-    'friend slots watch the viewers space rather than foreign neurons',
-    () async {
-      final link = RecordingLink();
-      final client = IntoChatOSUiClient(baseUri: Uri.parse('http://localhost'))
-        ..link = link;
-      for (final slot in [
-        ('person', 'bob/profile'),
-        ('card', 'bob/posts/p1'),
-        ('collection', 'bob/posts'),
-      ]) {
-        final watch = client
-            .watchNode('alice', slot.$1, slot.$2)
-            .listen((_) {});
-        await Future<void>.delayed(const Duration(milliseconds: 80));
-        await watch.cancel();
-        expect(link.brain, 'alice');
-        expect(link.source!.key, 'alice/space');
-        expect(link.source!.contract, 'IntoChat.OS.Modules.Flame.Scene.IScene');
-        expect(link.source!.types, ['SceneChanged']);
-      }
-    },
-  );
+  test('retired legacy friend slot kinds are rejected by watchNode', () {
+    final link = RecordingLink();
+    final client = IntoChatOSUiClient(baseUri: Uri.parse('http://localhost'))
+      ..link = link;
+    for (final slot in [
+      ('person', 'bob/profile'),
+      ('card', 'bob/posts/p1'),
+      ('collection', 'bob/posts'),
+      ('friends.space', 'alice/space'),
+    ]) {
+      expect(
+        () => client.watchNode('alice', slot.$1, slot.$2),
+        throwsArgumentError,
+        reason: slot.$1,
+      );
+    }
+  });
 }
 
 class RecordingLink implements NeuronLink {

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,21 +18,26 @@ void main() {
         }),
       );
       await client.connectorRequest('brain', '');
-      await client.listWorkspaceConnections('brain');
-      await client.connectWorkspaceSecret(
+      await client.workspaceConnectionsRequest('brain', '');
+      await client.workspaceConnectionsRequest(
         'brain',
-        'one',
-        connectorId: 'gmail',
-        authMethodId: 'token',
-        value: 'secret',
+        'one/connect',
+        body: {
+          'connectorId': 'gmail',
+          'authMethodId': 'token',
+          'value': 'secret',
+        },
       );
-      await client.probeWorkspaceConnection('brain', 'one');
-      await client.disconnectWorkspaceConnection('brain', 'one');
-      await client.startWorkspaceConnectionLogin(
+      await client.workspaceConnectionsRequest('brain', 'one/probe', body: {});
+      await client.workspaceConnectionsRequest(
         'brain',
-        'one',
-        connectorId: 'gmail',
-        authMethodId: 'google-oauth',
+        'one/disconnect',
+        body: {},
+      );
+      await client.workspaceConnectionsRequest(
+        'brain',
+        'one/login',
+        body: {'connectorId': 'gmail', 'authMethodId': 'google-oauth'},
       );
       expect(requests.map((r) => r.url.path), [
         '/connectors',
