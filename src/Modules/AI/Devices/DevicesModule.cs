@@ -112,6 +112,12 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<IConnectedComputeTransport>(),
             sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>()));
+        services.TryAddSingleton<IClientCodeSandboxConsent>(static sp =>
+        {
+            var initialAllow = sp.GetService<IOptionsMonitor<DevicesOptions>>()?.CurrentValue.Compute.AllowClientCodeSandbox
+                ?? ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
+            return new ClientCodeSandboxConsentStore(initialAllow);
+        });
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());

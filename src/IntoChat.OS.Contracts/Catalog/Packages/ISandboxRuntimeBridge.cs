@@ -20,7 +20,7 @@ public sealed record SandboxDispatchResult(
     string? ExecutedByMachineId = null);
 
 /// <summary>Bridge between OS Catalog/Apps and the hardened container worker (<c>IntoChat.OS.Sandbox</c>).</summary>
-public interface ISandboxRuntimeBridge
+public interface ISandboxRuntimeBridge : ICodeSandbox
 {
     Task<SandboxDeploymentResult> DeployPackageAsync(
         string brainId,
@@ -44,12 +44,22 @@ public interface ISandboxRuntimeBridge
         CancellationToken cancellationToken = default)
         => DeployPackageAsync(brainId.Value, package, assemblyBytes, stateJson, settingsJson, cancellationToken);
 
+    Task<SandboxDispatchResult> ICodeSandbox.ExecuteScopedCommandAsync(
+        DigitalBrain.BrainId brainId,
+        AppPackage package,
+        byte[] assemblyBytes,
+        string command,
+        string? payloadJson,
+        IReadOnlyList<string> allowedContracts,
+        CancellationToken cancellationToken)
+        => ExecuteScopedCommandAsync(brainId, package, assemblyBytes, command, payloadJson, allowedContracts, cancellationToken);
+
     /// <summary>
     /// Executes a single-shot scoped command inside the sandbox runtime, preferring an owner's connected
-    /// auto-all local client when online and transparently falling back to the cloud sandbox Container App
-    /// or local out-of-process UnitHost when unavailable.
+    /// consented <see cref="ICodeSandbox"/> client when online and transparently falling back to the cloud
+    /// sandbox Container App or local out-of-process UnitHost when unavailable.
     /// </summary>
-    async Task<SandboxDispatchResult> ExecuteScopedCommandAsync(
+    new async Task<SandboxDispatchResult> ExecuteScopedCommandAsync(
         DigitalBrain.BrainId brainId,
         AppPackage package,
         byte[] assemblyBytes,

@@ -4,6 +4,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Surface;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.Logging;
 
@@ -49,14 +50,18 @@ internal sealed class CodeOrchestrationInner
 
     public string? ExecutedByMachineId { get; set; }
 
+    public string? RouteReason { get; set; }
+
     public string? Error { get; set; }
 }
 
 /// <summary>
 /// Plane 1 durable orchestration synapse (<c>flow.code-orchestration</c>):
 /// discovers typed Neuron contracts, generates and Roslyn-AST-sanitizes a standalone <c>net11.0</c> C# script
-/// with up to 2 compiler-repair rounds, enforces least-privilege scoped <c>AppToken</c> execution inside
-/// <c>IntoChat.OS.Sandbox</c> (<c>--unit-host</c>), extracts structured <c>result.json</c>
+/// with up to 2 compiler-repair rounds, enforces least-privilege scoped <c>AppToken</c> execution via
+/// <see cref="ICodeSandbox"/> (preferring an owner's consented paired client device advertising
+/// <see cref="ICodeSandbox.CapabilityId"/> and falling back deterministically to local/cloud
+/// <c>IntoChat.OS.Sandbox</c>), extracts structured <c>result.json</c>
 /// (<c>status</c>, <c>summary</c>, <c>artifacts</c>, <c>metrics</c>), and durably suspends on
 /// <see cref="ConfirmationPlan"/> (<c>RequiresPerson = true</c>) whenever a <see cref="PersonOnlyAttribute"/>
 /// or confirmation-gated Neuron method requires person approval.
@@ -67,7 +72,8 @@ internal sealed class CodeOrchestrationSynapse(
     ICodeOrchestrationAstSanitizer astSanitizer,
     ISandboxRuntimeBridge sandbox,
     ICodeOrchestrationModel? model = null,
-    ILogger<CodeOrchestrationSynapse>? logger = null) : Flow<CodeOrchestrationInner>, IFlowStarter
+    ILogger<CodeOrchestrationSynapse>? logger = null,
+    IConnectedComputeRouter? computeRouter = null) : Flow<CodeOrchestrationInner>, IFlowStarter
 {
     public const string Alias = "flow.code-orchestration";
 
@@ -251,7 +257,15 @@ internal sealed class CodeOrchestrationSynapse(
 
         var inputArg = string.IsNullOrWhiteSpace(inner.InputJson) ? "{}" : inner.InputJson;
         var payload = JsonSerializer.Serialize(inputArg, Json);
-        var dispatch = await sandbox.ExecuteScopedCommandAsync(
+
+        ComputeRouteDecision? routeDecision = null;
+        if (computeRouter is not null)
+        {
+            routeDecision = await computeRouter.ResolveRouteAsync(Id.Brain, ct).ConfigureAwait(true);
+        }
+
+        ICodeSandbox codeSandbox = sandbox;
+        var dispatch = await codeSandbox.ExecuteScopedCommandAsync(
             Id.Brain,
             compiled.EnrichedPackage,
             compiled.AssemblyBytes,
@@ -262,15 +276,17 @@ internal sealed class CodeOrchestrationSynapse(
 
         inner.ExecutionTarget = dispatch.ExecutionTarget;
         inner.ExecutedByMachineId = dispatch.ExecutedByMachineId;
+        inner.RouteReason = DescribeRouteOutcome(routeDecision, dispatch);
 
         if (!string.IsNullOrWhiteSpace(dispatch.ExecutionTarget))
         {
             (logger ?? OsConsoleLog.For<CodeOrchestrationSynapse>()).LogInformation(
-                "Code orchestration '{AppKey}' for brain '{BrainId}' executed via '{ExecutionTarget}' (machine='{MachineId}').",
+                "Code orchestration '{AppKey}' for brain '{BrainId}' executed via '{ExecutionTarget}' (machine='{MachineId}'): {RouteReason}",
                 appKey,
                 Id.Brain.Value,
                 dispatch.ExecutionTarget,
-                dispatch.ExecutedByMachineId ?? "fallback");
+                dispatch.ExecutedByMachineId ?? "fallback",
+                inner.RouteReason);
         }
 
         if (!string.IsNullOrWhiteSpace(dispatch.Error))
@@ -354,5 +370,30 @@ internal sealed class CodeOrchestrationSynapse(
             || error.Contains("RequiresPerson", StringComparison.OrdinalIgnoreCase)
             || error.Contains("approval_required", StringComparison.OrdinalIgnoreCase)
             || error.Contains("requires person approval", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? DescribeRouteOutcome(ComputeRouteDecision? routeDecision, SandboxDispatchResult dispatch)
+    {
+        if (string.Equals(dispatch.ExecutionTarget, "connected-client", StringComparison.Ordinal))
+        {
+            return routeDecision is { Target: ComputeExecutionTarget.ConnectedClient }
+                ? routeDecision.Reason
+                : $"Executed on consented connected client ({ICodeSandbox.CapabilityId}) '{dispatch.ExecutedByMachineId ?? "unknown"}'.";
+        }
+
+        if (routeDecision is { Target: ComputeExecutionTarget.ConnectedClient, Node: { } planned })
+        {
+            var fallback = string.IsNullOrWhiteSpace(dispatch.ExecutionTarget) ? "sandbox" : dispatch.ExecutionTarget;
+            return $"Connected client '{planned.DeviceName}' ({planned.MachineId}) unavailable during dispatch; fell back deterministically to {fallback}.";
+        }
+
+        if (routeDecision is not null)
+        {
+            return routeDecision.Reason;
+        }
+
+        return string.IsNullOrWhiteSpace(dispatch.ExecutionTarget)
+            ? null
+            : $"Executed via IntoChat.OS.Sandbox fallback ({dispatch.ExecutionTarget}).";
     }
 }

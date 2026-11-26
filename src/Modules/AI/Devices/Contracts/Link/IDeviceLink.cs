@@ -15,7 +15,9 @@ public sealed record LinkStatus(
     LinkState State,
     Uri? Server,
     string DeviceName,
-    DateTimeOffset? LastContactedAt);
+    DateTimeOffset? LastContactedAt,
+    bool AllowClientCodeSandbox = false,
+    string[]? AdvertisedCapabilities = null);
 
 // One device-link neuron per brain on the PC at "{brain}/device-link".
 [NeuronAlias("devices.link"), DefaultNeuronType("devices.link")]
@@ -24,6 +26,8 @@ public interface IDeviceLink
     Task<LinkStatus> Join(Uri server, Code code);
 
     Task<LinkStatus> Status();
+
+    Task<LinkStatus> SetAllowClientCodeSandbox(bool allow);
 
     Task Leave();
 

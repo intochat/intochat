@@ -558,6 +558,286 @@ public sealed class ConnectedComputeRouterFacts
     }
 
     // -------------------------------------------------------------------------
+    // RFC-2 Explicit Device Toggle & ICodeSandbox capability facts
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Microsoft Windows 10.0.26100", ClientDevicePlatform.Windows, true)]
+    [InlineData("Windows 11 Pro", ClientDevicePlatform.Windows, true)]
+    [InlineData("Darwin 24.1.0 Darwin Kernel Version 24.1.0", ClientDevicePlatform.MacOS, true)]
+    [InlineData("macOS 15.1", ClientDevicePlatform.MacOS, true)]
+    [InlineData("Ubuntu 24.04.1 LTS (Linux 6.8.0)", ClientDevicePlatform.Linux, true)]
+    [InlineData("Linux 6.1.75-android14-11-g1234", ClientDevicePlatform.Android, false)]
+    [InlineData("Android 15", ClientDevicePlatform.Android, false)]
+    [InlineData("iOS 18.2", ClientDevicePlatform.IOS, false)]
+    [InlineData("iPhone OS 18.1", ClientDevicePlatform.IOS, false)]
+    [InlineData("iPadOS 18.0", ClientDevicePlatform.IOS, false)]
+    [InlineData("", ClientDevicePlatform.Unknown, false)]
+    [InlineData(null, ClientDevicePlatform.Unknown, false)]
+    public void PlatformConsentPolicyDefaultsTrueOnDesktopAndFalseOnMobileOrUnknown(
+        string? osDescription,
+        ClientDevicePlatform expectedPlatform,
+        bool expectedDefaultConsent)
+    {
+        var classified = ClientComputeConsentPolicy.ClassifyPlatform(osDescription);
+        Assert.Equal(expectedPlatform, classified);
+        Assert.Equal(expectedDefaultConsent, ClientComputeConsentPolicy.DefaultAllowClientCodeSandbox(classified));
+        Assert.Equal(expectedDefaultConsent, ClientComputeConsentPolicy.DefaultAllowClientCodeSandbox(osDescription));
+    }
+
+    [Fact]
+    public void ComputeCapabilityOptionsDefaultsToExplicitToggleWithCurrentPlatformConsent()
+    {
+        var defaults = new ComputeCapabilityOptions();
+        Assert.Equal(ComputeConsentMode.ExplicitToggle, defaults.ConsentMode);
+        Assert.Equal(
+            ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform(),
+            defaults.AllowClientCodeSandbox);
+    }
+
+    [Fact]
+    public async Task ExplicitToggleWithAllowClientCodeSandboxAndICodeSandboxCapabilityIsEligibleAndSelected()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero));
+        var transport = new ScriptedTransport(
+            probe: static (_, _, _) => Task.FromResult(true),
+            execute: static (_, node, _, _) => Task.FromResult<ConnectedSandboxResponse?>(
+                new ConnectedSandboxResponse(true, """{"status":"succeeded","summary":"explicit-toggle"}""", null, null, node.MachineId)));
+        var router = new ConnectedComputeRouter(clock: clock, transport: transport);
+
+        await router.RecordHeartbeatAsync(
+            OwnerBrain,
+            NewAdvertisement(
+                "desktop-explicit-1",
+                "Owner MacBook",
+                ComputeConsentMode.ExplicitToggle,
+                sandboxReady: true,
+                clock.GetUtcNow(),
+                allowClientCodeSandbox: true,
+                advertisedCapabilities: [ICodeSandbox.CapabilityId]),
+            Ct);
+
+        var decision = await router.ResolveRouteAsync(OwnerBrain, Ct);
+        Assert.Equal(ComputeExecutionTarget.ConnectedClient, decision.Target);
+        Assert.NotNull(decision.Node);
+        Assert.Equal("desktop-explicit-1", decision.Node!.MachineId);
+        Assert.True(decision.Node.AllowClientCodeSandbox);
+        Assert.True(decision.Node.AdvertisesCodeSandbox);
+        Assert.True(decision.Node.IsEligibleForSovereignCompute);
+
+        var response = await router.TryExecuteOnConnectedClientAsync(OwnerBrain, NewSandboxRequest("job-explicit-1", OwnerBrain.Value), Ct);
+        Assert.NotNull(response);
+        Assert.True(response!.Handled);
+        Assert.Equal("desktop-explicit-1", response.ExecutedByMachineId);
+        Assert.Equal(1, transport.ProbeCalls);
+        Assert.Equal(1, transport.ExecuteCalls);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public async Task ExplicitToggleRequiresBothConsentFlagAndICodeSandboxCapability(
+        bool allowClientCodeSandbox,
+        bool advertiseCodeSandbox)
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero));
+        var transport = new ScriptedTransport(
+            probe: static (_, _, _) => Task.FromResult(true),
+            execute: static (_, node, _, _) => Task.FromResult<ConnectedSandboxResponse?>(
+                new ConnectedSandboxResponse(true, "{}", null, null, node.MachineId)));
+        var router = new ConnectedComputeRouter(clock: clock, transport: transport);
+
+        await router.RecordHeartbeatAsync(
+            OwnerBrain,
+            NewAdvertisement(
+                "mobile-or-unready",
+                "Owner Phone",
+                ComputeConsentMode.ExplicitToggle,
+                sandboxReady: true,
+                clock.GetUtcNow(),
+                allowClientCodeSandbox: allowClientCodeSandbox,
+                advertisedCapabilities: advertiseCodeSandbox ? [ICodeSandbox.CapabilityId] : []),
+            Ct);
+
+        var decision = await router.ResolveRouteAsync(OwnerBrain, Ct);
+        Assert.Equal(ComputeExecutionTarget.CloudSandbox, decision.Target);
+        Assert.Null(decision.Node);
+
+        var response = await router.TryExecuteOnConnectedClientAsync(OwnerBrain, NewSandboxRequest("job-skip-explicit", OwnerBrain.Value), Ct);
+        Assert.Null(response);
+        Assert.Equal(0, transport.ProbeCalls);
+        Assert.Equal(0, transport.ExecuteCalls);
+    }
+
+    [Fact]
+    public async Task RelayTransportProbeEnforcesExplicitToggleAndICodeSandboxCapability()
+    {
+        using var root = new TempDirectory("intochat-relay-probe-");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero));
+        var credentials = new DeviceCredentials(new XorProtector(), Path.Combine(root.Path, "devices", "link.bin"));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        await credentials.Write(new LinkSecrets(
+            new Uri("https://relay.test/"),
+            "cred-probe",
+            "access-probe",
+            clock.GetUtcNow().AddHours(1),
+            "refresh-probe",
+            clock.GetUtcNow().AddDays(30),
+            key.ExportPkcs8PrivateKey()), Ct);
+
+        using var relay = new FakeComputeRelayHandler
+        {
+            ComputeNodesResponse = new BrainComputeNodesResponse(
+                OwnerBrain.Value,
+                [
+                    NewAdvertisement(
+                        "desktop-ok",
+                        "Desktop OK",
+                        ComputeConsentMode.ExplicitToggle,
+                        sandboxReady: true,
+                        clock.GetUtcNow(),
+                        allowClientCodeSandbox: true,
+                        advertisedCapabilities: [ICodeSandbox.CapabilityId]),
+                    NewAdvertisement(
+                        "mobile-denied",
+                        "Mobile Denied",
+                        ComputeConsentMode.ExplicitToggle,
+                        sandboxReady: true,
+                        clock.GetUtcNow(),
+                        allowClientCodeSandbox: false,
+                        advertisedCapabilities: [ICodeSandbox.CapabilityId]),
+                ]),
+        };
+        using var http = new HttpClient(relay);
+        var cloud = new CloudClient(http, credentials, clock);
+        var transport = new RelayConnectedComputeTransport(cloud, credentials);
+
+        var okNode = new ConnectedComputeNode(
+            BrainId: OwnerBrain.Value,
+            MachineId: "desktop-ok",
+            DeviceName: "Desktop OK",
+            ConsentMode: ComputeConsentMode.ExplicitToggle,
+            SandboxReady: true,
+            SandboxRuntime: "unit-host",
+            Status: ComputeNodeStatus.Online,
+            LastHeartbeatAt: clock.GetUtcNow(),
+            KeyThumbprint: null,
+            AllowClientCodeSandbox: true,
+            AdvertisedCapabilities: [ICodeSandbox.CapabilityId]);
+        var deniedNode = okNode with { MachineId = "mobile-denied", AllowClientCodeSandbox = false };
+
+        Assert.True(await transport.ProbeAsync(OwnerBrain, okNode, Ct));
+        Assert.False(await transport.ProbeAsync(OwnerBrain, deniedNode, Ct));
+    }
+
+    [Fact]
+    public async Task DeviceWorkerAdvertisesICodeSandboxOverP256AndRevokesImmediatelyWhenToggleDisabled()
+    {
+        using var root = new TempDirectory("intochat-worker-toggle-");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero));
+        var machine = new MachineId(Path.Combine(root.Path, "machine-id"));
+        var credentials = new DeviceCredentials(new XorProtector(), Path.Combine(root.Path, "devices", "link.bin"));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var publicSpki = key.ExportSubjectPublicKeyInfo();
+        const string accessToken = "cred-toggle.access";
+
+        await credentials.Write(new LinkSecrets(
+            new Uri("https://relay.test"),
+            "cred-toggle",
+            accessToken,
+            clock.GetUtcNow().AddHours(1),
+            "cred-toggle.refresh",
+            clock.GetUtcNow().AddDays(30),
+            key.ExportPkcs8PrivateKey()), Ct);
+
+        using var relay = new FakeComputeRelayHandler();
+        using var http = new HttpClient(relay);
+        var cloud = new CloudClient(http, credentials, clock);
+        var options = new StaticOptionsMonitor<DevicesOptions>(new DevicesOptions
+        {
+            Compute = new ComputeCapabilityOptions
+            {
+                ConsentMode = ComputeConsentMode.ExplicitToggle,
+                AllowClientCodeSandbox = true,
+                SandboxEnabled = true,
+                HeartbeatIntervalSeconds = 60,
+            },
+        });
+        var consentStore = new ClientCodeSandboxConsentStore(true);
+        var router = new ConnectedComputeRouter(clock: clock);
+        var executor = new RecordingLocalSandboxExecutor();
+        using var worker = new DeviceWorker(
+            cloud,
+            credentials,
+            [],
+            machine,
+            NullLogger<DeviceWorker>.Instance,
+            clock,
+            () => "owner-desktop",
+            services: null,
+            options: options,
+            computeRouter: router,
+            localSandbox: executor,
+            consentStore: consentStore);
+
+        // 1. Enabled toggle: first tick advertises ICodeSandbox over P-256 and executes queued job.
+        relay.PendingSandboxJobs.Enqueue(NewSandboxRequest("job-enabled", OwnerBrain.Value));
+        await worker.Tick(Ct);
+
+        var firstCap = Assert.Single(relay.CapabilityRequests);
+        Assert.True(MachineProof.Verify(publicSpki, firstCap.Proof, "PUT", firstCap.Url, accessToken, clock.GetUtcNow(), new HashSetNonceCache()).IsValid);
+        Assert.Equal(ComputeConsentMode.ExplicitToggle, firstCap.Advertisement.ConsentMode);
+        Assert.True(firstCap.Advertisement.AllowClientCodeSandbox);
+        Assert.True(firstCap.Advertisement.SandboxReady);
+        Assert.Contains(ICodeSandbox.CapabilityId, firstCap.Advertisement.AdvertisedCapabilities ?? []);
+
+        var ownerBrainId = new BrainId(IntoChatOSNames.DefaultOwnerBrainId);
+        var enabledNode = Assert.Single(await router.ListNodesAsync(ownerBrainId, Ct));
+        Assert.Equal(ComputeNodeStatus.Online, enabledNode.Status);
+        Assert.True(enabledNode.IsEligibleForSovereignCompute);
+        Assert.True(relay.SandboxResults["job-enabled"].Handled);
+        Assert.Single(executor.Executed);
+
+        // 2. Disable toggle: next tick immediately sends P-256 revocation (before heartbeat interval),
+        // marks node Offline/Ineligible in router, and refuses incoming sandbox jobs.
+        consentStore.Set(false);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        relay.PendingSandboxJobs.Enqueue(NewSandboxRequest("job-revoked", OwnerBrain.Value));
+        await worker.Tick(Ct);
+
+        Assert.Equal(2, relay.CapabilityRequests.Count);
+        var revokedCap = relay.CapabilityRequests[1];
+        Assert.True(MachineProof.Verify(publicSpki, revokedCap.Proof, "PUT", revokedCap.Url, accessToken, clock.GetUtcNow(), new HashSetNonceCache()).IsValid);
+        Assert.Equal(ComputeConsentMode.ExplicitToggle, revokedCap.Advertisement.ConsentMode);
+        Assert.False(revokedCap.Advertisement.AllowClientCodeSandbox);
+        Assert.False(revokedCap.Advertisement.SandboxReady);
+        Assert.Empty(revokedCap.Advertisement.AdvertisedCapabilities ?? []);
+
+        var revokedNode = Assert.Single(await router.ListNodesAsync(ownerBrainId, Ct));
+        Assert.Equal(ComputeNodeStatus.Offline, revokedNode.Status);
+        Assert.False(revokedNode.IsEligibleForSovereignCompute);
+        Assert.False(relay.SandboxResults["job-revoked"].Handled);
+        Assert.Equal("consent-disabled", relay.SandboxResults["job-revoked"].Error);
+        Assert.Single(executor.Executed);
+
+        // 3. Re-enable toggle: next tick immediately re-advertises ICodeSandbox and restores Online/Eligible.
+        consentStore.Set(true);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await worker.Tick(Ct);
+
+        Assert.Equal(3, relay.CapabilityRequests.Count);
+        var restoredCap = relay.CapabilityRequests[2];
+        Assert.True(restoredCap.Advertisement.AllowClientCodeSandbox);
+        Assert.True(restoredCap.Advertisement.SandboxReady);
+        Assert.Contains(ICodeSandbox.CapabilityId, restoredCap.Advertisement.AdvertisedCapabilities ?? []);
+
+        var restoredNode = Assert.Single(await router.ListNodesAsync(ownerBrainId, Ct));
+        Assert.Equal(ComputeNodeStatus.Online, restoredNode.Status);
+        Assert.True(restoredNode.IsEligibleForSovereignCompute);
+    }
+
+    // -------------------------------------------------------------------------
     // Test helpers
     // -------------------------------------------------------------------------
 
@@ -567,7 +847,9 @@ public sealed class ConnectedComputeRouterFacts
         ComputeConsentMode consentMode,
         bool sandboxReady,
         DateTimeOffset heartbeatAt,
-        string? thumbprint = null)
+        string? thumbprint = null,
+        bool allowClientCodeSandbox = false,
+        string[]? advertisedCapabilities = null)
         => new(
             MachineId: machineId,
             DeviceName: deviceName,
@@ -577,7 +859,9 @@ public sealed class ConnectedComputeRouterFacts
             OsDescription: "Windows 11 Test",
             MaxConcurrency: 2,
             HeartbeatAt: heartbeatAt,
-            KeyThumbprint: thumbprint);
+            KeyThumbprint: thumbprint,
+            AllowClientCodeSandbox: allowClientCodeSandbox,
+            AdvertisedCapabilities: advertisedCapabilities);
 
     private static ConnectedSandboxRequest NewSandboxRequest(string jobId, string brainId)
         => new(

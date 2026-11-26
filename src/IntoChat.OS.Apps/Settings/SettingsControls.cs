@@ -1,5 +1,6 @@
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Web;
 
 namespace IntoChat.OS.Apps.Settings;
@@ -20,6 +21,8 @@ internal static class SettingsControls
     /// <summary>The brain variable that lists setting keys a brain admin locks (comma-separated): drawn disabled, refused at the child.</summary>
     public const string ManagedVariable = "SETTINGS_MANAGED";
 
+    public const string AllowClientCodeSandbox = ClientComputeConsentPolicy.SettingsToggleKey;
+
     internal sealed record SettingSwitch(string Key, string Section, string Label, Func<SettingsAppState, bool> Get, Func<SettingsAppState, bool, SettingsAppState> Set);
 
     public static IReadOnlyList<SettingSwitch> Toggles { get; } =
@@ -31,6 +34,7 @@ internal static class SettingsControls
         new("notify-jobs", "notifications", "Background jobs & long-running agent completions", s => s.NotifyBackgroundJobs, (s, on) => s with { NotifyBackgroundJobs = on }),
         new("notify-connections", "notifications", "Connection expirations & health probe failures", s => s.NotifyConnectionHealth, (s, on) => s with { NotifyConnectionHealth = on }),
         new("quiet-hours", "notifications", "Quiet hours schedule (22:00 – 07:00)", s => s.QuietHoursEnabled, (s, on) => s with { QuietHoursEnabled = on }),
+        new(AllowClientCodeSandbox, "models", "Connected Client Compute (ICodeSandbox) — run orchestrated code on this device", s => s.AllowClientCodeSandbox, (s, on) => s with { AllowClientCodeSandbox = on }),
     ];
 
     public const string ThemeMode = "theme-mode";

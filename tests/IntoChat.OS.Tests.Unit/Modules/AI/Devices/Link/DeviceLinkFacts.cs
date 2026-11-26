@@ -235,6 +235,107 @@ public sealed class DeviceLinkFacts
         Assert.DoesNotContain(harness.Server.IssuedRefreshToken, inspected!.Value.GetRawText(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SettingAllowClientCodeSandboxAdvertisesAndRevokesICodeSandboxOverP256RelayAndUpdatesRouter()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var harness = await Open(owner: "ada");
+
+        using (harness.AsPerson("ada"))
+        {
+            var joined = await harness.Link.Join(new Uri("https://cloud.test"), Code.New());
+            Assert.Equal(LinkState.Connected, joined.State);
+            Assert.Equal(
+                ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform(),
+                joined.AllowClientCodeSandbox);
+
+            // Disable via owner person -> immediate P-256 signed revocation + router Offline/Ineligible.
+            var disabled = await harness.Link.SetAllowClientCodeSandbox(false);
+            Assert.False(disabled.AllowClientCodeSandbox);
+            Assert.Empty(disabled.AdvertisedCapabilities ?? []);
+        }
+
+        Assert.False(harness.Consent.AllowClientCodeSandbox);
+        var disabledNode = Assert.Single(await harness.Router.ListNodesAsync(new BrainId("ada"), ct));
+        Assert.Equal(ComputeNodeStatus.Offline, disabledNode.Status);
+        Assert.False(disabledNode.AllowClientCodeSandbox);
+        Assert.False(disabledNode.IsEligibleForSovereignCompute);
+
+        var disableReq = Assert.Single(harness.Server.Requests, r => r.Path == DeviceRoutes.ComputeCapability);
+        Assert.Equal("PUT", disableReq.Method);
+        Assert.True(MachineProof.Verify(
+            harness.Server.Spki,
+            disableReq.Header(CircleRoutes.MachineProofHeader),
+            disableReq.Method,
+            disableReq.Url,
+            disableReq.Bearer!,
+            disableReq.At,
+            new NoReplay()).IsValid);
+        var disableAdv = disableReq.Body(DeviceWireJson.Default.ComputeCapabilityAdvertisement);
+        Assert.Equal(ComputeConsentMode.ExplicitToggle, disableAdv.ConsentMode);
+        Assert.False(disableAdv.AllowClientCodeSandbox);
+        Assert.False(disableAdv.SandboxReady);
+        Assert.Empty(disableAdv.AdvertisedCapabilities ?? []);
+
+        // Re-enable via shipped Settings app acting for owner -> immediate P-256 signed ICodeSandbox advertisement.
+        using (harness.AsSettingsApp("ada"))
+        {
+            var enabled = await harness.Link.SetAllowClientCodeSandbox(true);
+            Assert.True(enabled.AllowClientCodeSandbox);
+            Assert.Contains(IntoChat.OS.Modules.Apps.ICodeSandbox.CapabilityId, enabled.AdvertisedCapabilities ?? []);
+        }
+
+        Assert.True(harness.Consent.AllowClientCodeSandbox);
+        var enabledNode = Assert.Single(await harness.Router.ListNodesAsync(new BrainId("ada"), ct));
+        Assert.Equal(ComputeNodeStatus.Online, enabledNode.Status);
+        Assert.True(enabledNode.AllowClientCodeSandbox);
+        Assert.True(enabledNode.AdvertisesCodeSandbox);
+        Assert.True(enabledNode.IsEligibleForSovereignCompute);
+
+        var capRequests = harness.Server.Requests.Where(r => r.Path == DeviceRoutes.ComputeCapability).ToArray();
+        Assert.Equal(2, capRequests.Length);
+        var enableReq = capRequests[1];
+        Assert.True(MachineProof.Verify(
+            harness.Server.Spki,
+            enableReq.Header(CircleRoutes.MachineProofHeader),
+            enableReq.Method,
+            enableReq.Url,
+            enableReq.Bearer!,
+            enableReq.At,
+            new NoReplay()).IsValid);
+        var enableAdv = enableReq.Body(DeviceWireJson.Default.ComputeCapabilityAdvertisement);
+        Assert.Equal(ComputeConsentMode.ExplicitToggle, enableAdv.ConsentMode);
+        Assert.True(enableAdv.AllowClientCodeSandbox);
+        Assert.True(enableAdv.SandboxReady);
+        Assert.Contains(IntoChat.OS.Modules.Apps.ICodeSandbox.CapabilityId, enableAdv.AdvertisedCapabilities ?? []);
+    }
+
+    [Fact]
+    public async Task OnlyOwnerOrSettingsAppMayChangeClientCodeSandboxConsent()
+    {
+        await using var harness = await Open(owner: "ada");
+
+        using (harness.AsApp("ada"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => harness.Link.SetAllowClientCodeSandbox(true));
+        }
+
+        using (harness.AsAgent("ada"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => harness.Link.SetAllowClientCodeSandbox(true));
+        }
+
+        using (harness.AsPerson("eve", brain: "ada"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => harness.Link.SetAllowClientCodeSandbox(true));
+        }
+
+        using (harness.AsPerson("ada", brain: "ben"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => harness.Link.SetAllowClientCodeSandbox(true));
+        }
+    }
+
     private static Task<Harness> Open(string owner)
     {
         TestOS? os = null;
@@ -253,6 +354,8 @@ public sealed class DeviceLinkFacts
         services.AddSingleton(machine);
         services.AddSingleton(credentials);
         services.AddSingleton<TimeProvider>(_ => os!.Clock);
+        services.AddSingleton<IClientCodeSandboxConsent, ClientCodeSandboxConsentStore>();
+        services.AddSingleton<IConnectedComputeRouter>(sp => new ConnectedComputeRouter(clock: sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new CloudClient(http, credentials, sp.GetRequiredService<TimeProvider>()));
         var provider = services.BuildServiceProvider();
 
@@ -283,12 +386,17 @@ public sealed class DeviceLinkFacts
         public string CredentialsFile => credentialsFile;
         public DeviceCredentials Credentials => services.GetRequiredService<DeviceCredentials>();
         public CloudClient Cloud => services.GetRequiredService<CloudClient>();
+        public IConnectedComputeRouter Router => services.GetRequiredService<IConnectedComputeRouter>();
+        public IClientCodeSandboxConsent Consent => services.GetRequiredService<IClientCodeSandboxConsent>();
 
         public IDisposable AsPerson(string account, string? brain = null)
             => TestEdge.Authority.Enter(TestEdge.Authority.Person(account, account, new BrainId(brain ?? account)));
 
         public IDisposable AsApp(string brain)
             => TestEdge.Authority.Enter(TestEdge.Authority.App($"{brain}/apps/test", new Actor.Person(brain, brain), new BrainId(brain)));
+
+        public IDisposable AsSettingsApp(string brain)
+            => TestEdge.Authority.Enter(TestEdge.Authority.App("app.settings", new Actor.Person(brain, brain), new BrainId(brain)));
 
         public IDisposable AsAgent(string brain)
             => TestEdge.Authority.Enter(TestEdge.Authority.Agent(new Actor.Person(brain, brain), new BrainId(brain)));
@@ -389,6 +497,11 @@ public sealed class DeviceLinkFacts
             }
 
             if (url.AbsolutePath == CircleRoutes.Leave)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (url.AbsolutePath == DeviceRoutes.ComputeCapability && request.Method == HttpMethod.Put)
             {
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }

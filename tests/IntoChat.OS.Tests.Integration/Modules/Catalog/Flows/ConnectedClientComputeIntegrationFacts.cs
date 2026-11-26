@@ -68,12 +68,17 @@ public sealed class ConnectedClientComputeIntegrationFacts
         }
         """;
 
-    private static TestOS CreateTestOs(ISandboxRuntimeBridge bridge)
+    private static TestOS CreateTestOs(ISandboxRuntimeBridge bridge, IConnectedComputeRouter? computeRouter = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(new AppPackageCompiler());
         services.AddSingleton<ICodeOrchestrationAstSanitizer, CodeOrchestrationAstSanitizer>();
         services.AddSingleton(bridge);
+        services.AddSingleton<ICodeSandbox>(bridge);
+        if (computeRouter is not null)
+        {
+            services.AddSingleton(computeRouter);
+        }
 
         return TestOS.Local(o => o.Services = services.BuildServiceProvider())
             .Register<CodeOrchestrationSynapse>();
@@ -394,6 +399,154 @@ public sealed class ConnectedClientComputeIntegrationFacts
         Assert.Equal("succeeded", inner.Result!.Status);
         Assert.Equal("Computed 84 inside UnitHost", inner.Result.Summary);
         Assert.Contains(inner.Result.Metrics, m => m.Name == "doubled" && m.Value == 84);
+    }
+
+    [Fact]
+    public async Task CodeOrchestrationSynapseRoutesToExplicitToggleConsentedCodeSandboxClientAndFallsBackWhenRevoked()
+    {
+        var brain = new BrainId("orch-explicit-toggle");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero));
+        var nonces = new HashSetNonceCache();
+
+        // Client-side local sandbox executor.
+        var clientServices = new ServiceCollection();
+        clientServices.AddHttpClient();
+        var clientSandboxOptions = Options.Create(new SandboxOptions
+        {
+            TokenSigningMaterial = "explicit-toggle-client-secret",
+            TokenTtlMinutes = 15,
+        });
+        clientServices.AddSingleton(clientSandboxOptions);
+        clientServices.AddSingleton<AppTokenService>();
+        clientServices.AddSingleton<SdkAiAdapter>();
+        clientServices.AddSingleton<SdkTablesAdapter>();
+        await using var clientProvider = clientServices.BuildServiceProvider();
+
+        await using var clientBridge = new HttpSandboxRuntimeBridge(
+            clientProvider.GetRequiredService<IHttpClientFactory>(),
+            clientSandboxOptions,
+            clientProvider.GetRequiredService<AppTokenService>(),
+            clientProvider,
+            NullLogger<HttpSandboxRuntimeBridge>.Instance);
+
+        var transport = new DirectClientTransport(clientBridge);
+        var router = new ConnectedComputeRouter(clock: clock, transport: transport);
+
+        // Enroll desktop client over P-256 with ExplicitToggle + AllowClientCodeSandbox = true + ICodeSandbox.
+        using var desktopKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var desktopSpki = desktopKey.ExportSubjectPublicKeyInfo();
+        var capUrl = new Uri("https://relay.test" + DeviceRoutes.ComputeCapability);
+        const string deviceAccessToken = "owner-desktop-explicit.access";
+
+        var enableProof = MachineProof.Sign(desktopKey, "PUT", capUrl, deviceAccessToken, clock.GetUtcNow());
+        var enableResult = await router.RecordAuthenticatedHeartbeatAsync(
+            brain,
+            desktopSpki,
+            enableProof,
+            "PUT",
+            capUrl,
+            deviceAccessToken,
+            nonces,
+            new ComputeCapabilityAdvertisement(
+                MachineId: "owner-desktop-explicit",
+                DeviceName: "Owner Desktop (ExplicitToggle)",
+                ConsentMode: ComputeConsentMode.ExplicitToggle,
+                SandboxReady: true,
+                SandboxRuntime: "unit-host",
+                OsDescription: "Windows 11",
+                MaxConcurrency: 2,
+                HeartbeatAt: clock.GetUtcNow(),
+                KeyThumbprint: DeviceKeys.Thumbprint(desktopSpki),
+                AllowClientCodeSandbox: true,
+                AdvertisedCapabilities: [ICodeSandbox.CapabilityId]),
+            Ct);
+        Assert.True(enableResult.IsValid);
+
+        // Server-side sandbox bridge with router attached.
+        var serverServices = new ServiceCollection();
+        serverServices.AddHttpClient();
+        var serverSandboxOptions = Options.Create(new SandboxOptions
+        {
+            TokenSigningMaterial = "explicit-toggle-server-secret",
+            TokenTtlMinutes = 15,
+        });
+        serverServices.AddSingleton(serverSandboxOptions);
+        serverServices.AddSingleton<AppTokenService>();
+        serverServices.AddSingleton<SdkAiAdapter>();
+        serverServices.AddSingleton<SdkTablesAdapter>();
+        await using var serverProvider = serverServices.BuildServiceProvider();
+
+        await using var serverBridge = new HttpSandboxRuntimeBridge(
+            serverProvider.GetRequiredService<IHttpClientFactory>(),
+            serverSandboxOptions,
+            serverProvider.GetRequiredService<AppTokenService>(),
+            serverProvider,
+            NullLogger<HttpSandboxRuntimeBridge>.Instance,
+            router);
+
+        await using var os = CreateTestOs(serverBridge, router);
+
+        // 1. Consented device online -> CodeOrchestrationSynapse routes to connected client.
+        using var caller = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        var firstStarter = os.Get<IFlowStarter>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "run-explicit-consented"));
+        var payloadJson = JsonSerializer.Serialize(new CodeOrchestrationInner
+        {
+            Goal = "Execute script on consented ExplicitToggle client",
+            InputJson = """{"count":30}""",
+            AllowedContracts = ["notifications"],
+            PreauthoredScript = PureComputeScript,
+        }, CodeOrchestrationSynapse.Json);
+
+        await firstStarter.StartFromJson("ExplicitToggle Consented", "owner", null, payloadJson);
+        await os.Idle();
+
+        var firstHead = await firstStarter.Head();
+        Assert.Equal(FlowStatus.Completed, firstHead.Status);
+        var firstInner = JsonSerializer.Deserialize<CodeOrchestrationInner>(firstHead.InnerJson, CodeOrchestrationSynapse.Json)!;
+        Assert.Equal("connected-client", firstInner.ExecutionTarget);
+        Assert.Equal("owner-desktop-explicit", firstInner.ExecutedByMachineId);
+        Assert.Contains(ICodeSandbox.CapabilityId, firstInner.RouteReason ?? string.Empty, StringComparison.Ordinal);
+        Assert.Equal("Computed 60 inside UnitHost", firstInner.Result!.Summary);
+        Assert.Equal(1, transport.ExecuteCount);
+
+        // 2. Client revokes consent toggle over P-256 -> CodeOrchestrationSynapse falls back cleanly to local-unit-host.
+        clock.Advance(TimeSpan.FromSeconds(2));
+        var revokeProof = MachineProof.Sign(desktopKey, "PUT", capUrl, deviceAccessToken, clock.GetUtcNow());
+        var revokeResult = await router.RecordAuthenticatedHeartbeatAsync(
+            brain,
+            desktopSpki,
+            revokeProof,
+            "PUT",
+            capUrl,
+            deviceAccessToken,
+            nonces,
+            new ComputeCapabilityAdvertisement(
+                MachineId: "owner-desktop-explicit",
+                DeviceName: "Owner Desktop (ExplicitToggle)",
+                ConsentMode: ComputeConsentMode.ExplicitToggle,
+                SandboxReady: false,
+                SandboxRuntime: "unit-host",
+                OsDescription: "Windows 11",
+                MaxConcurrency: 2,
+                HeartbeatAt: clock.GetUtcNow(),
+                KeyThumbprint: DeviceKeys.Thumbprint(desktopSpki),
+                AllowClientCodeSandbox: false,
+                AdvertisedCapabilities: []),
+            Ct);
+        Assert.True(revokeResult.IsValid);
+
+        var secondStarter = os.Get<IFlowStarter>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "run-explicit-revoked"));
+        await secondStarter.StartFromJson("ExplicitToggle Revoked Fallback", "owner", null, payloadJson);
+        await os.Idle();
+
+        var secondHead = await secondStarter.Head();
+        Assert.Equal(FlowStatus.Completed, secondHead.Status);
+        var secondInner = JsonSerializer.Deserialize<CodeOrchestrationInner>(secondHead.InnerJson, CodeOrchestrationSynapse.Json)!;
+        Assert.Equal("local-unit-host", secondInner.ExecutionTarget);
+        Assert.Null(secondInner.ExecutedByMachineId);
+        Assert.NotNull(secondInner.RouteReason);
+        Assert.Equal("Computed 60 inside UnitHost", secondInner.Result!.Summary);
+        Assert.Equal(1, transport.ExecuteCount);
     }
 
     // -------------------------------------------------------------------------

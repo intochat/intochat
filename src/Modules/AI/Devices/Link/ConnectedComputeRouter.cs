@@ -37,8 +37,11 @@ internal sealed class RelayConnectedComputeTransport(
 
         return response.Nodes.Any(advertised =>
             string.Equals(advertised.MachineId, node.MachineId, StringComparison.Ordinal)
-            && advertised.SandboxReady
-            && advertised.ConsentMode == ComputeConsentMode.AutoAll);
+            && ClientComputeConsentPolicy.IsEligibleForCodeSandbox(
+                advertised.ConsentMode,
+                advertised.AllowClientCodeSandbox,
+                advertised.SandboxReady,
+                advertised.AdvertisedCapabilities));
     }
 
     public async Task<ConnectedSandboxResponse?> ExecuteAsync(
@@ -64,7 +67,7 @@ internal sealed class RelayConnectedComputeTransport(
 
 /// <summary>
 /// Tracks per-brain connected compute capability advertisements and heartbeats, and routes
-/// Plane 1 code-orchestration sandbox execution to an owner's connected <see cref="ComputeConsentMode.AutoAll"/>
+/// Plane 1 code-orchestration sandbox execution to an owner's consented connected <c>ICodeSandbox</c>
 /// local client with fast (&lt;500 ms) unavailability/disconnect detection and transparent fallback.
 /// </summary>
 internal sealed class ConnectedComputeRouter(
@@ -121,6 +124,11 @@ internal sealed class ConnectedComputeRouter(
         var runtime = string.IsNullOrWhiteSpace(advertisement.SandboxRuntime)
             ? "unit-host"
             : advertisement.SandboxRuntime.Trim();
+        var capabilities = advertisement.AdvertisedCapabilities?
+            .Where(static c => !string.IsNullOrWhiteSpace(c))
+            .Select(static c => c.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
         var tracked = new TrackedComputeNode(
             BrainId: brainId.Value,
@@ -131,6 +139,8 @@ internal sealed class ConnectedComputeRouter(
             SandboxRuntime: runtime,
             LastHeartbeatAt: now,
             KeyThumbprint: advertisement.KeyThumbprint,
+            AllowClientCodeSandbox: advertisement.AllowClientCodeSandbox,
+            AdvertisedCapabilities: capabilities,
             ExplicitlyOffline: false);
 
         brainNodes[tracked.MachineId] = tracked;
@@ -234,12 +244,12 @@ internal sealed class ConnectedComputeRouter(
             return new ComputeRouteDecision(
                 ComputeExecutionTarget.ConnectedClient,
                 eligible,
-                $"Routing sovereign Plane 1 compute to connected AutoAll client '{eligible.DeviceName}' ({eligible.MachineId}).");
+                $"Routing sovereign Plane 1 compute (ICodeSandbox) to connected {eligible.ConsentMode} client '{eligible.DeviceName}' ({eligible.MachineId}).");
         }
 
         var reason = nodes.Length == 0
             ? "No connected compute nodes registered for brain; falling back to cloud or local sandbox."
-            : "No online AutoAll sandbox-ready client available; falling back to cloud or local sandbox.";
+            : "No online consented ICodeSandbox client available; falling back to cloud or local sandbox.";
 
         return new ComputeRouteDecision(ComputeExecutionTarget.CloudSandbox, null, reason);
     }
@@ -417,7 +427,9 @@ internal sealed class ConnectedComputeRouter(
             SandboxRuntime: tracked.SandboxRuntime,
             Status: isOnline ? ComputeNodeStatus.Online : ComputeNodeStatus.Offline,
             LastHeartbeatAt: tracked.LastHeartbeatAt,
-            KeyThumbprint: tracked.KeyThumbprint);
+            KeyThumbprint: tracked.KeyThumbprint,
+            AllowClientCodeSandbox: tracked.AllowClientCodeSandbox,
+            AdvertisedCapabilities: tracked.AdvertisedCapabilities);
     }
 
     private sealed record TrackedComputeNode(
@@ -429,5 +441,7 @@ internal sealed class ConnectedComputeRouter(
         string SandboxRuntime,
         DateTimeOffset LastHeartbeatAt,
         string? KeyThumbprint,
+        bool AllowClientCodeSandbox,
+        string[]? AdvertisedCapabilities,
         bool ExplicitlyOffline);
 }

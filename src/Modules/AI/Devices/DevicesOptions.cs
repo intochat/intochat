@@ -30,7 +30,9 @@ public sealed class AttachedRuntimeOptions
 
 public sealed class ComputeCapabilityOptions
 {
-    public ComputeConsentMode ConsentMode { get; set; } = ComputeConsentMode.AutoAll;
+    public ComputeConsentMode ConsentMode { get; set; } = ComputeConsentMode.ExplicitToggle;
+
+    public bool AllowClientCodeSandbox { get; set; } = ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
 
     public bool SandboxEnabled { get; set; } = true;
 
@@ -41,6 +43,16 @@ public sealed class ComputeCapabilityOptions
     public int HeartbeatTtlSeconds { get; set; } = 45;
 
     public int AvailabilityTimeoutMs { get; set; } = 400;
+
+    public bool IsClientCodeSandboxConsented => IsClientCodeSandboxConsentedWith(AllowClientCodeSandbox);
+
+    public bool IsClientCodeSandboxConsentedWith(bool allowClientCodeSandbox)
+        => SandboxEnabled && ConsentMode switch
+        {
+            ComputeConsentMode.ExplicitToggle => allowClientCodeSandbox,
+            ComputeConsentMode.AutoAll => true,
+            _ => false,
+        };
 }
 
 public sealed partial class DevicesOptions : IModuleOptions
