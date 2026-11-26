@@ -109,20 +109,20 @@ public sealed record Button(
     private Command? LegacyEmit => null;
 #pragma warning restore CA1822
 
-    private readonly UiStyle _style = UiStyle.FromPreset("secondary");
+    private readonly UiStyle _style = UiStyle.FromVariant("secondary");
 
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
     public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 
-    /// <summary>Visual style: either a legacy preset name (<c>primary</c>, <c>secondary</c>, <c>ghost</c>, <c>danger</c>, <c>link</c>) or a structured <see cref="UiStyle"/> authored via <see cref="Mix.Style()"/>.</summary>
+    /// <summary>Visual style: either a legacy variant name (<c>primary</c>, <c>secondary</c>, <c>ghost</c>, <c>danger</c>, <c>link</c>) or a structured <see cref="UiStyle"/> authored via <see cref="Mix.Style()"/>.</summary>
     [JsonIgnore]
     public UiStyle Style
     {
         get => _style;
-        init => _style = value ?? UiStyle.FromPreset("secondary");
+        init => _style = value ?? UiStyle.FromVariant("secondary");
     }
 
-    /// <summary>Wire representation of <see cref="Style"/>: either a preset string or a compact <see cref="UiStyle"/> JSON object.</summary>
+    /// <summary>Wire representation of <see cref="Style"/>: either a variant string or a compact <see cref="UiStyle"/> JSON object.</summary>
     [JsonPropertyName("style")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? StyleWire

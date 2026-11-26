@@ -33,7 +33,7 @@ public sealed class MixStyleFacts
         Assert.Equal(8, style.Gap);
         Assert.Equal(12, style.Radius);
         Assert.Equal(1.0, style.Scale);
-        Assert.False(style.IsPresetOnly);
+        Assert.False(style.IsVariantOnly);
         Assert.True(style.HasStructuredProperties);
 
         Assert.NotNull(style.Hover);
@@ -152,18 +152,18 @@ public sealed class MixStyleFacts
     }
 
     [Fact]
-    public void LegacyStringPresetSerializesAsPlainStringAndRoundTrips()
+    public void LegacyStringVariantSerializesAsPlainStringAndRoundTrips()
     {
-        UiStyle preset = "secondary";
+        UiStyle variant = "secondary";
 
-        Assert.True(preset.IsPresetOnly);
-        Assert.Equal("secondary", preset.Preset);
+        Assert.True(variant.IsVariantOnly);
+        Assert.Equal("secondary", variant.Variant);
 
-        var json = JsonSerializer.Serialize(preset);
+        var json = JsonSerializer.Serialize(variant);
         Assert.Equal("\"secondary\"", json);
 
         var roundTripped = JsonSerializer.Deserialize<UiStyle>(json);
-        Assert.Equal(preset, roundTripped);
+        Assert.Equal(variant, roundTripped);
     }
 
     [Fact]

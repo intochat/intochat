@@ -99,7 +99,7 @@ public enum UiElevation
     Overlay,
 }
 
-/// <summary>Semantic motion curve and duration presets mirrored by <c>UiMotionPreset</c>.</summary>
+/// <summary>Semantic motion curves and durations mirrored by <c>UiMotionPreset</c>.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<UiMotion>))]
 public enum UiMotion
 {
@@ -125,9 +125,9 @@ public static class Mix
     /// <summary>Starts a new empty fluent style builder.</summary>
     public static UiStyleBuilder Style() => UiStyleBuilder.Empty;
 
-    /// <summary>Starts a fluent style builder seeded with a legacy preset name (for example <c>"primary"</c> or <c>"secondary"</c>).</summary>
-    /// <param name="preset">The preset style name.</param>
-    public static UiStyleBuilder Style(string preset) => UiStyle.FromPreset(preset).ToBuilder();
+    /// <summary>Starts a fluent style builder seeded with a legacy variant name (for example <c>"primary"</c> or <c>"secondary"</c>).</summary>
+    /// <param name="variant">The style variant name.</param>
+    public static UiStyleBuilder Style(string variant) => UiStyle.FromVariant(variant).ToBuilder();
 
     /// <summary>Starts a fluent style builder seeded from an existing <see cref="UiStyle"/>.</summary>
     /// <param name="baseStyle">The style to refine.</param>
@@ -164,7 +164,7 @@ public sealed record UiStyleStateOverride
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; init; }
 
-    /// <summary>Optional motion preset override.</summary>
+    /// <summary>Optional motion curve override.</summary>
     [JsonPropertyName("motion")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Motion { get; init; }
@@ -269,10 +269,10 @@ public sealed record UiStyleOverrideBuilder
     /// <summary>Sets the icon slug override.</summary>
     public UiStyleOverrideBuilder Icon(string icon) => new(_state with { Icon = UiStyleWire.RequireToken(icon, nameof(icon)) });
 
-    /// <summary>Sets the motion preset override.</summary>
+    /// <summary>Sets the motion curve override.</summary>
     public UiStyleOverrideBuilder Motion(UiMotion motion) => new(_state with { Motion = UiStyleWire.FormatEnum(motion) });
 
-    /// <summary>Sets the motion preset override by wire name.</summary>
+    /// <summary>Sets the motion curve override by wire name.</summary>
     public UiStyleOverrideBuilder Motion(string motion) => new(_state with { Motion = UiStyleWire.RequireToken(motion, nameof(motion)) });
 
     /// <summary>Sets symmetric horizontal and vertical padding overrides.</summary>
@@ -301,15 +301,15 @@ public sealed record UiStyleOverrideBuilder
     }
 }
 
-/// <summary>Immutable declarative UI style supporting both legacy string presets (for example <c>"secondary"</c>) and structured Mix tokens with hover, press, and focus overrides.</summary>
+/// <summary>Immutable declarative UI style supporting both legacy string variants (for example <c>"secondary"</c>) and structured Mix tokens with hover, press, and focus overrides.</summary>
 [JsonConverter(typeof(UiStyleJsonConverter))]
 public sealed record UiStyle
 {
-    /// <summary>An empty style with no preset or token overrides.</summary>
+    /// <summary>An empty style with no variant or token overrides.</summary>
     public static UiStyle Empty { get; } = new();
 
-    /// <summary>Optional legacy preset style name (for example <c>"primary"</c>, <c>"secondary"</c>, <c>"ghost"</c>, <c>"danger"</c>, <c>"link"</c>).</summary>
-    public string? Preset { get; init; }
+    /// <summary>Optional legacy style variant name (for example <c>"primary"</c>, <c>"secondary"</c>, <c>"ghost"</c>, <c>"danger"</c>, <c>"link"</c>).</summary>
+    public string? Variant { get; init; }
 
     /// <summary>Optional semantic tone wire name.</summary>
     public string? Tone { get; init; }
@@ -323,7 +323,7 @@ public sealed record UiStyle
     /// <summary>Optional icon slug.</summary>
     public string? Icon { get; init; }
 
-    /// <summary>Optional motion preset wire name.</summary>
+    /// <summary>Optional motion curve wire name.</summary>
     public string? Motion { get; init; }
 
     /// <summary>Optional horizontal padding in logical pixels.</summary>
@@ -367,38 +367,38 @@ public sealed record UiStyle
         || (Press is not null && !Press.IsEmpty)
         || (Focus is not null && !Focus.IsEmpty);
 
-    /// <summary>True when this style carries only a plain legacy preset string and no structured Mix properties.</summary>
+    /// <summary>True when this style carries only a plain legacy variant string and no structured Mix properties.</summary>
     [JsonIgnore]
-    public bool IsPresetOnly => Preset is not null && !HasStructuredProperties;
+    public bool IsVariantOnly => Variant is not null && !HasStructuredProperties;
 
-    /// <summary>Creates a legacy preset <see cref="UiStyle"/> (for example <c>"secondary"</c>).</summary>
-    /// <param name="preset">The preset style name.</param>
-    public static UiStyle FromPreset(string preset)
+    /// <summary>Creates a legacy variant <see cref="UiStyle"/> (for example <c>"secondary"</c>).</summary>
+    /// <param name="variant">The style variant name.</param>
+    public static UiStyle FromVariant(string variant)
     {
-        ArgumentNullException.ThrowIfNull(preset);
-        return new UiStyle { Preset = preset };
+        ArgumentNullException.ThrowIfNull(variant);
+        return new UiStyle { Variant = variant };
     }
 
     /// <summary>Creates an immutable fluent builder initialised from this style.</summary>
     public UiStyleBuilder ToBuilder() => new(this);
 
-    /// <summary>Serializes this style to its compact wire <see cref="JsonElement"/> (either a preset string or a style object).</summary>
+    /// <summary>Serializes this style to its compact wire <see cref="JsonElement"/> (either a variant string or a style object).</summary>
     public JsonElement ToWireJsonElement() => JsonSerializer.SerializeToElement(this, UiStyleWire.SerializerOptions);
 
-    /// <summary>Deserializes a wire <see cref="JsonElement"/> (either a preset string or a style object) into a <see cref="UiStyle"/>.</summary>
-    public static UiStyle FromWireJsonElement(JsonElement? element, string fallbackPreset = "secondary")
+    /// <summary>Deserializes a wire <see cref="JsonElement"/> (either a variant string or a style object) into a <see cref="UiStyle"/>.</summary>
+    public static UiStyle FromWireJsonElement(JsonElement? element, string fallbackVariant = "secondary")
     {
         if (element is null || element.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
-            return FromPreset(fallbackPreset);
+            return FromVariant(fallbackVariant);
         }
 
         return JsonSerializer.Deserialize<UiStyle>(element.Value.GetRawText(), UiStyleWire.SerializerOptions)
-            ?? FromPreset(fallbackPreset);
+            ?? FromVariant(fallbackVariant);
     }
 
-    /// <summary>Implicitly converts a plain preset string (such as <c>"secondary"</c>) into a <see cref="UiStyle"/>.</summary>
-    public static implicit operator UiStyle(string preset) => FromPreset(preset);
+    /// <summary>Implicitly converts a plain variant string (such as <c>"secondary"</c>) into a <see cref="UiStyle"/>.</summary>
+    public static implicit operator UiStyle(string variant) => FromVariant(variant);
 
     /// <summary>Implicitly converts a fluent <see cref="UiStyleBuilder"/> into an immutable <see cref="UiStyle"/>.</summary>
     public static implicit operator UiStyle(UiStyleBuilder builder)
@@ -443,10 +443,10 @@ public sealed record UiStyleBuilder
     /// <summary>Sets the icon slug.</summary>
     public UiStyleBuilder Icon(string icon) => new(_style with { Icon = UiStyleWire.RequireToken(icon, nameof(icon)) });
 
-    /// <summary>Sets the motion preset.</summary>
+    /// <summary>Sets the motion curve.</summary>
     public UiStyleBuilder Motion(UiMotion motion) => new(_style with { Motion = UiStyleWire.FormatEnum(motion) });
 
-    /// <summary>Sets the motion preset by wire name.</summary>
+    /// <summary>Sets the motion curve by wire name.</summary>
     public UiStyleBuilder Motion(string motion) => new(_style with { Motion = UiStyleWire.RequireToken(motion, nameof(motion)) });
 
     /// <summary>Sets symmetric horizontal (<paramref name="x"/>) and vertical (<paramref name="y"/>) padding in logical pixels.</summary>
@@ -538,16 +538,16 @@ internal static class UiStyleWire
 
     internal static void WriteStyle(Utf8JsonWriter writer, UiStyle value)
     {
-        if (value.IsPresetOnly)
+        if (value.IsVariantOnly)
         {
-            writer.WriteStringValue(value.Preset);
+            writer.WriteStringValue(value.Variant);
             return;
         }
 
         writer.WriteStartObject();
-        if (value.Preset is not null)
+        if (value.Variant is not null)
         {
-            writer.WriteString("preset", value.Preset);
+            writer.WriteString("variant", value.Variant);
         }
 
         WriteCommonProperties(
@@ -578,7 +578,7 @@ internal static class UiStyleWire
 
         if (reader.TokenType == JsonTokenType.String)
         {
-            return UiStyle.FromPreset(reader.GetString() ?? string.Empty);
+            return UiStyle.FromVariant(reader.GetString() ?? string.Empty);
         }
 
         if (reader.TokenType != JsonTokenType.StartObject)
@@ -586,7 +586,7 @@ internal static class UiStyleWire
             throw new JsonException($"Expected string or object for UiStyle, got {reader.TokenType}.");
         }
 
-        string? preset = null;
+        string? variant = null;
         string? tone = null;
         string? typography = null;
         string? elevation = null;
@@ -607,7 +607,7 @@ internal static class UiStyleWire
             {
                 return new UiStyle
                 {
-                    Preset = preset,
+                    Variant = variant,
                     Tone = tone,
                     Typography = typography,
                     Elevation = elevation,
@@ -633,8 +633,8 @@ internal static class UiStyleWire
             reader.Read();
             switch (name)
             {
-                case "preset":
-                    preset = ReadNullableString(ref reader);
+                case "variant":
+                    variant = ReadNullableString(ref reader);
                     break;
                 case "tone":
                     tone = ReadNullableString(ref reader);
@@ -834,7 +834,7 @@ internal static class UiStyleWire
         reader.TokenType == JsonTokenType.Null ? null : reader.GetDouble();
 }
 
-/// <summary>Serializes <see cref="UiStyle"/> as either a plain preset string or a compact JSON style block.</summary>
+/// <summary>Serializes <see cref="UiStyle"/> as either a plain variant string or a compact JSON style block.</summary>
 public sealed class UiStyleJsonConverter : JsonConverter<UiStyle>
 {
     /// <inheritdoc />

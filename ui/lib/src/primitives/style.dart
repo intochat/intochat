@@ -122,7 +122,8 @@ final class UiStyleData {
 
   factory UiStyleData.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const UiStyleData();
-    final rawTone = json['tone'] ?? _presetToTone(json['preset']);
+    final rawTone =
+        json['tone'] ?? _presetToTone(json['variant'] ?? json['preset']);
     return UiStyleData(
       tone: '${rawTone ?? 'default'}'.trim().toLowerCase(),
       typography: '${json['typography'] ?? 'body'}'.trim().toLowerCase(),
