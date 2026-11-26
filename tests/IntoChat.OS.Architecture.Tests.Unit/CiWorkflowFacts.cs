@@ -43,23 +43,30 @@ public sealed partial class CiWorkflowFacts
         var lint = Job(ci, "lint-and-security");
         Assert.Contains("gitleaks", lint, StringComparison.Ordinal);
 
-        // Single compilation + architecture & unit tiers in build-and-unit job
-        var build = Job(ci, "build-and-unit");
+        // Single compilation job uploads packages, unit-test-artifacts, and compiled-artifacts
+        var build = Job(ci, "build");
         Assert.Contains("dotnet build Intochat.OS.slnx", build, StringComparison.Ordinal);
         Assert.Contains("upload-artifact", build, StringComparison.Ordinal);
-        Assert.Contains(".Architecture.Tests.Unit.dll", build, StringComparison.Ordinal);
-        Assert.Contains(".Tests.Unit.dll", build, StringComparison.Ordinal);
+
+        // Architecture & unit tiers fan out in parallel with integration & E2E against the single build
+        var testUnit = Job(ci, "test-unit");
+        Assert.Contains("build", Needs(testUnit));
+        Assert.Contains("download-artifact", testUnit, StringComparison.Ordinal);
+        Assert.Contains("--test-modules", testUnit, StringComparison.Ordinal);
+        Assert.Contains("--max-parallel-test-modules", testUnit, StringComparison.Ordinal);
+        Assert.Contains(".Architecture.Tests.Unit.dll", testUnit, StringComparison.Ordinal);
+        Assert.Contains(".Tests.Unit.dll", testUnit, StringComparison.Ordinal);
 
         // Integration & E2E test jobs run directly on compiled artifacts via MTP --test-modules
         var testIntegrationOs = Job(ci, "test-integration-os");
-        Assert.Contains("build-and-unit", Needs(testIntegrationOs));
+        Assert.Contains("build", Needs(testIntegrationOs));
         Assert.Contains("--test-modules", testIntegrationOs, StringComparison.Ordinal);
         Assert.Contains("download-artifact", testIntegrationOs, StringComparison.Ordinal);
         Assert.Contains("azurite", testIntegrationOs, StringComparison.Ordinal);
         Assert.Contains("postgres:16", testIntegrationOs, StringComparison.Ordinal);
 
         var testFramework = Job(ci, "test-framework");
-        Assert.Contains("build-and-unit", Needs(testFramework));
+        Assert.Contains("build", Needs(testFramework));
         Assert.Contains("--test-modules", testFramework, StringComparison.Ordinal);
         Assert.Contains("download-artifact", testFramework, StringComparison.Ordinal);
         Assert.Contains("azurite", testFramework, StringComparison.Ordinal);
@@ -67,8 +74,9 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("DigitalBrain.Framework.Tests.E2E.dll", testFramework, StringComparison.Ordinal);
 
         var e2eOs = Job(ci, "e2e-os");
-        Assert.Contains("build-and-unit", Needs(e2eOs));
+        Assert.Contains("build", Needs(e2eOs));
         Assert.Contains("--test-modules", e2eOs, StringComparison.Ordinal);
+        Assert.Contains("INTOCHATOS__KERNEL_BINARY", e2eOs, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.Tests.E2E.dll", e2eOs, StringComparison.Ordinal);
         Assert.DoesNotContain("--filter-trait \"needs=artcraft\"", e2eOs, StringComparison.Ordinal);
 
@@ -81,7 +89,8 @@ public sealed partial class CiWorkflowFacts
         Assert.NotEmpty(needs);
         Assert.Contains("changes", needs);
         Assert.Contains("lint-and-security", needs);
-        Assert.Contains("build-and-unit", needs);
+        Assert.Contains("build", needs);
+        Assert.Contains("test-unit", needs);
         Assert.Contains("test-integration-os", needs);
         Assert.Contains("test-framework", needs);
         Assert.Contains("e2e-os", needs);

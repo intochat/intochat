@@ -47,6 +47,11 @@ public static class OperatingSystemHosting
             : os;
     }
 
+    // When set to a prebuilt IntoChat.OS.Kernel executable (or .dll), AddKernel launches it directly via AddExecutable
+    // instead of invoking `dotnet build` / `dotnet run` through AddDotnetProject.
+    public const string KernelBinaryConfigurationKey = "IntoChatOS:KernelBinary";
+    public const string KernelBinaryEnvironmentVariable = "INTOCHATOS__KERNEL_BINARY";
+
     public static IResourceBuilder<IResourceWithEndpoints>[] AddKernel(this IntoChatOSBuilder os, string projectPath)
     {
         ArgumentNullException.ThrowIfNull(os);
@@ -57,8 +62,11 @@ public static class OperatingSystemHosting
         var builder = os.ApplicationBuilder;
         // Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
+        var kernelBinary = builder.ExecutionContext.IsRunMode ? ResolvePrebuiltKernelBinary(builder) : null;
         var silos = ResourceNames.OsInstances(builder, AspireModuleHosting.Instances).Select(name =>
-            Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)).WithIconName(ResourceNames.OsIcon))).ToArray();
+            kernelBinary is not null
+                ? Primary(AddKernelExecutable(builder, name, kernelBinary, projectPath).WithIconName(ResourceNames.OsIcon))
+                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)).WithIconName(ResourceNames.OsIcon))).ToArray();
         if (profile.FrontEnabled)
         {
             var front = AspireModuleHosting.AddFront(builder, ResourceNames.OsFrontFor(builder), ResourceNames.OsRoleFor(builder), profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
@@ -71,8 +79,9 @@ public static class OperatingSystemHosting
         IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport, IResourceWithArgs
         {
             // TLS negotiates HTTP/2 for the native shell through YARP, while HTTP remains for health and sandbox callbacks.
-            // Projects compose ASPNETCORE_URLS from endpoints; an explicit port variable would be overridden by it.
-            silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource or DotnetProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: true);
+            // Projects and AddKernelExecutable compose ASPNETCORE_URLS from endpoints; an explicit port variable would bind
+            // all interfaces and trip OpenPostureLoopback on local runs.
+            silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource or DotnetProjectResource or ExecutableResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: true);
 #pragma warning disable ASPIRECERTIFICATES001
             silo.WithHttpsDeveloperCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
@@ -104,6 +113,65 @@ public static class OperatingSystemHosting
             silo.WithAllocatedOrleansPorts();
             return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
         }
+    }
+
+    private static IResourceBuilder<ExecutableResource> AddKernelExecutable(
+        IDistributedApplicationBuilder builder,
+        string name,
+        string kernelBinary,
+        string projectPath)
+    {
+        var binaryDir = Path.GetDirectoryName(kernelBinary)
+            ?? throw new InvalidOperationException($"Prebuilt kernel binary '{kernelBinary}' has no parent directory.");
+        var exec = kernelBinary.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+            ? builder.AddExecutable(name, "dotnet", binaryDir, kernelBinary)
+            : builder.AddExecutable(name, kernelBinary, binaryDir);
+        AspireModuleHosting.OnDynamicPorts(exec);
+
+        var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectPath, builder.AppHostDirectory));
+        var contentRoot = !string.IsNullOrWhiteSpace(projectDir) && Directory.Exists(projectDir)
+            ? projectDir
+            : binaryDir;
+        exec.WithEnvironment(AspireModuleHosting.AspNetCoreContentRoot, contentRoot)
+            .WithEnvironment(AspireModuleHosting.DotnetContentRoot, contentRoot)
+            .WithEnvironment("ASPNETCORE_ENVIRONMENT", builder.Environment.EnvironmentName)
+            .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
+            .WithEnvironment(context =>
+            {
+                var http = exec.GetEndpoint("http");
+                var https = exec.GetEndpoint("https");
+                context.EnvironmentVariables["ASPNETCORE_URLS"] =
+                    ReferenceExpression.Create($"http://localhost:{http.Property(EndpointProperty.TargetPort)};https://localhost:{https.Property(EndpointProperty.TargetPort)}");
+            });
+        return exec;
+    }
+
+    private static string? ResolvePrebuiltKernelBinary(IDistributedApplicationBuilder builder)
+    {
+        var configured = builder.Configuration[KernelBinaryConfigurationKey]
+            ?? builder.Configuration["IntoChatOS:KERNEL_BINARY"]
+            ?? Environment.GetEnvironmentVariable(KernelBinaryEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return null;
+        }
+
+        var fullPath = Path.IsPathRooted(configured)
+            ? Path.GetFullPath(configured)
+            : Path.GetFullPath(configured, builder.AppHostDirectory);
+        if (!File.Exists(fullPath) && !Path.IsPathRooted(configured))
+        {
+            var fromCwd = Path.GetFullPath(configured);
+            if (File.Exists(fromCwd))
+            {
+                fullPath = fromCwd;
+            }
+        }
+        return File.Exists(fullPath)
+            ? fullPath
+            : throw new FileNotFoundException(
+                $"Configured prebuilt kernel binary '{configured}' was not found (checked '{fullPath}').",
+                fullPath);
     }
 
     /// <summary>
