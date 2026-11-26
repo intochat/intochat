@@ -129,16 +129,13 @@ public static class ServerHostingExtensions
             // the topology's file and blob stores use the silo serializer, so it is this one, not the JSON default.
             silo.Services.AddSingleton<Orleans.Storage.IGrainStorageSerializer>(static services =>
                 new Orleans.Storage.OrleansGrainStorageSerializer(services.GetRequiredService<Orleans.Serialization.Serializer>()));
-            // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
-            // within minutes, not the default week. Startup connectivity validation stays on; machine silos beat often enough that their own stale rows are skipped (R105).
-            if (builder.Environment.IsDevelopment())
-            {
-                silo.Configure<ClusterMembershipOptions>(membership =>
-                {
-                    membership.DefunctSiloCleanupPeriod = TimeSpan.FromMinutes(1);
-                    membership.DefunctSiloExpiration = TimeSpan.FromMinutes(5);
-                });
-            }
+            // Single-silo hosts run in ACA/cloud where rollouts and crash-restarts must converge fast instead of waiting on
+            // Orleans's multi-node defaults (30s * 3 = 90s IAmAlive miss window, 60s table refresh, 5m join timeout,
+            // 1h cleanup / 7d defunct retention). Startup connectivity validation stays on; tune membership liveness and
+            // defunct-row cleanup for all environments, with an even faster defunct sweep in Development where Aspire restarts
+            // constantly (R105).
+            var isDevelopment = builder.Environment.IsDevelopment();
+            silo.Configure<ClusterMembershipOptions>(membership => ConfigureSingleSiloMembership(membership, isDevelopment));
             silo.Services.AddIntoChatOSClient();
             // Orleans hosting already registers one activity-propagation filter pair. An explicit
             // `silo.AddActivityPropagation()` here registered a second pair and doubled every grain
@@ -311,6 +308,17 @@ public static class ServerHostingExtensions
 
     public static TimeSpan ShutdownTimeout(TimeSpan? drainDelay, TimeSpan deactivationTimeout)
         => (drainDelay is { } delay && delay > TimeSpan.Zero ? delay + HealthProbes.ServerStop : TimeSpan.Zero) + deactivationTimeout + ShutdownMargin;
+
+    public static void ConfigureSingleSiloMembership(ClusterMembershipOptions membership, bool isDevelopment)
+    {
+        ArgumentNullException.ThrowIfNull(membership);
+        membership.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
+        membership.NumMissedTableIAmAliveLimit = 2;
+        membership.TableRefreshTimeout = TimeSpan.FromSeconds(15);
+        membership.MaxJoinAttemptTime = TimeSpan.FromMinutes(2);
+        membership.DefunctSiloCleanupPeriod = isDevelopment ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(5);
+        membership.DefunctSiloExpiration = isDevelopment ? TimeSpan.FromMinutes(5) : TimeSpan.FromHours(1);
+    }
 
     private sealed class ModuleStatusLogger(IReadOnlyList<ModuleStatus> statuses, ILoggerFactory loggers) : IHostedService
     {

@@ -46,13 +46,60 @@ az_stop_revisions() {
   waits="${3:-24}"
   # BEGIN stop_revisions_body
   if az_retry az containerapp show -n "$app" -g "$group" --query name -o tsv >/dev/null 2>&1; then
-    for revision in $(az_retry az containerapp revision list -n "$app" -g "$group" --query "[?properties.active].name" -o tsv); do
+    _deactivated_revs=""
+    _active_revs=$(az_retry az containerapp revision list -n "$app" -g "$group" --query "[?properties.active].name" -o tsv) || {
+      echo "Failed to list active revisions for $app in $group." >&2
+      return 1 2>/dev/null || exit 1
+    }
+    for revision in $_active_revs; do
       if [ -n "$revision" ]; then
-        az_retry az containerapp revision deactivate -n "$app" -g "$group" --revision "$revision" >/dev/null
+        az_retry az containerapp revision deactivate -n "$app" -g "$group" --revision "$revision" >/dev/null || {
+          echo "Failed to deactivate revision $revision of $app in $group." >&2
+          return 1 2>/dev/null || exit 1
+        }
+        _deactivated_revs="${_deactivated_revs}${_deactivated_revs:+ }$revision"
       fi
     done
     i=0
-    while [ $i -lt "$waits" ] && [ -n "$(az_retry az containerapp revision list -n "$app" -g "$group" --query '[?properties.replicas > `0`].name' -o tsv)" ]; do
+    while :; do
+      _nonzero_revs=$(az_retry az containerapp revision list --all -n "$app" -g "$group" --query '[?properties.replicas > `0`].name' -o tsv) || {
+        echo "Failed to list revisions for $app in $group while waiting for replicas to drain." >&2
+        return 1 2>/dev/null || exit 1
+      }
+      _nonzero_list=""
+      for _rev in $_nonzero_revs; do
+        if [ -n "$_rev" ]; then
+          _nonzero_list="${_nonzero_list}${_nonzero_list:+ }$_rev"
+        fi
+      done
+      _check_revs=""
+      for _rev in $_deactivated_revs $_nonzero_list; do
+        if [ -n "$_rev" ]; then
+          case " $_check_revs " in
+            *" $_rev "*) ;;
+            *) _check_revs="${_check_revs}${_check_revs:+ }$_rev" ;;
+          esac
+        fi
+      done
+      _live_replicas=""
+      for _rev in $_check_revs; do
+        _rev_replicas=$(az_retry az containerapp replica list -n "$app" -g "$group" --revision "$_rev" --query '[].name' -o tsv) || {
+          echo "Failed to list replicas for revision $_rev of $app in $group while waiting for replicas to drain." >&2
+          return 1 2>/dev/null || exit 1
+        }
+        for _rep in $_rev_replicas; do
+          if [ -n "$_rep" ]; then
+            _live_replicas="${_live_replicas}${_live_replicas:+ }${_rev}/${_rep}"
+          fi
+        done
+      done
+      if [ -z "$_nonzero_list" ] && [ -z "$_live_replicas" ]; then
+        break
+      fi
+      if [ "$i" -ge "$waits" ]; then
+        echo "Timed out waiting for replicas of $app in $group to stop (revisions with replicas > 0: ${_nonzero_list:-none}; live replicas: ${_live_replicas:-none})." >&2
+        return 1 2>/dev/null || exit 1
+      fi
       sleep 5; i=$((i+1))
     done
   fi

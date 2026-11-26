@@ -352,11 +352,12 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("        type: UserAssigned");
         sb.AppendLine("        userAssignedIdentities:");
         sb.AppendLine($"          - \"{identityResourceId}\"");
+        var targetPort = app.Ingress.TargetPort > 0 ? app.Ingress.TargetPort : app.IngressPort;
         sb.AppendLine("      configuration:");
         sb.AppendLine("        activeRevisionsMode: Single");
         sb.AppendLine("        ingress:");
         sb.AppendLine($"          external: {(app.Ingress.External ? "true" : "false")}");
-        sb.AppendLine($"          targetPort: {(app.Ingress.TargetPort > 0 ? app.Ingress.TargetPort : app.IngressPort)}");
+        sb.AppendLine($"          targetPort: {targetPort}");
         sb.AppendLine("          transport: Auto");
         if (app.InternalPorts.Length > 0)
         {
@@ -389,12 +390,33 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("        scale:");
         sb.AppendLine($"          minReplicas: {minReplicas}");
         sb.AppendLine($"          maxReplicas: {maxReplicas}");
+        if (app.TerminationGracePeriodSeconds >= 0)
+        {
+            sb.AppendLine($"        terminationGracePeriodSeconds: {app.TerminationGracePeriodSeconds}");
+        }
         sb.AppendLine("        containers:");
         sb.AppendLine("          - name: app");
         sb.AppendLine($"            image: \"{app.Image}\"");
         sb.AppendLine("            resources:");
         sb.AppendLine($"              cpu: {app.Cpu.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         sb.AppendLine($"              memory: \"{app.Memory}\"");
+        if (app.ProbePaths.Length > 0)
+        {
+            ReadOnlySpan<string> probeTypes = ["Liveness", "Readiness", "Startup"];
+            sb.AppendLine("            probes:");
+            for (var i = 0; i < app.ProbePaths.Length && i < probeTypes.Length; i++)
+            {
+                var probeType = probeTypes[i];
+                var failureThreshold = string.Equals(probeType, "Startup", StringComparison.Ordinal) ? 30 : 3;
+                sb.AppendLine($"              - type: {probeType}");
+                sb.AppendLine("                httpGet:");
+                sb.AppendLine($"                  path: {YamlQuote(app.ProbePaths[i])}");
+                sb.AppendLine($"                  port: {targetPort}");
+                sb.AppendLine("                  scheme: HTTP");
+                sb.AppendLine("                periodSeconds: 10");
+                sb.AppendLine($"                failureThreshold: {failureThreshold}");
+            }
+        }
         sb.AppendLine("            env:");
         foreach (var (name, value) in app.Variables.OrderBy(p => p.Key, StringComparer.Ordinal))
         {

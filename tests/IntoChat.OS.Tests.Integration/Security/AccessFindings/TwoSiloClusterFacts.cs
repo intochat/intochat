@@ -72,7 +72,8 @@ public sealed class TwoSiloClusterFacts
     }
 
     // The guard: the second silo refuses to become active, with the reason, before Orleans places a grain on it or any
-    // startup task runs; the first silo keeps serving alone.
+    // startup task runs; it marks its own Joining row Dead before throwing so it does not strand a Joining entry, and the
+    // first silo keeps serving alone.
     [Fact]
     public async Task ASecondSilo_RefusesToJoin_AndTheFirstKeepsServing()
     {
@@ -81,13 +82,29 @@ public sealed class TwoSiloClusterFacts
 
         var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            await using var b = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder => Join(builder, primary));
+            await using var b = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+            {
+                Join(builder, primary);
+                builder.Services.Configure<SingleSiloGuardOptions>(options =>
+                {
+                    options.GracePeriod = TimeSpan.FromMilliseconds(200);
+                    options.PollInterval = TimeSpan.FromMilliseconds(50);
+                });
+            });
         });
-        await ForgetTheRefusedSilo(a);
 
         var refusal = Assert.Single(Chain(error), e => e is InvalidOperationException && e.Message.Contains("must be the only silo of its cluster", StringComparison.Ordinal));
         Assert.Contains(primary.ToString(), refusal.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(Chain(error), e => e is UnauthorizedAccessException);
+
+        // Self-cleanup on refusal: refreshing the primary silo's membership snapshot immediately observes the refused
+        // second silo as Dead (no stranded Joining row requiring TryKill or MaxJoinAttemptTime expiry).
+        var aMembership = a.Services.GetRequiredService<IClusterMembershipService>();
+        var aSelf = a.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+        await aMembership.Refresh(default, Ct);
+        var peerEntries = aMembership.CurrentSnapshot.Members.Values.Where(member => !member.SiloAddress.Equals(aSelf)).ToArray();
+        Assert.NotEmpty(peerEntries);
+        Assert.All(peerEntries, peer => Assert.Equal(SiloStatus.Dead, peer.Status));
 
         var management = a.Services.GetRequiredService<IGrainFactory>().GetGrain<IManagementGrain>(0);
         Assert.Single(await management.GetHosts(true, Ct));
