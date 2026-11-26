@@ -57,6 +57,9 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
             return new Candidates.CandidateSlotLeasePool(options.ToSlotPoolOptions());
         });
 
+        services.AddHttpClient(IntoChat.OS.Host.Execution.AcaDynamicSessionsOptions.HttpClientName);
+        services.TryAddSingleton<IntoChat.OS.Host.Execution.IAcaDynamicSessionsTokenProvider, IntoChat.OS.Host.Execution.ManagedIdentityAcaTokenProvider>();
+
         var modeValue = configuration.GetSection(ModuleConfiguration.ModuleOptionsSection(ManifestName))[nameof(AspireOptions.CandidateHostMode)];
         var parsedMode = Enum.TryParse<CandidateHostMode>(modeValue, ignoreCase: true, out var hostMode)
             ? hostMode
@@ -68,6 +71,9 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
                 break;
             case CandidateHostMode.AgentDevSlots:
                 services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AgentDevSlotsCandidateHost>();
+                break;
+            case CandidateHostMode.AcaDynamicSessions:
+                services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AcaDynamicSessionsCandidateHost>();
                 break;
             default:
                 services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
