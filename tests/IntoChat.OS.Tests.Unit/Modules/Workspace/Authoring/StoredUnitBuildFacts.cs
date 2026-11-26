@@ -117,7 +117,7 @@ public sealed class StoredUnitBuildFacts
             [UnitFiles.Scenarios] = JsonSerializer.Serialize(new[] { scenario }, JsonSerializerOptions.Web),
         };
         IUnitVerifier verifier = new UnitVerifier();
-        Assert.Equal("IntoChat.OS.Modules.Catalog", verifier.GetType().Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Modules.Workspace", verifier.GetType().Assembly.GetName().Name);
 
         var check = await verifier.Verify(stored.SourceKey, files, [scenario], Ct);
         Assert.True(check.Passed, string.Join("\n", check.Diagnostics.Select(d => $"{d.File}({d.Line}) {d.Id}: {d.Message}").Concat(check.Failures)));

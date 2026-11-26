@@ -124,20 +124,20 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.Equal("true", pinningElement.Value.Trim(), ignoreCase: true);
     }
 
-    // The simulation runtime is the deploy gate of generated units (their scenarios run on it). Unit authoring (folded into
-    // Catalog in Wave C2) owns that gate, so Catalog references DigitalBrain.Simulation and never references test harnesses.
+    // The simulation runtime is the deploy gate of generated units (their scenarios run on it). Unit authoring (now hosted
+    // in Workspace after Wave D) owns that gate, so Workspace references DigitalBrain.Simulation and never references test harnesses.
     [Fact]
     public void T1_F03_TC01_AuthoringModuleCsproj_ReferencesDigitalBrainSimulation_AndTheCatalogDoesNot()
     {
-        Assert.True(References("IntoChat.OS.Modules.Catalog.csproj", "DigitalBrain.Simulation"),
-            "IntoChat.OS.Modules.Catalog.csproj (which hosts unit authoring) must reference DigitalBrain.Simulation.");
+        Assert.True(References("IntoChat.OS.Modules.Workspace.csproj", "DigitalBrain.Simulation"),
+            "IntoChat.OS.Modules.Workspace.csproj (which hosts unit authoring) must reference DigitalBrain.Simulation.");
     }
 
     [Fact]
     public void T1_F03_TC02_AppsModuleCsproj_DoesNotReferenceDigitalBrainTesting()
     {
-        Assert.False(References("IntoChat.OS.Modules.Catalog.csproj", "DigitalBrain.Testing", "DigitalBrain.Testing.Silo"),
-            "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
+        Assert.False(References("IntoChat.OS.Modules.Workspace.csproj", "DigitalBrain.Testing", "DigitalBrain.Testing.Silo"),
+            "IntoChat.OS.Modules.Workspace.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
     }
 
     private static bool References(string projectFile, params string[] names)

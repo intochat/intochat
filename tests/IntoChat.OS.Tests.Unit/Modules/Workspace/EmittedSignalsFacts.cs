@@ -59,7 +59,7 @@ public sealed partial class EmittedSignalsFacts
 
     private static IEnumerable<(string File, string Source)> Sources(string root)
         => Directory.EnumerateFiles(ProjectDirectory(root, "IntoChat.OS.Apps"), "*.cs", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(ProjectDirectory(root, "IntoChat.OS.Modules.Catalog"), "*.cs", SearchOption.AllDirectories))
+            .Concat(Directory.EnumerateFiles(ProjectDirectory(root, "IntoChat.OS.Modules.Workspace"), "*.cs", SearchOption.AllDirectories))
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             // Shipped unit sources (Units/) are synapse units: their view commands their own state alias.
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}Units{Path.DirectorySeparatorChar}", StringComparison.Ordinal))

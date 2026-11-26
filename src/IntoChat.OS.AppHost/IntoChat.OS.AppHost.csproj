@@ -25,9 +25,8 @@
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../Modules/Workspace/IntoChat.OS.Modules.Workspace.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>

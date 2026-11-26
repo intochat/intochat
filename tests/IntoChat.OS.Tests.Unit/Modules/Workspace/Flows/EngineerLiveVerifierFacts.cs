@@ -6,10 +6,10 @@ namespace IntoChat.OS.Modules.Apps.Tests.Unit.Flows;
 public sealed class EngineerLiveVerifierFacts : IDisposable
 {
     private static readonly string Apps = SolutionPaths.Directory("IntoChat.OS.Apps");
-    private static readonly string Catalog = SolutionPaths.Directory("IntoChat.OS.Modules.Catalog");
+    private static readonly string Workspace = SolutionPaths.Directory("IntoChat.OS.Modules.Workspace");
     private static readonly string Aspire = SolutionPaths.Directory("IntoChat.Aspire");
     private static readonly string AppHost = SolutionPaths.Directory("IntoChat.OS.AppHost");
-    private static readonly string Devices = SolutionPaths.Directory("IntoChat.OS.Modules.Devices");
+    private static readonly string Ai = SolutionPaths.Directory("IntoChat.OS.Modules.AI");
     private static readonly string Ui = SolutionPaths.Directory("IntoChat.OS.UI");
 
     private readonly string _worktree;
@@ -87,8 +87,8 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     [Fact]
     public void AChangeToAModuleStillPlansAListOfItsModule()
         => Assert.Equal(
-            [new EngineerVerificationCall("module.devices", "neurons_list", "ok")],
-            EngineerLiveVerifier.DeriveVerificationPlan([$"{Devices}/DevicesModule.cs"]).McpCalls);
+            [new EngineerVerificationCall("module.ai", "neurons_list", "ok")],
+            EngineerLiveVerifier.DeriveVerificationPlan([$"{Ai}/Devices/DevicesModule.cs"]).McpCalls);
 
     [Fact]
     public void AChangeToTheUiKitIsAUiChange()
@@ -194,7 +194,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
         var report = await localSpanVerifier.VerifyLiveAsync(
             _worktree,
             "Verify local OTel error span fails verification",
-            [Catalog + "/Flows/EngineerFlow.cs"],
+            [Workspace + "/Flows/EngineerFlow.cs"],
             new EngineerLiveContext(TraceId: "trace-err-span"),
             Ct);
 

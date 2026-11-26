@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
@@ -19,8 +19,7 @@
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../../src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
-    <ProjectReference Include="../../src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../../src/Modules/Workspace/IntoChat.OS.Modules.Workspace.csproj" />
     <ProjectReference Include="../../src/Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
     <ProjectReference Include="../../src/Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />

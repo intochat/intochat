@@ -206,8 +206,8 @@ public sealed partial class ModelPolicyFacts
 
         var aiDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\AI", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/AI", StringComparison.OrdinalIgnoreCase));
         var appsDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase));
-        var catalogDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Catalog", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Catalog", StringComparison.OrdinalIgnoreCase));
-        var authoringDir = Path.Combine(catalogDir, "Authoring");
+        var workspaceDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Workspace", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Workspace", StringComparison.OrdinalIgnoreCase));
+        var authoringDir = Path.Combine(workspaceDir, "Authoring");
         var contractsDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Contracts", StringComparison.OrdinalIgnoreCase));
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
         var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
@@ -220,11 +220,11 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(aiDir, "Clients"),
             Path.Combine(appsDir, "Ino"),
             Path.Combine(appsDir, "Settings"),
-            Path.Combine(catalogDir, "Ino"),
+            Path.Combine(workspaceDir, "Ino"),
             authoringDir,
             Path.Combine(contractsDir, "Catalog", "System"),
-            Path.Combine(catalogDir, "System"),
-            Path.Combine(catalogDir, "Flows", "LocalLlmCoder.cs"),
+            Path.Combine(workspaceDir, "System"),
+            Path.Combine(workspaceDir, "Flows", "LocalLlmCoder.cs"),
             Path.Combine(appHostDir, "AppHost.cs"),
             Path.Combine(appHostDir, "Hosting", "Composition", "AIDeployment.cs"),
             Path.Combine(appHostDir, "Hosting", "Composition", "DeploymentProfile.cs"),

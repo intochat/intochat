@@ -66,7 +66,6 @@ public sealed partial class TestTierRules
         [
             "IntoChat.OS.Modules.Plugins",
             "IntoChat.OS.Modules.AI",
-            "IntoChat.OS.Modules.Shell",
         ];
         var found = new List<string>();
         foreach (var project in Repository.Projects.Values)
