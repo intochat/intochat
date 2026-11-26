@@ -13,7 +13,6 @@ public sealed partial class NoSignalLoopFacts
     [
         "IntoChat.OS/Runtime/Watch/Sources.cs",
         "IntoChat.OS.Modules.AI/Voice/ConversationChatClient.cs",
-        "IntoChat.OS.Modules.Workspace/Shell/Workspace/LiveSignalEndpoints.cs",
         "IntoChat.OS.Modules.Workspace/Authoring/Creator/AgentPrompts.cs",
     ];
 
