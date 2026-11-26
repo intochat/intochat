@@ -9,6 +9,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Identity.Local.Machine;
+using IntoChat.OS.Modules.LocalDisk;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -23,10 +24,11 @@ internal sealed record WindowsConnectionState : ConnectionState
 // to the allowed roots, read fresh on every call.
 [DigitalBrain.Neurons.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
-    MachineId thisMachine, WindowsStorageCoordinator coordinator, IOperations operations,
+    MachineId thisMachine, ConfinedDiskCoordinator coordinator, IOperations operations,
     IConfirmations? confirmations = null, IStorageWriteAuthorizer? authorizer = null)
     : ConnectionNeuron<WindowsConnectionState>, IWindows, IStorage, IStorageUpload
 {
+    private ConfinedDiskStorage? _storage;
     private StorageUploadSessions? _uploads;
 
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(
@@ -54,8 +56,13 @@ internal sealed class WindowsNeuron(
         });
     }
 
-    // storage@1: the same allowed roots, read fresh on every call, through WindowsStorage.
-    private WindowsStorage Storage => new(Snapshot.Roots, operations: operations, currentRoots: () => Snapshot.Roots, coordinator: coordinator);
+    // storage@1: the same allowed roots, read fresh on every call, through ConfinedDiskStorage.
+    private ConfinedDiskStorage Storage => _storage ??= new(
+        () => [.. Snapshot.Roots.Select(LocalRoot.FromPath)],
+        operations,
+        DriveVolumeSource.Instance,
+        coordinator,
+        ConfinedDiskShape.Windows);
     private StorageUploadSessions Uploads => _uploads ??= new(() => Storage, UploadCaller, Context.Time);
 
     private string UploadCaller() => DigitalBrain.Access.UploadScope.Of(Context.Caller);

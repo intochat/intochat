@@ -74,11 +74,11 @@ public sealed class LocalDiskRootFacts
         using var temp = new DigitalBrain.Testing.TempDirectory("localdisk-quota-");
         var folder = PathConfinement.Normalize(temp.Path);
         var rootId = Guid.NewGuid().ToString("N");
-        var storage = new LocalDiskStorage([new LocalRoot(rootId, folder)]);
+        var storage = new ConfinedDiskStorage([new LocalRoot(rootId, folder)]);
         var targetFolder = LocalItemId.Of(rootId, "");
         var plan = new WritePlan(WriteKind.WriteFile, Source: null, TargetFolder: targetFolder, Name: "huge.bin", Conflict: ConflictPolicy.Overwrite);
 
-        Assert.Equal(64L * 1024 * 1024, LocalDiskStorage.MaxWriteBytes);
+        Assert.Equal(64L * 1024 * 1024, ConfinedDiskStorage.MaxWriteBytes);
         await using var writer = await storage.OpenWrite(plan, TestContext.Current.CancellationToken);
         var chunk = new byte[1024 * 1024];
         for (var i = 0; i < 64; i++)
@@ -88,6 +88,36 @@ public sealed class LocalDiskRootFacts
 
         await Assert.ThrowsAsync<QuotaExceeded>(async () => await writer.Content.WriteAsync(new byte[] { 1 }, TestContext.Current.CancellationToken));
         await writer.Abort(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task DynamicRootSupplierReflectsAddedAndRevokedRootsWithoutRebuildingEngine()
+    {
+        using var first = new DigitalBrain.Testing.TempDirectory("confined-dyn-a-");
+        using var second = new DigitalBrain.Testing.TempDirectory("confined-dyn-b-");
+        var rootA = PathConfinement.Normalize(first.Path);
+        var rootB = PathConfinement.Normalize(second.Path);
+        var fileA = Path.Combine(rootA, "a.txt");
+        var fileB = Path.Combine(rootB, "b.txt");
+        await File.WriteAllTextAsync(fileA, "alpha", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(fileB, "beta", TestContext.Current.CancellationToken);
+
+        var current = new List<LocalRoot> { LocalRoot.FromPath(rootA) };
+        var storage = new ConfinedDiskStorage(() => [.. current], shape: ConfinedDiskShape.Windows);
+
+        var idA = WindowsPathIdCodec.Of(fileA);
+        var idB = WindowsPathIdCodec.Of(fileB);
+        Assert.StartsWith("w:", idA.Value);
+        Assert.Equal("a.txt", (await storage.Stat(idA, TestContext.Current.CancellationToken)).Name);
+        await Assert.ThrowsAsync<Denied>(() => storage.Stat(idB, TestContext.Current.CancellationToken));
+
+        // Add rootB dynamically without recreating the engine.
+        current.Add(LocalRoot.FromPath(rootB));
+        Assert.Equal("b.txt", (await storage.Stat(idB, TestContext.Current.CancellationToken)).Name);
+
+        // Revoke rootA dynamically; existing w: ItemId is immediately Denied.
+        current.RemoveAt(0);
+        await Assert.ThrowsAsync<Denied>(() => storage.Stat(idA, TestContext.Current.CancellationToken));
     }
 }
 

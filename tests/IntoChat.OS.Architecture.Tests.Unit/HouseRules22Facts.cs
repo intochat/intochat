@@ -720,7 +720,6 @@ public sealed class HouseRules22Facts
             ("IntoChat.OS.Modules.Roslyn", "CodeGraphService.cs"),
             ("IntoChat.OS.Modules.Workspace", "ViewportNeuron.cs"),
             ("IntoChat.OS.Modules.Workspace", "WorkspaceNeuron.cs"),
-            ("IntoChat.OS.Modules.Infrastructure", "WindowsStorageWrites.cs"),
         };
         var offenders = new List<string>();
         foreach (var src in ProductionSources.Value)
@@ -1467,8 +1466,8 @@ public sealed class HouseRules22Facts
             "IGrantsNeuron",
             // Module-internal external SDK / OS / hardware / Orleans grain facets
             "IVolumeSource",
+            "IItemIdCodec",
             "IWindowsFolderSignals",
-            "IVolumeProbe",
             "ISalesforceProvider",
             "IAudioConverter",
             "IVoiceClients",

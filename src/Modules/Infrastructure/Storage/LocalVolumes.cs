@@ -50,11 +50,11 @@ internal static class LocalVolumes
         {
             VolumeRow? volume;
             try { volume = source.ForPath(root); }
-            catch (IOException) { return Quota.Unknown; }
-            catch (UnauthorizedAccessException) { return Quota.Unknown; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+            { return Quota.Unknown; }
             if (volume is null) { return Quota.Unknown; }
             if (!seen.Add(volume.Name)) { continue; }
-            var one = QuotaFor(root, source);
+            var one = QuotaOf(volume);
             if (one.State != QuotaState.Known || one.Used is not { } u || one.Total is not { } t) { return Quota.Unknown; }
             try { checked { used += u; total += t; } }
             catch (OverflowException) { return Quota.Unknown; }
@@ -66,15 +66,16 @@ internal static class LocalVolumes
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentNullException.ThrowIfNull(source);
-        try
-        {
-            var volume = source.ForPath(root);
-            if (volume is null || !Include(volume) || !volume.IsReady || volume.DriveType == DriveType.Network) { return Quota.Unknown; }
-            if (volume.TotalSize <= 0 || volume.AvailableFreeSpace < 0 || volume.AvailableFreeSpace > volume.TotalSize) { return Quota.Unknown; }
-            return Quota.Known(volume.TotalSize - volume.AvailableFreeSpace, volume.TotalSize);
-        }
-        catch (IOException) { return Quota.Unknown; }
-        catch (UnauthorizedAccessException) { return Quota.Unknown; }
+        try { return QuotaOf(source.ForPath(root)); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+        { return Quota.Unknown; }
+    }
+
+    private static Quota QuotaOf(VolumeRow? volume)
+    {
+        if (volume is null || !Include(volume) || !volume.IsReady || volume.DriveType == DriveType.Network) { return Quota.Unknown; }
+        if (volume.TotalSize <= 0 || volume.AvailableFreeSpace < 0 || volume.AvailableFreeSpace > volume.TotalSize) { return Quota.Unknown; }
+        return Quota.Known(volume.TotalSize - volume.AvailableFreeSpace, volume.TotalSize);
     }
 }
 

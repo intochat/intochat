@@ -25,10 +25,10 @@ public sealed class LocalDiskHardeningFacts
         try
         {
             var rootId = Guid.NewGuid().ToString("N");
-            var coordinator = new LocalDiskCoordinator();
+            var coordinator = new ConfinedDiskCoordinator();
             // Two engines, as the neuron builds one per call.
-            var first = new LocalDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
-            var second = new LocalDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
+            var first = new ConfinedDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
+            var second = new ConfinedDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
             var plan = WritePlan.WriteFile(LocalItemId.Of(rootId, ""), "same.txt", ReadOnlyMemory<byte>.Empty, ConflictPolicy.Overwrite) with { Inline = null };
 
             await using var a = await first.OpenWrite(plan, Ct);
@@ -39,7 +39,7 @@ public sealed class LocalDiskHardeningFacts
             _ = await b.Commit(Ct);
 
             Assert.Equal("second", await File.ReadAllTextAsync(Path.Combine(folder, "same.txt"), Ct));
-            Assert.Empty(Directory.EnumerateFiles(folder, "*" + LocalDiskStorage.PartialSuffix, SearchOption.AllDirectories));
+            Assert.Empty(Directory.EnumerateFiles(folder, "*" + ConfinedDiskStorage.PartialSuffix, SearchOption.AllDirectories));
         }
         finally { Delete(folder); }
     }
@@ -51,9 +51,9 @@ public sealed class LocalDiskHardeningFacts
         try
         {
             var rootId = Guid.NewGuid().ToString("N");
-            var coordinator = new LocalDiskCoordinator();
-            var first = new LocalDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
-            var second = new LocalDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
+            var coordinator = new ConfinedDiskCoordinator();
+            var first = new ConfinedDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
+            var second = new ConfinedDiskStorage([new LocalRoot(rootId, folder)], coordinator: coordinator);
             var plan = WritePlan.WriteFile(LocalItemId.Of(rootId, ""), "note.txt", ReadOnlyMemory<byte>.Empty, ConflictPolicy.Rename) with { Inline = null };
 
             await using var a = await first.OpenWrite(plan, Ct);
@@ -73,7 +73,7 @@ public sealed class LocalDiskHardeningFacts
     public async Task TheQuotaCountsEveryVolumeTheRootsAreOn()
     {
         var volumes = new TwoVolumes();
-        var storage = new LocalDiskStorage([new LocalRoot("c", @"C:\work"), new LocalRoot("d", @"D:\data")], volumes: volumes);
+        var storage = new ConfinedDiskStorage([new LocalRoot("c", @"C:\work"), new LocalRoot("d", @"D:\data")], volumes: volumes);
 
         var described = await storage.Describe(Ct);
 
@@ -85,7 +85,7 @@ public sealed class LocalDiskHardeningFacts
     [Fact]
     public async Task TwoRootsOnOneVolumeCountItOnce()
     {
-        var storage = new LocalDiskStorage([new LocalRoot("c", @"C:\work"), new LocalRoot("c2", @"C:\other")], volumes: new TwoVolumes());
+        var storage = new ConfinedDiskStorage([new LocalRoot("c", @"C:\work"), new LocalRoot("c2", @"C:\other")], volumes: new TwoVolumes());
 
         var described = await storage.Describe(Ct);
 
@@ -138,7 +138,7 @@ public sealed class LocalDiskHardeningFacts
     {
         var services = new ServiceCollection()
             .AddSingleton<IOperations>(new InMemoryOperations())
-            .AddSingleton(new LocalDiskCoordinator())
+            .AddSingleton(new ConfinedDiskCoordinator())
             .BuildServiceProvider();
         return TestOS.Local(o => o.Services = services).Register<LocalDiskNeuron>();
     }

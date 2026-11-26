@@ -108,10 +108,10 @@ public sealed class WorkspaceConsumersFacts : IDisposable
     private TestOS Host()
     {
         var os = TestOS.Local();
-        os.With<IStorage>("alice/old-local-disk-backup/main", new LocalDiskStorage([new LocalRoot("decoy", _decoy)], new InMemoryOperations(), coordinator: new LocalDiskCoordinator()));
-        os.With<IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), new LocalDiskStorage([new LocalRoot(LocalCloudNeuron.RootId, _workspace)], new InMemoryOperations(), coordinator: new LocalDiskCoordinator(),
-            shape: new LocalDiskShape("Workspace", "local-cloud", null, WorkspaceNames.IsHiddenOrSecretSegment)));
-        os.With<IStorage>(InoFilesNeuron.LocalDiskKey(Brain), new LocalDiskStorage([new LocalRoot("documents", _documents)], new InMemoryOperations(), coordinator: new LocalDiskCoordinator()));
+        os.With<IStorage>("alice/old-local-disk-backup/main", new ConfinedDiskStorage([new LocalRoot("decoy", _decoy)], new InMemoryOperations(), coordinator: new ConfinedDiskCoordinator()));
+        os.With<IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), new ConfinedDiskStorage([new LocalRoot(LocalCloudNeuron.RootId, _workspace)], new InMemoryOperations(), coordinator: new ConfinedDiskCoordinator(),
+            shape: ConfinedDiskShape.Workspace(null, WorkspaceNames.IsHiddenOrSecretSegment)));
+        os.With<IStorage>(InoFilesNeuron.LocalDiskKey(Brain), new ConfinedDiskStorage([new LocalRoot("documents", _documents)], new InMemoryOperations(), coordinator: new ConfinedDiskCoordinator()));
         return os;
     }
 

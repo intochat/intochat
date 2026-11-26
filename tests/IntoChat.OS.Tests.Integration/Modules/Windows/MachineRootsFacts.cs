@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using IntoChat.OS.Modules.LocalDisk;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 
@@ -12,9 +13,9 @@ public sealed class MachineRootsFacts
         var root = Directory.CreateTempSubdirectory("windows-confine").FullName;
         try
         {
-            var storage = new WindowsStorage([PathConfinement.Normalize(root)], new WindowsStorageCoordinator());
+            var storage = new ConfinedDiskStorage([LocalRoot.FromPath(PathConfinement.Normalize(root))], coordinator: new ConfinedDiskCoordinator(), shape: ConfinedDiskShape.Windows);
             var outside = Path.Combine(Directory.GetParent(root)!.FullName, "escape.txt");
-            var error = await Assert.ThrowsAsync<Denied>(() => storage.List(WindowsStorage.IdOf(outside), new ListQuery(null, 10), TestContext.Current.CancellationToken));
+            var error = await Assert.ThrowsAsync<Denied>(() => storage.List(WindowsPathIdCodec.Of(outside), new ListQuery(null, 10), TestContext.Current.CancellationToken));
             Assert.IsType<ConfinementDenied>(error.InnerException);
             Assert.Equal(ConfinementDenied.FixedMessage, error.InnerException.Message);
         }

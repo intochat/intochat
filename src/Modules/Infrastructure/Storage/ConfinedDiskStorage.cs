@@ -10,88 +10,157 @@ using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
-internal sealed record LocalRoot(string Id, string Path);
-
-// What one storage built on this engine differs in: the brain's workspace has a label of its own, a size cap counted on disk,
-// and names it never shows (dot files and secrets); the local disk has none of these.
-internal sealed record LocalDiskShape(string Label, string Kind, long? MaxStorageBytes = null, Func<string, bool>? HiddenName = null)
+internal sealed record LocalRoot(string Id, string Path)
 {
-    internal static LocalDiskShape ThisComputer { get; } = new("This computer", "local-disk");
+    internal static LocalRoot FromPath(string path) => new(path, path);
 }
 
-// storage@1 for allowed folders on this computer. Item ids are ld: plus root id and a relative path.
-// Access recording belongs to the runtime broker, not this type.
-internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperations? operations = null, IVolumeSource? volumes = null,
-    LocalDiskCoordinator? coordinator = null, LocalDiskShape? shape = null) : IStorage
+// What one confined-disk storage differs in: label/kind, item id wire codec (ld: vs w:), trash folder name,
+// optional disk-usage cap and hidden-name filter (brain workspace), ETag emission, and search traversal bounds.
+internal sealed record ConfinedDiskShape(
+    string Label,
+    string Kind,
+    IItemIdCodec? Codec = null,
+    string TrashFolderName = ConfinedDiskStorage.DefaultTrashName,
+    long? MaxStorageBytes = null,
+    Func<string, bool>? HiddenName = null,
+    bool IncludeETag = false,
+    int? SearchDepth = 6,
+    int? SearchCap = 500)
 {
-    internal const string TrashName = ".localdisk-trash";
+    internal static ConfinedDiskShape ThisComputer { get; } = new("This computer", "local-disk");
+
+    internal static ConfinedDiskShape Windows { get; } = new(
+        Label: "This PC",
+        Kind: "windows",
+        Codec: WindowsPathIdCodec.Instance,
+        TrashFolderName: ".intochat-trash",
+        IncludeETag: true,
+        SearchDepth: null,
+        SearchCap: null);
+
+    internal static ConfinedDiskShape Workspace(long? maxStorageBytes, Func<string, bool>? hiddenName)
+        => new("Workspace", CloudModule.WorkspaceNeuronType, MaxStorageBytes: maxStorageBytes, HiddenName: hiddenName);
+}
+
+// Canonical confined-disk storage@1 engine shared by local-disk, local-cloud (brain workspace), and windows PC storage.
+// Access recording belongs to the runtime broker, not this type.
+internal sealed class ConfinedDiskStorage : IStorage
+{
+    internal const string DefaultTrashName = ".localdisk-trash";
     internal const string PartialSuffix = ".intochat-partial";
     internal const long MaxWriteBytes = 64L * 1024 * 1024;
-    private readonly LocalDiskShape _shape = shape ?? LocalDiskShape.ThisComputer;
-    private const int SearchDepth = 6;
-    private const int SearchCap = 500;
     private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder
         | ItemFlags.Copy | ItemFlags.Move | ItemFlags.Rename | ItemFlags.Trash | ItemFlags.Delete;
 
-    // The neuron builds an engine per call, so the gate is the host's coordinator, per root folder. An engine made without
-    // one (a test of the engine alone) serializes its own commits.
-    private readonly SemaphoreSlim _ownGate = new(1, 1);
     private static readonly StringComparison PathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-    private string[] Paths => [.. roots.Select(root => root.Path)];
+    private readonly Func<IReadOnlyList<LocalRoot>> _roots;
+    private readonly IOperations? _operations;
+    private readonly IVolumeSource _volumes;
+    private readonly ConfinedDiskCoordinator? _coordinator;
+    private readonly ConfinedDiskShape _shape;
+    private readonly IItemIdCodec _codec;
+
+    // Neurons share the host's coordinator, per root folder. An engine made without one (a test of the engine alone)
+    // serializes its own commits.
+    private readonly SemaphoreSlim _ownGate = new(1, 1);
+
+    internal ConfinedDiskStorage(
+        Func<IReadOnlyList<LocalRoot>> currentRoots,
+        IOperations? operations = null,
+        IVolumeSource? volumes = null,
+        ConfinedDiskCoordinator? coordinator = null,
+        ConfinedDiskShape? shape = null)
+    {
+        _roots = currentRoots ?? throw new ArgumentNullException(nameof(currentRoots));
+        _operations = operations;
+        _volumes = volumes ?? DriveVolumeSource.Instance;
+        _coordinator = coordinator;
+        _shape = shape ?? ConfinedDiskShape.ThisComputer;
+        _codec = _shape.Codec ?? LocalDiskIdCodec.Instance;
+    }
+
+    internal ConfinedDiskStorage(
+        IReadOnlyList<LocalRoot> roots,
+        IOperations? operations = null,
+        IVolumeSource? volumes = null,
+        ConfinedDiskCoordinator? coordinator = null,
+        ConfinedDiskShape? shape = null)
+        : this(() => roots, operations, volumes, coordinator, shape)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+    }
+
+    private IReadOnlyList<LocalRoot> CurrentRoots() => _roots();
 
     public Task<StorageDescriptor> Describe(CancellationToken ct = default)
     {
+        var roots = CurrentRoots();
         var quota = _shape.MaxStorageBytes is { } max
-            ? Quota.Known(Math.Min(UsedBytes(), max), max)
-            : LocalVolumes.QuotaFor([.. roots.Select(root => root.Path)], volumes ?? DriveVolumeSource.Instance);
+            ? Quota.Known(Math.Min(UsedBytes(roots), max), max)
+            : LocalVolumes.QuotaFor([.. roots.Select(root => root.Path)], _volumes);
         return Task.FromResult(new StorageDescriptor(_shape.Label, _shape.Kind, quota, Offered));
     }
 
     public Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<Item>>([.. roots.Where(root => Directory.Exists(root.Path)).Select(root => ItemOf(root, ""))]);
+    {
+        var roots = CurrentRoots();
+        return Task.FromResult<IReadOnlyList<Item>>([.. roots.Where(root => Directory.Exists(root.Path)).Select(root => ItemOf(root, ""))]);
+    }
 
     public Task<Page<Item>> List(ItemId folder, ListQuery query, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var path = Full(folder);
+        var roots = CurrentRoots();
+        var (root, path) = Full(roots, folder);
         return Task.FromResult(Guard(folder, () =>
         {
             if (!Directory.Exists(path)) { throw File.Exists(path) ? new Unsupported(folder) : new NotFound(folder); }
             ct.ThrowIfCancellationRequested();
-            var items = new DirectoryInfo(path).EnumerateFileSystemInfos().Where(entry => Visible(entry.Name)).Select(ItemOf);
+            var items = new DirectoryInfo(path).EnumerateFileSystemInfos()
+                .Where(entry => Visible(entry.Name) && !entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                .Select(entry => ItemOf(roots, root, entry));
             return Cut(Sorted(items, query.Sort, query.Descending), query.Cursor, query.PageSize);
         }));
     }
 
     public Task<Item> Stat(ItemId id, CancellationToken ct = default)
     {
-        var path = Full(id);
+        var roots = CurrentRoots();
+        var (root, path) = Full(roots, id);
         return Task.FromResult(Guard(id, () =>
-            Directory.Exists(path) ? ItemOf(new DirectoryInfo(path))
-            : File.Exists(path) ? ItemOf(new FileInfo(path))
+            Directory.Exists(path) ? ItemOf(roots, root, new DirectoryInfo(path))
+            : File.Exists(path) ? ItemOf(roots, root, new FileInfo(path))
             : throw new NotFound(id)));
     }
 
     public async Task<Content> Read(ItemId id, ByteRange? range, CancellationToken ct = default)
     {
+        var roots = CurrentRoots();
+        var (_, path) = Full(roots, id);
         await using var stream = await OpenRead(id, range, ct).ConfigureAwait(false);
         using var buffer = new MemoryStream();
         await stream.Content.CopyToAsync(buffer, ct).ConfigureAwait(false);
-        return new Content(buffer.ToArray(), stream.ContentType, new FileInfo(Full(id)).Length);
+        return new Content(buffer.ToArray(), stream.ContentType, new FileInfo(path).Length);
     }
 
     public Task<Page<Item>> Search(SearchQuery query, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var starts = query.Within is { } within ? [Full(within)] : roots.Select(root => root.Path).Where(Directory.Exists).ToArray();
+        var roots = CurrentRoots();
+        var starts = query.Within is { } within
+            ? [Full(roots, within)]
+            : roots.Where(root => Directory.Exists(root.Path)).Select(root => (Root: root, FullPath: root.Path)).ToArray();
         return Task.FromResult(Guard(query.Within, () =>
         {
             var found = new List<Item>();
-            foreach (var start in starts)
+            var visited = new HashSet<string>(PathComparer);
+            foreach (var (root, startPath) in starts)
             {
-                Walk(start, RelativeOf(start), 0, query.Text, found, ct);
-                if (found.Count >= SearchCap) { break; }
+                Walk(roots, root, startPath, Relative(root.Path, startPath), 0, query.Text, visited, found, ct);
+                if (_shape.SearchCap is { } cap && found.Count >= cap) { break; }
             }
             return Cut(Sorted(found, DigitalBrain.Capabilities.Storage.SortKey.FolderThenName, descending: false), query.Cursor, query.PageSize);
         }));
@@ -99,12 +168,13 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
 
     public Task<IReadOnlyList<Item>> Ancestors(ItemId id, CancellationToken ct = default)
     {
-        var path = Full(id);
+        var roots = CurrentRoots();
+        var (root, path) = Full(roots, id);
         return Task.FromResult(Guard(id, () =>
         {
             if (!Directory.Exists(path) && !File.Exists(path)) { throw new NotFound(id); }
-            var (rootId, relative) = LocalItemId.Read(id);
-            var root = Root(rootId);
+            var relative = Relative(root.Path, path);
+            if (relative.Length == 0) { return []; }
             var chain = new List<Item> { ItemOf(root, "") };
             var parts = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var walked = "";
@@ -113,25 +183,27 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
                 walked = walked.Length == 0 ? parts[index] : walked + "/" + parts[index];
                 chain.Add(ItemOf(root, walked));
             }
-            return relative.Length == 0 ? [] : (IReadOnlyList<Item>)chain;
+            return (IReadOnlyList<Item>)chain;
         }));
     }
 
     public Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default)
     {
-        var path = Full(item);
+        var roots = CurrentRoots();
+        var (_, path) = Full(roots, item);
         return Task.FromResult(Guard(item, () =>
         {
             if (Directory.Exists(path)) { throw new Unsupported(item); }
             var file = new FileInfo(path);
             if (!file.Exists) { throw new NotFound(item); }
-            Recheck(path, item);
+            Recheck(roots, path, item);
             var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
             var offset = Math.Min(range?.Offset ?? 0, file.Length);
             var length = range?.Length is { } wanted ? Math.Min(wanted, file.Length - offset) : file.Length - offset;
             stream.Seek(offset, SeekOrigin.Begin);
             Stream content = range is null ? stream : new BoundedStream(stream, length);
-            return new StorageReadStream(content, length, ContentType(path), null, canSeek: stream.CanSeek, file.LastWriteTimeUtc);
+            var etag = _shape.IncludeETag ? ETag(file) : null;
+            return new StorageReadStream(content, length, ContentType(path), etag, canSeek: range is null && stream.CanSeek, file.LastWriteTimeUtc);
         }));
     }
 
@@ -139,8 +211,8 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     {
         ArgumentNullException.ThrowIfNull(plan);
         ct.ThrowIfCancellationRequested();
-        var host = operations ?? throw new InvalidOperationException("Local disk writes need the host's operations.");
-        var operation = await host.Start(new LocalDiskOperation(plan with { Inline = null }, plan.Inline?.Length,
+        var host = _operations ?? throw new InvalidOperationException("Confined disk writes need the host's operations.");
+        var operation = await host.Start(new ConfinedDiskOperation(plan with { Inline = null }, plan.Inline?.Length,
             plan.Inline is { } bytes ? Convert.ToHexStringLower(SHA256.HashData(bytes.Span)) : null), ct).ConfigureAwait(false);
         _ = Task.Run(() => CompleteWrite(plan, operation, ct), CancellationToken.None);
         return operation.Id;
@@ -151,15 +223,16 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         ArgumentNullException.ThrowIfNull(plan);
         ct.ThrowIfCancellationRequested();
         if (plan.Kind != WriteKind.WriteFile || plan.DryRun) { throw new Unsupported(plan.TargetFolder); }
+        var roots = CurrentRoots();
         return Task.FromResult(Guard(plan.TargetFolder, () =>
         {
-            var destination = Prepare(plan).Destination ?? throw new Unsupported(plan.TargetFolder);
+            var destination = Prepare(roots, plan).Destination ?? throw new Unsupported(plan.TargetFolder);
             destination = Place(destination, plan.Conflict, source: null, plan.TargetFolder);
             var stage = Partial(destination);
-            Recheck(destination, plan.TargetFolder);
+            Recheck(roots, destination, plan.TargetFolder);
             PathConfinement.RequireNoLinks(Path.GetDirectoryName(destination)!);
             var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
-            return (StorageWriteStream)new WriteHandle(this, plan, stage, destination, new BoundedWriteStream(stream, MaxWriteBytes, plan.TargetFolder));
+            return (StorageWriteStream)new WriteHandle(this, plan, stage, new BoundedWriteStream(stream, MaxWriteBytes, plan.TargetFolder));
         }));
     }
 
@@ -171,7 +244,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         try
         {
             ct.ThrowIfCancellationRequested();
-            var prepared = Prepare(plan);
+            _ = Prepare(CurrentRoots(), plan);
             if (plan.DryRun) { result = new OperationResult.Planned([plan.Kind.ToString()]); }
             else
             {
@@ -184,31 +257,32 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { result = new OperationResult.Cancelled(); }
         catch (StorageException error) { result = new OperationResult.Failed(error.Code, error.Message); }
         catch (UnauthorizedAccessException) { result = new OperationResult.Failed("denied", "Storage access was denied."); }
-        catch (IOException) { result = new OperationResult.Failed("unavailable", "The storage change could not be completed."); }
+        catch (IOException error) { result = new OperationResult.Failed(IoCode(error), "The storage change could not be completed."); }
         catch (ArgumentException) { result = new OperationResult.Failed("invalid-plan", "The storage plan is invalid."); }
         await operation.Complete(result).ConfigureAwait(false);
     }
 
-    private (string? Source, string? Destination) Prepare(WritePlan plan)
+    private (string? Source, string? Destination) Prepare(IReadOnlyList<LocalRoot> roots, WritePlan plan)
     {
         if (!Enum.IsDefined(plan.Kind) || !Enum.IsDefined(plan.Conflict)) { throw new Unsupported(plan.Source); }
-        string? source = plan.Source is { } item ? Full(item) : null;
+        string? source = plan.Source is { } item ? Full(roots, item).FullPath : null;
         if (source is not null)
         {
             if (!Exists(source)) { throw new NotFound(plan.Source); }
-            if (IsRoot(source)) { throw new Denied(plan.Source); }
+            if (IsRoot(roots, source)) { throw new Denied(plan.Source); }
             PathConfinement.RequireNoLinks(source);
         }
         string? destination = plan.Kind switch
         {
-            WriteKind.CreateFolder or WriteKind.WriteFile => Path.Combine(Folder(plan.TargetFolder), Safe(plan.Name)),
-            WriteKind.Copy or WriteKind.Move => source is null ? throw new Unsupported(null) : Path.Combine(Folder(plan.TargetFolder), Path.GetFileName(source)),
+            WriteKind.CreateFolder or WriteKind.WriteFile => Path.Combine(Folder(roots, plan.TargetFolder), Safe(plan.Name)),
+            WriteKind.Copy or WriteKind.Move => source is null ? throw new Unsupported(null) : Path.Combine(Folder(roots, plan.TargetFolder), Path.GetFileName(source)),
             WriteKind.Rename => source is null ? throw new Unsupported(null) : Path.Combine(Path.GetDirectoryName(source)!, Safe(plan.Name)),
-            _ => null,
+            WriteKind.Delete => source is null ? throw new Unsupported(null) : null,
+            _ => throw new Unsupported(plan.Source),
         };
         if (destination is not null)
         {
-            Recheck(destination, plan.TargetFolder ?? plan.Source);
+            Recheck(roots, destination, plan.TargetFolder ?? plan.Source);
             if (source is not null && plan.Kind is WriteKind.Move or WriteKind.Copy && Under(source, destination)) { throw new Denied(plan.Source); }
         }
         return (source, destination);
@@ -220,60 +294,69 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         {
             if (plan.Inline is not { } content) { throw new Unsupported(plan.TargetFolder); }
             if (content.Length > MaxWriteBytes) { throw new QuotaExceeded(plan.TargetFolder); }
-            RequireRoom(content.Length, replaced: 0, plan.TargetFolder);
+            RequireRoom(CurrentRoots(), content.Length, replaced: 0, plan.TargetFolder);
             await using var writer = await OpenWrite(plan, ct).ConfigureAwait(false);
             await writer.Content.WriteAsync(content, ct).ConfigureAwait(false);
             _ = await writer.Commit(ct).ConfigureAwait(false);
             return;
         }
-        using var held = await Hold([plan.Source, plan.TargetFolder], ct).ConfigureAwait(false);
+        using var held = await Hold(CurrentRoots(), [plan.Source, plan.TargetFolder], ct).ConfigureAwait(false);
+        var roots = CurrentRoots();
+        var (source, destination) = Prepare(roots, plan);
+        ct.ThrowIfCancellationRequested();
+        if (plan.Kind == WriteKind.Delete)
         {
-            var (source, destination) = Prepare(plan);
-            ct.ThrowIfCancellationRequested();
-            if (plan.Kind == WriteKind.Delete)
-            {
-                if (plan.Permanent) { DeletePath(source!); }
-                else { Trash(source!); }
-                return;
-            }
-            destination = Place(destination!, plan.Conflict, plan.Kind is WriteKind.Move or WriteKind.Rename ? source : null, plan.Source ?? plan.TargetFolder);
-            if (plan.Kind == WriteKind.CreateFolder)
-            {
-                Directory.CreateDirectory(destination);
-                return;
-            }
-            if (plan.Kind == WriteKind.Copy)
-            {
-                RequireRoom(SizeOf(source!), replaced: 0, plan.TargetFolder);
-                CopyPath(source!, destination);
-                return;
-            }
-            MovePath(source!, destination, plan.Conflict == ConflictPolicy.Overwrite);
+            if (plan.Permanent) { DeletePath(source!); }
+            else { Trash(roots, source!); }
+            return;
         }
+        if (source is not null && plan.Kind is WriteKind.Move or WriteKind.Rename && string.Equals(source, destination, PathComparison))
+        {
+            if (string.Equals(source, destination, StringComparison.Ordinal)) { return; }
+            var intermediate = Partial(source);
+            MovePath(source, intermediate, overwrite: false);
+            try { MovePath(intermediate, destination!, overwrite: false); }
+            catch { MovePath(intermediate, source, overwrite: false); throw; }
+            return;
+        }
+        destination = Place(destination!, plan.Conflict, plan.Kind is WriteKind.Move or WriteKind.Rename ? source : null, plan.Source ?? plan.TargetFolder);
+        if (plan.Kind == WriteKind.CreateFolder)
+        {
+            Directory.CreateDirectory(destination);
+            return;
+        }
+        if (plan.Kind == WriteKind.Copy)
+        {
+            RequireRoom(roots, SizeOf(source!), replaced: 0, plan.TargetFolder);
+            CopyPath(source!, destination, plan.Conflict == ConflictPolicy.Overwrite);
+            return;
+        }
+        MovePath(source!, destination, plan.Conflict == ConflictPolicy.Overwrite);
     }
 
-    private async Task<ItemId> Commit(string stage, string destination, WritePlan plan, CancellationToken ct)
+    private async Task<ItemId> Commit(string stage, WritePlan plan, CancellationToken ct)
     {
-        using var held = await Hold([plan.TargetFolder], ct).ConfigureAwait(false);
-        {
-            ct.ThrowIfCancellationRequested();
-            destination = Place(destination, plan.Conflict, source: null, plan.TargetFolder);
-            Recheck(destination, plan.TargetFolder);
-            var overwrite = plan.Conflict == ConflictPolicy.Overwrite;
-            if (!overwrite && Exists(destination)) { throw new Conflict(plan.TargetFolder); }
-            RequireRoom(new FileInfo(stage).Length, File.Exists(destination) ? new FileInfo(destination).Length : 0, plan.TargetFolder);
-            File.Move(stage, destination, overwrite);
-            var root = RootContaining(destination);
-            return LocalItemId.Of(root.Id, Relative(root.Path, destination));
-        }
+        using var held = await Hold(CurrentRoots(), [plan.TargetFolder], ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        var roots = CurrentRoots();
+        var baseDestination = Prepare(roots, plan).Destination ?? throw new Unsupported(plan.TargetFolder);
+        var destination = Place(baseDestination, plan.Conflict, source: null, plan.TargetFolder);
+        Recheck(roots, destination, plan.TargetFolder);
+        var overwrite = plan.Conflict == ConflictPolicy.Overwrite;
+        if (!overwrite && Exists(destination)) { throw new Conflict(plan.TargetFolder); }
+        if (Directory.Exists(destination)) { throw new Conflict(plan.TargetFolder); }
+        RequireRoom(roots, new FileInfo(stage).Length, File.Exists(destination) ? new FileInfo(destination).Length : 0, plan.TargetFolder);
+        Guard(plan.TargetFolder, () => { File.Move(stage, destination, overwrite); return true; });
+        var root = RootContaining(roots, destination);
+        return _codec.Encode(root, destination);
     }
 
     // Takes the gates of the roots the items are in, in one order, so two plans over two roots cannot wait on each other.
-    private async Task<Held> Hold(ItemId?[] items, CancellationToken ct)
+    private async Task<Held> Hold(IReadOnlyList<LocalRoot> roots, ItemId?[] items, CancellationToken ct)
     {
         var folders = items.OfType<ItemId>()
-            .Select(item => Root(LocalItemId.Read(item).RootId).Path)
-            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .Select(item => _codec.Resolve(item, roots).Root.Path)
+            .Distinct(PathComparer)
             .Order(StringComparer.Ordinal)
             .ToArray();
         var taken = new List<SemaphoreSlim>(folders.Length);
@@ -281,7 +364,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         {
             foreach (var folder in folders)
             {
-                var gate = coordinator?.GateFor(folder) ?? _ownGate;
+                var gate = _coordinator?.GateFor(folder) ?? _ownGate;
                 await gate.WaitAsync(ct).ConfigureAwait(false);
                 taken.Add(gate);
             }
@@ -302,55 +385,30 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         }
     }
 
-    private string Full(ItemId id)
+    private (LocalRoot Root, string FullPath) Full(IReadOnlyList<LocalRoot> roots, ItemId id)
     {
-        var (rootId, relative) = LocalItemId.Read(id);
-        var root = Root(rootId);
-        string combined;
-        if (relative.Length == 0)
+        var (root, full) = _codec.Resolve(id, roots);
+        if (IsPrivateOrHidden(root.Path, full, out var isPrivate))
         {
-            combined = root.Path;
+            throw isPrivate ? new Denied(id) : new NotFound(id);
         }
-        else
-        {
-            if (!SafeRelativePath.TryParse(relative, out var safeRel))
-            {
-                throw new Denied(id);
-            }
-            try
-            {
-                combined = safeRel.ResolveUnder(root.Path);
-            }
-            catch (InvalidOperationException error)
-            {
-                throw new Denied(id, error);
-            }
-        }
-        try
-        {
-            var full = PathConfinement.Resolve(Paths, combined);
-            if (!Under(root.Path, full)) { throw new Denied(id); }
-            if (Hidden(root.Path, full)) { throw new NotFound(id); }
-            return full;
-        }
-        catch (ConfinementDenied error) { throw new Denied(id, error); }
-        catch (UnauthorizedAccessException error) { throw new Denied(id, error); }
+        return (root, full);
     }
 
-    private void Recheck(string path, ItemId? id)
+    private static void Recheck(IReadOnlyList<LocalRoot> roots, string path, ItemId? id)
     {
         try
         {
-            var full = PathConfinement.Resolve(Paths, path);
+            var full = PathConfinement.Resolve([.. roots.Select(root => root.Path)], path);
             if (roots.All(root => !Under(root.Path, full))) { throw new Denied(id); }
         }
         catch (ConfinementDenied error) { throw new Denied(id, error); }
     }
 
-    private string Folder(ItemId? id)
+    private string Folder(IReadOnlyList<LocalRoot> roots, ItemId? id)
     {
         if (id is not { } folder) { throw new Unsupported(null); }
-        var path = Full(folder);
+        var (_, path) = Full(roots, folder);
         if (!Directory.Exists(path)) { throw Exists(path) ? new Unsupported(id) : new NotFound(id); }
         return path;
     }
@@ -359,11 +417,17 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     {
         if (string.IsNullOrWhiteSpace(name) || !SafeRelativePath.TryParse(name, out var safe) || safe.Value.Contains('/'))
         { throw new ArgumentException("The storage plan is invalid."); }
-        if (name.EndsWith(PartialSuffix, PathComparison) || name.Equals(TrashName, PathComparison) || _shape.HiddenName?.Invoke(name) == true) { throw new Denied(null); }
+        if (name.EndsWith(PartialSuffix, PathComparison)
+            || name.Equals(_shape.TrashFolderName, PathComparison)
+            || _shape.HiddenName?.Invoke(name) == true
+            || name.EndsWith('.')
+            || name.EndsWith(' ')
+            || name.Any(static c => c < 32 || "<>:\"/\\|?*".Contains(c, StringComparison.Ordinal)))
+        { throw new Denied(null); }
         return safe.Value;
     }
 
-    private string Place(string destination, ConflictPolicy policy, string? source, ItemId? id)
+    private static string Place(string destination, ConflictPolicy policy, string? source, ItemId? id)
     {
         if (source is not null && string.Equals(source, destination, PathComparison)) { return destination; }
         if (!Exists(destination)) { return destination; }
@@ -380,10 +444,11 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         throw new Conflict(id);
     }
 
-    private void Trash(string source)
+    private void Trash(IReadOnlyList<LocalRoot> roots, string source)
     {
-        var root = RootContaining(source);
-        var trash = Path.Combine(root.Path, TrashName);
+        var root = RootContaining(roots, source);
+        var trash = Path.Combine(root.Path, _shape.TrashFolderName);
+        PathConfinement.RequireNoLinks(trash);
         Directory.CreateDirectory(trash);
         var target = Path.Combine(trash, Guid.NewGuid().ToString("N") + "-" + Path.GetFileName(source));
         MovePath(source, target, overwrite: false);
@@ -395,13 +460,16 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         else if (File.Exists(path)) { File.Delete(path); }
     }
 
-    private static void CopyPath(string source, string destination)
+    private static void CopyPath(string source, string destination, bool overwrite)
     {
+        PathConfinement.RequireNoLinks(source);
+        if (overwrite && Exists(destination) && !string.Equals(source, destination, PathComparison)) { DeletePath(destination); }
         if (File.Exists(source)) { File.Copy(source, destination, overwrite: false); return; }
         Directory.CreateDirectory(destination);
         foreach (var entry in new DirectoryInfo(source).EnumerateFileSystemInfos())
         {
-            CopyPath(entry.FullName, Path.Combine(destination, entry.Name));
+            if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint)) { continue; }
+            CopyPath(entry.FullName, Path.Combine(destination, entry.Name), overwrite: false);
         }
     }
 
@@ -416,10 +484,13 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     private static string Partial(string destination)
         => Path.Combine(Path.GetDirectoryName(destination)!, "." + Path.GetFileName(destination) + "." + Guid.NewGuid().ToString("N")[..12] + PartialSuffix);
 
-    private void Walk(string directory, string relative, int depth, string text, List<Item> found, CancellationToken ct)
+    private void Walk(IReadOnlyList<LocalRoot> roots, LocalRoot root, string directory, string relative, int depth, string text, HashSet<string> visited, List<Item> found, CancellationToken ct)
     {
-        if (depth > SearchDepth || found.Count >= SearchCap) { return; }
+        if (_shape.SearchDepth is { } maxDepth && depth > maxDepth) { return; }
+        if (_shape.SearchCap is { } cap && found.Count >= cap) { return; }
         ct.ThrowIfCancellationRequested();
+        if (!visited.Add(directory)) { return; }
+        Recheck(roots, directory, null);
         IEnumerable<FileSystemInfo> entries;
         try { entries = new DirectoryInfo(directory).EnumerateFileSystemInfos().ToList(); }
         catch (UnauthorizedAccessException) { return; }
@@ -429,25 +500,26 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             if (!Visible(entry.Name) || entry.Attributes.HasFlag(FileAttributes.ReparsePoint)) { continue; }
             ct.ThrowIfCancellationRequested();
             var child = relative.Length == 0 ? entry.Name : relative + "/" + entry.Name;
-            if (entry.Name.Contains(text, StringComparison.OrdinalIgnoreCase) && found.Count < SearchCap)
+            if (entry.Name.Contains(text, StringComparison.OrdinalIgnoreCase) && (_shape.SearchCap is not { } limit || found.Count < limit))
             {
-                var root = RootContaining(entry.FullName);
                 found.Add(ItemOf(root, child));
             }
-            if (entry is DirectoryInfo && depth < SearchDepth) { Walk(entry.FullName, child, depth + 1, text, found, ct); }
+            if (entry is DirectoryInfo && (_shape.SearchDepth is not { } depthLimit || depth < depthLimit))
+            {
+                Walk(roots, root, entry.FullName, child, depth + 1, text, visited, found, ct);
+            }
         }
     }
 
-    private Item ItemOf(FileSystemInfo entry)
+    private Item ItemOf(IReadOnlyList<LocalRoot> roots, LocalRoot root, FileSystemInfo entry)
     {
-        var root = RootContaining(entry.FullName);
-        var relative = Relative(root.Path, entry.FullName);
         var folder = entry is DirectoryInfo;
         var flags = folder
-            ? IsRoot(entry.FullName) ? ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder : Offered
+            ? IsRoot(roots, entry.FullName) ? ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder : Offered
             : Offered & ~(ItemFlags.Search | ItemFlags.CreateFolder);
         long? size = entry is FileInfo file ? file.Length : null;
-        return new Item(LocalItemId.Of(root.Id, relative), entry.Name, folder ? ItemKind.Folder : ItemKind.File, size, entry.LastWriteTimeUtc, flags);
+        var name = folder ? Name(entry.FullName) : entry.Name;
+        return new Item(_codec.Encode(root, entry.FullName), name, folder ? ItemKind.Folder : ItemKind.File, size, entry.LastWriteTimeUtc, flags);
     }
 
     private Item ItemOf(LocalRoot root, string relative)
@@ -460,23 +532,27 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         long? size = !folder && File.Exists(path) ? new FileInfo(path).Length : null;
         DateTimeOffset? modified = Directory.Exists(path) || File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
         var name = relative.Length == 0 ? Name(root.Path) : Path.GetFileName(path);
-        return new Item(LocalItemId.Of(root.Id, relative), name, folder ? ItemKind.Folder : ItemKind.File, size, modified, flags);
+        return new Item(_codec.Encode(root, path), name, folder ? ItemKind.Folder : ItemKind.File, size, modified, flags);
     }
 
-    private string RelativeOf(string full)
+    internal static LocalRoot RootContaining(IReadOnlyList<LocalRoot> roots, string full)
     {
-        var root = RootContaining(full);
-        return Relative(root.Path, full);
+        LocalRoot? best = null;
+        foreach (var root in roots)
+        {
+            if (!Under(root.Path, full)) { continue; }
+            if (best is null || root.Path.Length > best.Path.Length) { best = root; }
+        }
+        return best ?? throw new Denied(null);
     }
 
-    private LocalRoot Root(string rootId) => roots.FirstOrDefault(root => root.Id == rootId) ?? throw new NotFound(null);
+    private static bool IsRoot(IReadOnlyList<LocalRoot> roots, string path)
+    {
+        var normalized = PathConfinement.Normalize(path);
+        return roots.Any(root => string.Equals(PathConfinement.Normalize(root.Path), normalized, PathComparison));
+    }
 
-    private LocalRoot RootContaining(string full)
-        => roots.FirstOrDefault(root => Under(root.Path, full)) ?? throw new Denied(null);
-
-    private bool IsRoot(string path) => roots.Any(root => string.Equals(root.Path, PathConfinement.Normalize(path), PathComparison));
-
-    private static bool Under(string root, string full)
+    internal static bool Under(string root, string full)
     {
         if (string.Equals(root, full, PathComparison)) { return true; }
         var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
@@ -484,26 +560,31 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     }
 
     // Only the segments under the root count: the root's own path may hold a dot folder (a home folder such as .intochat).
-    private bool Hidden(string root, string full)
+    private bool IsPrivateOrHidden(string root, string full, out bool isPrivate)
     {
         foreach (var part in Relative(root, full).Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (!Visible(part)) { return true; }
+            if (IsPrivateName(part)) { isPrivate = true; return true; }
+            if (_shape.HiddenName?.Invoke(part) == true) { isPrivate = false; return true; }
         }
+        isPrivate = false;
         return false;
     }
 
+    private bool IsPrivateName(string name)
+        => name.Equals(_shape.TrashFolderName, PathComparison) || name.EndsWith(PartialSuffix, PathComparison);
+
     private bool Visible(string name)
-        => !name.Equals(TrashName, PathComparison) && !name.EndsWith(PartialSuffix, PathComparison) && _shape.HiddenName?.Invoke(name) != true;
+        => !IsPrivateName(name) && _shape.HiddenName?.Invoke(name) != true;
 
     // The cap counts what is on disk under the roots, the trash included (it is still the brain's bytes).
-    private void RequireRoom(long adding, long replaced, ItemId? id)
+    private void RequireRoom(IReadOnlyList<LocalRoot> roots, long adding, long replaced, ItemId? id)
     {
         if (_shape.MaxStorageBytes is not { } max) { return; }
-        if (UsedBytes() - replaced + adding > max) { throw new QuotaExceeded(id); }
+        if (UsedBytes(roots) - replaced + adding > max) { throw new QuotaExceeded(id); }
     }
 
-    private long UsedBytes()
+    private static long UsedBytes(IReadOnlyList<LocalRoot> roots)
     {
         long used = 0;
         foreach (var root in roots.Where(root => Directory.Exists(root.Path)))
@@ -528,7 +609,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         return SafeRelativePath.Parse(relative).ResolveUnder(root);
     }
 
-    private static string Relative(string root, string full)
+    internal static string Relative(string root, string full)
     {
         if (string.Equals(root, full, PathComparison)) { return ""; }
         var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
@@ -538,6 +619,8 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
 
     private static string Name(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;
 
+    private static string ETag(FileInfo file) => string.Create(CultureInfo.InvariantCulture, $"{file.LastWriteTimeUtc.Ticks:x}-{file.Length:x}");
+
     private static string ContentType(string path) => Path.GetExtension(path).ToUpperInvariant() switch
     {
         ".TXT" or ".LOG" or ".MD" or ".CSV" => "text/plain",
@@ -546,6 +629,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         ".PDF" => "application/pdf",
         ".PNG" => "image/png",
         ".JPG" or ".JPEG" => "image/jpeg",
+        ".GIF" => "image/gif",
         _ => "application/octet-stream",
     };
 
@@ -578,55 +662,46 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             end < all.Count ? Convert.ToBase64String(Encoding.UTF8.GetBytes(end.ToString(CultureInfo.InvariantCulture))) : null);
     }
 
+    private static string IoCode(IOException error) => (error.HResult & 0xffff) is 0x70 or 0x27 ? "quota-exceeded" : "unavailable";
+
     private static T Guard<T>(ItemId? id, Func<T> body)
     {
         try { return body(); }
         catch (StorageException) { throw; }
         catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { throw new NotFound(id, error); }
         catch (UnauthorizedAccessException error) { throw new Denied(id, error); }
+        catch (IOException error) when (IoCode(error) == "quota-exceeded") { throw new QuotaExceeded(id, error); }
         catch (IOException error) { throw new Unavailable(id, error); }
     }
 
-    private void Cleanup(string stage)
+    private static void Cleanup(string stage)
     {
         try { if (File.Exists(stage)) { File.Delete(stage); } }
-        catch (IOException error) { OsConsoleLog.For<LocalDiskStorage>().LogSwallowed(error, "Storage staging cleanup could not finish."); }
-        catch (UnauthorizedAccessException error) { OsConsoleLog.For<LocalDiskStorage>().LogSwallowed(error, "Storage staging cleanup could not finish."); }
+        catch (IOException error) { OsConsoleLog.For<ConfinedDiskStorage>().LogSwallowed(error, "Storage staging cleanup could not finish."); }
+        catch (UnauthorizedAccessException error) { OsConsoleLog.For<ConfinedDiskStorage>().LogSwallowed(error, "Storage staging cleanup could not finish."); }
     }
 
-    private sealed class WriteHandle : StorageWriteStream
+    private sealed class WriteHandle(ConfinedDiskStorage owner, WritePlan plan, string stage, Stream stream) : StorageWriteStream(stream)
     {
-        private readonly LocalDiskStorage owner;
-        private readonly WritePlan plan;
-        private readonly string stage;
-        private readonly string destination;
-
-        public WriteHandle(LocalDiskStorage owner, WritePlan plan, string stage, string destination, Stream stream) : base(stream)
-        {
-            this.owner = owner;
-            this.plan = plan;
-            this.stage = stage;
-            this.destination = destination;
-        }
         protected override async Task<ItemId> CommitCore(CancellationToken ct)
         {
             try
             {
                 await Content.FlushAsync(ct).ConfigureAwait(false);
                 await Content.DisposeAsync().ConfigureAwait(false);
-                return await owner.Commit(stage, destination, plan, ct).ConfigureAwait(false);
+                return await owner.Commit(stage, plan, ct).ConfigureAwait(false);
             }
-            finally { owner.Cleanup(stage); }
+            finally { Cleanup(stage); }
         }
 
         protected override async Task AbortCore(CancellationToken ct)
         {
             await Content.DisposeAsync().ConfigureAwait(false);
-            owner.Cleanup(stage);
+            Cleanup(stage);
         }
     }
 
-    private sealed record LocalDiskOperation(WritePlan Plan, long? Bytes, string? Sha256) : OperationPlan(Plan.DryRun);
+    private sealed record ConfinedDiskOperation(WritePlan Plan, long? Bytes, string? Sha256) : OperationPlan(Plan.DryRun);
 
     private sealed class BoundedWriteStream(Stream inner, long maxBytes, ItemId? targetFolder) : Stream
     {
@@ -658,43 +733,35 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         public override ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 
-    private sealed class BoundedStream : Stream
+    private sealed class BoundedStream(Stream inner, long length) : Stream
     {
-        private readonly Stream _inner;
-        private readonly long _length;
-        private long _left;
-
-        public BoundedStream(Stream inner, long length)
-        {
-            _inner = inner;
-            _length = length;
-            _left = length;
-        }
+        private readonly long _length = length;
+        private long _left = length;
 
         public override bool CanRead => true;
-        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanSeek => false;
         public override bool CanWrite => false;
         public override long Length => _length;
-        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
+        public override long Position { get => _length - _left; set => throw new NotSupportedException(); }
         public override void Flush() { }
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (_left <= 0) { return 0; }
-            var read = _inner.Read(buffer, offset, (int)Math.Min(count, _left));
+            var read = inner.Read(buffer, offset, (int)Math.Min(count, _left));
             _left -= read;
             return read;
         }
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             if (_left <= 0) { return 0; }
-            var read = await _inner.ReadAsync(buffer[..(int)Math.Min(buffer.Length, _left)], cancellationToken).ConfigureAwait(false);
+            var read = await inner.ReadAsync(buffer[..(int)Math.Min(buffer.Length, _left)], cancellationToken).ConfigureAwait(false);
             _left -= read;
             return read;
         }
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        protected override void Dispose(bool disposing) { if (disposing) { _inner.Dispose(); } }
-        public override ValueTask DisposeAsync() => _inner.DisposeAsync();
+        protected override void Dispose(bool disposing) { if (disposing) { inner.Dispose(); } }
+        public override ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 }
