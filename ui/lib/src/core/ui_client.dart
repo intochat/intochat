@@ -22,6 +22,7 @@ import 'neuron_channel.dart';
 import 'neuron_watch_mux.dart';
 import 'node_contracts.dart';
 import 'scene_client.dart';
+import 'models/desktop_projection.dart';
 import 'models/table_models.dart';
 import 'models/workspace_models.dart';
 import '../widgets/voice/talk_socket.dart';
@@ -1060,6 +1061,13 @@ final class IntoChatOSUiClient {
     );
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
+
+  /// Reads the typed desktop shell projection (`GET /brains/{workspace}/apps/desktop/projection`).
+  Future<DesktopShellProjection> readDesktopProjection(
+    String workspace,
+  ) async => DesktopShellProjection.fromJson(
+    await appRequest(workspace, 'desktop/projection'),
+  );
 
   /// Posts one UI event from a [NodeContext]: an `act` goes to
   /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), the one route

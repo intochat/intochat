@@ -253,6 +253,75 @@ public sealed class DesktopAppFacts
         Assert.Contains("DesktopApp", report.ContextSummary, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task DesktopProjection_EmitsTypedWindowsTabsPinsTilesAndMultiWidgets()
+    {
+        var state = new DesktopAppState() with
+        {
+            LayoutMode = "spatial-grid",
+            IsNarrow = false,
+            StylePreset = "liquid-glass",
+            BarLayout = "bottom",
+            FocusedViewId = "creator",
+            Windows =
+            [
+                new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow(
+                    "w-1",
+                    [
+                        new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef("calculator", "local/apps/calculator", "main", "default"),
+                        new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef("creator", "local/apps/creator", "main", "default"),
+                    ],
+                    "creator"),
+            ],
+            Pins = [new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef("calculator", "local/apps/calculator", "main", "default")],
+            Favourites = [new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef("creator", "local/apps/creator", "main", "default")],
+            WidgetsText = "launcher · signal · clock",
+            DeployedUnits = ["helloworld"],
+        };
+
+        var projection = DesktopApp.Project(state, "local");
+
+        Assert.Equal("spatial-grid", projection.LayoutMode);
+        Assert.False(projection.IsNarrow);
+        Assert.Equal("liquid-glass", projection.StylePreset);
+        Assert.Equal("bottom", projection.BarLayout);
+        Assert.Equal("creator", projection.FocusedViewId);
+        Assert.Equal(["launcher", "signal", "clock"], projection.OpenWidgets);
+        Assert.Equal(["calculator"], projection.Pins);
+        Assert.Contains(projection.Tiles, t => t.Id == "helloworld" && t.Kind == "unit");
+
+        var win = Assert.Single(projection.Windows);
+        Assert.Equal("w-1", win.Id);
+        Assert.Equal("creator", win.AppId);
+        Assert.Equal("Creator", win.Title);
+        Assert.Equal("local/apps/desktop/window/w-1", win.ViewportUri);
+        Assert.Equal("creator", win.ActiveTabId);
+        Assert.False(win.IsPinned);
+        Assert.True(win.IsFavourite);
+        Assert.Equal(2, win.Tabs.Length);
+        Assert.False(win.Tabs[0].Selected);
+        Assert.True(win.Tabs[1].Selected);
+
+        using var person = Edge.AsPerson("local");
+        await using var os = TestOS.Local();
+        os.Register<DesktopRecordsNeuron>();
+        os.Register<TestViewportNeuron>();
+        os.Register<TestWorkspaceNeuron>();
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
+        var desktop = await os.Install<DesktopApp>();
+        await desktop.Request("open", new DesktopOpen("calculator"));
+        await desktop.Request("widget-open", new DesktopWidgetOpen("clock"));
+        await desktop.Request("widget-open", new DesktopWidgetOpen("signal"));
+
+        var shell = os.Get<IntoChat.OS.Modules.Flutter.IDesktopShell>(
+            new NeuronId(new BrainId("local"), "app.desktop", IntoChat.OS.Modules.Flutter.IDesktopShell.DefaultKey));
+        var live = await shell.ReadProjection();
+
+        Assert.Contains(live.Windows, w => w.AppId == "calculator");
+        Assert.Contains("clock", live.OpenWidgets, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("signal", live.OpenWidgets, StringComparer.OrdinalIgnoreCase);
+    }
+
     private sealed class RecordingLogger<T> : ILogger<T>
     {
         public List<(LogLevel Level, string Message)> Entries { get; } = [];

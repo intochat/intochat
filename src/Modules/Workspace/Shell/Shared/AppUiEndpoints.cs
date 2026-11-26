@@ -48,13 +48,33 @@ internal static class AppUiEndpoints
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
+        apps.MapGet("/desktop/projection", (HttpContext http, INeuronProxies brain, CancellationToken ct)
+            => ReadDesktopProjection(brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http)));
         apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault()));
         apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
         OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
+    }
 
+    internal static async Task<IResult> ReadDesktopProjection(
+        INeuronProxies brain,
+        string scope,
+        CancellationToken ct,
+        DigitalBrain.Access.Caller? caller)
+    {
+        if (caller?.For?.Principal is not { Length: > 0 })
+        {
+            throw new UnauthorizedAccessException("Only a signed-in person reads the desktop projection.");
+        }
+        if (!BrainId.IsValid(scope) || caller.Brain != new BrainId(scope))
+        {
+            throw new UnauthorizedAccessException("The desktop projection belongs to another brain.");
+        }
+        var screenId = new NeuronId(new BrainId(scope), "app.desktop", IDesktopShell.DefaultKey);
+        var projection = await brain.Get<IDesktopShell>(screenId).ReadProjection().WaitAsync(ct);
+        return Results.Json(projection, ViewJson);
     }
 
     // POST /act: one command to a neuron address, the only route a person's action takes onto a screen. The request names a

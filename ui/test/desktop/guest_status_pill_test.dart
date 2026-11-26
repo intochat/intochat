@@ -10,8 +10,6 @@ import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import 'live_desktop_shell_test.dart' show desktopViewJson, viewportJson;
-
 void main() {
   group('formatGuestRemaining', () {
     test('formats fallback, hours, minutes, and expiring lifetimes', () {
@@ -223,52 +221,92 @@ void main() {
 
   group('LiveDesktopShell guest pill integration', () {
     Widget buildShell({
-      required String brain,
+      required BrainSessionController session,
       bool isGuest = false,
       bool isEphemeral = false,
       Duration? guestRemaining,
       VoidCallback? onSaveBrain,
       void Function(Uri)? onOpenUrl,
     }) {
-      return MaterialApp(
-        theme: UiTheme.light('warm-paper'),
-        home: Scaffold(
-          body: LiveDesktopShell(
-            knowsApp: (app) => app == 'ino',
-            brain: brain,
-            name: '$brain/apps/desktop/view',
-            load: (kind, name) async {
-              if (kind == 'viewport') return viewportJson(name);
-              if (name == '$brain/apps/desktop/view') {
-                return desktopViewJson(windows: const {'w-1': 'Ino'});
-              }
-              return {
-                'generation': 1,
-                'view': {
-                  'title': name,
-                  'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                },
-              };
-            },
-            watch: (kind, name) => const Stream.empty(),
-            onAction: (_) async => null,
-            onActivate: (_) {},
-            stylePreset: IcStylePreset.warmPaper,
-            barLayout: BarLayout.floatingGlass,
-            paletteOpen: false,
-            onTogglePalette: () {},
-            onSelectPreset: (_) {},
-            onCycleBarLayout: () {},
-            isGuest: isGuest,
-            isEphemeral: isEphemeral,
-            guestRemaining: guestRemaining,
-            onSaveBrain: onSaveBrain,
-            onOpenUrl: onOpenUrl,
-            downloadHubUri: Uri.parse('http://localhost:5000/download'),
+      return BrainSessionScope(
+        controller: session,
+        child: MaterialApp(
+          theme: UiTheme.light('warm-paper'),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              stylePreset: IcStylePreset.warmPaper,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+              isGuest: isGuest,
+              isEphemeral: isEphemeral,
+              guestRemaining: guestRemaining,
+              onSaveBrain: onSaveBrain,
+              onOpenUrl: onOpenUrl,
+              downloadHubUri: Uri.parse('http://localhost:5000/download'),
+            ),
           ),
         ),
       );
     }
+
+    BrainSessionController makeSession(String brain) => BrainSessionController(
+      brainId: brain,
+      loadProjection: (_) async => DesktopShellProjection(
+        windows: [
+          DesktopWindowProjection(
+            id: 'w-1',
+            appId: 'ino',
+            title: 'Ino',
+            viewportUri: '$brain/apps/desktop/window/w-1',
+            tabs: const [
+              DesktopTabProjection(
+                id: 'w-1/0',
+                appId: 'ino',
+                title: 'Ino',
+                selected: true,
+              ),
+            ],
+            activeTabId: 'w-1/0',
+            isPinned: true,
+            isFavourite: false,
+          ),
+        ],
+        focusedViewId: 'w-1/0',
+        pins: const ['ino'],
+        tiles: const [
+          DesktopAppTile(
+            id: 'ino',
+            title: 'Ino',
+            icon: 'ino',
+            category: 'Core',
+            dock: 1,
+          ),
+        ],
+        openWidgets: const [],
+      ),
+      loadNode: (kind, name) async {
+        if (kind == 'viewport') {
+          return {
+            'revision': 1,
+            'root': {'kind': 'view', 'name': '$brain/apps/ino/view'},
+          };
+        }
+        return {
+          'generation': 1,
+          'view': {
+            'title': name,
+            'root': {'kind': 'text', 'value': 'Viewport: $name'},
+          },
+        };
+      },
+      watchNode: (_, _) => const Stream.empty(),
+      onAction: (_) async => null,
+      onActivate: (_) {},
+      knowsApp: (app) => app == 'ino',
+    );
 
     testWidgets(
       'shows GuestStatusPill for guest sessions, triggers Save My Brain, and opens/closes DownloadAppModal',
@@ -276,10 +314,13 @@ void main() {
         await tester.binding.setSurfaceSize(const Size(1440, 900));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
+        final session = makeSession('try-guest-1');
+        addTearDown(session.dispose);
+
         var saveClicked = false;
         await tester.pumpWidget(
           buildShell(
-            brain: 'try-guest-1',
+            session: session,
             guestRemaining: const Duration(hours: 23, minutes: 59),
             onSaveBrain: () => saveClicked = true,
           ),
@@ -308,7 +349,10 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(buildShell(brain: 'brain-1', isGuest: false));
+      final session = makeSession('brain-1');
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(buildShell(session: session, isGuest: false));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 

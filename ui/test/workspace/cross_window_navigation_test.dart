@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:intochat_os_flutter_shell/workspace/cross_window_router.dart';
 
@@ -82,228 +83,233 @@ void main() {
       var aspireUrl = 'http://localhost:18888/resources';
       var orleansUrl = '/orleans#/overview';
 
-      Map<String, dynamic> desktopTree() => {
-        'generation': 1,
-        'view': {
-          'title': 'Desktop',
-          'root': {
-            'kind': 'column',
-            'children': [
-              {
-                'kind': 'column',
-                'children': [
-                  {
-                    'kind': 'row',
-                    'children': [
-                      {
-                        'kind': 'button',
-                        'key': 'focus-w1',
-                        'label': 'IntoChat Engineer',
-                        'command': {
-                          'target': '.',
-                          'signal': 'focus',
-                          'args': 'w1',
-                        },
-                        'enabled': true,
-                      },
-                      {
-                        'kind': 'button',
-                        'key': 'pin-w1',
-                        'label': 'Pin',
-                        'command': {
-                          'target': '.',
-                          'signal': 'pin',
-                          'args': 'engineer',
-                        },
-                        'enabled': true,
-                      },
-                    ],
-                  },
-                  {
-                    'kind': 'neuronRef',
-                    'refKind': 'viewport',
-                    'neuronUri': 'brain-1/apps/desktop/window/w1',
-                  },
-                ],
-              },
-              {
-                'kind': 'row',
-                'children': [
-                  {
-                    'kind': 'button',
-                    'key': 'dock-engineer',
-                    'label': 'Engineer',
-                    'command': {
-                      'target': '.',
-                      'signal': 'open',
-                      'args': 'engineer',
-                    },
-                    'enabled': true,
-                  },
-                  {
-                    'kind': 'button',
-                    'key': 'dock-aspire',
-                    'label': '.NET Aspire',
-                    'command': {
-                      'target': '.',
-                      'signal': 'open',
-                      'args': 'aspire',
-                    },
-                    'enabled': true,
-                  },
-                  {
-                    'kind': 'button',
-                    'key': 'dock-orleans',
-                    'label': 'Orleans Dashboard',
-                    'command': {
-                      'target': '.',
-                      'signal': 'open',
-                      'args': 'orleans',
-                    },
-                    'enabled': true,
-                  },
-                ],
-              },
-            ],
-          },
-        },
-      };
+      final windows = <DesktopWindowProjection>[
+        const DesktopWindowProjection(
+          id: 'w1',
+          appId: 'engineer',
+          title: 'IntoChat Engineer',
+          viewportUri: 'brain-1/apps/desktop/window/w1',
+          tabs: [
+            DesktopTabProjection(
+              id: 'w1/0',
+              appId: 'engineer',
+              title: 'IntoChat Engineer',
+              selected: true,
+            ),
+          ],
+          activeTabId: 'w1/0',
+          isPinned: true,
+          isFavourite: false,
+        ),
+      ];
+      final windowApps = <String, String>{'w1': 'engineer'};
+      String? focusedViewId = 'w1/0';
+      var nextWin = 2;
+
+      const tiles = <DesktopAppTile>[
+        DesktopAppTile(
+          id: 'engineer',
+          title: 'Engineer',
+          icon: 'engineer',
+          category: 'Workspace',
+          dock: 1,
+        ),
+        DesktopAppTile(
+          id: 'aspire',
+          title: '.NET Aspire',
+          icon: 'aspire',
+          category: 'Workspace',
+          dock: 2,
+        ),
+        DesktopAppTile(
+          id: 'orleans',
+          title: 'Orleans Dashboard',
+          icon: 'orleans',
+          category: 'Workspace',
+          dock: 3,
+        ),
+      ];
 
       final typedArgsJson = jsonEncode({
         'traceId': '00f067aa0ba902b7',
         'section': 'traces',
       });
 
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => DesktopShellProjection(
+          windows: List.unmodifiable(windows),
+          focusedViewId: focusedViewId,
+          pins: const ['engineer', 'aspire', 'orleans'],
+          tiles: tiles,
+          openWidgets: const [],
+        ),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') {
+            final winId = name.substring(name.lastIndexOf('/') + 1);
+            final appId = windowApps[winId] ?? 'engineer';
+            return {
+              'revision': 1,
+              'root': {'kind': 'view', 'name': 'brain-1/apps/$appId/view'},
+            };
+          }
+          if (name == 'brain-1/apps/engineer/view') {
+            return {
+              'generation': 1,
+              'view': {
+                'title': 'IntoChat Engineer',
+                'root': {
+                  'kind': 'row',
+                  'children': [
+                    {
+                      'kind': 'button',
+                      'key': 'engineer:open-aspire-input',
+                      'label': 'Aspire Trace Input',
+                      'intent': {
+                        'intentKind': 'OpenWindow',
+                        'arg': 'os://window/open?app=aspire&input=4bf92f3577b34da6a3ce929d0e0e4736',
+                      },
+                      'enabled': true,
+                    },
+                    {
+                      'kind': 'button',
+                      'key': 'engineer:open-aspire-args',
+                      'label': 'Aspire Typed Args',
+                      'intent': {
+                        'intentKind': 'OpenWindow',
+                        'arg':
+                            'os://window/open?app=aspire'
+                            '&args=${Uri.encodeQueryComponent(typedArgsJson)}'
+                            '&transition=shared-axis-z'
+                            '&from=app.engineer',
+                      },
+                      'enabled': true,
+                    },
+                    {
+                      'kind': 'button',
+                      'key': 'engineer:open-orleans',
+                      'label': 'Orleans Grain',
+                      'intent': {
+                        'intentKind': 'OpenWindow',
+                        'arg':
+                            'os://window/open?app=orleans&input=EngineerFlow',
+                      },
+                      'enabled': true,
+                    },
+                  ],
+                },
+              },
+            };
+          }
+          if (name == 'brain-1/apps/aspire/view') {
+            return {
+              'generation': 2,
+              'view': {
+                'title': '.NET Aspire',
+                'root': {'kind': 'text', 'value': 'AspireURL:$aspireUrl'},
+              },
+            };
+          }
+          if (name == 'brain-1/apps/orleans/view') {
+            return {
+              'generation': 2,
+              'view': {
+                'title': 'Orleans Dashboard',
+                'root': {'kind': 'text', 'value': 'OrleansURL:$orleansUrl'},
+              },
+            };
+          }
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': name},
+            },
+          };
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async {
+          if (event['kind'] == 'act') {
+            actEvents.add(event);
+            final args = event['args'] as Map<String, Object?>? ?? {};
+            if (event['neuron'] == 'brain-1/apps/desktop' &&
+                event['signal'] == 'desktop.open') {
+              final appId = '${args['app'] ?? ''}'.toLowerCase();
+              final existing = windows
+                  .where((w) => w.appId == appId)
+                  .firstOrNull;
+              if (existing != null) {
+                focusedViewId = existing.activeTabId;
+              } else if (appId.isNotEmpty) {
+                final id = 'w${nextWin++}';
+                windowApps[id] = appId;
+                final title = appId == 'aspire'
+                    ? '.NET Aspire'
+                    : appId == 'orleans'
+                    ? 'Orleans Dashboard'
+                    : appId;
+                windows.add(
+                  DesktopWindowProjection(
+                    id: id,
+                    appId: appId,
+                    title: title,
+                    viewportUri: 'brain-1/apps/desktop/window/$id',
+                    tabs: [
+                      DesktopTabProjection(
+                        id: '$id/0',
+                        appId: appId,
+                        title: title,
+                        selected: true,
+                      ),
+                    ],
+                    activeTabId: '$id/0',
+                    isPinned: true,
+                    isFavourite: false,
+                  ),
+                );
+                focusedViewId = '$id/0';
+              }
+              return {'delivered': true};
+            }
+            if (event['neuron'] == 'brain-1/apps/aspire' &&
+                event['signal'] == 'ui.navigate-to') {
+              if (args['argsJson'] is String) {
+                final decoded = jsonDecode(args['argsJson'] as String) as Map;
+                aspireUrl =
+                    'http://localhost:18888/traces/detail/${decoded['traceId']}';
+              } else if (args['input'] is String) {
+                aspireUrl =
+                    'http://localhost:18888/traces/detail/${args['input']}';
+              }
+            }
+            if (event['neuron'] == 'brain-1/apps/orleans' &&
+                event['signal'] == 'ui.navigate-to') {
+              orleansUrl = '/orleans#/grains/${args['input']}';
+            }
+            return {'delivered': true};
+          }
+          return {'delivered': true};
+        },
+        onActivate: activations.add,
+        knowsApp: (app) =>
+            const {'engineer', 'aspire', 'orleans'}.contains(app),
+      );
+      addTearDown(session.dispose);
+
       await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) =>
-                  const {'engineer', 'aspire', 'orleans'}.contains(app),
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') {
-                  return {
-                    'revision': 1,
-                    'root': {
-                      'kind': 'view',
-                      'name': 'brain-1/apps/engineer/view',
-                    },
-                  };
-                }
-                if (name == 'brain-1/apps/desktop/view') {
-                  return desktopTree();
-                }
-                if (name == 'brain-1/apps/engineer/view') {
-                  return {
-                    'generation': 1,
-                    'view': {
-                      'title': 'IntoChat Engineer',
-                      'root': {
-                        'kind': 'row',
-                        'children': [
-                          {
-                            'kind': 'button',
-                            'key': 'engineer:open-aspire-input',
-                            'label': 'Aspire Trace Input',
-                            'intent': {
-                              'intentKind': 'OpenWindow',
-                              'arg': 'os://window/open?app=aspire&input=4bf92f3577b34da6a3ce929d0e0e4736',
-                            },
-                            'enabled': true,
-                          },
-                          {
-                            'kind': 'button',
-                            'key': 'engineer:open-aspire-args',
-                            'label': 'Aspire Typed Args',
-                            'intent': {
-                              'intentKind': 'OpenWindow',
-                              'arg':
-                                  'os://window/open?app=aspire'
-                                  '&args=${Uri.encodeQueryComponent(typedArgsJson)}'
-                                  '&transition=shared-axis-z'
-                                  '&from=app.engineer',
-                            },
-                            'enabled': true,
-                          },
-                          {
-                            'kind': 'button',
-                            'key': 'engineer:open-orleans',
-                            'label': 'Orleans Grain',
-                            'intent': {
-                              'intentKind': 'OpenWindow',
-                              'arg': 'os://window/open?app=orleans&input=EngineerFlow',
-                            },
-                            'enabled': true,
-                          },
-                        ],
-                      },
-                    },
-                  };
-                }
-                if (name == 'brain-1/apps/aspire/view') {
-                  return {
-                    'generation': 2,
-                    'view': {
-                      'title': '.NET Aspire',
-                      'root': {'kind': 'text', 'value': 'AspireURL:$aspireUrl'},
-                    },
-                  };
-                }
-                if (name == 'brain-1/apps/orleans/view') {
-                  return {
-                    'generation': 2,
-                    'view': {
-                      'title': 'Orleans Dashboard',
-                      'root': {
-                        'kind': 'text',
-                        'value': 'OrleansURL:$orleansUrl',
-                      },
-                    },
-                  };
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': name},
-                  },
-                };
-              },
-              watch: (_, _) => const Stream.empty(),
-              onAction: (event) async {
-                if (event['kind'] == 'act') {
-                  actEvents.add(event);
-                  final args = event['args'] as Map<String, Object?>? ?? {};
-                  if (event['neuron'] == 'brain-1/apps/aspire' &&
-                      event['signal'] == 'ui.navigate-to') {
-                    if (args['argsJson'] is String) {
-                      final decoded =
-                          jsonDecode(args['argsJson'] as String) as Map;
-                      aspireUrl =
-                          'http://localhost:18888/traces/detail/${decoded['traceId']}';
-                    } else if (args['input'] is String) {
-                      aspireUrl =
-                          'http://localhost:18888/traces/detail/${args['input']}';
-                    }
-                  }
-                  if (event['neuron'] == 'brain-1/apps/orleans' &&
-                      event['signal'] == 'ui.navigate-to') {
-                    orleansUrl = '/orleans#/grains/${args['input']}';
-                  }
-                  return {'delivered': true};
-                }
-                return {'delivered': true};
-              },
-              onActivate: activations.add,
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
+        BrainSessionScope(
+          controller: session,
+          child: MaterialApp(
+            theme: UiTheme.dark('fluent-acrylic'),
+            home: Scaffold(
+              body: LiveDesktopShell(
+                stylePreset: IcStylePreset.fluentAcrylic,
+                barLayout: BarLayout.floatingGlass,
+                paletteOpen: false,
+                onTogglePalette: () {},
+                onSelectPreset: (_) {},
+                onCycleBarLayout: () {},
+              ),
             ),
           ),
         ),

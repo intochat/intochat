@@ -1,9 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import 'child_route.dart';
+import 'brain_session_controller.dart';
 import 'view_host.dart';
-
-import 'package:flutter/material.dart';
 
 /// Renders the surface an application declares. The host decides how the application is
 /// started; the application owns the component tree.
@@ -32,8 +31,17 @@ class ApplicationSurface extends StatefulWidget {
 
 class _ApplicationSurfaceState extends State<ApplicationSurface> {
   late Future<Map<String, dynamic>> _surface = _start();
+  BrainSessionController? _ownedSession;
 
   Future<Map<String, dynamic>> _start() => widget.start();
+
+  BrainSessionController _ensureOwnedSession() =>
+      _ownedSession ??= BrainSessionController(
+        brainId: widget.workspace,
+        client: widget.client,
+        knowsApp: widget.knowsApp,
+        onActivate: widget.onActivate,
+      );
 
   @override
   void didUpdateWidget(ApplicationSurface oldWidget) {
@@ -41,8 +49,20 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
     if (oldWidget.workspace != widget.workspace ||
         oldWidget.application != widget.application ||
         oldWidget.client != widget.client) {
+      if (oldWidget.client != widget.client) {
+        _ownedSession?.dispose();
+        _ownedSession = null;
+      } else {
+        _ownedSession?.switchBrain(widget.workspace);
+      }
       _surface = _start();
     }
+  }
+
+  @override
+  void dispose() {
+    _ownedSession?.dispose();
+    super.dispose();
   }
 
   @override
@@ -64,43 +84,20 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         return const Center(child: CircularProgressIndicator());
       }
       final surface = snapshot.data!;
-      return ViewHost(
+      final host = ViewHost(
         key: ValueKey('${widget.workspace}/${widget.application}'),
         kind: surface['kind'] as String,
         name: surface['name'] as String,
-        load: (kind, name) =>
-            widget.client.appRequest(widget.workspace, appNodePath(kind, name)),
-        watch: (kind, name) =>
-            widget.client.watchNode(widget.workspace, kind, name).map((_) {}),
-        watchSignal: (contract, key, signal) => widget.client
-            .watches(widget.workspace)
-            .watch(
-              WatchSourceSpec(
-                contract,
-                key.startsWith('${widget.workspace}/')
-                    ? key
-                    : '${widget.workspace}/$key',
-                [signal],
-              ),
-            )
-            .map((s) => s.payload),
-        callNeuron: (contract, key, method, args) => widget.client.channel.call(
-          widget.workspace,
-          contract,
-          key.startsWith('${widget.workspace}/')
-              ? key
-              : '${widget.workspace}/$key',
-          method,
-          args,
-        ),
-        onAction: (event) => widget.client.uiEvent(widget.workspace, event),
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,
-        transcribe: widget.client.transcribe,
-        talk: widget.client.talk,
-        speak: widget.client.speak,
-        storeSecret: widget.client.storeSecretReference,
       );
+      final ancestor = BrainSessionScope.readOf(context);
+      if (ancestor != null &&
+          ancestor.brainId == widget.workspace &&
+          identical(ancestor.client, widget.client)) {
+        return host;
+      }
+      return BrainSessionScope(controller: _ensureOwnedSession(), child: host);
     },
   );
 }

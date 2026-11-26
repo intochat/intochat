@@ -5,6 +5,7 @@ import 'package:intochat_os_flutter_shell/desktop/command_palette.dart';
 import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/smart_desktop.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
@@ -344,92 +345,105 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final activations = <Map<String, dynamic>>[];
-      List<SmartAppTileSpec> dynamicExtras = const [];
+      final windows = <DesktopWindowProjection>[];
+      const tiles = <DesktopAppTile>[
+        DesktopAppTile(
+          id: 'ino',
+          title: 'Ino',
+          icon: 'ino',
+          category: 'Core',
+          dock: 1,
+        ),
+        DesktopAppTile(
+          id: 'helloworld',
+          title: 'Hello World',
+          icon: 'zap',
+          category: 'Micro-App',
+          kind: 'unit',
+        ),
+      ];
 
-      Map<String, dynamic> desktopWithHelloWorld() => {
-        'generation': 1,
-        'view': {
-          'title': 'Desktop',
-          'root': {
-            'kind': 'column',
-            'gap': 12,
-            'padding': 0,
-            'extents': [0, 68],
-            'children': [
-              {'kind': 'column', 'gap': 12, 'padding': 0, 'children': const []},
-              {
-                'kind': 'row',
-                'gap': 4,
-                'padding': 0,
-                'children': [
-                  {
-                    'kind': 'button',
-                    'key': 'dock-ino',
-                    'label': 'Ino',
-                    'command': {'target': '.', 'signal': 'open', 'args': 'ino'},
-                    'enabled': true,
-                  },
-                  {
-                    'kind': 'button',
-                    'key': 'dock-helloworld',
-                    'label': 'Hello World',
-                    'command': {
-                      'target': '.',
-                      'signal': 'open',
-                      'args': 'helloworld',
-                    },
-                    'enabled': true,
-                  },
-                ],
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => DesktopShellProjection(
+          windows: List.unmodifiable(windows),
+          focusedViewId: windows.isEmpty ? null : windows.last.activeTabId,
+          pins: const ['ino'],
+          tiles: tiles,
+          openWidgets: const [],
+        ),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') {
+            return {
+              'revision': 1,
+              'root': {'kind': 'view', 'name': 'brain-1/apps/helloworld/view'},
+            };
+          }
+          if (name == 'brain-1/apps/helloworld/view') {
+            return {
+              'generation': 1,
+              'view': {
+                'title': 'Hello World',
+                'root': {
+                  'kind': 'text',
+                  'value': 'Hello from live runtime grain!',
+                },
               },
-            ],
-          },
+            };
+          }
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
         },
-      };
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async {
+          if (event['signal'] == 'desktop.open' &&
+              (event['args'] as Map?)?['app'] == 'helloworld') {
+            windows.add(
+              const DesktopWindowProjection(
+                id: 'w-1',
+                appId: 'helloworld',
+                title: 'Hello World',
+                viewportUri: 'brain-1/apps/desktop/window/w-1',
+                tabs: [
+                  DesktopTabProjection(
+                    id: 'w-1/0',
+                    appId: 'helloworld',
+                    title: 'Hello World',
+                    selected: true,
+                  ),
+                ],
+                activeTabId: 'w-1/0',
+                isPinned: false,
+                isFavourite: false,
+              ),
+            );
+          }
+          return const {'delivered': true};
+        },
+        onActivate: activations.add,
+        knowsApp: (app) => app == 'ino',
+      );
+      addTearDown(session.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              // Caller initially only knew 'ino', yet 'helloworld' is dynamically published on the desktop!
-              knowsApp: (app) => app == 'ino',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              onDynamicAppsChanged: (extras) => dynamicExtras = extras,
-              load: (kind, name) async {
-                if (name == 'brain-1/apps/desktop/view') {
-                  return desktopWithHelloWorld();
-                }
-                if (name == 'brain-1/apps/helloworld/view') {
-                  return {
-                    'generation': 1,
-                    'view': {
-                      'title': 'Hello World',
-                      'root': {
-                        'kind': 'text',
-                        'value': 'Hello from live runtime grain!',
-                      },
-                    },
-                  };
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (_, _) => const Stream.empty(),
-              onAction: (_) async => null,
-              onActivate: activations.add,
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
+        BrainSessionScope(
+          controller: session,
+          child: MaterialApp(
+            theme: UiTheme.dark('fluent-acrylic'),
+            home: Scaffold(
+              body: LiveDesktopShell(
+                stylePreset: IcStylePreset.fluentAcrylic,
+                barLayout: BarLayout.floatingGlass,
+                paletteOpen: false,
+                onTogglePalette: () {},
+                onSelectPreset: (_) {},
+                onCycleBarLayout: () {},
+              ),
             ),
           ),
         ),
@@ -439,11 +453,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // 1. Dynamic app 'helloworld' is registered in dynamicExtras (not in the active-only dock while closed)
+      // 1. Dynamic app 'helloworld' is known via typed projection tiles (not in the active-only dock while closed)
       expect(find.byKey(const ValueKey('dock-item-helloworld')), findsNothing);
-      expect(dynamicExtras.any((s) => s.id == 'helloworld'), isTrue);
+      expect(
+        session.projection?.tiles.any((t) => t.id == 'helloworld'),
+        isTrue,
+      );
 
-      // 2. Open All Apps Launcher and verify 'helloworld' tile is listed under 'All' & 'Micro-Apps'
+      // 2. Open All Apps Launcher and verify 'helloworld' tile is listed under 'All' & 'Micro-App'
       await tester.tap(find.byKey(const ValueKey('os-bar-all-apps')));
       await tester.pump();
 
@@ -451,7 +468,7 @@ void main() {
         find.byKey(const ValueKey('all-apps-launcher-overlay')),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const ValueKey('all-apps-cat-Micro-Apps')));
+      await tester.tap(find.byKey(const ValueKey('all-apps-cat-Micro-App')));
       await tester.pump();
 
       final helloTile = find.byKey(const ValueKey('all-apps-tile-helloworld'));
@@ -479,12 +496,16 @@ void main() {
 
       // 4. Verify CommandPalette also lists and launches dynamic 'helloworld'
       String? paletteLaunched;
+      final paletteApps = [
+        for (final tile in session.projection!.tiles)
+          SmartAppTileSpec.fromProjectionTile(tile, brain: 'brain-1'),
+      ];
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
           home: Scaffold(
             body: CommandPalette(
-              apps: dynamicExtras,
+              apps: paletteApps,
               onClose: () {},
               onLaunchApp: (id) => paletteLaunched = id,
             ),
