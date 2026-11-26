@@ -17,7 +17,8 @@ namespace IntoChat.OS.Modules.AI.Tests.Integration;
 // The Integration fixture's silo pipeline has no grant filter, so a real denial cannot be produced here; these facts
 // pin the shape the model receives when the filter's denial reaches a tool call as an UnauthorizedAccessException,
 // plus stored-definition former-name resolution on the real silo.
-public sealed class AgentToolsFacts(InoSiloFixture fixture) : IClassFixture<InoSiloFixture>
+[Collection(nameof(InoSiloCollection))]
+public sealed class AgentToolsFacts(InoSiloFixture fixture)
 {
     private const string Denial = "No grant for semantic type 'run'. The value is treated as missing.";
 

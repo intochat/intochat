@@ -18,7 +18,8 @@ using IntoChat.OS.Kernel.Platform;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 
-public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<InoSiloFixture>
+[Collection(nameof(InoSiloCollection))]
+public sealed class SdkAiAdapterFacts(InoSiloFixture fixture)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

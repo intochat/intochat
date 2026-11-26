@@ -40,8 +40,8 @@ namespace IntoChat.OS.Kernel.Tests.E2E;
 /// InoChatFacts, MemoryLoopFacts, SelfImproveFacts, and Files/Storage broker journeys)
 /// against the real DigitalBrain SiloHost environment.
 /// </summary>
+[Collection(nameof(ProductHostCollection))]
 public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
-    : IClassFixture<ProductHostFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

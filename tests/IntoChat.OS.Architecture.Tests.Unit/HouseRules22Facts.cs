@@ -17,11 +17,16 @@ public sealed class HouseRules22Facts
 {
     private static readonly Lazy<Dictionary<string, string>> ProjectDirs = new(LoadProjectDirs);
 
-    private static readonly Lazy<IReadOnlyList<ParsedSource>> ProductionSources = new(
-        () => ParseTree(ProjectDirs.Value.Where(p => !p.Key.Contains(".Tests", StringComparison.Ordinal)).ToList()));
-
     private static readonly Lazy<IReadOnlyList<ParsedSource>> AllSourcesAndTests = new(
         () => ParseTree(ProjectDirs.Value.ToList()));
+
+    private static readonly Lazy<IReadOnlyList<ParsedSource>> ProductionSources = new(
+        () => AllSourcesAndTests.Value.Where(s => !s.ProjectName.Contains(".Tests", StringComparison.Ordinal)).ToList());
+
+    private static readonly Lazy<IReadOnlyList<(ParsedSource Source, ClassDeclarationSyntax Class)>> NeuronAndScreenClasses = new(
+        () => ProductionSources.Value
+            .SelectMany(src => src.Root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(IsNeuronOrScreenClass).Select(cls => (src, cls)))
+            .ToList());
 
     private sealed record ParsedSource(string ProjectName, string FullPath, string FileName, string[] PathSegments, string Text, SyntaxTree Tree, CompilationUnitSyntax Root);
 
@@ -47,7 +52,7 @@ public sealed class HouseRules22Facts
 
     private static IReadOnlyList<ParsedSource> ParseTree(IReadOnlyList<KeyValuePair<string, string>> projects)
     {
-        var list = new List<ParsedSource>();
+        var entries = new List<(string ProjectName, string Dir, string FullPath)>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (projectName, dir) in projects)
         {
@@ -58,11 +63,18 @@ public sealed class HouseRules22Facts
                 {
                     continue;
                 }
-                var text = File.ReadAllText(full);
-                var tree = CSharpSyntaxTree.ParseText(text, path: full);
-                var rel = Path.GetRelativePath(dir, full).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                list.Add(new ParsedSource(projectName, full, Path.GetFileName(full), rel, text, tree, tree.GetCompilationUnitRoot()));
+                entries.Add((projectName, dir, full));
             }
+        }
+
+        var parsed = SyntaxCache.GetAll(entries.Select(e => e.FullPath));
+        var list = new List<ParsedSource>(entries.Count);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var (projectName, dir, full) = entries[i];
+            var src = parsed[i];
+            var rel = Path.GetRelativePath(dir, full).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            list.Add(new ParsedSource(projectName, full, Path.GetFileName(full), rel, src.Text, src.Tree, src.Root));
         }
         return list;
     }
@@ -801,7 +813,7 @@ public sealed class HouseRules22Facts
         {
             foreach (var file in Repository.SourceFiles(primitivesDir, pattern))
             {
-                var root = ParseSample(File.ReadAllText(file), TestContext.Current.CancellationToken);
+                var root = SyntaxCache.Get(file).Root;
                 foreach (var decl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                 {
                     if (decl.Modifiers.Any(SyntaxKind.StaticKeyword))
@@ -877,14 +889,11 @@ public sealed class HouseRules22Facts
     public void HouseRule11_NoInPlaceStateMutationInNeuronsOrScreens()
     {
         var offenders = new List<string>();
-        foreach (var src in ProductionSources.Value)
+        foreach (var (src, cls) in NeuronAndScreenClasses.Value)
         {
-            foreach (var cls in src.Root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(IsNeuronOrScreenClass))
+            foreach (var line in FindInPlaceStateMutations(cls))
             {
-                foreach (var line in FindInPlaceStateMutations(cls))
-                {
-                    offenders.Add($"{DisplayPath(src)}:{line} ({cls.Identifier.Text})");
-                }
+                offenders.Add($"{DisplayPath(src)}:{line} ({cls.Identifier.Text})");
             }
         }
 
@@ -931,21 +940,18 @@ public sealed class HouseRules22Facts
         };
 
         var offenders = new List<string>();
-        foreach (var src in ProductionSources.Value)
+        foreach (var (src, cls) in NeuronAndScreenClasses.Value)
         {
-            foreach (var cls in src.Root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(IsNeuronOrScreenClass))
+            var (wallLines, systemLines) = FindClockViolations(cls);
+            foreach (var line in wallLines)
             {
-                var (wallLines, systemLines) = FindClockViolations(cls);
-                foreach (var line in wallLines)
+                offenders.Add($"{DisplayPath(src)}:{line} ({cls.Identifier.Text}) uses wall clock DateTime*.Now/UtcNow");
+            }
+            if (!detachedFallbackAllowlist.Contains(cls.Identifier.Text))
+            {
+                foreach (var line in systemLines)
                 {
-                    offenders.Add($"{DisplayPath(src)}:{line} ({cls.Identifier.Text}) uses wall clock DateTime*.Now/UtcNow");
-                }
-                if (!detachedFallbackAllowlist.Contains(cls.Identifier.Text))
-                {
-                    foreach (var line in systemLines)
-                    {
-                        offenders.Add($"{DisplayPath(src)}:{line} ({cls.Identifier.Text}) uses TimeProvider.System instead of Context.Time / Time");
-                    }
+                    offenders.Add($"{DisplayPath(src)}:{line} ({cls.Identifier.Text}) uses TimeProvider.System instead of Context.Time / Time");
                 }
             }
         }
@@ -1018,6 +1024,13 @@ public sealed class HouseRules22Facts
         var offenders = new List<string>();
         foreach (var src in AllSourcesAndTests.Value)
         {
+            if (!src.Text.Contains("new ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            HashSet<string>? usings = null;
+            List<string>? namespaces = null;
             foreach (var oc in src.Root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
             {
                 var typeName = ExtractSimpleTypeName(oc.Type);
@@ -1025,7 +1038,9 @@ public sealed class HouseRules22Facts
                 {
                     continue;
                 }
-                if (!MightReferToAny(src.Root, matchedTypes))
+                usings ??= src.Root.Usings.Select(u => u.Name?.ToString()).Where(n => n is not null).ToHashSet(StringComparer.Ordinal)!;
+                namespaces ??= src.Root.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>().Select(n => n.Name.ToString()).ToList();
+                if (!MightReferToAny(usings, namespaces, matchedTypes))
                 {
                     continue;
                 }
@@ -1059,13 +1074,9 @@ public sealed class HouseRules22Facts
         _ => null,
     };
 
-    private static bool MightReferToAny(CompilationUnitSyntax root, List<Type> types)
-    {
-        var usings = root.Usings.Select(u => u.Name?.ToString()).Where(n => n is not null).ToHashSet(StringComparer.Ordinal);
-        var namespaces = root.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>().Select(n => n.Name.ToString()).ToList();
-        return types.Any(t =>
+    private static bool MightReferToAny(HashSet<string> usings, List<string> namespaces, List<Type> types)
+        => types.Any(t =>
             t.Namespace is { } ns && (usings.Contains(ns) || namespaces.Any(localNs => localNs == ns || localNs.StartsWith(ns + ".", StringComparison.Ordinal) || ns.StartsWith(localNs + ".", StringComparison.Ordinal))));
-    }
 
     // Rule #14: Zero Postgres table slot/hook registrations in Kernel.
     [Fact]
@@ -1076,7 +1087,7 @@ public sealed class HouseRules22Facts
         var offenders = new List<string>();
         foreach (var file in Repository.SourceFiles(kernelDir, "*.cs"))
         {
-            var text = File.ReadAllText(file);
+            var text = SyntaxCache.ReadText(file);
             foreach (var token in banned)
             {
                 if (Regex.IsMatch(text, $@"\b{token}\b", RegexOptions.CultureInvariant))
@@ -1280,9 +1291,7 @@ public sealed class HouseRules22Facts
                 var expectedPrefix = segments.Length == 1 && segments[0] == "."
                     ? projectName
                     : $"{projectName}.{string.Join('.', segments)}";
-                var root = CSharpSyntaxTree.ParseText(
-                    File.ReadAllText(file),
-                    cancellationToken: TestContext.Current.CancellationToken).GetCompilationUnitRoot(TestContext.Current.CancellationToken);
+                var root = SyntaxCache.Get(file).Root;
                 foreach (var ns in root.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>())
                 {
                     var actual = ns.Name.ToString();

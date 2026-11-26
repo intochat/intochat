@@ -314,10 +314,10 @@ public sealed partial class FrameworkBoundaryFacts
     private static HashSet<string> DeclaredPublicOrInternalTypeNames(string rootDirectory)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var file in FilesUnder(rootDirectory, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)))
+        var sources = SyntaxCache.GetAll(FilesUnder(rootDirectory, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)));
+        foreach (var src in sources)
         {
-            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file)).GetRoot();
-            foreach (var declaration in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
+            foreach (var declaration in src.Root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
             {
                 if (IsPublicOrInternal(declaration))
                 {

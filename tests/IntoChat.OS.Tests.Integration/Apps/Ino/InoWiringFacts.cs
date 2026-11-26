@@ -20,7 +20,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 
-public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSiloFixture>
+[Collection(nameof(InoSiloCollection))]
+public sealed class InoWiringFacts(InoSiloFixture fixture)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

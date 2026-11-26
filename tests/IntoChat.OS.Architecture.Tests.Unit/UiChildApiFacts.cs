@@ -26,11 +26,11 @@ public sealed class UiChildApiFacts
 
         var ct = TestContext.Current.CancellationToken;
         var violations = new List<string>();
-        foreach (var file in files)
+        foreach (var src in SyntaxCache.GetAll(files))
         {
-            var rel = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file, cancellationToken: ct);
-            var root = tree.GetCompilationUnitRoot(ct);
+            var rel = Path.GetRelativePath(Repository.Root, src.FullPath).Replace('\\', '/');
+            var tree = src.Tree;
+            var root = src.Root;
 
             foreach (var generic in root.DescendantNodes().OfType<GenericNameSyntax>())
             {
@@ -71,11 +71,11 @@ public sealed class UiChildApiFacts
         var hits = new List<string>();
         var customerResearcherHits = new List<string>();
 
-        foreach (var file in files)
+        foreach (var src in SyntaxCache.GetAll(files))
         {
-            var rel = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file, cancellationToken: ct);
-            var root = tree.GetCompilationUnitRoot(ct);
+            var rel = Path.GetRelativePath(Repository.Root, src.FullPath).Replace('\\', '/');
+            var tree = src.Tree;
+            var root = src.Root;
 
             foreach (var creation in root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
             {

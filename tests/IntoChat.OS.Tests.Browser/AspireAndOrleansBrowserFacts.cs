@@ -15,9 +15,7 @@ public sealed class AspireAndOrleansBrowserFacts(WebShellHost host)
     public async Task Aspire_and_orleans_operator_apps_render_full_bleed_web_browsers_and_switch_routes_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = OperatorViewportWidth, Height = OperatorViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(OperatorViewportWidth, OperatorViewportHeight, ct);
 
         // 1. Aspire (apps/aspire/view): full-bleed WebBrowser (>= 70% viewport height = >= 630px at 900px) + route switching (Resources -> Traces -> Metrics)
         {
@@ -122,9 +120,7 @@ public sealed class AspireAndOrleansBrowserFacts(WebShellHost host)
     public async Task Engineer_cross_window_deep_links_open_aspire_traces_and_orleans_grains_in_live_shell_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = OperatorViewportWidth, Height = OperatorViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(OperatorViewportWidth, OperatorViewportHeight, ct);
         // 1. Engineer -> Aspire cross-window deep-link (engineer:open-aspire -> ui.navigate-from + ui.navigate-to -> /traces)
         {
             var page = await context.NewPageAsync();
@@ -212,14 +208,16 @@ public sealed class AspireAndOrleansBrowserFacts(WebShellHost host)
 
     private static async Task WaitForIframeSrcContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)
     {
-        for (var i = 0; i < 60; i++)
+        try
         {
-            var srcs = await page.EvaluateAsync<string[]>("() => Array.from(document.querySelectorAll('iframe')).map(f => f.src || '')").WaitAsync(ct);
-            if (srcs.Any(s => s.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase)))
-            {
-                return;
-            }
-            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+            await page.WaitForFunctionAsync(
+                "expected => Array.from(document.querySelectorAll('iframe')).some(f => (f.src || '').toLowerCase().includes(expected.toLowerCase()))",
+                expectedSubstring,
+                new PageWaitForFunctionOptions { Timeout = 10_000 }).WaitAsync(ct);
+            return;
+        }
+        catch (TimeoutException)
+        {
         }
 
         var finalSrcs = await page.EvaluateAsync<string[]>("() => Array.from(document.querySelectorAll('iframe')).map(f => f.src || '')").WaitAsync(ct);

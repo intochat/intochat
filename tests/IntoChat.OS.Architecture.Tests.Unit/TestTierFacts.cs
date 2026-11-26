@@ -194,7 +194,7 @@ public sealed partial class TestTierFacts
             var hasTests = Repository.SourceFiles(project.Directory, "*.cs")
                 .Any(file =>
                 {
-                    var text = File.ReadAllText(file);
+                    var text = SyntaxCache.ReadText(file);
                     return attributes.Any(attr => text.Contains(attr, StringComparison.Ordinal));
                 });
             if (!hasTests)
@@ -214,9 +214,16 @@ public sealed partial class TestTierFacts
         {
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))
             {
+                var source = SyntaxCache.ReadText(file);
+                if (!source.Contains("OllamaRuntime", StringComparison.Ordinal)
+                    && !source.Contains("11434", StringComparison.Ordinal))
+                {
+                    continue;
+                }
                 var relative = Repository.Relative(file);
-                var source = File.ReadAllText(file);
-                offenders.AddRange(FindUntaggedRealModelTests(source, relative));
+                offenders.AddRange(FindRealModelTests(SyntaxCache.Get(file).Root, relative)
+                    .Where(entry => !entry.HasNeedsModelTrait)
+                    .Select(entry => $"{entry.DisplayName} uses real local Ollama without [Trait(\"needs\", \"model\")]"));
             }
         }
 
@@ -231,10 +238,9 @@ public sealed partial class TestTierFacts
         var journeyFile = Repository.TestProjects()
             .SelectMany(project => Repository.SourceFiles(project.Directory, "RealModelCoderJourney.cs"))
             .Single();
-        var source = File.ReadAllText(journeyFile);
         var relative = Repository.Relative(journeyFile);
 
-        var detected = FindRealModelTests(source, relative);
+        var detected = FindRealModelTests(SyntaxCache.Get(journeyFile).Root, relative);
         Assert.NotEmpty(detected);
         Assert.All(detected, entry => Assert.True(entry.HasNeedsModelTrait, $"{entry.DisplayName} should carry [Trait(\"needs\", \"model\")]."));
     }
@@ -286,9 +292,10 @@ public sealed partial class TestTierFacts
             .Select(entry => $"{entry.DisplayName} uses real local Ollama without [Trait(\"needs\", \"model\")]")];
 
     internal static RealModelTestMatch[] FindRealModelTests(string source, string fileLabel)
+        => FindRealModelTests(CSharpSyntaxTree.ParseText(source).GetCompilationUnitRoot(), fileLabel);
+
+    private static RealModelTestMatch[] FindRealModelTests(CompilationUnitSyntax root, string fileLabel)
     {
-        var tree = CSharpSyntaxTree.ParseText(source);
-        var root = tree.GetCompilationUnitRoot();
         var matches = new List<RealModelTestMatch>();
 
         foreach (var typeDecl in root.DescendantNodes().OfType<ClassDeclarationSyntax>())

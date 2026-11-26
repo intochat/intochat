@@ -15,7 +15,8 @@ namespace IntoChat.OS.Apps.Tests.Integration;
 
 // Files on a real silo: the shell reads it as the compiled screen app.files/default; its buttons act, and its fields send what the
 // person typed, through POST /act.
-public sealed class FilesScreenSiloFacts(InoSiloFixture fixture) : IClassFixture<InoSiloFixture>
+[Collection(nameof(InoSiloCollection))]
+public sealed class FilesScreenSiloFacts(InoSiloFixture fixture)
 {
     private static readonly TimeSpan Within = TimeSpan.FromSeconds(15);
 

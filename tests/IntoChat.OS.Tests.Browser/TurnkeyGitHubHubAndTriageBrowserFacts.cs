@@ -10,9 +10,8 @@ using Microsoft.Playwright;
 
 namespace IntoChat.OS.Tests.Browser;
 
-[Collection(nameof(WebShellCollection))]
+[Collection(nameof(TurnkeyTriageWebShellCollection))]
 public sealed class TurnkeyGitHubHubAndInoNavigationBrowserFacts(TurnkeyTriageWebShellFixture host)
-    : IClassFixture<TurnkeyTriageWebShellFixture>
 {
     private const int StudioViewportWidth = 1440;
     private const int StudioViewportHeight = 900;
@@ -21,9 +20,7 @@ public sealed class TurnkeyGitHubHubAndInoNavigationBrowserFacts(TurnkeyTriageWe
     public async Task Engineer_configure_github_deep_link_opens_settings_github_hub_adopts_policy_and_installs_synapse_at_1440x900()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -93,9 +90,7 @@ public sealed class TurnkeyGitHubHubAndInoNavigationBrowserFacts(TurnkeyTriageWe
     public async Task Ino_navigated_to_arrival_and_engineer_ask_ino_deep_link_render_seeded_prompt_and_context_at_1440x900()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -205,15 +200,16 @@ public sealed class TurnkeyGitHubHubAndInoNavigationBrowserFacts(TurnkeyTriageWe
 
     internal static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)
     {
-        for (var i = 0; i < 80; i++)
+        try
         {
-            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
-            if (visible.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+            await page.WaitForFunctionAsync(
+                "expected => (document.querySelector('flt-semantics-host')?.innerText ?? '').toLowerCase().includes(expected.toLowerCase())",
+                expectedSubstring,
+                new PageWaitForFunctionOptions { Timeout = 15_000 }).WaitAsync(ct);
+            return;
+        }
+        catch (TimeoutException)
+        {
         }
 
         var finalText = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
@@ -222,15 +218,16 @@ public sealed class TurnkeyGitHubHubAndInoNavigationBrowserFacts(TurnkeyTriageWe
 
     internal static async Task WaitForSemanticsNotContainsAsync(IPage page, string unexpectedSubstring, CancellationToken ct)
     {
-        for (var i = 0; i < 80; i++)
+        try
         {
-            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
-            if (!visible.Contains(unexpectedSubstring, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+            await page.WaitForFunctionAsync(
+                "unexpected => !(document.querySelector('flt-semantics-host')?.innerText ?? '').toLowerCase().includes(unexpected.toLowerCase())",
+                unexpectedSubstring,
+                new PageWaitForFunctionOptions { Timeout = 15_000 }).WaitAsync(ct);
+            return;
+        }
+        catch (TimeoutException)
+        {
         }
 
         var finalText = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
@@ -238,9 +235,8 @@ public sealed class TurnkeyGitHubHubAndInoNavigationBrowserFacts(TurnkeyTriageWe
     }
 }
 
-[Collection(nameof(WebShellCollection))]
+[Collection(nameof(TurnkeyTriageWebShellCollection))]
 public sealed class TasksTurnkeyIssueTriageBrowserFacts(TurnkeyTriageWebShellFixture host)
-    : IClassFixture<TurnkeyTriageWebShellFixture>
 {
     private const int StudioViewportWidth = 1440;
     private const int StudioViewportHeight = 900;
@@ -252,9 +248,7 @@ public sealed class TasksTurnkeyIssueTriageBrowserFacts(TurnkeyTriageWebShellFix
         await host.ConnectPatAndInstallDraftTriageSynapseAsync(ct);
         var draft404 = await host.PostSignedIssueOpenedWebhookAndWaitForDraftAsync(404, ct);
 
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();

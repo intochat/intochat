@@ -12,9 +12,12 @@ public sealed class SwallowFacts
     internal sealed record Site(int Line, bool Empty, bool BroadUnlogged, bool ExceptionDiscarded);
 
     internal static IReadOnlyList<Site> Walk(string source)
+        => Walk(CSharpSyntaxTree.ParseText(source).GetRoot());
+
+    private static IReadOnlyList<Site> Walk(SyntaxNode root)
     {
         var sites = new List<Site>();
-        foreach (var clause in CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes().OfType<CatchClauseSyntax>())
+        foreach (var clause in root.DescendantNodes().OfType<CatchClauseSyntax>())
         {
             var empty = clause.Block.Statements.Count == 0 && clause.Filter is null && !IsCancellation(clause);
             var broad = clause.Declaration is null || clause.Declaration.Type.ToString() is "Exception" or "System.Exception";
@@ -45,8 +48,10 @@ public sealed class SwallowFacts
     }
 
     internal static IReadOnlyList<int> FindNullLoggerLines(string source)
-        => CSharpSyntaxTree.ParseText(source).GetRoot()
-            .DescendantTokens()
+        => FindNullLoggerLines(CSharpSyntaxTree.ParseText(source).GetRoot());
+
+    private static IReadOnlyList<int> FindNullLoggerLines(SyntaxNode root)
+        => root.DescendantTokens()
             .Where(token => token.IsKind(SyntaxKind.IdentifierToken)
                 && token.Text is "NullLogger" or "NullLoggerFactory")
             .Select(token => token.GetLocation().GetLineSpan().StartLinePosition.Line + 1)
@@ -132,13 +137,18 @@ public sealed class SwallowFacts
             && access.Expression.ToString() is "Trace" or "System.Diagnostics.Trace"
             && access.Name.Identifier.Text is "TraceError" or "TraceWarning" or "TraceInformation";
 
-    private static IEnumerable<string> ProductionFiles()
-        => Repository.ProjectFiles("*.cs",
+    private static readonly Lazy<CachedSource[]> ProductionSources = new(() =>
+        SyntaxCache.GetAll(Repository.ProjectFiles("*.cs",
             _ => true,
-            project => !project.Name.Contains(".Tests", StringComparison.Ordinal) && !project.Name.Contains(".Testing", StringComparison.Ordinal));
+            project => !project.Name.Contains(".Tests", StringComparison.Ordinal) && !project.Name.Contains(".Testing", StringComparison.Ordinal))));
 
-    private static List<(string Key, IReadOnlyList<Site> Sites)> Scan()
-        => ProductionFiles().Select(path => (Repository.ProjectKey(path), Walk(File.ReadAllText(path)))).ToList();
+    private static readonly Lazy<List<(string Key, IReadOnlyList<Site> Sites)>> CachedScan = new(() =>
+        ProductionSources.Value
+            .Where(src => src.Text.Contains("catch", StringComparison.Ordinal))
+            .Select(src => (Repository.ProjectKey(src.FullPath), Walk(src.Root)))
+            .ToList());
+
+    private static List<(string Key, IReadOnlyList<Site> Sites)> Scan() => CachedScan.Value;
 
     [Fact]
     public void TheWalkerFindsKnownCatches()
@@ -199,8 +209,9 @@ public sealed class SwallowFacts
     [Fact]
     public void NoNullLoggerInProduction()
     {
-        var offenders = ProductionFiles()
-            .SelectMany(path => FindNullLoggerLines(File.ReadAllText(path)).Select(line => $"{Repository.ProjectKey(path)}:{line}"))
+        var offenders = ProductionSources.Value
+            .Where(src => src.Text.Contains("NullLogger", StringComparison.Ordinal))
+            .SelectMany(src => FindNullLoggerLines(src.Root).Select(line => $"{Repository.ProjectKey(src.FullPath)}:{line}"))
             .ToArray();
         Assert.True(offenders.Length == 0,
             "Production code must never reference NullLogger or NullLoggerFactory: " + string.Join(", ", offenders));

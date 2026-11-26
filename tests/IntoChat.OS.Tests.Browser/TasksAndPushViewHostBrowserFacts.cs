@@ -18,9 +18,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
     public async Task Tasks_workspace_renders_full_bleed_kanban_stepper_and_tabs_at_1440x900_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -120,9 +118,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
     public async Task ViewHost_pushes_server_side_screen_updates_into_chromium_with_zero_browser_clicks()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -174,30 +170,36 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 
     private static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)
     {
-        for (var i = 0; i < 60; i++)
+        try
         {
-            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
-            if (visible.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+            await page.WaitForFunctionAsync(
+                "expected => (document.querySelector('flt-semantics-host')?.innerText ?? '').toLowerCase().includes(expected.toLowerCase())",
+                expectedSubstring,
+                new PageWaitForFunctionOptions { Timeout = 12_000 }).WaitAsync(ct);
+            return;
         }
+        catch (TimeoutException)
+        {
+        }
+
         var finalText = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
         Assert.Contains(expectedSubstring, finalText, StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task WaitForSemanticsNotContainsAsync(IPage page, string unexpectedSubstring, CancellationToken ct)
     {
-        for (var i = 0; i < 60; i++)
+        try
         {
-            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
-            if (!visible.Contains(unexpectedSubstring, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+            await page.WaitForFunctionAsync(
+                "unexpected => !(document.querySelector('flt-semantics-host')?.innerText ?? '').toLowerCase().includes(unexpected.toLowerCase())",
+                unexpectedSubstring,
+                new PageWaitForFunctionOptions { Timeout = 12_000 }).WaitAsync(ct);
+            return;
         }
+        catch (TimeoutException)
+        {
+        }
+
         var finalText = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
         Assert.DoesNotContain(unexpectedSubstring, finalText, StringComparison.OrdinalIgnoreCase);
     }

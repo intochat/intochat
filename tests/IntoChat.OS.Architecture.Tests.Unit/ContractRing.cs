@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
@@ -7,6 +8,9 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // types with the module's implementation, so the ring facts judge only the contract types in it.
 internal static class ContractRing
 {
+    private static readonly ConcurrentDictionary<Assembly, Type[]> ContractTypesCache = new();
+    private static readonly ConcurrentDictionary<Assembly, HashSet<Type>> ContractTypeSetCache = new();
+
     internal static bool IsContractsProject(Assembly assembly) => assembly.GetName().Name!.EndsWith(".Contracts", StringComparison.Ordinal);
 
     internal static bool IsHost(Assembly assembly) => ContractsHost.Declares(assembly);
@@ -15,7 +19,11 @@ internal static class ContractRing
 
     // The contract types of an assembly: all of them in a Contracts project; in a host, only its contract surface.
     internal static Type[] ContractTypes(Assembly assembly)
-        => IsContractsProject(assembly)
-            ? [.. assembly.GetExportedTypes().Where(type => type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)]
-            : ContractsHost.ContractTypes(assembly);
+        => ContractTypesCache.GetOrAdd(assembly, static asm =>
+            IsContractsProject(asm)
+                ? [.. asm.GetExportedTypes().Where(type => type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)]
+                : ContractsHost.ContractTypes(asm));
+
+    internal static bool IsContractType(Type type)
+        => ContractTypeSetCache.GetOrAdd(type.Assembly, static asm => ContractTypes(asm).ToHashSet()).Contains(type);
 }

@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Playwright;
 using Yarp.ReverseProxy.Transforms;
 using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 using IntoChat.OS.Host.Configuration;
@@ -30,19 +31,29 @@ namespace IntoChat.OS.Tests.Browser.Scenarios;
 // on the kernel's origin, as a deployment serves it: one loopback origin answers the bundle's static files and its config.json and
 // forwards everything else to the kernel with the browser's Host kept. The presence exchange is same-origin only, so this is what
 // lets the shell sign in with the presence token. Test tier only: the production host and FlutterHostOptions are unchanged.
-public sealed class WebShellHost : IAsyncLifetime
+public sealed class WebShellHost(WarmBrowserFixture browser) : IAsyncLifetime
 {
     private static readonly string[] DisabledModules = ["artcraft", "playwright", "postgres", "qdrant", "clickhouse", "supabase", "azure", "roslyn", "sandbox", "webtools"];
     private readonly TestHome _home = new();
     private IDistributedApplicationTestingBuilder? _builder;
     private WebApplication? _origin;
     private string _presence = "";
+    private int _brainCounter;
 
     public DistributedApplication App { get; private set; } = null!;
 
     public string Origin { get; private set; } = "";
 
     public string Scope { get; } = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
+
+    public string NewBrain(string prefix = "browser")
+        => $"{prefix}{Interlocked.Increment(ref _brainCounter)}";
+
+    public Task<IBrowserContext> NewBrowserContextAsync(BrowserNewContextOptions? options = null, CancellationToken ct = default)
+        => browser.NewContextAsync(options, ct);
+
+    public Task<IBrowserContext> NewBrowserContextAsync(int width, int height, CancellationToken ct = default)
+        => browser.NewContextAsync(width, height, ct);
 
     public HttpClient CreateKernelClient()
     {
