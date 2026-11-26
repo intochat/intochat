@@ -24,7 +24,7 @@ import 'node_contracts.dart';
 import 'scene_client.dart';
 import 'models/table_models.dart';
 import 'models/workspace_models.dart';
-import '../voice_mode/talk_socket.dart';
+import '../widgets/voice/talk_socket.dart';
 
 final class IntoChatOSUiClient {
   /// Gated on the kernel; 404 when the kernel runs ungated.

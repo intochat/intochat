@@ -4,7 +4,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
-import '../design/tokens.dart';
+import 'ui_tokens.dart';
 
 /// Semantic colour tokens carried on [ThemeData.extensions].
 ///

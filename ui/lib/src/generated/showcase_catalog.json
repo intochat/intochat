@@ -343,7 +343,7 @@
       },
       {
         "name": "style",
-        "type": "String",
+        "type": "Object?",
         "default": null
       },
       {

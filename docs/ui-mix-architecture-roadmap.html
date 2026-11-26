@@ -316,28 +316,28 @@
       </ul>
     </div>
     <div class="roadmap-step">
-      <div class="roadmap-dot"></div>
-      <h3>Phase 2 — Flatten <code>ui/lib/src/</code> Folder Tree <span class="pill accent">NEXT</span></h3>
+      <div class="roadmap-dot done"></div>
+      <h3>Phase 2 — Flatten <code>ui/lib/src/</code> Folder Tree <span class="pill green">DONE</span></h3>
       <ul>
-        <li>Flatten the 42 single-file dirs in <code>src/ui/*/</code> into <code>src/widgets/neuron/*.dart</code>.</li>
-        <li>Fold single-file dirs: <code>src/lumen/</code> + <code>src/shell_icon.dart</code> → <code>src/theme/</code>; <code>src/models/</code> + <code>src/signals/</code> → <code>src/runtime/models/</code>; <code>src/voice_input/</code> + <code>src/voice_mode/</code> → <code>src/widgets/voice/</code>.</li>
-        <li>Merge <code>src/design/tokens.dart</code> into <code>src/theme/ui_tokens.dart</code> (1 design system).</li>
+        <li>Folded the 42 single-file dirs in <code>src/ui/*/</code> into <code>src/nodes/*_view.dart</code>.</li>
+        <li>Consolidated <code>src/models/</code> + <code>src/signals/</code> → <code>src/runtime/models/</code> (with barrel <code>models.dart</code>) and <code>src/voice_input/</code> + <code>src/voice_mode/</code> → <code>src/widgets/voice/</code> (with barrel <code>voice.dart</code>).</li>
+        <li>Merged <code>src/design/tokens.dart</code> into <code>src/theme/ui_tokens.dart</code> as the single token source of truth.</li>
       </ul>
     </div>
     <div class="roadmap-step">
-      <div class="roadmap-dot"></div>
-      <h3>Phase 3 — C# <code>Mix.Style()</code> Fluent DSL ↔ Flutter <code>UiStyleMapper</code></h3>
+      <div class="roadmap-dot done"></div>
+      <h3>Phase 3 — C# <code>Mix.Style()</code> Fluent DSL ↔ Flutter <code>UiStyleMapper</code> <span class="pill green">DONE</span></h3>
       <ul>
-        <li>Extend C# <code>UiStyleRef</code> (<code>DigitalBrain.UI</code>) with fluent <code>Mix.Style()</code> builder + <code>OnHover</code>/<code>OnPress</code>/<code>OnFocus</code> state overrides.</li>
-        <li>Wire <code>UiStyleMapper</code> in <code>src/primitives/style.dart</code> to map state overrides directly to <code>fluttermix</code> <code>BoxStyler</code> + <code>naked_ui</code> widget states.</li>
+        <li>Added fluent <code>Mix.Style()</code> / <code>UiStyle</code> builder &amp; immutable record in <code>DigitalBrain.UI</code> (<code>Tone</code>, <code>Typography</code>, <code>Elevation</code>, <code>Icon</code>, <code>Motion</code>, <code>Padding</code>, <code>Gap</code>, <code>Radius</code>, <code>Scale</code>, plus <code>OnHover</code>/<code>OnPress</code>/<code>OnFocus</code>) with compact JSON wire serialization and backward-compatible string presets.</li>
+        <li>Wired <code>UiStyleMapper</code> in <code>src/primitives/style.dart</code> and <code>src/nodes/button.dart</code> to map state overrides, elevation shadows, Inter typography, and scale directly onto <code>fluttermix</code> <code>BoxStyler</code> + <code>naked_ui</code> widget states.</li>
       </ul>
     </div>
     <div class="roadmap-step">
-      <div class="roadmap-dot"></div>
-      <h3>Phase 4 — Retire Remaining Legacy Material &amp; Duplicate <code>components/</code></h3>
+      <div class="roadmap-dot done"></div>
+      <h3>Phase 4 — Retire Remaining Legacy Material &amp; Duplicate <code>components/</code> <span class="pill green">DONE</span></h3>
       <ul>
-        <li>Delete duplicate <code>src/components/toggle/</code>, <code>infobar/</code>, <code>progress/</code>, <code>button/</code> once all callers use <code>src/primitives/</code>.</li>
-        <li>Drop redundant <code>intochat_os_flutter_shell.dart</code> wrapper and <code>workspace/application_surface.dart</code> shim.</li>
+        <li>Promoted <code>UiMixInfoBar</code> and <code>UiMixProgress</code> into <code>src/primitives/</code> and migrated all remaining callers off legacy wrappers onto <code>src/primitives/</code> + <code>src/nodes/*_view.dart</code>.</li>
+        <li>Deleted duplicate legacy wrappers <code>src/components/toggle/ui_toggle.dart</code>, <code>button/ui_neuron_button.dart</code>, <code>button/ui_neuron_select.dart</code>, <code>infobar/ui_info_bar.dart</code>, and <code>progress/ui_progress.dart</code> along with their empty directories.</li>
       </ul>
     </div>
   </div>

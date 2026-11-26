@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../primitives/button.dart';
+import '../primitives/style.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
@@ -41,30 +42,59 @@ String? _resolveButtonHint(ButtonNode node, NodeContext ctx) {
 /// client-local intent. A refusal is shown by the host. When guarded
 /// (`.Guard(rule)`) or carrying a tooltip, hint or reason, renders a
 /// `DESIGN.md` §10.8 [Tooltip].
+///
+/// Supports both legacy string presets (`"primary"`, `"secondary"`, `"ghost"`,
+/// `"danger"`, `"link"`) via [UiKitButton] and structured C# `Mix.Style()` JSON
+/// objects via [UiMixButton].
 Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
     ? const SizedBox.shrink()
     : Builder(
-        builder: (context) => Semantics(
-          label: node.automationName.isEmpty ? node.key : node.automationName,
-          button: true,
-          child: UiKitButton(
-            key: ValueKey('button:${node.key}'),
-            label: node.label,
-            icon: node.icon,
-            compact: node.small,
-            tooltip: _resolveButtonHint(node, ctx),
-            style: parseButtonStyle(node.style, node.tone),
-            onPressed: node.enabled && ctx.interactive
-                ? () => pressCommand(
-                    node.key,
-                    node.command,
-                    ctx,
-                    context,
-                    intent: node.intent,
-                  )
-                : null,
-          ),
-        ),
+        builder: (context) {
+          final interactive = node.enabled && ctx.interactive;
+          final onPressed = interactive
+              ? () => pressCommand(
+                  node.key,
+                  node.command,
+                  ctx,
+                  context,
+                  intent: node.intent,
+                )
+              : null;
+          final tooltip = _resolveButtonHint(node, ctx);
+          final rawStyle = node.style;
+          final structuredStyle = rawStyle is Map
+              ? UiStyleData.fromWire(rawStyle)
+              : null;
+
+          final child = structuredStyle != null
+              ? UiMixButton(
+                  key: ValueKey('button:${node.key}'),
+                  label: node.label,
+                  icon: node.icon,
+                  tooltip: tooltip,
+                  style: structuredStyle,
+                  enabled: interactive,
+                  onPressed: onPressed,
+                )
+              : UiKitButton(
+                  key: ValueKey('button:${node.key}'),
+                  label: node.label,
+                  icon: node.icon,
+                  compact: node.small,
+                  tooltip: tooltip,
+                  style: parseButtonStyle(
+                    rawStyle is String ? rawStyle : '',
+                    node.tone,
+                  ),
+                  onPressed: onPressed,
+                );
+
+          return Semantics(
+            label: node.automationName.isEmpty ? node.key : node.automationName,
+            button: true,
+            child: child,
+          );
+        },
       );
 
 /// Sends a control's [command] through [NodeContext.act] (`POST /act`), the

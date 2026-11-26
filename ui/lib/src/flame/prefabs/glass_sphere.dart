@@ -1,11 +1,11 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../../design/tokens.dart' show IcBrainShaderMode;
+import '../../theme/ui_tokens.dart' show IcBrainShaderMode;
 import '../../theme/neuron_icon.dart';
 import '../ino_presence.dart';
 

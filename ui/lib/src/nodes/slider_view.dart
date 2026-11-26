@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../design/tokens.dart';
+import '../theme/ui_tokens.dart';
 import '../generated/node_commands.dart';
 import '../primitives/slider.dart';
 import 'node_context.dart';

@@ -1,6 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/components/button/ui_neuron_select.dart';
 import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_avatar.dart';
 import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_divider.dart';
 import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_list.dart';
@@ -127,14 +126,14 @@ class KitSheet extends StatelessWidget {
           ),
         ]),
         section('SELECT', [
-          UiNeuronSelect(
-            label: 'Language',
-            options: const [
-              {'id': 'en', 'label': 'English'},
-              {'id': 'de', 'label': 'Deutsch'},
+          UiKitSelect<String>(
+            hint: 'Language',
+            items: const [
+              UiKitSelectItem('en', 'English'),
+              UiKitSelectItem('de', 'Deutsch'),
             ],
-            selected: 'en',
-            onSelected: (_) {},
+            value: 'en',
+            onChanged: (_) {},
           ),
         ]),
       ],
@@ -156,10 +155,11 @@ class KitSheet extends StatelessWidget {
           ),
         ]),
         section('TOGGLE / PROGRESS', [
-          UiToggle(label: 'Weekly summary', on: true, onChanged: (_) {}),
-          UiToggle(label: 'Auto-sync', on: false, onChanged: (_) {}),
+          UiMixToggle(label: 'Weekly summary', value: true, onChanged: (_) {}),
           const SizedBox(height: 6),
-          const UiProgress(
+          UiMixToggle(label: 'Auto-sync', value: false, onChanged: (_) {}),
+          const SizedBox(height: 6),
+          const UiMixProgress(
             determinate: true,
             value: 0.4,
             label: 'Uploading 40%',

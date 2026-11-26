@@ -46,9 +46,13 @@ class _UiMixRadioState<T> extends State<UiMixRadio<T>> {
     final tokens = UiTokens.of(context);
     final isSelected = widget.value == widget.groupValue;
     final isInteractive = widget.enabled && widget.onChanged != null;
+    final resolved = widget.style.resolve(
+      hovered: _hovered && isInteractive,
+      focused: _focused && isInteractive,
+    );
     final activeColor = UiStyleMapper.resolveToneBackground(
       colors,
-      widget.style.tone,
+      resolved.tone,
     );
     final borderColor = _focused
         ? colors.focus
@@ -57,8 +61,8 @@ class _UiMixRadioState<T> extends State<UiMixRadio<T>> {
         : isSelected
         ? activeColor
         : colors.hairline;
-    final duration = widget.style.motion.duration;
-    final curve = widget.style.motion.curve;
+    final duration = resolved.motion.duration;
+    final curve = resolved.motion.curve;
 
     final radio = RadioGroup<T>(
       groupValue: widget.groupValue,

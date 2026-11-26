@@ -44,19 +44,26 @@ final class UiMixExpander extends StatefulWidget {
 
 class _UiMixExpanderState extends State<UiMixExpander> {
   bool _hovered = false;
+  bool _pressed = false;
   bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
-    final duration = widget.style.motion.duration;
-    final curve = widget.style.motion.curve;
+    final resolved = widget.style.resolve(
+      hovered: _hovered && widget.enabled,
+      pressed: _pressed && widget.enabled,
+      focused: _focused && widget.enabled,
+    );
+    final duration = resolved.motion.duration;
+    final curve = resolved.motion.curve;
 
     final card = Box(
       style: UiStyleMapper.boxStyler(
         context,
         widget.style,
         isHovered: _hovered,
+        isPressed: _pressed,
         isFocused: _focused,
         isEnabled: widget.enabled,
       ),
@@ -70,6 +77,10 @@ class _UiMixExpanderState extends State<UiMixExpander> {
             onHoverChange: (hovered) {
               if (_hovered == hovered) return;
               setState(() => _hovered = hovered);
+            },
+            onPressChange: (pressed) {
+              if (_pressed == pressed) return;
+              setState(() => _pressed = pressed);
             },
             onFocusChange: (focused) {
               if (_focused == focused) return;
@@ -116,7 +127,7 @@ class _UiMixExpanderState extends State<UiMixExpander> {
             alignment: Alignment.topCenter,
             child: widget.isExpanded
                 ? Padding(
-                    padding: EdgeInsets.only(top: widget.style.gap ?? 10),
+                    padding: EdgeInsets.only(top: resolved.gap ?? 10),
                     child: widget.body,
                   )
                 : const SizedBox.shrink(),

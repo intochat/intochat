@@ -9,8 +9,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart'
     show PresenceState;
 
-import '../design/tokens.dart';
-import '../widgets/ino/ino_orb_v2.dart';
+import '../../theme/ui_tokens.dart';
+import '../ino/ino_orb_v2.dart';
 import 'audio_out.dart';
 import 'mic_stream.dart';
 import 'talk_socket.dart';

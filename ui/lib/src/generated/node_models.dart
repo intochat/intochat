@@ -502,7 +502,7 @@ final class ButtonNode extends Node {
   final String? tooltip;
   final bool visible;
   final String automationName;
-  final String style;
+  final Object? style;
   final String? icon;
   final bool small;
 
@@ -520,7 +520,7 @@ final class ButtonNode extends Node {
     tooltip: _stringOrNull(json['tooltip']),
     visible: _bool(json['visible'], true),
     automationName: _string(json['automationName']),
-    style: _string(json['style']),
+    style: json['style'],
     icon: _stringOrNull(json['icon']),
     small: _bool(json['small']),
   );

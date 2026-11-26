@@ -7,7 +7,7 @@ import '../components/browser/ui_web_browser.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../focus_registry.dart';
 import '../core/neuron_method_caller.dart';
-import '../models/window_state.dart';
+import '../runtime/models/window_state.dart';
 import '../nodes/brain_scene.dart';
 import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';

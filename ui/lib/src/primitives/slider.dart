@@ -52,9 +52,13 @@ class _UiMixSliderState extends State<UiMixSlider> {
         ? widget.step
         : 1.0;
     final clamped = widget.value.clamp(widget.min, safeMax);
+    final resolved = widget.style.resolve(
+      hovered: _hovered && isInteractive,
+      focused: _focused && isInteractive,
+    );
     final activeColor = UiStyleMapper.resolveToneBackground(
       colors,
-      widget.style.tone,
+      resolved.tone,
     );
 
     final slider = NakedSlider(

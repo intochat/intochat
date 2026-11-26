@@ -8,16 +8,12 @@ export 'src/theme/ui_icon.dart'
     show uiIcon, uiIconSize, UiIconEntry, uiIconCatalog, uiIconCategories;
 export 'src/composition/value_nodes/view_badge.dart' show ViewBadge;
 export 'src/components/image/ui_image.dart';
-export 'src/components/infobar/ui_info_bar.dart';
-export 'src/components/progress/ui_progress.dart';
-export 'src/components/toggle/ui_toggle.dart';
 export 'src/entries/entries_client.dart';
 export 'src/entries/ui_entry_control.dart';
 export 'src/preferences/local_preferences.dart';
 export 'src/preferences/ui_preference_control.dart';
 export 'src/theme/neuron_icon.dart';
-export 'src/models/window_state.dart';
-export 'src/signals/rejected.dart';
+export 'src/runtime/models/models.dart';
 export 'src/theme/brand_visuals.dart';
 export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
@@ -54,17 +50,12 @@ export 'src/focus_registry.dart';
 
 export 'src/composition/application_surface.dart';
 
-export 'src/voice_input/ui_voice_input.dart';
-export 'src/voice_mode/audio_out.dart';
-export 'src/voice_mode/mic_stream.dart';
-export 'src/voice_mode/talk_socket.dart';
-export 'src/voice_mode/voice_mode_view.dart';
+export 'src/widgets/voice/voice.dart';
 export 'src/theme/ui_shadows.dart';
 export 'src/theme/ui_tokens.dart';
 export 'src/components/workspace/ui_workspace_components.dart';
 export 'src/theme/shell_icon.dart';
 
-export 'src/design/tokens.dart';
 export 'src/design/keys.dart';
 export 'src/design/controls.dart';
 

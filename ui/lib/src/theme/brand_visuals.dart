@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../design/tokens.dart';
+import 'ui_tokens.dart';
 
 /// Immutable allowlisted visual descriptor bound from C# `VisualCatalog` node fields.
 ///

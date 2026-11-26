@@ -45,13 +45,14 @@ class _UiMixChipState extends State<UiMixChip> {
     final colors = UiColors.of(context);
     final tokens = UiTokens.of(context);
     final isInteractive = widget.enabled && widget.onSelected != null;
-    final activeBg = UiStyleMapper.resolveToneBackground(
-      colors,
-      widget.style.tone,
+    final resolved = widget.style.resolve(
+      hovered: _hovered && isInteractive,
+      focused: _focused && isInteractive,
     );
+    final activeBg = UiStyleMapper.resolveToneBackground(colors, resolved.tone);
     final bg = widget.selected ? activeBg : colors.recessed;
     final fg = widget.selected
-        ? UiStyleMapper.resolveToneForeground(colors, widget.style.tone)
+        ? UiStyleMapper.resolveToneForeground(colors, resolved.tone)
         : colors.strong;
     final borderColor = _focused
         ? colors.focus
@@ -60,9 +61,9 @@ class _UiMixChipState extends State<UiMixChip> {
         : widget.selected
         ? activeBg
         : colors.hairline;
-    final px = widget.style.paddingX ?? tokens.p12;
-    final py = widget.style.paddingY ?? tokens.p6;
-    final radius = widget.style.radius ?? tokens.pill;
+    final px = resolved.paddingX ?? tokens.p12;
+    final py = resolved.paddingY ?? tokens.p6;
+    final radius = resolved.radius ?? tokens.pill;
 
     final chip = NakedToggle(
       value: widget.selected,
@@ -91,8 +92,8 @@ class _UiMixChipState extends State<UiMixChip> {
             )
             .animate(
               AnimationConfig.curve(
-                duration: widget.style.motion.duration,
-                curve: widget.style.motion.curve,
+                duration: resolved.motion.duration,
+                curve: resolved.motion.curve,
               ),
             ),
         child: Row(

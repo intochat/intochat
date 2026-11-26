@@ -42,15 +42,16 @@ class _UiMixToggleState extends State<UiMixToggle> {
   @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
-    final activeBg = UiStyleMapper.resolveToneBackground(
-      colors,
-      widget.style.tone,
-    );
-    final trackColor = widget.value ? activeBg : colors.recessed;
-    final duration = widget.style.motion.duration;
-    final curve = widget.style.motion.curve;
-
     final isInteractive = widget.enabled && widget.onChanged != null;
+    final resolved = widget.style.resolve(
+      hovered: _hovered && isInteractive,
+      focused: _focused && isInteractive,
+    );
+    final activeBg = UiStyleMapper.resolveToneBackground(colors, resolved.tone);
+    final trackColor = widget.value ? activeBg : colors.recessed;
+    final duration = resolved.motion.duration;
+    final curve = resolved.motion.curve;
+
     final toggle = NakedToggle(
       value: widget.value,
       enabled: isInteractive,
@@ -71,22 +72,25 @@ class _UiMixToggleState extends State<UiMixToggle> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Box(
+            key: const ValueKey('ui_toggle_track'),
             style: BoxStyler()
-                .width(42)
-                .height(24)
-                .padding(EdgeInsetsGeometryMix.all(3))
+                .width(40)
+                .height(22)
+                .padding(EdgeInsetsGeometryMix.all(2))
                 .color(
-                  widget.enabled
+                  isInteractive
                       ? trackColor
                       : trackColor.withValues(alpha: 0.45),
                 )
-                .borderRadius(BorderRadiusGeometryMix.circular(999))
+                .borderRadius(
+                  BorderRadiusGeometryMix.circular(resolved.radius ?? 999),
+                )
                 .border(
                   BoxBorderMix.all(
                     BorderSideMix.color(
                       _focused
                           ? colors.focus
-                          : _hovered
+                          : _hovered && isInteractive
                           ? colors.accent
                           : colors.hairline,
                     ).width(_focused ? 1.5 : 1.0),
@@ -112,11 +116,11 @@ class _UiMixToggleState extends State<UiMixToggle> {
             ),
           ),
           if (widget.label.isNotEmpty) ...[
-            SizedBox(width: widget.style.gap ?? 10),
+            SizedBox(width: resolved.gap ?? 10),
             Text(
               widget.label,
               style: TextStyle(
-                color: widget.enabled ? colors.strong : colors.muted,
+                color: isInteractive ? colors.strong : colors.muted,
                 fontSize: 13.5,
                 fontWeight: FontWeight.w500,
               ),

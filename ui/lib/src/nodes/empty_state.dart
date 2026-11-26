@@ -4,7 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/app_tile.dart';
 import '../design/keys.dart';
-import '../design/tokens.dart';
+import '../theme/ui_tokens.dart';
 import '../theme/ui_icon.dart';
 import '../theme/wire_node_values.dart';
 import 'button.dart';

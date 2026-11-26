@@ -3,7 +3,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
-import '../design/tokens.dart';
+import '../theme/ui_tokens.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 

@@ -2,7 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+import 'package:intochat_os_flutter_shell/src/nodes/button.dart';
 import 'package:intochat_os_flutter_shell/src/primitives/ui_control_surface.dart';
 
 void main() {
@@ -301,4 +303,289 @@ void main() {
     expect(allActive.motion, UiMotionPreset.snappy);
     expect(allActive.scale, 0.96);
   });
+
+  test('UiStyleData.fromWire supports structured JSON, px/py aliases, and legacy string presets', () {
+    final fromMap = UiStyleData.fromWire({
+      'tone': 'accent',
+      'px': 18,
+      'py': 9,
+      'elevation': 'floating',
+      'typography': 'heading',
+      'hover': {'tone': 'accentStrong', 'px': 20, 'scale': 1.03},
+    });
+    expect(fromMap, isNotNull);
+    expect(fromMap!.tone, 'accent');
+    expect(fromMap.paddingX, 18);
+    expect(fromMap.paddingY, 9);
+    expect(fromMap.elevation, 'floating');
+    expect(fromMap.typography, 'heading');
+    expect(fromMap.hover?.tone, 'accentstrong');
+    expect(fromMap.hover?.paddingX, 20);
+    expect(fromMap.hover?.scale, 1.03);
+
+    final primary = UiStyleData.fromWire('primary');
+    expect(primary?.tone, 'accent');
+    expect(primary?.hover?.tone, 'accentstrong');
+
+    final ghost = UiStyleData.fromWire('ghost');
+    expect(ghost?.tone, 'ghost');
+    expect(ghost?.hover?.tone, 'subtle');
+
+    expect(UiStyleData.fromWire(null), isNull);
+    expect(UiStyleData.fromWire(''), isNull);
+  });
+
+  testWidgets(
+    'UiMixButton applies hover, press, and focus overrides (tone, padding, elevation, scale) end-to-end',
+    (tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+
+      final style = UiStyleData.fromJson({
+        'tone': 'secondary',
+        'typography': 'label',
+        'elevation': 'flat',
+        'paddingX': 12,
+        'paddingY': 8,
+        'radius': 8,
+        'motion': 'snappy',
+        'focus': {'tone': 'accentTint', 'elevation': 'subtle', 'radius': 12},
+        'hover': {
+          'tone': 'accentStrong',
+          'elevation': 'raised',
+          'paddingX': 20,
+          'scale': 1.04,
+        },
+        'press': {'tone': 'danger', 'elevation': 'floating', 'scale': 0.95},
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: Center(
+              child: UiMixButton(
+                label: 'Deploy',
+                icon: 'rocket',
+                focusNode: focusNode,
+                style: style,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final colors = UiColors.intochatLight;
+
+      Container buttonBox() => tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(UiMixButton),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+
+      // Base state: secondary surface, 12x8 padding, no elevation shadow.
+      var box = buttonBox();
+      var dec = box.decoration! as BoxDecoration;
+      expect(dec.color, colors.surface);
+      expect(
+        box.padding,
+        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      );
+      expect(dec.boxShadow, isNull);
+
+      // Focus state: accentTint tone, subtle elevation shadow, radius 12.
+      focusNode.requestFocus();
+      await tester.pumpAndSettle();
+      box = buttonBox();
+      dec = box.decoration! as BoxDecoration;
+      expect(dec.color, colors.accentTint);
+      expect(dec.boxShadow, isNotEmpty);
+      expect(dec.borderRadius, BorderRadius.circular(12));
+
+      // Hover state overrides focus: accentHover background, paddingX 20, scale 1.04.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+
+      final center = tester.getCenter(find.text('Deploy'));
+      await mouse.moveTo(center);
+      await tester.pumpAndSettle();
+      box = buttonBox();
+      dec = box.decoration! as BoxDecoration;
+      expect(dec.color, colors.accentHover);
+      expect(
+        box.padding,
+        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      );
+      final animatedScale = tester.widget<AnimatedScale>(
+        find.descendant(
+          of: find.byType(UiMixButton),
+          matching: find.byType(AnimatedScale),
+        ),
+      );
+      expect(animatedScale.scale, 1.04);
+
+      // Press state overrides hover: danger background, scale 0.95.
+      final pressGesture = await tester.startGesture(center);
+      await tester.pumpAndSettle();
+      box = buttonBox();
+      dec = box.decoration! as BoxDecoration;
+      expect(dec.color, colors.error);
+      final pressedScale = tester.widget<AnimatedScale>(
+        find.descendant(
+          of: find.byType(UiMixButton),
+          matching: find.byType(AnimatedScale),
+        ),
+      );
+      expect(pressedScale.scale, 0.95);
+      await pressGesture.up();
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'UiStyleMapper.widgetStateBoxStyler and textStyle map typography (Inter only) and variants',
+    (tester) async {
+      late TextStyle displayStyle;
+      late TextStyle metricStyle;
+      late TextStyle captionStyle;
+      late Object widgetStateStyler;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Builder(
+            builder: (context) {
+              displayStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'accent', typography: 'display'),
+              );
+              metricStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'metric'),
+              );
+              captionStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'ghost', typography: 'caption'),
+              );
+              widgetStateStyler = UiStyleMapper.widgetStateBoxStyler(
+                context,
+                UiStyleData.fromJson({
+                  'tone': 'accent',
+                  'elevation': 'raised',
+                  'hover': {'tone': 'accentStrong'},
+                  'press': {'tone': 'danger'},
+                  'focus': {'elevation': 'floating'},
+                }),
+              );
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(displayStyle.fontFamily, UiType.display);
+      expect(displayStyle.fontSize, 24);
+      expect(metricStyle.fontFamily, UiType.sans);
+      expect(metricStyle.fontFeatures, UiType.tabular);
+      expect(captionStyle.fontFamily, UiType.sans);
+      expect(captionStyle.fontSize, 12);
+      expect(widgetStateStyler, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'renderButton uses UiMixButton for structured Mix.Style() JSON and UiKitButton for legacy strings',
+    (tester) async {
+      final structuredNode = ButtonNode.fromJson({
+        'key': 'btn-mix',
+        'label': 'Mix Styled',
+        'style': {
+          'tone': 'accent',
+          'paddingX': 22,
+          'paddingY': 11,
+          'radius': 14,
+          'elevation': 'raised',
+          'hover': {'tone': 'accentStrong'},
+        },
+      });
+      final legacyNode = ButtonNode.fromJson({
+        'key': 'btn-legacy',
+        'label': 'Legacy Primary',
+        'style': 'primary',
+      });
+
+      final ctx = NodeContext(view: 'test-view', send: (_) async => null);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: Column(
+              children: [
+                renderButton(structuredNode, ctx),
+                renderButton(legacyNode, ctx),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UiMixButton), findsOneWidget);
+      expect(find.byType(UiKitButton), findsOneWidget);
+      expect(find.text('Mix Styled'), findsOneWidget);
+      expect(find.text('Legacy Primary'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'UiMixInfoBar and UiMixProgress primitives render severity, dismiss, and progress modes',
+    (tester) async {
+      var dismissed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: Column(
+              children: [
+                UiMixInfoBar(
+                  severity: 'warning',
+                  title: 'Rate limit approaching',
+                  body: 'Consider batching requests.',
+                  onDismiss: () => dismissed = true,
+                ),
+                const UiMixProgress(
+                  determinate: true,
+                  value: 0.65,
+                  label: 'Syncing 65%',
+                ),
+                const UiMixProgress(
+                  determinate: false,
+                  value: 0,
+                  label: 'Connecting',
+                  ring: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('ui_info_bar')), findsOneWidget);
+      expect(find.text('Rate limit approaching'), findsOneWidget);
+      expect(find.text('Syncing 65%'), findsOneWidget);
+      expect(find.text('Connecting'), findsOneWidget);
+
+      await tester.tap(find.byType(UiMixIconButton));
+      await tester.pump();
+      expect(dismissed, isTrue);
+    },
+  );
 }
