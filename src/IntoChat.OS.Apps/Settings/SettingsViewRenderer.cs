@@ -141,7 +141,8 @@ internal static class SettingsViewRenderer
             _ => $"Active modal sheet: {sheet}",
         };
 
-        return Card($"Sheet · {sheet}", "Modal configuration sheet · Dismiss with Close or Esc")[
+        return Card($"Sheet · {sheet}", "Modal configuration sheet · Dismiss with Close or Esc")
+            .Style(OsMixStyles.Card(elevated: true))[
             VStack(Space.Sm)[
                 Text(detail),
                 HStack(Space.Sm)[
@@ -181,7 +182,8 @@ internal static class SettingsViewRenderer
                 StatCard("stat-model", "Default brain model", state.DefaultModel, "Local + cloud", BadgeTone.Done, "cpu"),
                 StatCard("stat-vault", "Connected integrations", $"{connectionCount}", connectionCount > 0 ? "Active" : "None yet", BadgeTone.Neutral, Icons.KeyRound)
             ],
-            Surface(SurfaceKind.Elevated, "Appearance & Regional Preferences", "How IntoChat looks and formats dates for you")[
+            Surface(SurfaceKind.Elevated, "Appearance & Regional Preferences", "How IntoChat looks and formats dates for you")
+                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
                 VStack(Space.Md)[
                     SettingsControls.ComboBox(children, state, SettingsControls.ThemeMode, "Appearance mode",
                     [
@@ -210,7 +212,8 @@ internal static class SettingsViewRenderer
                         ])
                 ]
             ],
-            Card("Profile, Secure Vault & OS Sheets", "Open focused security windows without leaving your current workspace")[
+            Card("Profile, Secure Vault & OS Sheets", "Open focused security windows without leaving your current workspace")
+                .Style(OsMixStyles.Card())[
                 HStack(Space.Sm)[
                     PrimaryButton("Open profile & 2FA", "user")
                         .Key("intent:profile")
@@ -234,7 +237,8 @@ internal static class SettingsViewRenderer
     }
 
     private static Node RenderDesktopSection(SettingsAppState state, SettingsChildren children) =>
-        Surface(SurfaceKind.Elevated, "Desktop & Dock", "Ambient canvas tone, adaptive bar layout, and status indicators")[
+        Surface(SurfaceKind.Elevated, "Desktop & Dock", "Ambient canvas tone, adaptive bar layout, and status indicators")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 Heading("Desktop canvas tone", 3, "Choose the warm paper or deep ink surface behind windows."),
                 HStack(Space.Sm)[
@@ -295,7 +299,8 @@ internal static class SettingsViewRenderer
                 .ToNode())
             .ToArray();
 
-        return Surface(SurfaceKind.Elevated, "Apps", "Installed Smart Apps, deployed Synapse units, and capability grants")[
+        return Surface(SurfaceKind.Elevated, "Apps", "Installed Smart Apps, deployed Synapse units, and capability grants")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 HStack(Space.Sm)[
                     StatusPill(StatusKind.Done, "Sandbox verified"),
@@ -336,7 +341,8 @@ internal static class SettingsViewRenderer
 
         if (!string.IsNullOrWhiteSpace(subPage))
         {
-            return Surface(SurfaceKind.Elevated, $"Connections / {subPage}", "Zero-token credential injection via ICapabilityBroker")[
+            return Surface(SurfaceKind.Elevated, $"Connections / {subPage}", "Zero-token credential injection via ICapabilityBroker")
+                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
                 VStack(Space.Md)[
                     HStack(Space.Sm)[
                         Heading($"ConnectionPage · {subPage}", 3, "OAuth scopes, health probe, and capability bindings."),
@@ -368,7 +374,8 @@ internal static class SettingsViewRenderer
             ? [["Local storage", "Built-in", "Connected"]]
             : keys.Select((k, idx) => (IReadOnlyList<string>)[$"Connection {idx + 1}", k, "Connected"]).ToArray();
 
-        return Surface(SurfaceKind.Elevated, "Connections", "Accounts and services this brain can reach without exposing raw secrets")[
+        return Surface(SurfaceKind.Elevated, "Connections", "Accounts and services this brain can reach without exposing raw secrets")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 HStack(Space.Sm)[
                     StatusPill(keys.Count > 0 ? StatusKind.Done : StatusKind.Idle, $"{keys.Count} external connection(s)"),
@@ -544,7 +551,8 @@ internal static class SettingsViewRenderer
             .. keys.Select(static (k, idx) => (IReadOnlyList<string>)[$"Connected Mount {idx + 1}", k, "Connected"]),
         ];
 
-        return Surface(SurfaceKind.Elevated, "Files", "Manage IntoChat cloud storage, connected mounts, and local disk roots")[
+        return Surface(SurfaceKind.Elevated, "Files", "Manage IntoChat cloud storage, connected mounts, and local disk roots")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 HStack(Space.Sm)[
                     StatusPill(StatusKind.Done, $"{mountRows.Length} mounted root(s)")
@@ -834,9 +842,11 @@ internal static class SettingsViewRenderer
             })
             .ToArray();
 
-        return Surface(SurfaceKind.Elevated, "AI", "Providers and default models for each AI role")[
+        return Surface(SurfaceKind.Elevated, "AI", "Providers and default models for each AI role")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
-                Card("Connected Client Compute", "Allow this paired device to advertise ICodeSandbox over its P-256 link for sovereign code execution. Defaults ON on Desktop and OFF on Mobile.")[
+                Card("Connected Client Compute", "Allow this paired device to advertise ICodeSandbox over its P-256 link for sovereign code execution. Defaults ON on Desktop and OFF on Mobile.")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm)[
                         HStack(Space.Sm)[
                             new TagPill(ICodeSandbox.CapabilityId, "neutral", "cpu"),
@@ -848,13 +858,16 @@ internal static class SettingsViewRenderer
                         VStack(Space.Sm, [.. SettingsControls.Toggles.Where(toggle => toggle.Section == "models").Select(toggle => SettingsControls.ToggleSwitch(children, state, toggle))])
                     ]
                 ],
-                Card("Providers", "Local runtimes and cloud providers available to this brain")[
+                Card("Providers", "Local runtimes and cloud providers available to this brain")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm, [.. providerChildren])
                 ],
-                Card("Local installs", "Download progress and queue on this device")[
+                Card("Local installs", "Download progress and queue on this device")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm, [.. installChildren])
                 ],
-                Card("Roles", "Choose the model each capability uses across Ino and background neurons")[
+                Card("Roles", "Choose the model each capability uses across Ino and background neurons")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm, roleControls)
                 ],
                 HStack(Space.Sm)[
@@ -926,9 +939,11 @@ internal static class SettingsViewRenderer
             ])
             .ToArray();
 
-        return Surface(SurfaceKind.Elevated, "AI / Web & tools", "Web search provider, search API keys, and connected MCP tool servers")[
+        return Surface(SurfaceKind.Elevated, "AI / Web & tools", "Web search provider, search API keys, and connected MCP tool servers")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
-                Card("Web search", "Choose how Ino searches the web. External pages and MCP results are fenced as untrusted content.")[
+                Card("Web search", "Choose how Ino searches the web. External pages and MCP results are fenced as untrusted content.")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm)[
                         SettingsControls.ComboBox(children, state, SettingsControls.WebSearchProvider, "Web search provider",
                         [
@@ -962,7 +977,8 @@ internal static class SettingsViewRenderer
                         ]
                     ]
                 ],
-                Card("MCP tool servers", "Streamable HTTP MCP servers whose tools reach Ino")[
+                Card("MCP tool servers", "Streamable HTTP MCP servers whose tools reach Ino")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm)[
                         servers.Length > 0
                             ? Table("MCP servers", ["Title", "URL", "Status", "Tools", "Error"], mcpRows)
@@ -1016,7 +1032,8 @@ internal static class SettingsViewRenderer
             ];
         }).ToArray();
 
-        return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault via SecretRef and never enter neuron state or journals")[
+        return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault via SecretRef and never enter neuron state or journals")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 VStack(Space.Sm, cards),
                 SettingsControls.ApiKeysForm(children, state),
@@ -1049,7 +1066,8 @@ internal static class SettingsViewRenderer
             ]),
         ];
 
-        return Surface(SurfaceKind.Elevated, "Variables and secrets", "Key-value configuration scoped across local, brain, and system — secret values are always redacted")[
+        return Surface(SurfaceKind.Elevated, "Variables and secrets", "Key-value configuration scoped across local, brain, and system — secret values are always redacted")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 StatusPill(StatusKind.Done, $"{rows.Length} scoped entries"),
                 Table(
@@ -1062,7 +1080,8 @@ internal static class SettingsViewRenderer
     }
 
     private static Node RenderBillingSection(SettingsAppState state) =>
-        Surface(SurfaceKind.Elevated, "Billing", "Real-time token consumption, credit balance, and Rule-guarded monthly spend caps")[
+        Surface(SurfaceKind.Elevated, "Billing", "Real-time token consumption, credit balance, and Rule-guarded monthly spend caps")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 HStack(Space.Sm)[
                     StatusPill(
@@ -1079,16 +1098,19 @@ internal static class SettingsViewRenderer
                     (state.MonthlyBudgetMicros == 10_000_000L ? PrimaryButton("Set $10 cap", "gauge") : Button("Set $10 cap", "gauge"))
                         .Key("billing-cap-10")
                         .Small()
+                        .Style(OsMixStyles.FilterPill(state.MonthlyBudgetMicros == 10_000_000L))
                         .Guard(SettingsAppState.ValidateBudget(10_000_000L))
                         .Sends(new SettingsSetBudget(10_000_000L)),
                     (state.MonthlyBudgetMicros == 50_000_000L ? PrimaryButton("Set $50 cap", "gauge") : Button("Set $50 cap", "gauge"))
                         .Key("billing-cap-50")
                         .Small()
+                        .Style(OsMixStyles.FilterPill(state.MonthlyBudgetMicros == 50_000_000L))
                         .Guard(SettingsAppState.ValidateBudget(50_000_000L))
                         .Sends(new SettingsSetBudget(50_000_000L)),
                     (state.MonthlyBudgetMicros == 200_000_000L ? PrimaryButton("Set $200 cap", "gauge") : Button("Set $200 cap", "gauge"))
                         .Key("billing-cap-200")
                         .Small()
+                        .Style(OsMixStyles.FilterPill(state.MonthlyBudgetMicros == 200_000_000L))
                         .Guard(SettingsAppState.ValidateBudget(200_000_000L))
                         .Sends(new SettingsSetBudget(200_000_000L))
                 ]
@@ -1122,7 +1144,8 @@ internal static class SettingsViewRenderer
             }),
         ];
 
-        return Surface(SurfaceKind.Elevated, "Team and permissions", "Manage group members, roles (Owner, Member, Guest), and capability grants")[
+        return Surface(SurfaceKind.Elevated, "Team and permissions", "Manage group members, roles (Owner, Member, Guest), and capability grants")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 StatusPill(StatusKind.Done, $"{memberRows.Length} member(s)"),
                 Table(
@@ -1161,7 +1184,8 @@ internal static class SettingsViewRenderer
                 CapabilityLabel: visual.Label);
         }).ToArray();
 
-        return Surface(SurfaceKind.Elevated, "Notifications", "Choose which neural events alert you and review pending approvals")[
+        return Surface(SurfaceKind.Elevated, "Notifications", "Choose which neural events alert you and review pending approvals")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md, [
                 HStack(Space.Sm)[
                     StatusPill(
@@ -1175,7 +1199,8 @@ internal static class SettingsViewRenderer
     }
 
     private static Node RenderKeyboardSection() =>
-        Surface(SurfaceKind.Elevated, "Keyboard", "Global hotkeys across Desktop, Conversation, and Editor")[
+        Surface(SurfaceKind.Elevated, "Keyboard", "Global hotkeys across Desktop, Conversation, and Editor")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             Table(
                 "Keyboard shortcuts",
                 ["Scope", "Action", "Shortcut"],
@@ -1188,7 +1213,8 @@ internal static class SettingsViewRenderer
         ];
 
     private static Node RenderDangerSection() =>
-        Surface(SurfaceKind.Elevated, "Danger zone", "Portable brain archive export/restore and irreversible account actions")[
+        Surface(SurfaceKind.Elevated, "Danger zone", "Portable brain archive export/restore and irreversible account actions")
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 StatusPill(StatusKind.NeedsYou, "Two-step confirmation enforced on destructive actions"),
                 HStack(Space.Sm)[
@@ -1215,7 +1241,8 @@ internal static class SettingsViewRenderer
         IReadOnlyList<IReadOnlyList<string>> rows,
         string backId,
         string backLabel) =>
-        Surface(SurfaceKind.Elevated, surfaceTitle, subtitle)[
+        Surface(SurfaceKind.Elevated, surfaceTitle, subtitle)
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 Heading(heading, 3, subtitle),
                 Table(heading, ["Property", "Value"], rows),
@@ -1266,6 +1293,7 @@ internal static class SettingsViewRenderer
         (selected ? PrimaryButton(label, icon) : Button(label, icon))
             .Key(id)
             .Small()
+            .Style(OsMixStyles.FilterPill(selected))
             .Sends(PrefSave(state, theme, model, preset, barLayout, themeMode, desktopTone))
             .ToNode();
 }

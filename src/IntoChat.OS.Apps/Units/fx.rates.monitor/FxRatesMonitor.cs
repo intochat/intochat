@@ -43,6 +43,14 @@ public static class FxRatesMonitorUnit
             new Badge($"EUR/USD {state.EurUsd:F4}", Tone: state.Alert ? "error" : "accent"),
             new Badge(state.Alert ? "Threshold Breached" : "Normal", Tone: state.Alert ? "error" : "ok"),
         ]) { Gap = 8 },
-        new Button("reset-fx", "Clear Alert", new Command(".", "fx.reset")),
+        new Button("reset-fx", "Clear Alert", new Command(".", "fx.reset"))
+        {
+            Style = Mix.Style()
+                .Tone(state.Alert ? UiTone.Danger : UiTone.Secondary)
+                .Padding(14, 8)
+                .Radius(10)
+                .Motion(UiMotion.Snappy)
+                .OnPress(static s => s.Scale(0.98)),
+        },
     ]) { Gap = 8 });
 }

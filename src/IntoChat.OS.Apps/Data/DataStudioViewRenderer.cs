@@ -34,20 +34,22 @@ internal static class DataStudioViewRenderer
                 StatCard("kpi-data-min", "Minimum", $"€{state.Min:N0}", "Floor", BadgeTone.Neutral, "arrow-down"),
                 StatCard("kpi-data-max", "Maximum", $"€{state.Max:N0}", "Peak", BadgeTone.Neutral, "arrow-up")
             ],
-            Card("Query & Visualization", state.Summary)[
+            Card("Query & Visualization", state.Summary)
+                .Style(OsMixStyles.Card())[
                 VStack(Space.Sm)[
                     string.IsNullOrWhiteSpace(state.ActiveQuery)
                         ? MutedText("Open a dataset or run a SQL query to inspect aggregates.")
                         : Text(state.ActiveQuery).Muted().Tabular(),
                     HStack(Space.Sm,
                     [
-                        Button("Bar", "bar-chart-2").Key("bar").Small().Sends(new DataStudioSwitchChart("bar")),
-                        Button("Line", "trending-up").Key("line").Small().Sends(new DataStudioSwitchChart("line")),
-                        Button("Pie", "pie-chart").Key("pie").Small().Sends(new DataStudioSwitchChart("pie")),
+                        Button("Bar", "bar-chart-2").Key("bar").Small().Style(OsMixStyles.FilterPill(string.Equals(state.ChartKind, "bar", StringComparison.OrdinalIgnoreCase))).Sends(new DataStudioSwitchChart("bar")),
+                        Button("Line", "trending-up").Key("line").Small().Style(OsMixStyles.FilterPill(string.Equals(state.ChartKind, "line", StringComparison.OrdinalIgnoreCase))).Sends(new DataStudioSwitchChart("line")),
+                        Button("Pie", "pie-chart").Key("pie").Small().Style(OsMixStyles.FilterPill(string.Equals(state.ChartKind, "pie", StringComparison.OrdinalIgnoreCase))).Sends(new DataStudioSwitchChart("pie")),
                         .. distinctColumns.Select(col =>
                             GhostButton($"Group by {col}", "layers")
                                 .Key($"group-by-{col}")
                                 .Small()
+                                .Style(OsMixStyles.FilterPill(false))
                                 .Sends(new DataStudioGroupBy(col, "SUM"))
                                 .ToNode()),
                     ])

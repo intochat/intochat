@@ -9,6 +9,8 @@ public sealed class IconButtonBuilder
     private readonly string _icon;
     private readonly string _tooltip;
     private readonly ButtonBuilder _button;
+    private UiStyle? _explicitStyle;
+    private Func<UiStyleBuilder, UiStyleBuilder>? _styleRefinement;
 
     internal IconButtonBuilder(string icon, string tooltip)
     {
@@ -16,7 +18,7 @@ public sealed class IconButtonBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(tooltip);
         _icon = icon;
         _tooltip = tooltip;
-        _button = new ButtonBuilder(tooltip, style: "ghost", tone: ButtonTone.Neutral, icon: icon, small: true);
+        _button = new ButtonBuilder(tooltip, ButtonMixPreset.Ghost, tone: ButtonTone.Neutral, icon: icon, small: true);
     }
 
     /// <summary>Overrides the deterministic node key.</summary>
@@ -31,6 +33,34 @@ public sealed class IconButtonBuilder
     /// <summary>Disables the button while <paramref name="rule"/> is broken (see <see cref="ButtonBuilder.Guard(Rule)"/>).</summary>
     public IconButtonBuilder Guard(Rule rule) { _button.Guard(rule); return this; }
 
+    /// <summary>Applies an explicit <see cref="Mix.Style()"/> token block to this icon button.</summary>
+    public IconButtonBuilder Style(UiStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _explicitStyle = style;
+        _styleRefinement = null;
+        return this;
+    }
+
+    /// <summary>Applies an explicit <see cref="UiStyleBuilder"/> to this icon button.</summary>
+    public IconButtonBuilder Style(UiStyleBuilder style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _explicitStyle = style.Build();
+        _styleRefinement = null;
+        return this;
+    }
+
+    /// <summary>Refines this icon button's default <see cref="Mix.Style()"/> preset fluently.</summary>
+    public IconButtonBuilder Style(Func<UiStyleBuilder, UiStyleBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _explicitStyle = null;
+        var previous = _styleRefinement;
+        _styleRefinement = previous is null ? configure : builder => configure(previous(builder));
+        return this;
+    }
+
     /// <summary>Binds a typed signal a click sends to the <c>[On]</c> reaction of the view's own neuron (".").</summary>
     public IconButtonBuilder Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal { _button.Sends(signal); return this; }
 
@@ -44,7 +74,13 @@ public sealed class IconButtonBuilder
     public IconButton ToIconButton()
     {
         var button = _button.ToButton();
-        return new IconButton(button.Key, _icon, _tooltip, button.Command, button.Intent, button.Enabled, button.AutomationName);
+        var style = _explicitStyle ?? (_styleRefinement is not null
+            ? _styleRefinement(OsMixStyles.IconButton()).Build()
+            : OsMixStyles.IconButton().Build());
+        return new IconButton(button.Key, _icon, _tooltip, button.Command, button.Intent, button.Enabled, button.AutomationName)
+        {
+            Style = style,
+        };
     }
 
     /// <summary>Materializes this builder as a <see cref="Node"/>.</summary>
@@ -58,14 +94,16 @@ public sealed class IconButtonBuilder
 }
 
 /// <summary>
-/// Fluent interactive button builder: a typed signal a press sends (<c>.Sends(new TasksAdvance())</c>), domain rule guards (<c>.Guard(rule)</c>), client-local intents, and visual styles.
+/// Fluent interactive button builder: a typed signal a press sends (<c>.Sends(new TasksAdvance())</c>), domain rule guards (<c>.Guard(rule)</c>), client-local intents, and typed <see cref="Mix.Style()"/> visual styles.
 /// </summary>
 public sealed class ButtonBuilder
 {
     private string? _explicitKey;
     private readonly string _label;
-    private readonly string _style;
+    private readonly ButtonMixPreset _preset;
     private readonly string _tone;
+    private UiStyle? _explicitStyle;
+    private Func<UiStyleBuilder, UiStyleBuilder>? _styleRefinement;
     private string? _icon;
     private bool _small;
     private bool _enabled = true;
@@ -75,10 +113,10 @@ public sealed class ButtonBuilder
     private string? _automationName;
     private Intent? _intent;
 
-    internal ButtonBuilder(string label, string style, string tone, string? icon = null, bool small = false)
+    internal ButtonBuilder(string label, ButtonMixPreset preset, string tone, string? icon = null, bool small = false)
     {
         _label = label ?? string.Empty;
-        _style = style;
+        _preset = preset;
         _tone = tone;
         _icon = icon;
         _small = small;
@@ -106,6 +144,34 @@ public sealed class ButtonBuilder
     public ButtonBuilder Small(bool small = true)
     {
         _small = small;
+        return this;
+    }
+
+    /// <summary>Applies an explicit <see cref="Mix.Style()"/> token block to this button.</summary>
+    public ButtonBuilder Style(UiStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _explicitStyle = style;
+        _styleRefinement = null;
+        return this;
+    }
+
+    /// <summary>Applies an explicit <see cref="UiStyleBuilder"/> to this button.</summary>
+    public ButtonBuilder Style(UiStyleBuilder style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _explicitStyle = style.Build();
+        _styleRefinement = null;
+        return this;
+    }
+
+    /// <summary>Refines this button's default <see cref="Mix.Style()"/> preset fluently.</summary>
+    public ButtonBuilder Style(Func<UiStyleBuilder, UiStyleBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _explicitStyle = null;
+        var previous = _styleRefinement;
+        _styleRefinement = previous is null ? configure : builder => configure(previous(builder));
         return this;
     }
 
@@ -189,9 +255,13 @@ public sealed class ButtonBuilder
             command = CommandMetadata.WithHint(command, _guardMessage, tooltip: null);
         }
 
+        var style = _explicitStyle ?? (_styleRefinement is not null
+            ? _styleRefinement(OsMixStyles.ForButtonPreset(_preset, _small)).Build()
+            : OsMixStyles.ForButtonPreset(_preset, _small).Build());
+
         return new Button(key, _label, command, intent, _enabled, _tone, _automationName ?? "", _tooltip)
         {
-            Style = _style,
+            Style = style,
             Icon = _icon,
             Small = _small,
         };

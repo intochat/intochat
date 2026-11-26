@@ -50,11 +50,19 @@ final class UiMixSurface extends StatelessWidget {
 
     final bg =
         color ??
-        switch (variant) {
-          UiMixSurfaceVariant.card => colors.surface,
-          UiMixSurfaceVariant.elevated => colors.surface,
-          UiMixSurfaceVariant.recessed => colors.recessed,
-        };
+        (style != null && style!.tone != 'default'
+            ? UiStyleMapper.resolveToneBackground(colors, style!.tone)
+            : switch (variant) {
+                UiMixSurfaceVariant.card => colors.surface,
+                UiMixSurfaceVariant.elevated => colors.surface,
+                UiMixSurfaceVariant.recessed => colors.recessed,
+              });
+
+    final styleShadows =
+        shadows ??
+        (style != null && style!.elevation != 'flat'
+            ? UiStyleMapper.elevationShadows(colors, style!.elevation)
+            : null);
 
     final effectiveRadius = radius ?? style?.radius ?? tokens.card;
     final effectiveBorder =
@@ -62,12 +70,14 @@ final class UiMixSurface extends StatelessWidget {
         (colors.isGlass ? colors.specularBorder : colors.hairline);
 
     Widget surface;
-    if (blurSigma != null || colors.isGlass || shadows != null) {
+    if (blurSigma != null ||
+        colors.isGlass ||
+        (styleShadows != null && styleShadows.isNotEmpty)) {
       surface = IcAcrylicBox(
         radius: effectiveRadius,
         color: bg,
         borderColor: effectiveBorder,
-        shadows: shadows ?? UiShadows.sm(colors),
+        shadows: styleShadows ?? UiShadows.sm(colors),
         padding:
             padding ??
             EdgeInsets.symmetric(

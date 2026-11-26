@@ -55,7 +55,20 @@
             "tooltip": null,
             "visible": true,
             "automationName": "mode-mcp",
-            "style": "ghost",
+            "style": {
+              "tone": "ghost",
+              "typography": "label",
+              "motion": "snappy",
+              "paddingX": 9,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              }
+            },
             "small": true
           },
           {
@@ -75,7 +88,20 @@
             "tooltip": null,
             "visible": true,
             "automationName": "mode-native-linux",
-            "style": "ghost",
+            "style": {
+              "tone": "ghost",
+              "typography": "label",
+              "motion": "snappy",
+              "paddingX": 9,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              }
+            },
             "small": true
           },
           {
@@ -95,7 +121,24 @@
             "tooltip": null,
             "visible": true,
             "automationName": "mode-wasm-ui",
-            "style": "secondary",
+            "style": {
+              "tone": "secondary",
+              "typography": "label",
+              "elevation": "flat",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "subtle"
+              }
+            },
             "small": true
           },
           {
@@ -117,7 +160,24 @@
             "tooltip": null,
             "visible": true,
             "automationName": "razor-split",
-            "style": "secondary",
+            "style": {
+              "tone": "secondary",
+              "typography": "label",
+              "elevation": "flat",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "subtle"
+              }
+            },
             "icon": "scissors",
             "small": true
           },
@@ -139,7 +199,25 @@
             "tooltip": null,
             "visible": true,
             "automationName": "export-mp4",
-            "style": "primary",
+            "style": {
+              "tone": "accent",
+              "typography": "label",
+              "elevation": "subtle",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "accentStrong",
+                "elevation": "raised"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "raised"
+              }
+            },
             "icon": "film",
             "small": true
           }

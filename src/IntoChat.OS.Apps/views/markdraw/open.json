@@ -161,7 +161,24 @@
               "tooltip": null,
               "visible": true,
               "automationName": "export-excalidraw",
-              "style": "secondary",
+              "style": {
+                "tone": "secondary",
+                "typography": "label",
+                "elevation": "flat",
+                "motion": "snappy",
+                "paddingX": 10,
+                "paddingY": 5,
+                "radius": 8,
+                "hover": {
+                  "tone": "subtle"
+                },
+                "press": {
+                  "scale": 0.97
+                },
+                "focus": {
+                  "elevation": "subtle"
+                }
+              },
               "icon": "file-json",
               "small": true
             },
@@ -182,7 +199,24 @@
               "tooltip": null,
               "visible": true,
               "automationName": "export-svg",
-              "style": "secondary",
+              "style": {
+                "tone": "secondary",
+                "typography": "label",
+                "elevation": "flat",
+                "motion": "snappy",
+                "paddingX": 10,
+                "paddingY": 5,
+                "radius": 8,
+                "hover": {
+                  "tone": "subtle"
+                },
+                "press": {
+                  "scale": 0.97
+                },
+                "focus": {
+                  "elevation": "subtle"
+                }
+              },
               "icon": "image",
               "small": true
             },
@@ -203,7 +237,24 @@
               "tooltip": null,
               "visible": true,
               "automationName": "diagram-crm-data",
-              "style": "secondary",
+              "style": {
+                "tone": "secondary",
+                "typography": "label",
+                "elevation": "flat",
+                "motion": "snappy",
+                "paddingX": 10,
+                "paddingY": 5,
+                "radius": 8,
+                "hover": {
+                  "tone": "subtle"
+                },
+                "press": {
+                  "scale": 0.97
+                },
+                "focus": {
+                  "elevation": "subtle"
+                }
+              },
               "icon": "bar-chart-2",
               "small": true
             },
@@ -224,7 +275,25 @@
               "tooltip": null,
               "visible": true,
               "automationName": "save-to-files",
-              "style": "primary",
+              "style": {
+                "tone": "accent",
+                "typography": "label",
+                "elevation": "subtle",
+                "motion": "snappy",
+                "paddingX": 10,
+                "paddingY": 5,
+                "radius": 8,
+                "hover": {
+                  "tone": "accentStrong",
+                  "elevation": "raised"
+                },
+                "press": {
+                  "scale": 0.97
+                },
+                "focus": {
+                  "elevation": "raised"
+                }
+              },
               "icon": "save",
               "small": true
             }
@@ -248,7 +317,8 @@
                     "value": "6",
                     "delta": "markdraw",
                     "tone": 1,
-                    "icon": "box"
+                    "icon": "box",
+                    "automationName": "Shapes"
                   },
                   {
                     "kind": "statCard",
@@ -257,7 +327,8 @@
                     "value": "5",
                     "delta": "rev 1",
                     "tone": 2,
-                    "icon": "git-commit"
+                    "icon": "git-commit",
+                    "automationName": "Arrows"
                   }
                 ],
                 "gap": 8
@@ -290,7 +361,25 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-tool:select",
-                            "style": "primary",
+                            "style": {
+                              "tone": "accent",
+                              "typography": "label",
+                              "elevation": "subtle",
+                              "motion": "snappy",
+                              "paddingX": 10,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "accentStrong",
+                                "elevation": "raised"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              },
+                              "focus": {
+                                "elevation": "raised"
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -310,7 +399,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-tool:rect",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -330,7 +432,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-tool:diamond",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -350,7 +465,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-tool:arrow",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           }
                         ],
@@ -377,7 +505,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-zoom:out",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -397,7 +538,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-zoom:reset",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -417,7 +571,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-zoom:in",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -438,7 +605,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-layer:prev",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -458,7 +638,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "markdraw-layer:next",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           }
                         ],
@@ -501,7 +694,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "tpl-architecture",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -521,7 +727,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "tpl-pipeline",
-                            "style": "ghost",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 9,
+                              "paddingY": 5,
+                              "radius": 8,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           }
                         ],

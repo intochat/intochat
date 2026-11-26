@@ -489,7 +489,24 @@
                 "tooltip": null,
                 "visible": true,
                 "automationName": "synapse:workflow:approval-demo",
-                "style": "secondary",
+                "style": {
+                  "tone": "secondary",
+                  "typography": "label",
+                  "elevation": "flat",
+                  "motion": "snappy",
+                  "paddingX": 10,
+                  "paddingY": 5,
+                  "radius": 8,
+                  "hover": {
+                    "tone": "subtle"
+                  },
+                  "press": {
+                    "scale": 0.97
+                  },
+                  "focus": {
+                    "elevation": "subtle"
+                  }
+                },
                 "icon": "play",
                 "small": true
               },
@@ -510,7 +527,20 @@
                 "tooltip": null,
                 "visible": true,
                 "automationName": "inspect:workflow:approval-demo",
-                "style": "ghost",
+                "style": {
+                  "tone": "ghost",
+                  "typography": "label",
+                  "motion": "snappy",
+                  "paddingX": 9,
+                  "paddingY": 5,
+                  "radius": 8,
+                  "hover": {
+                    "tone": "subtle"
+                  },
+                  "press": {
+                    "scale": 0.97
+                  }
+                },
                 "icon": "git-branch",
                 "small": true
               }
@@ -544,11 +574,6 @@
       },
       "body": {
         "kind": "brainScene",
-        "select": {
-          "target": ".",
-          "signal": "creator.select",
-          "args": {}
-        },
         "nodes": [
           {
             "id": "owner/apps/artcraft",
@@ -1604,7 +1629,12 @@
         "synapses": [],
         "selectedId": null,
         "pauseRotation": false,
-        "targetZoom": 1
+        "targetZoom": 1,
+        "select": {
+          "target": ".",
+          "signal": "creator.select",
+          "args": {}
+        }
       },
       "toolbar": {
         "kind": "row",
@@ -1648,7 +1678,24 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-first",
-            "style": "secondary",
+            "style": {
+              "tone": "secondary",
+              "typography": "label",
+              "elevation": "flat",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "subtle"
+              }
+            },
             "icon": "chevrons-left",
             "small": true
           },
@@ -1669,7 +1716,24 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-prev",
-            "style": "secondary",
+            "style": {
+              "tone": "secondary",
+              "typography": "label",
+              "elevation": "flat",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "subtle"
+              }
+            },
             "icon": "chevron-left",
             "small": true
           },
@@ -1690,7 +1754,25 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-toggle",
-            "style": "primary",
+            "style": {
+              "tone": "accent",
+              "typography": "label",
+              "elevation": "subtle",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "accentStrong",
+                "elevation": "raised"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "raised"
+              }
+            },
             "icon": "pause",
             "small": true
           },
@@ -1711,7 +1793,24 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-next",
-            "style": "secondary",
+            "style": {
+              "tone": "secondary",
+              "typography": "label",
+              "elevation": "flat",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "subtle"
+              }
+            },
             "icon": "chevron-right",
             "small": true
           },
@@ -1732,7 +1831,24 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-last",
-            "style": "secondary",
+            "style": {
+              "tone": "secondary",
+              "typography": "label",
+              "elevation": "flat",
+              "motion": "snappy",
+              "paddingX": 10,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              },
+              "focus": {
+                "elevation": "subtle"
+              }
+            },
             "icon": "chevrons-right",
             "small": true
           },
@@ -1753,7 +1869,20 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-live",
-            "style": "ghost",
+            "style": {
+              "tone": "ghost",
+              "typography": "label",
+              "motion": "snappy",
+              "paddingX": 9,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              }
+            },
             "icon": "radio",
             "small": true
           },
@@ -1774,7 +1903,20 @@
             "tooltip": null,
             "visible": true,
             "automationName": "replay-cursor-readout",
-            "style": "ghost",
+            "style": {
+              "tone": "ghost",
+              "typography": "label",
+              "motion": "snappy",
+              "paddingX": 9,
+              "paddingY": 5,
+              "radius": 8,
+              "hover": {
+                "tone": "subtle"
+              },
+              "press": {
+                "scale": 0.97
+              }
+            },
             "icon": "history",
             "small": true
           },
@@ -1807,7 +1949,20 @@
             "tooltip": null,
             "visible": true,
             "automationName": "open-engineer-studio",
-            "style": "secondary",
+            "style": {
+              "tone": "link",
+              "typography": "label",
+              "motion": "snappy",
+              "paddingX": 8,
+              "paddingY": 4,
+              "radius": 8,
+              "hover": {
+                "tone": "accentTint"
+              },
+              "press": {
+                "scale": 0.97
+              }
+            },
             "icon": "sparkles",
             "small": true
           }
@@ -1858,7 +2013,20 @@
                 "tooltip": null,
                 "visible": true,
                 "automationName": "clear-selection",
-                "style": "ghost",
+                "style": {
+                  "tone": "ghost",
+                  "typography": "label",
+                  "motion": "snappy",
+                  "paddingX": 9,
+                  "paddingY": 5,
+                  "radius": 8,
+                  "hover": {
+                    "tone": "subtle"
+                  },
+                  "press": {
+                    "scale": 0.97
+                  }
+                },
                 "icon": "x",
                 "small": true
               }

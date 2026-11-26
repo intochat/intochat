@@ -80,7 +80,8 @@ internal static class FilesUi
         string style = Secondary,
         string? icon = null,
         Rule? guard = null,
-        bool small = true)
+        bool small = true,
+        UiStyle? mixStyle = null)
     {
         ButtonBuilder builder = style switch
         {
@@ -90,6 +91,11 @@ internal static class FilesUi
             _ => Kit.Button(text, icon),
         };
         builder.Key(key).Small(small).Sends(action);
+        if (mixStyle is not null)
+        {
+            builder.Style(mixStyle);
+        }
+
         if (guard is not null)
         {
             builder.Guard(guard);
@@ -107,6 +113,7 @@ internal static class FilesUi
         => Kit.Button(label, "copy")
             .Key(key)
             .Small(small)
+            .Style(OsMixStyles.SecondaryButton(small).Motion(UiMotion.Snappy))
             .WithIntent(IntentKind.Copy, text)
             .ToNode();
 
@@ -125,10 +132,12 @@ internal static class FilesUi
     public static Node List(Node[] rows) => VStack(Space.Xs, rows);
 
     public static Node Card(string title, string? detail = null, Node[]? children = null)
-        => Kit.Card(title, detail ?? "", children ?? []);
+        => Kit.Card(title, detail ?? "", children ?? [])
+            .Style(OsMixStyles.Card());
 
     public static Node Panel(string title, string? subtitle = null, Node[]? children = null, string kind = SurfaceKind.Elevated)
-        => Surface(kind, title, subtitle, 16, children ?? []);
+        => Surface(kind, title, subtitle, 16, children ?? [])
+            .Style(OsMixStyles.Surface(kind, 16));
 
     public static Node Badge(string text, string tone)
     {

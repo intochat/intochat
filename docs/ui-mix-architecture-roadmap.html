@@ -340,6 +340,15 @@
         <li>Deleted duplicate legacy wrappers <code>src/components/toggle/ui_toggle.dart</code>, <code>button/ui_neuron_button.dart</code>, <code>button/ui_neuron_select.dart</code>, <code>infobar/ui_info_bar.dart</code>, and <code>progress/ui_progress.dart</code> along with their empty directories.</li>
       </ul>
     </div>
+    <div class="roadmap-step">
+      <div class="roadmap-dot done"></div>
+      <h3>Phase 5 — OS Apps <code>Mix.Style()</code> Adoption <span class="pill green">DONE</span></h3>
+      <ul>
+        <li>Extended <code>DigitalBrain.UI</code> node style parity to <code>Surface</code>, <code>Card</code>, and <code>IconButton</code> (with regenerated <code>node_models.dart</code> / <code>showcase_catalog.json</code> and Flutter Mix adapters in <code>src/nodes/{surface,card,icon_button}.dart</code> + <code>src/primitives/surface.dart</code>).</li>
+        <li>Added <code>OsMixStyles</code> semantic presets and fluent <code>.Style(...)</code> builders across <code>IntoChat.OS.UI</code> (<code>Kit</code>, <code>ButtonBuilder</code>, <code>IconButtonBuilder</code>, <code>CardBuilder</code>, <code>SurfaceBuilder</code>) so every Kit button, icon button, card, and surface emits typed <code>Mix.Style()</code> wire JSON by default.</li>
+        <li>Migrated all flagship OS apps and shipped units onto fluent <code>Mix.Style()</code> with <strong>0 legacy string style literals</strong> remaining in <code>src/IntoChat.OS.Apps/</code> and <code>src/Modules/Workspace/Files/</code>: <code>Ino</code>, <code>Engineer</code>, <code>Settings</code>, <code>Files</code>, <code>Desktop</code> / <code>Catalog</code>, <code>Creator</code>, <code>Friends</code>, <code>Tasks</code>, <code>Data</code>, <code>Gallery</code>, and all 7 shipped micro-app units (<code>HelloWorld</code>, <code>FxRatesMonitor</code>, <code>WorkNotesOrganizer</code>, <code>GithubIssueTriager</code>, <code>XWatch</code>, <code>WebhookRelay</code>, <code>WebWatch</code>).</li>
+      </ul>
+    </div>
   </div>
 </div>
 

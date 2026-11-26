@@ -84,8 +84,22 @@ public static class ShippedUnits
                                     Key: "toggle-hello",
                                     Label: state.Visible ? "Hide Hello" : "Say Hello",
                                     Command: new Command(".", ToggleSignal),
-                                    Tone: ButtonTone.Accent),
-                            ], Title: "Hello World", Subtitle: "Interactive Micro-App"));
+                                    Tone: ButtonTone.Accent)
+                                {
+                                    Style = Mix.Style()
+                                        .Tone(UiTone.Accent)
+                                        .Padding(16, 10)
+                                        .Radius(10)
+                                        .Motion(UiMotion.Spring)
+                                        .OnPress(static s => s.Scale(0.98)),
+                                },
+                            ], Title: "Hello World", Subtitle: "Interactive Micro-App")
+                            {
+                                Style = Mix.Style()
+                                    .Tone(UiTone.Card)
+                                    .Radius(14)
+                                    .Elevation(UiElevation.Subtle),
+                            });
                     }
                     """,
                 ["spec.md"] = """

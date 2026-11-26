@@ -142,6 +142,7 @@ public static class CreatorView
             {
                 Small = true,
                 Icon = Icons.Sparkles,
+                Style = OsMixStyles.LinkAction(),
             },
         ];
 
@@ -486,7 +487,12 @@ public static class CreatorView
                 AutomationName: "Preview width",
                 SelectedId: state.PreviewViewport)),
             openAppId is { Length: > 0 }
-                ? new Button("studio-open-window", $"Open {openAppId} ↗", Intent: AppSignals.OpenApp(openAppId)) { Small = true, Icon = "external-link" }
+                ? new Button("studio-open-window", $"Open {openAppId} ↗", Intent: AppSignals.OpenApp(openAppId))
+                {
+                    Small = true,
+                    Icon = "external-link",
+                    Style = OsMixStyles.LinkAction(),
+                }
                 : null
         ];
 

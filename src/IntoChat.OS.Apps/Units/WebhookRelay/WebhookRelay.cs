@@ -41,8 +41,19 @@ public static class WebhookRelayUnit
         [
             new Heading("Webhook relay", Subtitle: string.IsNullOrEmpty(state.TopicFilter) ? "All topics" : $"Topic: {state.TopicFilter}"),
             new Badge($"{state.Events.Length} captured", Tone: state.Events.Length > 0 ? "accent" : "neutral"),
-            new Column([.. visible.Select(ev => (Node)new Card(ev.Topic, ev.Summary, []))]) { Gap = 8 },
-            new Button("clear", "Clear events", new Command(".", "relay.clear")),
+            new Column([.. visible.Select(ev => (Node)new Card(ev.Topic, ev.Summary, [])
+            {
+                Style = Mix.Style().Tone(UiTone.Card).Radius(12).Elevation(UiElevation.Subtle),
+            })]) { Gap = 8 },
+            new Button("clear", "Clear events", new Command(".", "relay.clear"))
+            {
+                Style = Mix.Style()
+                    .Tone(UiTone.Secondary)
+                    .Padding(14, 8)
+                    .Radius(10)
+                    .Motion(UiMotion.Snappy)
+                    .OnPress(static s => s.Scale(0.98)),
+            },
         ]) { Gap = 12 });
     }
 

@@ -28,7 +28,12 @@ internal sealed partial class FilesWorkspaceScreen
                 Prompt(state, files, appKey, rev),
                 notice is not null ? (Node)Banner("Files notice", notice, tone: "info") : null,
                 files.InoHandoffPrompt is { } handoffPrompt
-                    ? Card("Ino Handoff", handoffPrompt)[
+                    ? Card("Ino Handoff", handoffPrompt)
+                        .Style(Mix.Style()
+                            .Tone(UiTone.AccentTint)
+                            .Elevation(UiElevation.Subtle)
+                            .Padding(16)
+                            .Radius(14))[
                         VStack(Space.Xs)[
                             MutedText(files.SelectedNeuronUri ?? "").Tabular(),
                             FilesUi.CopyButton("copy-ino-prompt", FilesCopy.CopyNeuronUri, files.SelectedNeuronUri ?? handoffPrompt)
@@ -62,7 +67,12 @@ internal sealed partial class FilesWorkspaceScreen
             mkdir ? "New folder" : "Rename item",
             mkdir
                 ? "Enter a single-segment folder name to create in the current directory."
-                : $"Enter a new name for '{files.Selected?.Item.Name ?? "selected item"}'.")[
+                : $"Enter a new name for '{files.Selected?.Item.Name ?? "selected item"}'.")
+            .Style(Mix.Style()
+                .Tone(UiTone.Elevated)
+                .Elevation(UiElevation.Raised)
+                .Padding(16)
+                .Radius(14))[
             VStack(Space.Sm)[
                 FilesUi.Field("prompt-input", appKey + "/" + PromptField, FieldKind.Text, mkdir ? "e.g. reports" : files.Selected?.Item.Name ?? "", label: "Name", value: state.Typed.Prompt ?? "", typed: PromptField),
                 HStack(Space.Sm)[
@@ -77,7 +87,8 @@ internal sealed partial class FilesWorkspaceScreen
     private static Node? Editor(FilesState files, FilesTyped typed, string appKey, string rev)
     {
         if (Editable(files) is not { } text || files.Selected is not { } selected) { return null; }
-        return Card("Edit " + selected.Item.Name, "Changes are saved as a new version of this file")[
+        return Card("Edit " + selected.Item.Name, "Changes are saved as a new version of this file")
+            .Style(OsMixStyles.Card(elevated: true))[
             VStack(Space.Sm)[
                 FilesUi.Field("editor-content", appKey + "/" + EditorField, FieldKind.Multiline, "File contents…", label: "Contents", value: typed.Editor ?? text, typed: EditorField),
                 HStack(Space.Sm)[
@@ -102,14 +113,14 @@ internal sealed partial class FilesWorkspaceScreen
                     StatusPill(StatusKind.Working, "Working"),
                     Text(operation.Fraction.ToString("P0", CultureInfo.InvariantCulture)).Tabular(),
                     cancel(index),
-                ]);
+                ]).Style(OsMixStyles.Card());
                 continue;
             }
             var status = operation.Status ?? "Finished";
             cards[index] = Card(operation.Label, status, [
                 StatusPill(operation.Failed ? StatusKind.Error : StatusKind.Done, status),
                 Text(status),
-            ]);
+            ]).Style(OsMixStyles.Card());
         }
 
         return cards;

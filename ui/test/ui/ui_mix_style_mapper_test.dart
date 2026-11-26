@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:intochat_os_flutter_shell/src/nodes/button.dart';
+import 'package:intochat_os_flutter_shell/src/nodes/card.dart';
+import 'package:intochat_os_flutter_shell/src/nodes/icon_button.dart';
+import 'package:intochat_os_flutter_shell/src/nodes/surface.dart';
 import 'package:intochat_os_flutter_shell/src/primitives/ui_control_surface.dart';
 
 void main() {
@@ -586,6 +589,69 @@ void main() {
       await tester.tap(find.byType(UiMixIconButton));
       await tester.pump();
       expect(dismissed, isTrue);
+    },
+  );
+
+  testWidgets(
+    'renderCard, renderSurface, and renderIconButton consume structured Mix.Style() wire JSON',
+    (tester) async {
+      final cardNode = CardNode.fromJson({
+        'title': 'Mix Card',
+        'subtitle': 'Structured Surface',
+        'children': [
+          {'kind': 'text', 'value': 'Card body'},
+        ],
+        'style': {'tone': 'surface', 'radius': 12, 'elevation': 'sm'},
+      });
+      final surfaceNode = SurfaceNode.fromJson({
+        'title': 'Mix Surface',
+        'kind': 'elevated',
+        'children': [
+          {'kind': 'text', 'value': 'Surface body'},
+        ],
+        'style': {
+          'tone': 'surface',
+          'radius': 16,
+          'elevation': 'md',
+          'paddingX': 18,
+          'paddingY': 14,
+        },
+      });
+      final iconButtonNode = IconButtonNode.fromJson({
+        'key': 'mix-icon-close',
+        'icon': 'x',
+        'tooltip': 'Close window',
+        'style': {
+          'tone': 'ghost',
+          'radius': 8,
+          'hover': {'tone': 'danger'},
+        },
+      });
+
+      final ctx = NodeContext(view: 'test-view', send: (_) async => null);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  renderCard(cardNode, ctx),
+                  renderSurface(surfaceNode, ctx),
+                  renderIconButton(iconButtonNode, ctx),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UiMixSurface), findsNWidgets(2));
+      expect(find.byType(UiMixIconButton), findsOneWidget);
+      expect(find.text('Mix Card'), findsOneWidget);
+      expect(find.text('Mix Surface'), findsOneWidget);
     },
   );
 }

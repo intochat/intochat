@@ -410,7 +410,20 @@
                   "tooltip": null,
                   "visible": true,
                   "automationName": "newtab",
-                  "style": "secondary",
+                  "style": {
+                    "tone": "ghost",
+                    "typography": "label",
+                    "motion": "snappy",
+                    "paddingX": 12,
+                    "paddingY": 5,
+                    "radius": 999,
+                    "hover": {
+                      "tone": "subtle"
+                    },
+                    "press": {
+                      "scale": 0.97
+                    }
+                  },
                   "icon": "plus",
                   "small": true
                 }
@@ -451,7 +464,24 @@
                   "tooltip": null,
                   "visible": true,
                   "automationName": "avatar",
-                  "style": "secondary",
+                  "style": {
+                    "tone": "secondary",
+                    "typography": "label",
+                    "elevation": "flat",
+                    "motion": "snappy",
+                    "paddingX": 10,
+                    "paddingY": 5,
+                    "radius": 999,
+                    "hover": {
+                      "tone": "subtle"
+                    },
+                    "press": {
+                      "scale": 0.97
+                    },
+                    "focus": {
+                      "elevation": "subtle"
+                    }
+                  },
                   "small": false
                 },
                 {
@@ -469,7 +499,24 @@
                   "tooltip": null,
                   "visible": true,
                   "automationName": "more-settings",
-                  "style": "secondary",
+                  "style": {
+                    "tone": "secondary",
+                    "typography": "label",
+                    "elevation": "flat",
+                    "motion": "snappy",
+                    "paddingX": 10,
+                    "paddingY": 5,
+                    "radius": 999,
+                    "hover": {
+                      "tone": "subtle"
+                    },
+                    "press": {
+                      "scale": 0.97
+                    },
+                    "focus": {
+                      "elevation": "subtle"
+                    }
+                  },
                   "small": false
                 }
               ],
@@ -1169,7 +1216,14 @@
           "surfaceKind": "app-catalog",
           "title": null,
           "subtitle": null,
-          "padding": 0
+          "padding": 0,
+          "style": {
+            "tone": "elevated",
+            "elevation": "subtle",
+            "paddingX": 12,
+            "paddingY": 12,
+            "radius": 18
+          }
         }
       ],
       "gap": 12,

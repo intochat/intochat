@@ -413,6 +413,11 @@
         "name": "footer",
         "type": "Node?",
         "default": null
+      },
+      {
+        "name": "style",
+        "type": "Object?",
+        "default": null
       }
     ],
     "state": [],
@@ -1778,6 +1783,11 @@
         "name": "automationName",
         "type": "String",
         "default": ""
+      },
+      {
+        "name": "style",
+        "type": "Object?",
+        "default": null
       }
     ],
     "state": [],
@@ -3455,6 +3465,11 @@
         "name": "padding",
         "type": "double",
         "default": 18
+      },
+      {
+        "name": "style",
+        "type": "Object?",
+        "default": null
       }
     ],
     "state": [],

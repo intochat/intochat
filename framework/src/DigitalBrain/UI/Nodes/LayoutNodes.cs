@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
@@ -84,11 +85,32 @@ public sealed record Surface(
     string? Subtitle = null,
     double Padding = 18) : Node
 {
-    /// <inheritdoc />
-    public bool Equals(Surface? other) => other is not null && Kind == other.Kind && Title == other.Title && Subtitle == other.Subtitle && Padding.Equals(other.Padding) && Children.SequenceEqual(other.Children);
+    private readonly UiStyle? _style;
+
+    /// <summary>Optional visual style authored via <see cref="Mix.Style()"/>.</summary>
+    [JsonIgnore]
+    public UiStyle? Style
+    {
+        get => _style;
+        init => _style = value;
+    }
+
+    /// <summary>Wire representation of <see cref="Style"/>; omitted when unset.</summary>
+    [JsonPropertyName("style")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? StyleWire
+    {
+        get => _style?.ToWireJsonElement();
+        init => _style = value is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined }
+            ? UiStyle.FromWireJsonElement(value)
+            : null;
+    }
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Kind, Title, Children.Count);
+    public bool Equals(Surface? other) => other is not null && Kind == other.Kind && Title == other.Title && Subtitle == other.Subtitle && Padding.Equals(other.Padding) && Equals(_style, other._style) && Children.SequenceEqual(other.Children);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Kind, Title, Children.Count, _style);
 }
 
 /// <summary>A hairline section divider with an optional label.</summary>

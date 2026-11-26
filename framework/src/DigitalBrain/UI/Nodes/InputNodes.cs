@@ -166,8 +166,29 @@ public sealed record IconButton(
         ? true
         : throw new ArgumentException("An icon button carries exactly one of Command and Intent.", nameof(Intent));
 
+    private readonly UiStyle? _style;
+
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
     public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
+
+    /// <summary>Optional visual style authored via <see cref="Mix.Style()"/>.</summary>
+    [JsonIgnore]
+    public UiStyle? Style
+    {
+        get => _style;
+        init => _style = value;
+    }
+
+    /// <summary>Wire representation of <see cref="Style"/>; omitted when unset.</summary>
+    [JsonPropertyName("style")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? StyleWire
+    {
+        get => _style?.ToWireJsonElement();
+        init => _style = value is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined }
+            ? UiStyle.FromWireJsonElement(value)
+            : null;
+    }
 }
 
 /// <summary>What a client-local intent does.</summary>

@@ -345,21 +345,21 @@ public static class Kit
 
     // ── Interactive Controls ─────────────────────────────────────────────────
 
-    /// <summary>The single primary CTA button of a surface (<c>style: "primary"</c>, <c>tone: "accent"</c>).</summary>
+    /// <summary>The single primary CTA button of a surface (typed <see cref="Mix.Style()"/> accent CTA).</summary>
     public static ButtonBuilder PrimaryButton(string label, string? icon = null)
-        => new(label, style: "primary", tone: ButtonTone.Accent, icon: icon);
+        => new(label, ButtonMixPreset.Primary, tone: ButtonTone.Accent, icon: icon);
 
-    /// <summary>Standard secondary button (<c>style: "secondary"</c>, <c>tone: "neutral"</c>).</summary>
+    /// <summary>Standard secondary button (typed <see cref="Mix.Style()"/> secondary action).</summary>
     public static ButtonBuilder Button(string label, string? icon = null)
-        => new(label, style: "secondary", tone: ButtonTone.Neutral, icon: icon);
+        => new(label, ButtonMixPreset.Secondary, tone: ButtonTone.Neutral, icon: icon);
 
-    /// <summary>Quiet borderless ghost button (<c>style: "ghost"</c>).</summary>
+    /// <summary>Quiet borderless ghost button (typed <see cref="Mix.Style()"/> ghost action).</summary>
     public static ButtonBuilder GhostButton(string label, string? icon = null)
-        => new(label, style: "ghost", tone: ButtonTone.Neutral, icon: icon);
+        => new(label, ButtonMixPreset.Ghost, tone: ButtonTone.Neutral, icon: icon);
 
-    /// <summary>Destructive action button (<c>style: "danger"</c>).</summary>
+    /// <summary>Destructive action button (typed <see cref="Mix.Style()"/> danger action).</summary>
     public static ButtonBuilder DangerButton(string label, string? icon = null)
-        => new(label, style: "danger", tone: ButtonTone.Neutral, icon: icon);
+        => new(label, ButtonMixPreset.Danger, tone: ButtonTone.Neutral, icon: icon);
 
     /// <summary>An icon-only button; <paramref name="tooltip"/> says what it does (name it: <c>IconButton(icon, tooltip: "...")</c>).</summary>
     public static IconButtonBuilder IconButton(string icon, string tooltip) => new(icon, tooltip);

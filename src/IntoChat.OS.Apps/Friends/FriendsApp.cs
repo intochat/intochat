@@ -857,7 +857,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 $"{state.DisplayName} (@{state.Handle})",
                 string.IsNullOrWhiteSpace(state.Bio) ? state.Status : $"{state.Bio} · {state.Status}",
                 StatusPill(StatusKind.Done, $"{roster.Length} friends"),
-                PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().Sends(new FriendsPublish("Interactive revenue & sketch board", "friends"))),
+                PrimaryButton("Publish App-Post", Icons.Plus)
+                    .Key("publish-app-post")
+                    .Small()
+                    .Style(OsMixStyles.PrimaryButton(small: true).Motion(UiMotion.Spring))
+                    .Sends(new FriendsPublish("Interactive revenue & sketch board", "friends"))),
             HStack(Space.Sm)[
                 Child<ITabStripControl, TabStripProps>(SectionKey, new TabStripProps(
                     [new("all", "Overview"), new("feed", "Posts"), new("roster", "Roster"), new("shared", "Shared")],
@@ -894,12 +898,14 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 Button("Like", "heart")
                     .Key($"btn:react-like:{item.OwnerBrain}:{item.PostId}")
                     .Small()
+                    .Style(OsMixStyles.FilterPill(selected: false))
                     .Sends(Sends(new ReactToPost(item.OwnerBrain, item.PostId, "like")))
             ];
             return item.HasApp ? (Node)VStack(Space.Sm, [line, RenderPostCard(item)]) : line;
         }).ToArray();
 
-        return Card("Posts", "Publish to your friends and read what they posted.")[
+        return Card("Posts", "Publish to your friends and read what they posted.")
+            .Style(OsMixStyles.Card())[
             VStack(Space.Sm,
             [
                 HStack(Space.Sm)[
@@ -934,7 +940,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             ? room.Messages.Select(m => (Node)Text($"{m.Author}: {m.Text}")).ToArray()
             : [];
 
-        return Card("Room Chat", subtitle)[
+        return Card("Room Chat", subtitle)
+            .Style(OsMixStyles.Card())[
             VStack(Space.Sm,
             [
                 .. messageNodes,
@@ -962,10 +969,15 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             Button("Join Room", "door-open").Key($"btn:join-room:{friend.Brain.Value}:chat").Small().Sends(Sends(new OpenFriendRoom("chat", friend.Account.Value, friend.Brain.Value))),
             Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account.Value}").Small().Sends(new FriendsShareFolder(friend.Account.Value, "", "viewer")),
             Button("Share as editor", "pencil").Key($"share-editor:{friend.Account.Value}").Small().Sends(new FriendsShareFolder(friend.Account.Value, "", "editor")),
-            GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account.Value}").Small().Sends(new FriendsUnfriend(friend.Account.Value)),
+            GhostButton("Remove", "user-minus")
+                .Key($"unfriend:{friend.Account.Value}")
+                .Small()
+                .Style(s => s.OnHover(h => h.Tone(UiTone.Danger)))
+                .Sends(new FriendsUnfriend(friend.Account.Value)),
         ]));
 
-        return Card("Friends", "A friend is confirmed with a code: one of you makes it, the other adds it.")[
+        return Card("Friends", "A friend is confirmed with a code: one of you makes it, the other adds it.")
+            .Style(OsMixStyles.Card())[
             VStack(Space.Sm,
             [
                 .. rows,
@@ -986,10 +998,15 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     {
         var shares = state.SharedByMe ?? [];
         if (shares.Length == 0) { return null; }
-        return Card("Shared by me", "People with access to your files. Removing takes effect at once.")[
+        return Card("Shared by me", "People with access to your files. Removing takes effect at once.")
+            .Style(OsMixStyles.Card())[
             VStack(Space.Xs, [.. shares.Select(share => (Node)HStack(Space.Sm)[
                 Text(share.Broken ? $"{share.Path} · {share.Account} · {share.Role} · Broken" : $"{share.Path} · {share.Account} · {share.Role}"),
-                GhostButton("Remove", "x").Key($"unshare:{share.Id}").Small().Sends(new FriendsUnshare(share.Id))
+                GhostButton("Remove", "x")
+                    .Key($"unshare:{share.Id}")
+                    .Small()
+                    .Style(s => s.OnHover(h => h.Tone(UiTone.Danger)))
+                    .Sends(new FriendsUnshare(share.Id))
             ])])
         ];
     }
@@ -1007,7 +1024,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             Button("Open", "folder-open").Key($"open-shared:{pointer.ShareId}").Small().Sends(new FriendsOpenShared(pointer.OwnerBrain, pointer.ShareId, ""))
         ]);
 
-        return Card("Shared with me", "The file stays with its owner. It is reachable while their brain is running; the last save wins.")[
+        return Card("Shared with me", "The file stays with its owner. It is reachable while their brain is running; the last save wins.")
+            .Style(OsMixStyles.Card())[
             VStack(Space.Sm, [.. list, RenderOpened(state.Opened, state.SharedTextDraft)])
         ];
     }
@@ -1067,7 +1085,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             .. embedded.Select(child => new RecordFieldNode($"Embedded [{child.Slot}]", $"{child.Title} ({child.TargetNeuronUri})")),
         ];
 
-        return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.PostId}" : post.Title, $"{post.Author} · [{audience}] · {template}")[
+        return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.PostId}" : post.Title, $"{post.Author} · [{audience}] · {template}")
+            .Style(OsMixStyles.Card(elevated: true))[
             VStack(Space.Sm,
             [
                 post.Mine
@@ -1084,9 +1103,13 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     ? new Node[]
                     {
                         HStack(Space.Sm)[
-                            Button("Fork & Install", "download").Key($"fork-and-install:{post.PostId}").Small().Sends(new FriendsForkApp(post.PostId)),
+                            PrimaryButton("Fork & Install", "download").Key($"fork-and-install:{post.PostId}").Small().Sends(new FriendsForkApp(post.PostId)),
                             Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.PostId}").Small().Sends(new FriendsForkPost(post.PostId)),
-                            GhostButton("Open in Creator", "wand-sparkles").Key($"open-in-creator:{post.PostId}").Small().WithIntent(IntentKind.OpenWindow, "creator")
+                            GhostButton("Open in Creator", "wand-sparkles")
+                                .Key($"open-in-creator:{post.PostId}")
+                                .Small()
+                                .Style(OsMixStyles.LinkAction())
+                                .WithIntent(IntentKind.OpenWindow, "creator")
                         ],
                     }
                     : [],
