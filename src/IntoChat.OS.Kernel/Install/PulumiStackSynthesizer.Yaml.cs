@@ -61,6 +61,7 @@ public static partial class PulumiStackSynthesizer
             AppendContainerAppYaml(resources, c, sandboxApp, allSecretSpecs, roleGrantSpecs);
         }
 
+        var (osMinReplicas, osMaxReplicas) = ResolveScale(osApp);
         var resourcesYaml = resources.ToString().ReplaceLineEndings("\n").TrimEnd('\n');
         return PulumiAssets.PulumiYamlTemplate
             .Replace("{{stackProjectName}}", StackProjectName, StringComparison.Ordinal)
@@ -75,6 +76,8 @@ public static partial class PulumiStackSynthesizer
             .Replace("{{osLogical}}", osLogical, StringComparison.Ordinal)
             .Replace("{{envLogical}}", envLogical, StringComparison.Ordinal)
             .Replace("{{osImage}}", osApp.Image, StringComparison.Ordinal)
+            .Replace("{{osMinReplicas}}", osMinReplicas.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{{osMaxReplicas}}", osMaxReplicas.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{{moduleSecretsCount}}", osApp.Secrets.Length.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{{moduleVariablesCount}}", osApp.Variables.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
@@ -381,10 +384,11 @@ public static partial class PulumiStackSynthesizer
                 sb.AppendLine($"            identity: \"{identityResourceId}\"");
             }
         }
+        var (minReplicas, maxReplicas) = ResolveScale(app);
         sb.AppendLine("      template:");
         sb.AppendLine("        scale:");
-        sb.AppendLine($"          minReplicas: {app.MinReplicas}");
-        sb.AppendLine($"          maxReplicas: {app.MaxReplicas}");
+        sb.AppendLine($"          minReplicas: {minReplicas}");
+        sb.AppendLine($"          maxReplicas: {maxReplicas}");
         sb.AppendLine("        containers:");
         sb.AppendLine("          - name: app");
         sb.AppendLine($"            image: \"{app.Image}\"");
@@ -440,6 +444,14 @@ public static partial class PulumiStackSynthesizer
         {
             AppendStartAfterUpdate(output, c, app, logical + "-start", trigger, [logical, logical + "-stop"]);
         }
+    }
+
+    // Single-silo ContainerApps (StopBeforeUpdate = true) run Orleans with SingleSiloGuard:
+    // enforce minReplicas: 1 and maxReplicas: 1 so Azure Container Apps never autoscales a conflicting replica.
+    internal static (int MinReplicas, int MaxReplicas) ResolveScale(ContainerAppSpec app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        return app.StopBeforeUpdate ? (1, 1) : (app.MinReplicas, app.MaxReplicas);
     }
 
     // Only a template change makes a new revision, so only the template section (not the tags) triggers the stop and start.

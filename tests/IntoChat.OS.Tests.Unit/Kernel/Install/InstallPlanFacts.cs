@@ -424,6 +424,80 @@ public sealed class InstallPlanFacts
         Assert.Contains("az_retry()", scriptText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SingleSiloAppsEnforceSingleReplicaScaleWhilePreservingSandboxScaleToZero()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+
+        var apps = InstallPlan.Build(config).OfType<ContainerAppSpec>().ToDictionary(app => app.Name, StringComparer.Ordinal);
+        var osApp = apps[config.OsName];
+        var cloudApp = apps[config.CloudName];
+        var sandboxApp = apps[config.SandboxName];
+
+        Assert.Equal(1, osApp.MinReplicas);
+        Assert.Equal(1, osApp.MaxReplicas);
+        Assert.True(osApp.StopBeforeUpdate);
+
+        Assert.Equal(1, cloudApp.MinReplicas);
+        Assert.Equal(1, cloudApp.MaxReplicas);
+        Assert.True(cloudApp.StopBeforeUpdate);
+
+        Assert.Equal(0, sandboxApp.MinReplicas);
+        Assert.Equal(1, sandboxApp.MaxReplicas);
+        Assert.False(sandboxApp.StopBeforeUpdate);
+
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules);
+        Assert.Equal(1, plan.OsApp.MinReplicas);
+        Assert.Equal(1, plan.OsApp.MaxReplicas);
+
+        foreach (var singleSiloName in new[] { config.OsName, config.CloudName })
+        {
+            var block = ResourceBlock(plan.PulumiYaml, $"container-app-{singleSiloName}");
+            Assert.Contains("      template:\n        scale:\n          minReplicas: 1\n          maxReplicas: 1\n", block, StringComparison.Ordinal);
+            Assert.DoesNotContain("- template.scale", block, StringComparison.Ordinal);
+            Assert.DoesNotContain("- template\n", block, StringComparison.Ordinal);
+        }
+
+        var sandboxBlock = ResourceBlock(plan.PulumiYaml, $"container-app-{config.SandboxName}");
+        Assert.Contains("      template:\n        scale:\n          minReplicas: 0\n          maxReplicas: 1\n", sandboxBlock, StringComparison.Ordinal);
+
+        Assert.Contains("  osMinReplicas:\n    value: 1\n", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("  osMaxReplicas:\n    value: 1\n", plan.PulumiYaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResolveScaleAndEnforceSingleSiloScaleClampSingleSiloOverridesAndPreserveStatelessApps()
+    {
+        var singleSiloOverride = new ContainerAppSpec
+        {
+            Name = "intochat-test-os",
+            MinReplicas = 0,
+            MaxReplicas = 10,
+            StopBeforeUpdate = true,
+        };
+        var statelessApp = new ContainerAppSpec
+        {
+            Name = "intochat-test-sandbox",
+            MinReplicas = 0,
+            MaxReplicas = 5,
+            StopBeforeUpdate = false,
+        };
+
+        Assert.Equal((1, 1), PulumiStackSynthesizer.ResolveScale(singleSiloOverride));
+        var enforced = PulumiStackSynthesizer.EnforceSingleSiloScale(singleSiloOverride);
+        Assert.Equal(1, enforced.MinReplicas);
+        Assert.Equal(1, enforced.MaxReplicas);
+
+        Assert.Equal((0, 5), PulumiStackSynthesizer.ResolveScale(statelessApp));
+        var preserved = PulumiStackSynthesizer.EnforceSingleSiloScale(statelessApp);
+        Assert.Equal(0, preserved.MinReplicas);
+        Assert.Equal(5, preserved.MaxReplicas);
+    }
+
     private static string ResourceBlock(string yaml, string logicalName)
     {
         var start = yaml.IndexOf("\n  " + logicalName + ":\n", StringComparison.Ordinal);

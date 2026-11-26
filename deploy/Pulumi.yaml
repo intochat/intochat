@@ -40,6 +40,10 @@ outputs:
     value: "${{{envLogical}}.customDomainConfiguration.customDomainVerificationId}"
   osImage:
     value: "{{osImage}}"
+  osMinReplicas:
+    value: {{osMinReplicas}}
+  osMaxReplicas:
+    value: {{osMaxReplicas}}
   moduleSecretsCount:
     value: {{moduleSecretsCount}}
   moduleVariablesCount:

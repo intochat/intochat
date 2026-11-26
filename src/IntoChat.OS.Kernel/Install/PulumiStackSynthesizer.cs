@@ -157,8 +157,10 @@ public static partial class PulumiStackSynthesizer
                 foundationSpecs[i] = fSecret with { Value = SecretSpec.Substitute(fSecret.Value, resolvedVaultSecrets) };
             }
         }
-        var osAppSpec = InstallPlan.OsApp(validated, variables, secrets);
-        var cloudAppSpec = InstallPlan.CloudApp(validated, variables, secrets);
+        var osAppSpec = EnforceSingleSiloScale(InstallPlan.OsApp(validated, variables, secrets));
+        var cloudAppSpec = InstallPlan.CloudApp(validated, variables, secrets) is { } cloud
+            ? EnforceSingleSiloScale(cloud)
+            : null;
         var sandboxAppSpec = InstallPlan.SandboxApp(validated, variables, secrets);
         var allSpecs = new List<ResourceSpec>(foundationSpecs.Length + secretSpecs.Count + 3);
         allSpecs.AddRange(foundationSpecs);
@@ -175,6 +177,14 @@ public static partial class PulumiStackSynthesizer
             secrets,
             RenderPulumiYaml(validated, foundationSpecs, secretSpecs, osAppSpec, cloudAppSpec, sandboxAppSpec),
             RenderStackConfigYaml(validated));
+    }
+
+    internal static ContainerAppSpec EnforceSingleSiloScale(ContainerAppSpec app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        return app.StopBeforeUpdate
+            ? app with { MinReplicas = 1, MaxReplicas = 1 }
+            : app;
     }
 
     public static async Task WriteWorkspaceAsync(
