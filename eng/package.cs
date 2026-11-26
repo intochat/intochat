@@ -306,6 +306,7 @@ internal static class ReleasePackageScript
             if (platform == "win-x64")
             {
                 inputs.Add(Path.Combine(repoRoot, "eng", "release", "winget", "IntoChat.OS.yaml"));
+                inputs.Add(Path.Combine(repoRoot, "eng", "release", "windows", "IntoChat-DevCert.cer"));
                 if (!skipMsix)
                 {
                     inputs.Add(Path.Combine(uiDir, "web", "icons", "Icon-512.png"));
@@ -371,14 +372,14 @@ internal static class ReleasePackageScript
                 await StepAsync($"[DryRun] Would stage IntoChat.OS.Desktop, os/IntoChat.OS.Kernel ({kernelMode}), unithost/IntoChat.OS.Sandbox, and Flutter Windows shell");
                 if (options.SkipMsix)
                 {
-                    await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, latest.json, winget/IntoChat.OS.yaml, SHA256SUMS.win-x64, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain}; MSIX skipped via --skip-msix; signing: {options.DescribeWindowsSigningMode()})");
+                    await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, IntoChat-DevCert.cer, latest.json, winget/IntoChat.OS.yaml, SHA256SUMS.win-x64, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain}; MSIX skipped via --skip-msix; signing: {options.DescribeWindowsSigningMode()})");
                 }
                 else
                 {
                     var msixVersion = ToMsixVersion(version, options.MsixBuild);
                     var publisher = options.ResolvePublisher();
                     await StepAsync($"[DryRun] Would pack MSIX via winapp CLI (version: {msixVersion}, publisher: {publisher}, signing: {options.DescribeWindowsSigningMode()})");
-                    await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, IntoChat-{version}-win-x64.msix, IntoChat-win-x64.msix, {options.MsixName}.appinstaller, latest.json, winget/IntoChat.OS.yaml, SHA256SUMS.win-x64, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain})");
+                    await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, IntoChat-{version}-win-x64.msix, IntoChat-win-x64.msix, {options.MsixName}.appinstaller, IntoChat-DevCert.cer, latest.json, winget/IntoChat.OS.yaml, SHA256SUMS.win-x64, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain})");
                 }
                 break;
             case "linux-x64":
@@ -684,6 +685,12 @@ internal static class ReleasePackageScript
         {
             await StepAsync("Skipping .msix generation (--skip-msix was specified).");
         }
+
+        const string devCertFileName = "IntoChat-DevCert.cer";
+        var devCertSourcePath = Path.Combine(repoRoot, "eng", "release", "windows", devCertFileName);
+        var devCertDestPath = Path.Combine(outputDir, devCertFileName);
+        File.Copy(devCertSourcePath, devCertDestPath, overwrite: true);
+        checksums.Add((devCertFileName, ComputeValidatedSha256(devCertDestPath)));
 
         await WriteSha256SumsFileAsync(Path.Combine(outputDir, "SHA256SUMS.win-x64"), checksums, cancellationToken);
         await WriteSha256SumsFileAsync(Path.Combine(outputDir, "SHA256SUMS"), checksums, cancellationToken);

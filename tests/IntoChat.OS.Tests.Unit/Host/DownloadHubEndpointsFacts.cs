@@ -28,7 +28,11 @@ public sealed partial class DownloadHubEndpointsFacts
         [
             $"{baseUrl}/IntoChat-Setup-win-x64.exe",
             $"{baseUrl}/intochat-win-x64.zip",
+            $"{baseUrl}/IntoChat-win-x64.msix",
+            $"{baseUrl}/IntoChat.OS.appinstaller",
+            $"{baseUrl}/IntoChat-DevCert.cer",
             $"irm {baseUrl}/install.ps1 | iex",
+            $"irm {baseUrl}/trust-dev-cert.ps1 | iex",
             $"{baseUrl}/IntoChat-macos-arm64.dmg",
             $"{baseUrl}/intochat-osx-arm64.tar.gz",
             $"curl -fsSL {baseUrl}/install.sh | sh",

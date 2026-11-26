@@ -66,3 +66,7 @@ Directory.Build.local.props
 src/IntoChat.OS.Kernel/wwwroot/artcraft/
 
 .last_build_id
+
+# Never commit private signing keys
+*.pfx
+*.p12

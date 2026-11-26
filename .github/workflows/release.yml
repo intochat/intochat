@@ -245,6 +245,25 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Prepare persistent Windows dev signing certificate
+        id: dev-cert
+        if: !(vars.AZURE_ARTIFACT_SIGNING_ENDPOINT != '' && vars.AZURE_ARTIFACT_SIGNING_ACCOUNT != '' && vars.AZURE_ARTIFACT_SIGNING_PROFILE != '')
+        shell: pwsh
+        env:
+          WINDOWS_DEV_CERT_PFX_BASE64: ${{ secrets.WINDOWS_DEV_CERT_PFX_BASE64 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_DEV_CERT_PFX_BASE64)) {
+            "active=false" >> $env:GITHUB_OUTPUT
+            Write-Host "No Azure Artifact Signing vars or WINDOWS_DEV_CERT_PFX_BASE64 secret configured; MSIX will be built unsigned."
+            exit 0
+          }
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'intochat-devcert.pfx'
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_DEV_CERT_PFX_BASE64.Trim())
+          [System.IO.File]::WriteAllBytes($pfxPath, $bytes)
+          "active=true" >> $env:GITHUB_OUTPUT
+          Write-Host "Decoded persistent Windows dev signing certificate into RUNNER_TEMP."
+
       # win-x64 only: flutter build windows builds for the runner's own architecture, so an x64 runner cannot
       # produce the win-arm64 shell.
       - name: Package the Windows bundle, setup installer, and MSIX
@@ -254,10 +273,45 @@ jobs:
           AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
           AZURE_ARTIFACT_SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
           WINDOWS_PUBLISHER_SUBJECT: ${{ vars.WINDOWS_PUBLISHER_SUBJECT }}
-        run: dotnet run eng/package.cs --platform win-x64 --version ${{ steps.version.outputs.version }} --output artifacts/release
+          WINDOWS_DEV_CERT_PASSWORD: ${{ secrets.WINDOWS_DEV_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $extraArgs = @()
+          if ('${{ steps.dev-cert.outputs.active }}' -eq 'true') {
+            $pfxPath = Join-Path $env:RUNNER_TEMP 'intochat-devcert.pfx'
+            $extraArgs += @('--cert', $pfxPath)
+            if (-not [string]::IsNullOrEmpty($env:WINDOWS_DEV_CERT_PASSWORD)) {
+              $extraArgs += @('--cert-password', $env:WINDOWS_DEV_CERT_PASSWORD)
+            }
+          }
+          dotnet run eng/package.cs --platform win-x64 --version ${{ steps.version.outputs.version }} --output artifacts/release @extraArgs
+
+      - name: Scrub temporary Windows dev signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'intochat-devcert.pfx'
+          if (Test-Path -LiteralPath $pfxPath) {
+            try {
+              $length = (Get-Item -LiteralPath $pfxPath).Length
+              if ($length -gt 0) {
+                $zeros = New-Object byte[] $length
+                [System.IO.File]::WriteAllBytes($pfxPath, $zeros)
+              }
+            } finally {
+              Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "Scrubbed and removed temporary dev signing certificate from RUNNER_TEMP."
+          }
 
       - name: Check the bundle layout
         shell: pwsh
+        env:
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          DEV_CERT_ACTIVE: ${{ steps.dev-cert.outputs.active }}
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $version = '${{ steps.version.outputs.version }}'
@@ -266,7 +320,7 @@ jobs:
           try { $names = $archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') } } finally { $archive.Dispose() }
           $missing = @('IntoChat.OS.Desktop.exe', 'intochat.cmd', 'os/IntoChat.OS.Kernel.exe', 'unithost/IntoChat.OS.Sandbox.exe', 'shell/intochat_os_flutter.exe') | Where-Object { $names -notcontains $_ }
           if ($missing) { Write-Host "::error::$($zip.Name) lacks: $($missing -join ', ')"; exit 1 }
-          foreach ($expected in 'intochat-win-x64.zip', 'IntoChat-Setup-win-x64.exe', "IntoChat-$version-win-x64.msix", 'IntoChat-win-x64.msix', 'IntoChat.OS.appinstaller') {
+          foreach ($expected in 'intochat-win-x64.zip', 'IntoChat-Setup-win-x64.exe', "IntoChat-$version-win-x64.msix", 'IntoChat-win-x64.msix', 'IntoChat.OS.appinstaller', 'IntoChat-DevCert.cer') {
             if (-not (Test-Path -LiteralPath "artifacts/release/$expected")) { Write-Host "::error::Missing expected Windows release asset $expected"; exit 1 }
           }
           $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -274,11 +328,27 @@ jobs:
           foreach ($file in 'latest.json', 'winget/IntoChat.OS.yaml') {
             if (-not (Select-String -LiteralPath "artifacts/release/$file" -SimpleMatch $hash -Quiet)) { Write-Host "::error::$file does not carry the digest of $($zip.Name)"; exit 1 }
           }
-          foreach ($msixAsset in "IntoChat-$version-win-x64.msix", 'IntoChat-win-x64.msix', 'IntoChat.OS.appinstaller') {
+          foreach ($msixAsset in "IntoChat-$version-win-x64.msix", 'IntoChat-win-x64.msix', 'IntoChat.OS.appinstaller', 'IntoChat-DevCert.cer') {
             $assetHash = (Get-FileHash -LiteralPath "artifacts/release/$msixAsset" -Algorithm SHA256).Hash.ToLowerInvariant()
             foreach ($sumFile in 'artifacts/release/SHA256SUMS', 'artifacts/release/SHA256SUMS.win-x64') {
               if (-not (Select-String -LiteralPath $sumFile -SimpleMatch "$assetHash  $msixAsset" -Quiet)) { Write-Host "::error::$sumFile does not list $msixAsset with its digest"; exit 1 }
             }
+          }
+          $azureSigningActive = (-not [string]::IsNullOrWhiteSpace($env:AZURE_ARTIFACT_SIGNING_ENDPOINT)) -and (-not [string]::IsNullOrWhiteSpace($env:AZURE_ARTIFACT_SIGNING_ACCOUNT)) -and (-not [string]::IsNullOrWhiteSpace($env:AZURE_ARTIFACT_SIGNING_PROFILE))
+          $signingActive = $azureSigningActive -or ($env:DEV_CERT_ACTIVE -eq 'true')
+          if ($signingActive) {
+            $msixPath = (Resolve-Path -LiteralPath "artifacts/release/IntoChat-$version-win-x64.msix").Path
+            $msixArchive = [System.IO.Compression.ZipFile]::OpenRead($msixPath)
+            try {
+              $hasSignature = ($msixArchive.Entries | Where-Object { $_.FullName.Replace('\', '/') -ieq 'AppxSignature.p7x' }).Count -gt 0
+            } finally {
+              $msixArchive.Dispose()
+            }
+            if (-not $hasSignature) {
+              Write-Host "::error::Signing was configured but artifacts/release/IntoChat-$version-win-x64.msix is missing AppxSignature.p7x"
+              exit 1
+            }
+            Write-Host "Verified AppxSignature.p7x is present inside IntoChat-$version-win-x64.msix."
           }
 
       - name: Upload the Windows bundle
@@ -293,6 +363,7 @@ jobs:
             artifacts/release/IntoChat-*-win-x64.msix
             artifacts/release/IntoChat-win-x64.msix
             artifacts/release/IntoChat.OS.appinstaller
+            artifacts/release/IntoChat-DevCert.cer
             artifacts/release/SHA256SUMS
             artifacts/release/SHA256SUMS.win-x64
             artifacts/release/latest.json
@@ -306,7 +377,7 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip intochat-win-x64.zip IntoChat-Setup-*-win-x64.exe IntoChat-Setup-win-x64.exe IntoChat-*-win-x64.msix IntoChat-win-x64.msix IntoChat.OS.appinstaller SHA256SUMS latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip intochat-win-x64.zip IntoChat-Setup-*-win-x64.exe IntoChat-Setup-win-x64.exe IntoChat-*-win-x64.msix IntoChat-win-x64.msix IntoChat.OS.appinstaller IntoChat-DevCert.cer SHA256SUMS latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 ../../eng/install/trust-dev-cert.ps1 --clobber
 
   # The Linux desktop bundle and Debian package (linux-x64 — native Ubuntu/Linux and WSLg).
   package-linux:
@@ -634,6 +705,8 @@ jobs:
             downloaded-bundles/*.exe
             downloaded-bundles/*.msix
             downloaded-bundles/*.appinstaller
+            downloaded-bundles/*.cer
+            downloaded-bundles/*.ps1
             downloaded-bundles/*.tar.gz
             downloaded-bundles/*.deb
             downloaded-bundles/*.dmg

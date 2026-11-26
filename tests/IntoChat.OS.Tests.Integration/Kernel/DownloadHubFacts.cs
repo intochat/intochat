@@ -87,7 +87,11 @@ public sealed partial class DownloadHubFacts : IAsyncLifetime
 
         Assert.Contains("IntoChat-Setup-win-x64.exe", body, StringComparison.Ordinal);
         Assert.Contains("intochat-win-x64.zip", body, StringComparison.Ordinal);
+        Assert.Contains("IntoChat-win-x64.msix", body, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.appinstaller", body, StringComparison.Ordinal);
+        Assert.Contains("IntoChat-DevCert.cer", body, StringComparison.Ordinal);
         Assert.Contains("install.ps1", body, StringComparison.Ordinal);
+        Assert.Contains("trust-dev-cert.ps1", body, StringComparison.Ordinal);
         Assert.Contains("IntoChat-macos-arm64.dmg", body, StringComparison.Ordinal);
         Assert.Contains("intochat-osx-arm64.tar.gz", body, StringComparison.Ordinal);
         Assert.Contains("install.sh", body, StringComparison.Ordinal);

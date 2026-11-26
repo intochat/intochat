@@ -55,6 +55,7 @@ html,body{margin:0;background:var(--bg);color:var(--body);font-family:'Inter',-a
 .dl span:last-child{font-size:11px;font-weight:500;opacity:.75}
 .cmd{background:var(--sunk);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
 .cmdtop{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;color:var(--muted)}
+.cmdtop a{color:var(--accent);text-decoration:none}
 .cmd code{font-family:inherit;font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink);word-break:break-all;user-select:all}
 .copy{border:1px solid var(--border);background:var(--card);color:var(--ink);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
 .copy:hover{border-color:var(--accent);color:var(--accent)}
@@ -94,10 +95,16 @@ footer a:hover{text-decoration:underline}
 <div class="links">
 <a class="dl primary" href="https://github.com/intochat/intochat/releases/latest/download/IntoChat-Setup-win-x64.exe"><span>IntoChat-Setup-win-x64.exe</span><span>Installer</span></a>
 <a class="dl" href="https://github.com/intochat/intochat/releases/latest/download/intochat-win-x64.zip"><span>intochat-win-x64.zip</span><span>Portable ZIP</span></a>
+<a class="dl" href="https://github.com/intochat/intochat/releases/latest/download/IntoChat-win-x64.msix"><span>IntoChat-win-x64.msix</span><span>MSIX (Dev-Signed)</span></a>
+<a class="dl" href="https://github.com/intochat/intochat/releases/latest/download/IntoChat.OS.appinstaller"><span>IntoChat.OS.appinstaller</span><span>MSIX Auto-Update</span></a>
 </div>
 <div class="cmd">
-<div class="cmdtop"><span>1-line PowerShell</span><button class="copy" type="button" data-copy="irm https://github.com/intochat/intochat/releases/latest/download/install.ps1 | iex">Copy</button></div>
+<div class="cmdtop"><span>1-line PowerShell (0-admin)</span><button class="copy" type="button" data-copy="irm https://github.com/intochat/intochat/releases/latest/download/install.ps1 | iex">Copy</button></div>
 <code>irm https://github.com/intochat/intochat/releases/latest/download/install.ps1 | iex</code>
+</div>
+<div class="cmd">
+<div class="cmdtop"><span>MSIX 1-time dev cert (<a href="https://github.com/intochat/intochat/releases/latest/download/IntoChat-DevCert.cer">IntoChat-DevCert.cer</a>)</span><button class="copy" type="button" data-copy="irm https://github.com/intochat/intochat/releases/latest/download/trust-dev-cert.ps1 | iex">Copy</button></div>
+<code>irm https://github.com/intochat/intochat/releases/latest/download/trust-dev-cert.ps1 | iex</code>
 </div>
 </article>
 
