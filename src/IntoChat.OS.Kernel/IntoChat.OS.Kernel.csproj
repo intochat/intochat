@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <DefaultItemExcludes>$(DefaultItemExcludes);.intochat-os/**;**/.last_build_id</DefaultItemExcludes>
@@ -20,15 +21,10 @@
     <PackageReference Include="Aspire.Azure.Data.Tables" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
     <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore.Web" />

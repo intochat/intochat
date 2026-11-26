@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
@@ -19,7 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
-    <ProjectReference Include="..\..\framework\src\DigitalBrain.Runtime.Synapses\DigitalBrain.Runtime.Synapses.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <ProjectReference Include="..\IntoChat.OS\IntoChat.OS.csproj" />
     <ProjectReference Include="..\IntoChat.OS.UI\IntoChat.OS.UI.csproj" />
     <!-- The contracts sandboxed code may reach through the brain client: interfaces and records only, no module implementation. -->

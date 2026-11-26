@@ -17,23 +17,12 @@
     <!-- Framework (DigitalBrain.*) -->
     <IntoChatOSProjectMap Include="DigitalBrain" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain/DigitalBrain.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Analyzers" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" IsAnalyzer="true" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Compute" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Connections" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Http" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Identity" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Secrets" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Storage" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Tools" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Graph" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Identity.Local" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Http" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Orleans" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Orleans.Azure" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Synapses" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Simulation" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Testing" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Testing.Silo" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" IsAnalyzer="false" />
-    <IntoChatOSProjectMap Include="DigitalBrain.UI" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" IsAnalyzer="false" />
 
     <!-- OS Core (IntoChat.OS.*) -->
     <IntoChatOSProjectMap Include="IntoChat.OS" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS/IntoChat.OS.csproj" IsAnalyzer="false" />

@@ -18,7 +18,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">
-    <PackageReference Include="DigitalBrain.Identity.Local" />
     <PackageReference Include="DigitalBrain.Runtime.Orleans" />
     <PackageReference Include="DigitalBrain.Testing.Silo" />
   </ItemGroup>

@@ -20,24 +20,13 @@ public sealed partial class FrameworkBoundaryFacts
     [
         "DigitalBrain",
         "DigitalBrain.Analyzers",
-        "DigitalBrain.Capabilities.Compute",
-        "DigitalBrain.Capabilities.Connections",
-        "DigitalBrain.Capabilities.Http",
-        "DigitalBrain.Capabilities.Identity",
-        "DigitalBrain.Capabilities.Secrets",
-        "DigitalBrain.Capabilities.Storage",
-        "DigitalBrain.Capabilities.Tools",
-        "DigitalBrain.Simulation",
-        "DigitalBrain.Graph",
-        "DigitalBrain.Identity.Local",
         "DigitalBrain.Runtime.Http",
         "DigitalBrain.Runtime.Orleans",
         "DigitalBrain.Runtime.Orleans.Azure",
-        "DigitalBrain.Runtime.Synapses",
+        "DigitalBrain.Simulation",
         "DigitalBrain.Templates",
         "DigitalBrain.Testing",
         "DigitalBrain.Testing.Silo",
-        "DigitalBrain.UI",
     ];
 
     private static readonly string[] SkippedDirectories = ["bin", "obj", "artifacts", "node_modules", ".git", ".claude", ".dart_tool", "build", ".vs", ".idea"];

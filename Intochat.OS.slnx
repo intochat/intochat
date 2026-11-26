@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Solution>
   <Folder Name="/framework/examples/">
     <Project Path="framework/examples/Calculator.Tests.Integration/Calculator.Tests.Integration.csproj" />
@@ -7,50 +8,25 @@
   <Folder Name="/framework/src/">
     <Project Path="framework/src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
     <Project Path="framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
-    <Project Path="framework/src/DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
-    <Project Path="framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
-    <Project Path="framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
-    <Project Path="framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
     <Project Path="framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <Project Path="framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
     <Project Path="framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <Project Path="framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <Project Path="framework/src/DigitalBrain/DigitalBrain.csproj" />
   </Folder>
   <Folder Name="/framework/templates/">
     <Project Path="framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj" />
   </Folder>
   <Folder Name="/framework/tests/">
-    <Project Path="framework/tests/DigitalBrain.Analyzers.Tests.Unit/DigitalBrain.Analyzers.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Architecture.Tests.Unit/DigitalBrain.Architecture.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Compute.Tests.Unit/DigitalBrain.Capabilities.Compute.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Connections.Tests.Unit/DigitalBrain.Capabilities.Connections.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Http.Tests.Unit/DigitalBrain.Capabilities.Http.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Identity.Tests.Unit/DigitalBrain.Capabilities.Identity.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Secrets.Tests.Unit/DigitalBrain.Capabilities.Secrets.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Storage.Tests.Unit/DigitalBrain.Capabilities.Storage.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Capabilities.Tools.Tests.Unit/DigitalBrain.Capabilities.Tools.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Graph.Tests.Unit/DigitalBrain.Graph.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Identity.Local.Tests.Unit/DigitalBrain.Identity.Local.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Runtime.Http.Tests.Integration/DigitalBrain.Runtime.Http.Tests.Integration.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Runtime.Http.Tests.Unit/DigitalBrain.Runtime.Http.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration.csproj" />
     <Project Path="framework/tests/DigitalBrain.Runtime.Orleans.Tests.Integration/DigitalBrain.Runtime.Orleans.Tests.Integration.csproj" />
     <Project Path="framework/tests/DigitalBrain.Runtime.Orleans.Tests.Unit/DigitalBrain.Runtime.Orleans.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Runtime.Synapses.Tests.Unit/DigitalBrain.Runtime.Synapses.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Templates.Tests.Unit/DigitalBrain.Templates.Tests.Unit.csproj" />
-    <Project Path="framework/tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
   </Folder>
   <Project Path="src/Components/Aspire/IntoChat.Aspire.csproj" />
@@ -77,9 +53,6 @@
   <Project Path="src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
   <Project Path="src/Modules/UI/IntoChat.OS.Modules.UI.csproj" />
   <Project Path="tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
-  <Project Path="tests/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
-  <Project Path="tests/IntoChat.OS.Modules.AI.Tests.Unit/IntoChat.OS.Modules.AI.Tests.Unit.csproj" />
-  <Project Path="tests/IntoChat.OS.Modules.Identity.Tests.Unit/IntoChat.OS.Modules.Identity.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Integration/IntoChat.OS.Tests.Integration.csproj" />

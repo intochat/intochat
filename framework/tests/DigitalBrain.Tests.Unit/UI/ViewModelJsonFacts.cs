@@ -58,14 +58,14 @@ public sealed class ViewModelJsonFacts
         string? root = null;
         for (var dir = AppContext.BaseDirectory; dir is not null; dir = Path.GetDirectoryName(dir))
         {
-            if (Directory.Exists(Path.Combine(dir, "src", "DigitalBrain.UI"))) { root = dir; break; }
+            if (Directory.Exists(Path.Combine(dir, "src", "DigitalBrain", "UI"))) { root = dir; break; }
             var framework = Path.Combine(dir, "framework");
-            if (Directory.Exists(Path.Combine(framework, "src", "DigitalBrain.UI"))) { root = framework; break; }
+            if (Directory.Exists(Path.Combine(framework, "src", "DigitalBrain", "UI"))) { root = framework; break; }
         }
         Assert.NotNull(root);
         var needle = "new Command(\"" + "confirmations\"";
         var sep = Path.DirectorySeparatorChar;
-        var offenders = new[] { "src" + sep + "DigitalBrain.UI", "src" + sep + "DigitalBrain.Testing", "tests" }
+        var offenders = new[] { "src" + sep + "DigitalBrain" + sep + "UI", "src" + sep + "DigitalBrain.Testing", "tests" }
             .SelectMany(dir => Directory.EnumerateFiles(Path.Combine(root!, dir), "*.cs", SearchOption.AllDirectories))
             .Where(f => !f.Contains(sep + "obj" + sep) && !f.Contains(sep + "bin" + sep))
             .Where(f => File.ReadAllText(f).Contains(needle, StringComparison.Ordinal))

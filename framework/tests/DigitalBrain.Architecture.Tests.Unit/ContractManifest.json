@@ -69,6 +69,7 @@
       "brain.activated",
       "brain.claimed",
       "brain.created",
+      "brain.graph.changed",
       "kernel.instance-created",
       "kernel.instance-retired",
       "kernel.type-added",

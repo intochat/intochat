@@ -1,12 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- RuntimeSynapses facts define a throwing test analyzer; analyzer-authoring rules do not apply to a test assembly. -->
+    <NoWarn>$(NoWarn);RS1036;RS1038;RS1041;RS2008</NoWarn>
+  </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain/DigitalBrain.csproj" Aliases="global,DbCore" />
+    <ProjectReference Include="../../src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <ProjectReference Include="../../src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <ProjectReference Include="../../src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
+    <ProjectReference Include="../../examples/Calculator/Calculator.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="MovedTypes.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Capabilities/Connections/fixtures/**" Link="fixtures/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

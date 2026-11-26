@@ -325,6 +325,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         Source.Merge(scanned);
         foreach (var (alias, record) in scanned.States)
         {
+            if (record.IsAbstract || record.GetConstructor(Type.EmptyTypes) is null) { continue; }
             var neuron = typeof(UnitNeuron<>).MakeGenericType(record);
             var registered = _types.GetOrAdd(alias, neuron);
             if (registered != neuron) { throw new ArgumentException($"State alias '{alias}' is already registered for {registered.FullName}.", nameof(assembly)); }
