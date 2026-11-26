@@ -11,8 +11,29 @@ public sealed class AspireOptions : IModuleOptions
     // change stream; no deployment timer uses this former polling interval.
     public TimeSpan ClusterSampling { get; set; } = TimeSpan.FromSeconds(5);
 
-    // Selects whether candidate verification runs in Docker containers or as isolated local headless OS processes.
+    // Selects whether candidate verification runs in Docker containers, local headless OS processes, or leased devcontainer slots.
     public CandidateHostMode CandidateHostMode { get; set; } = CandidateHostMode.Docker;
+
+    // Maximum concurrent leased devcontainer slots in Plane 2 (agent-dev-slots).
+    public int MaxCandidateSlots { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultMaxSlots;
+
+    // First host TCP port used for dynamic lock-free slot port range allocation (avoids live 5080/5081 and legacy 5190).
+    public int CandidateSlotBasePort { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultBasePort;
+
+    // Number of contiguous ports reserved per leased slot (HTTP, MCP, Azurite blob/table, Postgres, ClickHouse + headroom).
+    public int CandidateSlotPortStride { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultPortStride;
+
+    // Maximum duration a slot lease stays active before deterministic reclamation.
+    public TimeSpan CandidateSlotLeaseTimeout { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultLeaseTimeoutValue;
+
+    // Enables warm dependency sidecar reuse (Azurite, Postgres, ClickHouse) across leases while isolating per-lease DBs and $HOME.
+    public bool EnableWarmSlotReuse { get; set; } = true;
+
+    // Unprivileged Linux UID for candidate container execution (must be > 0, never root).
+    public int CandidateUserId { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultCandidateUserId;
+
+    // Unprivileged Linux GID for candidate container execution (must be > 0, never root).
+    public int CandidateGroupId { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultCandidateGroupId;
 
     // How long a command asked by a caller who is not a person waits for the person's answer before it expires.
     public TimeSpan CommandConfirmationExpiry { get; set; } = TimeSpan.FromMinutes(5);
@@ -22,6 +43,17 @@ public sealed class AspireOptions : IModuleOptions
 
     // Bounded wait for a command executed on the AppHost bridge.
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromMinutes(2);
+
+    internal Candidates.CandidateSlotPoolOptions ToSlotPoolOptions() => new()
+    {
+        MaxSlots = MaxCandidateSlots,
+        BasePort = CandidateSlotBasePort,
+        PortStride = CandidateSlotPortStride,
+        DefaultLeaseTimeout = CandidateSlotLeaseTimeout,
+        EnableWarmSlotReuse = EnableWarmSlotReuse,
+        CandidateUserId = CandidateUserId,
+        CandidateGroupId = CandidateGroupId,
+    };
 
     public void Validate()
     {
@@ -35,5 +67,7 @@ public sealed class AspireOptions : IModuleOptions
         {
             throw new ArgumentOutOfRangeException(nameof(CandidateHostMode), CandidateHostMode, "Unknown CandidateHostMode.");
         }
+
+        ToSlotPoolOptions().Validate();
     }
 }
