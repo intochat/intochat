@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Solution>
   <Folder Name="/framework/examples/">
     <Project Path="framework/examples/Calculator.Tests.Integration/Calculator.Tests.Integration.csproj" />
@@ -8,6 +8,7 @@
   <Folder Name="/framework/src/">
     <Project Path="framework/src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
     <Project Path="framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
+    <Project Path="framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />

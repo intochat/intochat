@@ -20,6 +20,7 @@ public sealed partial class FrameworkBoundaryFacts
     [
         "DigitalBrain",
         "DigitalBrain.Analyzers",
+        "DigitalBrain.Identity.Local",
         "DigitalBrain.Runtime.Http",
         "DigitalBrain.Runtime.Orleans",
         "DigitalBrain.Runtime.Orleans.Azure",

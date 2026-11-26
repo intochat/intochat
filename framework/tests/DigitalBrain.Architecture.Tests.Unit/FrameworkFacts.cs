@@ -36,7 +36,7 @@ public sealed class VocabularyRingFacts
 // V-02: no Orleans library anywhere in the restore graph of the core-side projects.
 public sealed class CoreHasNoOrleansFacts
 {
-    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.Simulation", "DigitalBrain.Testing", "DigitalBrain.Analyzers", "DigitalBrain.Runtime.Http" };
+    public static readonly TheoryData<string> CoreProjects = new() { "DigitalBrain", "DigitalBrain.Identity.Local", "DigitalBrain.Simulation", "DigitalBrain.Testing", "DigitalBrain.Analyzers", "DigitalBrain.Runtime.Http" };
 
     [Theory]
     [MemberData(nameof(CoreProjects))]
@@ -55,11 +55,12 @@ public sealed class CoreHasNoOrleansFacts
     }
 
     // 04-03 (CORE-01, T-04-08): the built core assemblies reference no Orleans assembly and declare no Orleans namespace.
-    public static readonly TheoryData<string> CoreAssemblies = new() { "DigitalBrain", "DigitalBrain.Simulation", "DigitalBrain.Testing", "DigitalBrain.Runtime.Http" };
+    public static readonly TheoryData<string> CoreAssemblies = new() { "DigitalBrain", "DigitalBrain.Identity.Local", "DigitalBrain.Simulation", "DigitalBrain.Testing", "DigitalBrain.Runtime.Http" };
 
     private static Assembly Anchor(string name) => name switch
     {
         "DigitalBrain" => typeof(Signal).Assembly,
+        "DigitalBrain.Identity.Local" => typeof(DigitalBrain.Identity.Local.LocalIdentityHosting).Assembly,
         "DigitalBrain.Simulation" => typeof(DigitalBrain.Testing.TestOS).Assembly,
         "DigitalBrain.Testing" => typeof(DigitalBrain.Testing.SiloHost).Assembly,
         "DigitalBrain.Runtime.Http" => typeof(DigitalBrain.Runtime.Http.IModuleHttpSurface).Assembly, // 09-03, R4-06: ASP.NET, never Orleans
@@ -119,7 +120,7 @@ public sealed class PackageIdAllowlistFacts
 {
     private static readonly string[] Folders = ["src", "templates"];
 
-    private const int Floor = 9; // Consolidated DigitalBrain package set (Core, Analyzers, Simulation, Testing, Testing.Silo, Runtime.Http, Runtime.Orleans, Runtime.Orleans.Azure, Templates).
+    private const int Floor = 10; // Consolidated DigitalBrain package set (Core, Identity.Local, Analyzers, Simulation, Testing, Testing.Silo, Runtime.Http, Runtime.Orleans, Runtime.Orleans.Azure, Templates).
 
     [Fact]
     public void Packable_ids_are_digitalbrain()

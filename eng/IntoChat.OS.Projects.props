@@ -17,6 +17,7 @@
     <!-- Framework (DigitalBrain.*) -->
     <IntoChatOSProjectMap Include="DigitalBrain" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain/DigitalBrain.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Analyzers" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" IsAnalyzer="true" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Identity.Local" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Http" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Orleans" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" IsAnalyzer="false" />
     <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Orleans.Azure" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" IsAnalyzer="false" />

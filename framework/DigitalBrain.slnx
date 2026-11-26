@@ -1,7 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/DigitalBrain/DigitalBrain.csproj" />
+    <Project Path="src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <Project Path="src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <Project Path="src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <Project Path="src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />

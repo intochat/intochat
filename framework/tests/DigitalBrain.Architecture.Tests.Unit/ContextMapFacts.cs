@@ -45,16 +45,6 @@ public sealed class ContextMapFacts
             ],
             ["Authoring", "Kernel", "Neurons", "Connections", "Work", "Limits", "Units", "Modules", "UI"]),
         new("Graph", ["DigitalBrain.Graph"], ["Authoring", "Kernel", "Neurons", "Capabilities", "Modules", "Work", "Units"]),
-        new("IdentityLocal",
-            [
-                "DigitalBrain.Identity.Local",
-                "DigitalBrain.Identity.Local.Connections",
-                "DigitalBrain.Identity.Local.Custody",
-                "DigitalBrain.Identity.Local.Directory",
-                "DigitalBrain.Identity.Local.Machine",
-                "DigitalBrain.Identity.Local.Vault",
-            ],
-            ["Authoring", "Kernel", "Neurons", "Capabilities", "Modules", "Work", "Units"]),
     ];
 
     // Mentions against the map that exist during migration, as "Type -> Type". It may only shrink.
