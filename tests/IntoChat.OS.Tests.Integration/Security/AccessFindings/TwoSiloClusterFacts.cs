@@ -212,6 +212,38 @@ public sealed class TwoSiloClusterFacts
         Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(cAddress));
     }
 
+    // Ungraceful kill recovery end-to-end: when a prior silo crashed or was SIGKILLed without writing Dead, its stale
+    // membership row (IAmAliveTime older than the staleness threshold) is marked Dead by SingleSiloGuard before BecomeActive
+    // so a new revision boots cleanly instead of being permanently bricked.
+    [Fact]
+    public async Task AJoiningSilo_ReapsStaleZombiePeerRow_AndStartsCleanly()
+    {
+        var sharedTable = new SharedInMemoryMembershipTable();
+        var zombieAddress = SiloAddress.New(IPAddress.Loopback, 11199, 1);
+        sharedTable.SeedRow(
+            zombieAddress,
+            SiloStatus.Active,
+            startTime: DateTime.UtcNow.AddMinutes(-10),
+            iAmAliveTime: DateTime.UtcNow.AddMinutes(-5));
+
+        await using var fresh = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+        {
+            UseSharedMembership(builder, sharedTable);
+            builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
+        });
+
+        var freshAddress = fresh.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+        Assert.Equal(SiloStatus.Dead, sharedTable.StatusOf(zombieAddress));
+        Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(freshAddress));
+
+        var edge = fresh.Services.GetRequiredService<EdgeAuthority>();
+        RequestContext.Clear();
+        using (edge.EnterKernel(new BrainId(fresh.Scope)))
+        {
+            Assert.Empty(await SiloNeurons.Get<IFriends>(fresh.Services, FriendsDefaults.Id(fresh.Scope)).List());
+        }
+    }
+
     // A silo alone in its cluster starts with the guard in place: the single-silo shape is unchanged.
     [Fact]
     public async Task ASiloAlone_StartsWithTheGuard()
@@ -256,6 +288,26 @@ public sealed class TwoSiloClusterFacts
         private readonly Dictionary<SiloAddress, (MembershipEntry Entry, string ETag)> _rows = [];
         private readonly List<(SiloAddress Excluded, TaskCompletionSource<SiloAddress> Waiter)> _waiters = [];
         private int _version = 1;
+
+        public void SeedRow(SiloAddress address, SiloStatus status, DateTime startTime, DateTime iAmAliveTime)
+        {
+            lock (_gate)
+            {
+                _version++;
+                _rows[address] = (
+                    new MembershipEntry
+                    {
+                        SiloAddress = address,
+                        SiloName = $"zombie-{address.Endpoint.Port}",
+                        HostName = "localhost",
+                        Status = status,
+                        StartTime = startTime,
+                        IAmAliveTime = iAmAliveTime,
+                        SuspectTimes = [],
+                    },
+                    _version.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
 
         public Task<SiloAddress> WaitForNewSiloAsync(SiloAddress excluding, CancellationToken ct)
         {

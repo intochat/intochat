@@ -379,6 +379,10 @@ public sealed class InstallPlanFacts
             Assert.Contains("az containerapp replica list -n \"$app\" -g \"$group\" --revision \"$_rev\" --query '[].name' -o tsv", stopBlock, StringComparison.Ordinal);
             Assert.Contains("Timed out waiting for replicas of $app in $group to stop", stopBlock, StringComparison.Ordinal);
             Assert.Contains("return 1 2>/dev/null || exit 1", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("sleep 10", stopBlock, StringComparison.Ordinal);
+            Assert.True(
+                stopBlock.IndexOf("sleep 10", StringComparison.Ordinal) > stopBlock.IndexOf("Timed out waiting for replicas", StringComparison.Ordinal),
+                "Post-drain 10s buffer for Orleans Dead write must run after the replica drain loop.");
 
             var startBlock = ResourceBlock(yaml, $"container-app-{name}-start");
             Assert.Contains("az_retry()", startBlock, StringComparison.Ordinal);
@@ -393,7 +397,40 @@ public sealed class InstallPlanFacts
             Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp ingress traffic set -n \"$app\" -g \"$group\" --revision-weight \"$ready=100\" >/dev/null", startBlock, StringComparison.Ordinal);
+            Assert.True(
+                startBlock.IndexOf("--revision-weight \"$ready=100\"", StringComparison.Ordinal) > startBlock.IndexOf("revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", StringComparison.Ordinal),
+                "Rollback traffic shift to $ready=100 must run after activating $ready.");
         }
+    }
+
+    [Fact]
+    public void SingleSiloAppsUseMultipleRevisionModeWithLatestTrafficWhileSandboxStaysSingle()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+        var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
+
+        foreach (var singleSiloName in new[] { config.OsName, config.CloudName })
+        {
+            var block = ResourceBlock(yaml, $"container-app-{singleSiloName}");
+            Assert.Contains("        activeRevisionsMode: Multiple\n", block, StringComparison.Ordinal);
+            Assert.Contains(
+                """
+                          traffic:
+                            - latestRevision: true
+                              weight: 100
+                """.ReplaceLineEndings("\n"),
+                block,
+                StringComparison.Ordinal);
+        }
+
+        var sandboxBlock = ResourceBlock(yaml, $"container-app-{config.SandboxName}");
+        Assert.Contains("        activeRevisionsMode: Single\n", sandboxBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("          traffic:\n", sandboxBlock, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -99,11 +99,13 @@ public sealed class SingleSiloGuardFacts
     {
         var self = NewSilo(11111, 2);
         var peer = NewSilo(11111, 1);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
         var membership = new FakeMembershipService(
             Snapshot(1, Member(self, SiloStatus.Joining, "self"), Member(peer, peerStatus, "peer")));
-        var table = new FakeMembershipTable(self, SiloStatus.Joining);
-        // Even if the peer's IAmAliveTime in the table is hours old, SingleSiloGuard stays strictly fail-closed.
-        table.AddRow(peer, peerStatus, DateTime.UtcNow.AddHours(-3));
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        // Live (fresh heartbeat within threshold) peer must remain untouched and SingleSiloGuard must refuse fail-closed.
+        table.AddRow(peer, peerStatus, now.UtcDateTime.AddSeconds(-10));
 
         var guard = new SingleSiloGuard(
             membership,
@@ -111,7 +113,8 @@ public sealed class SingleSiloGuardFacts
             Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
             NullLogger<SingleSiloGuard>.Instance,
             table,
-            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.FromMilliseconds(80), PollInterval = TimeSpan.FromMilliseconds(20) }));
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.FromMilliseconds(80), PollInterval = TimeSpan.FromMilliseconds(20) }),
+            timeProvider: clock);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
 
@@ -122,6 +125,276 @@ public sealed class SingleSiloGuardFacts
         Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
         Assert.Equal(peerStatus, table.StatusOf(peer));
         Assert.Equal(1, table.UpdateCalls);
+    }
+
+    [Fact]
+    public void ResolveStalePeerThreshold_Enforces60sFloorAndHonorsLargerMembershipIntervals()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(60), SingleSiloGuard.ResolveStalePeerThreshold(null));
+        Assert.Equal(
+            TimeSpan.FromSeconds(60),
+            SingleSiloGuard.ResolveStalePeerThreshold(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10),
+                NumMissedTableIAmAliveLimit = 2,
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(180),
+            SingleSiloGuard.ResolveStalePeerThreshold(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(30),
+                NumMissedTableIAmAliveLimit = 3,
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(100),
+            SingleSiloGuard.ResolveStalePeerThreshold(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(20),
+                NumMissedTableIAmAliveLimit = 2,
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(60),
+            SingleSiloGuard.ResolveStalePeerThreshold(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.Zero,
+                NumMissedTableIAmAliveLimit = 5,
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(60),
+            SingleSiloGuard.ResolveStalePeerThreshold(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(-5),
+                NumMissedTableIAmAliveLimit = 5,
+            }));
+    }
+
+    [Theory]
+    [InlineData(SiloStatus.Active)]
+    [InlineData(SiloStatus.Joining)]
+    [InlineData(SiloStatus.Created)]
+    [InlineData(SiloStatus.ShuttingDown)]
+    [InlineData(SiloStatus.Stopping)]
+    public async Task StaleZombiePeer_IsMarkedDeadWithETagAndAllowsStartup(SiloStatus peerStatus)
+    {
+        var self = NewSilo(11111, 2);
+        var zombie = NewSilo(11111, 1);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var staleTime = now.UtcDateTime.AddSeconds(-61);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        table.AddRow(zombie, peerStatus, staleTime);
+        var membership = new TableBackedMembershipService(table);
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            Options.Create(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10),
+                NumMissedTableIAmAliveLimit = 2,
+            }),
+            clock);
+
+        await RunCheckStageAsync(guard, Ct);
+
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(zombie));
+        Assert.Equal(SiloStatus.Joining, table.StatusOf(self));
+        Assert.Equal(staleTime, table.EntryOf(zombie).IAmAliveTime);
+        var suspects = Assert.IsType<List<Tuple<SiloAddress, DateTime>>>(table.EntryOf(zombie).SuspectTimes);
+        Assert.Contains(suspects, suspect => suspect.Item1.Equals(self));
+        Assert.Equal(1, table.UpdateCalls);
+        Assert.Equal(2, membership.RefreshCount);
+    }
+
+    [Fact]
+    public async Task StaleZombiePeerWithDefaultIAmAliveTime_FallsBackToStartTime()
+    {
+        var self = NewSilo(11111, 2);
+        var zombie = NewSilo(11111, 1);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+
+        // Default IAmAliveTime + stale StartTime -> reaped and allowed to start.
+        var staleTable = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        staleTable.AddRow(zombie, SiloStatus.Active, startTime: now.UtcDateTime.AddSeconds(-90), iAmAliveTime: default);
+        var staleMembership = new TableBackedMembershipService(staleTable);
+        var staleGuard = new SingleSiloGuard(
+            staleMembership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            staleTable,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            timeProvider: clock);
+
+        await RunCheckStageAsync(staleGuard, Ct);
+        Assert.Equal(SiloStatus.Dead, staleTable.StatusOf(zombie));
+        Assert.Equal(SiloStatus.Joining, staleTable.StatusOf(self));
+
+        // Default IAmAliveTime + fresh StartTime -> fail-closed.
+        var freshTable = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        freshTable.AddRow(zombie, SiloStatus.Active, startTime: now.UtcDateTime.AddSeconds(-10), iAmAliveTime: default);
+        var freshMembership = new TableBackedMembershipService(freshTable);
+        var freshGuard = new SingleSiloGuard(
+            freshMembership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            freshTable,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            timeProvider: clock);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(freshGuard, Ct));
+        Assert.Equal(SiloStatus.Active, freshTable.StatusOf(zombie));
+        Assert.Equal(SiloStatus.Dead, freshTable.StatusOf(self));
+
+        // Both IAmAliveTime and StartTime default -> fail-closed (no proof of staleness).
+        var uninitializedTable = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        uninitializedTable.AddRow(zombie, SiloStatus.Active, startTime: default, iAmAliveTime: default);
+        var uninitializedMembership = new TableBackedMembershipService(uninitializedTable);
+        var uninitializedGuard = new SingleSiloGuard(
+            uninitializedMembership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            uninitializedTable,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            timeProvider: clock);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(uninitializedGuard, Ct));
+        Assert.Equal(SiloStatus.Active, uninitializedTable.StatusOf(zombie));
+        Assert.Equal(SiloStatus.Dead, uninitializedTable.StatusOf(self));
+    }
+
+    [Fact]
+    public async Task StalePeerETagContention_RetriesWhenStillStale_AndAbortsIfPeerBecomesFresh()
+    {
+        var self = NewSilo(11111, 2);
+        var peer = NewSilo(11111, 1);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+
+        // Case 1: Concurrent ETag bump while peer stays stale -> retries with updated ETag and succeeds.
+        var retryTable = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        retryTable.AddRow(peer, SiloStatus.Active, now.UtcDateTime.AddSeconds(-90));
+        var bumpedOnce = false;
+        retryTable.OnBeforeUpdate = address =>
+        {
+            if (!bumpedOnce && address.Equals(peer))
+            {
+                bumpedOnce = true;
+                retryTable.BumpETag(peer);
+            }
+        };
+        var retryMembership = new TableBackedMembershipService(retryTable);
+        var retryGuard = new SingleSiloGuard(
+            retryMembership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            retryTable,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            timeProvider: clock);
+
+        await RunCheckStageAsync(retryGuard, Ct);
+        Assert.Equal(SiloStatus.Dead, retryTable.StatusOf(peer));
+        Assert.Equal(2, retryTable.UpdateCalls);
+
+        // Case 2: Peer wakes up and refreshes IAmAliveTime concurrently (bumping ETag) -> retry sees fresh heartbeat and refuses.
+        var revivedTable = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        revivedTable.AddRow(peer, SiloStatus.Active, now.UtcDateTime.AddSeconds(-90));
+        var revivedOnce = false;
+        revivedTable.OnBeforeUpdate = address =>
+        {
+            if (!revivedOnce && address.Equals(peer))
+            {
+                revivedOnce = true;
+                revivedTable.AddRow(peer, SiloStatus.Active, now.UtcDateTime);
+                revivedTable.BumpETag(peer);
+            }
+        };
+        var revivedMembership = new TableBackedMembershipService(revivedTable);
+        var revivedGuard = new SingleSiloGuard(
+            revivedMembership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            revivedTable,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            timeProvider: clock);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(revivedGuard, Ct));
+        Assert.Equal(SiloStatus.Active, revivedTable.StatusOf(peer));
+        Assert.Equal(SiloStatus.Dead, revivedTable.StatusOf(self));
+    }
+
+    [Fact]
+    public async Task PeerBecomesStaleDuringGracePeriod_IsReapedWithoutRefusal()
+    {
+        var self = NewSilo(11111, 2);
+        var peer = NewSilo(11111, 1);
+        var start = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(start);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, start.UtcDateTime);
+        // 55s old at check start (not yet stale > 60s), then crosses 60s during grace polling.
+        table.AddRow(peer, SiloStatus.Active, start.UtcDateTime.AddSeconds(-55));
+        var membership = new TableBackedMembershipService(table, onRefresh: count =>
+        {
+            if (count == 2)
+            {
+                clock.AdvanceUtcNow(TimeSpan.FromSeconds(10));
+            }
+        });
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.FromSeconds(5), PollInterval = TimeSpan.FromMilliseconds(20) }),
+            timeProvider: clock);
+
+        await RunCheckStageAsync(guard, Ct);
+
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(peer));
+        Assert.Equal(SiloStatus.Joining, table.StatusOf(self));
+        Assert.True(membership.RefreshCount >= 3);
+    }
+
+    [Fact]
+    public async Task MixedStaleAndLivePeers_ReapsOnlyStalePeerAndStillRefusesForLivePeer()
+    {
+        var self = NewSilo(11111, 3);
+        var zombie = NewSilo(11111, 1);
+        var live = NewSilo(11111, 2);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        table.AddRow(zombie, SiloStatus.Active, now.UtcDateTime.AddSeconds(-120));
+        table.AddRow(live, SiloStatus.Active, now.UtcDateTime.AddSeconds(-5));
+        var membership = new TableBackedMembershipService(table);
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            timeProvider: clock);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(zombie));
+        Assert.Equal(SiloStatus.Active, table.StatusOf(live));
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
+        Assert.Contains(live.ToString(), error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(zombie.ToString(), error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -288,21 +561,66 @@ public sealed class SingleSiloGuardFacts
         }
     }
 
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public void AdvanceUtcNow(TimeSpan delta) => _utcNow += delta;
+    }
+
+    private sealed class TableBackedMembershipService(FakeMembershipTable table, Action<int>? onRefresh = null) : IClusterMembershipService
+    {
+        private ClusterMembershipSnapshot _current = new(ImmutableDictionary<SiloAddress, ClusterMember>.Empty, MembershipVersion.MinValue);
+
+        public int RefreshCount { get; private set; }
+
+        public ClusterMembershipSnapshot CurrentSnapshot => _current;
+
+        public IAsyncEnumerable<ClusterMembershipSnapshot> MembershipUpdates => EmptyUpdates();
+
+        public async ValueTask Refresh(MembershipVersion minimumVersion = default, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RefreshCount++;
+            onRefresh?.Invoke(RefreshCount);
+            var data = await table.ReadAll().ConfigureAwait(false);
+            var members = data.Members
+                .Select(pair => new ClusterMember(pair.Item1.SiloAddress, pair.Item1.Status, pair.Item1.SiloName))
+                .ToImmutableDictionary(m => m.SiloAddress);
+            _current = new ClusterMembershipSnapshot(members, new MembershipVersion(data.Version.Version));
+        }
+
+        public Task<bool> TryKill(SiloAddress siloAddress) => Task.FromResult(false);
+
+        private static async IAsyncEnumerable<ClusterMembershipSnapshot> EmptyUpdates()
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+    }
+
     private sealed class FakeMembershipTable : IMembershipTable
     {
         private readonly Dictionary<SiloAddress, (MembershipEntry Entry, string ETag)> _rows = [];
         private int _version = 1;
 
-        public FakeMembershipTable(SiloAddress self, SiloStatus initialStatus)
+        public FakeMembershipTable(SiloAddress self, SiloStatus initialStatus, DateTime? timestamp = null)
         {
-            AddRow(self, initialStatus, DateTime.UtcNow);
+            AddRow(self, initialStatus, timestamp ?? DateTime.UtcNow);
         }
 
         public bool ThrowOnRead { get; set; }
 
         public int UpdateCalls { get; private set; }
 
+        public Action<SiloAddress>? OnBeforeUpdate { get; set; }
+
         public void AddRow(SiloAddress address, SiloStatus status, DateTime iAmAliveTime)
+            => AddRow(address, status, startTime: iAmAliveTime, iAmAliveTime: iAmAliveTime);
+
+        public void AddRow(SiloAddress address, SiloStatus status, DateTime startTime, DateTime iAmAliveTime)
         {
             _rows[address] = (
                 new MembershipEntry
@@ -311,14 +629,25 @@ public sealed class SingleSiloGuardFacts
                     SiloName = address.ToString(),
                     HostName = "localhost",
                     Status = status,
-                    StartTime = iAmAliveTime,
+                    StartTime = startTime,
                     IAmAliveTime = iAmAliveTime,
                     SuspectTimes = [],
                 },
                 $"etag-{_version}");
         }
 
+        public void BumpETag(SiloAddress address)
+        {
+            if (_rows.TryGetValue(address, out var current))
+            {
+                _version++;
+                _rows[address] = (current.Entry, $"etag-{_version}");
+            }
+        }
+
         public SiloStatus StatusOf(SiloAddress address) => _rows[address].Entry.Status;
+
+        public MembershipEntry EntryOf(SiloAddress address) => _rows[address].Entry;
 
         public Task InitializeMembershipTable(bool tryInitTableVersion) => Task.CompletedTask;
 
@@ -359,6 +688,7 @@ public sealed class SingleSiloGuardFacts
         public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
         {
             UpdateCalls++;
+            OnBeforeUpdate?.Invoke(entry.SiloAddress);
             if (!_rows.TryGetValue(entry.SiloAddress, out var current) || current.ETag != etag)
             {
                 return Task.FromResult(false);

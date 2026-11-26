@@ -102,6 +102,8 @@ az_stop_revisions() {
       fi
       sleep 5; i=$((i+1))
     done
+    # Allow a 10s post-drain buffer so Orleans finishes writing Dead to cluster membership before the new revision starts.
+    sleep 10
   fi
   # END stop_revisions_body
 }
@@ -128,6 +130,7 @@ az_start_revision() {
       if [ -n "$ready" ]; then
         az_retry az containerapp revision deactivate -n "$app" -g "$group" --revision "$latest" >/dev/null
         az_retry az containerapp revision activate -n "$app" -g "$group" --revision "$ready" >/dev/null
+        az_retry az containerapp ingress traffic set -n "$app" -g "$group" --revision-weight "$ready=100" >/dev/null
       fi
       echo "Revision $latest of $app did not become ready; $ready runs again." >&2
       exit 1
