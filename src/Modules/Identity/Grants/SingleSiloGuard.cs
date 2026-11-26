@@ -279,16 +279,46 @@ public sealed class SingleSiloGuard(
                     continue;
                 }
 
-                var reachable = PeerEndpointProbe is { } customProbe
-                    ? await customProbe(endpoint, ct).ConfigureAwait(false)
-                    : await ProbePeerEndpointAsync(endpoint, PeerTcpProbeTimeout, logger, ct).ConfigureAwait(false);
-                if (reachable)
+                var skippedSelfProbe = false;
+                if (endpoint.Equals(local.SiloAddress.Endpoint))
                 {
-                    logger.LogWarning(
-                        "Stale peer silo {PeerSilo} still accepted a TCP connection at {Endpoint}; treating as live and refusing to mark Dead.",
-                        peer.SiloAddress,
-                        endpoint);
-                    continue;
+                    if (!IPAddress.IsLoopback(endpoint.Address) && peer.SiloAddress.Generation < local.SiloAddress.Generation)
+                    {
+                        skippedSelfProbe = true;
+                        logger.LogWarning(
+                            "Stale peer silo {PeerSilo} shares non-loopback endpoint {Endpoint} with joining silo {LocalSilo} at an older generation ({PeerGeneration} < {LocalGeneration}); skipping TCP self-probe because this process already owns the listening socket.",
+                            peer.SiloAddress,
+                            endpoint,
+                            local.SiloAddress,
+                            peer.SiloAddress.Generation,
+                            local.SiloAddress.Generation);
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Stale peer silo {PeerSilo} shares endpoint {Endpoint} with joining silo {LocalSilo} (loopback={IsLoopback}, peerGen={PeerGeneration}, localGen={LocalGeneration}); refusing to skip TCP probe or mark Dead.",
+                            peer.SiloAddress,
+                            endpoint,
+                            local.SiloAddress,
+                            IPAddress.IsLoopback(endpoint.Address),
+                            peer.SiloAddress.Generation,
+                            local.SiloAddress.Generation);
+                        continue;
+                    }
+                }
+                else
+                {
+                    var reachable = PeerEndpointProbe is { } customProbe
+                        ? await customProbe(endpoint, ct).ConfigureAwait(false)
+                        : await ProbePeerEndpointAsync(endpoint, PeerTcpProbeTimeout, logger, ct).ConfigureAwait(false);
+                    if (reachable)
+                    {
+                        logger.LogWarning(
+                            "Stale peer silo {PeerSilo} still accepted a TCP connection at {Endpoint}; treating as live and refusing to mark Dead.",
+                            peer.SiloAddress,
+                            endpoint);
+                        continue;
+                    }
                 }
 
                 using var updateCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -345,13 +375,13 @@ public sealed class SingleSiloGuard(
                     if (await membershipTable.UpdateRowAsync(updated, row.Item2, data.Version.Next(), updateCts.Token).ConfigureAwait(false))
                     {
                         logger.LogWarning(
-                            "Marked stale orphan peer silo {PeerSilo} (status {PeerStatus}, non-advancing last alive {LastAliveUtc:O}, age {Age} > threshold {Threshold}, TCP probe to {Endpoint} failed) as Dead in cluster '{ClusterId}' while {LocalSilo} is joining.",
+                            "Marked stale orphan peer silo {PeerSilo} (status {PeerStatus}, non-advancing last alive {LastAliveUtc:O}, age {Age} > threshold {Threshold}, liveness check: {LivenessCheck}) as Dead in cluster '{ClusterId}' while {LocalSilo} is joining.",
                             peer.SiloAddress,
                             source.Status,
                             currentLastAliveUtc,
                             age,
                             staleThreshold,
-                            endpoint,
+                            skippedSelfProbe ? $"same-endpoint prior generation at {endpoint} (TCP self-probe skipped)" : $"TCP probe to {endpoint} failed",
                             cluster.Value.ClusterId,
                             local.SiloAddress);
                         reapedAny = true;

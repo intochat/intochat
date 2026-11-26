@@ -196,6 +196,39 @@ public sealed class ArmRepeatabilityFacts
         Assert.Equal(2, handler.AppWrites);
     }
 
+    [Fact]
+    public async Task StopBeforeUpdate_UsesMultipleRevisionModeAndRoutes100PercentToLatest_WhileStatelessStaysSingle()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+
+        var singleSilo = new ContainerAppSpec
+        {
+            Name = "test-api",
+            ResourceGroup = "rg",
+            Location = "polandcentral",
+            Environment = "test-env",
+            Identity = "test-id",
+            Image = "acr.azurecr.io/os:1",
+            StopBeforeUpdate = true,
+        };
+        await arm.Ensure(AzureHttp.Subscription, singleSilo, TestContext.Current.CancellationToken);
+        Assert.Equal("Multiple", handler.LastAppWrite?["properties"]?["configuration"]?["activeRevisionsMode"]?.GetValue<string>());
+        var traffic = handler.LastAppWrite?["properties"]?["configuration"]?["ingress"]?["traffic"]?.AsArray();
+        Assert.NotNull(traffic);
+        var weight = Assert.Single(traffic);
+        Assert.True(weight?["latestRevision"]?.GetValue<bool>());
+        Assert.Equal(100, weight?["weight"]?.GetValue<int>());
+
+        using var statelessHandler = new AzureHttp();
+        using var statelessClient = new HttpClient(statelessHandler);
+        var statelessArm = new ArmAzure(new Credential(), new HttpClientTransport(statelessClient));
+        await statelessArm.Ensure(AzureHttp.Subscription, singleSilo with { StopBeforeUpdate = false }, TestContext.Current.CancellationToken);
+        Assert.Equal("Single", statelessHandler.LastAppWrite?["properties"]?["configuration"]?["activeRevisionsMode"]?.GetValue<string>());
+        Assert.Null(statelessHandler.LastAppWrite?["properties"]?["configuration"]?["ingress"]?["traffic"]);
+    }
+
     private sealed class Credential : TokenCredential
     {
         public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) => new("offline-test-token", DateTimeOffset.UtcNow.AddHours(1));
