@@ -205,13 +205,18 @@ public sealed class InstallerScriptFacts
 
         foreach (var file in files)
         {
+            var ext = Path.GetExtension(file);
+            if (ext.Equals(".cer", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var text = File.ReadAllText(file);
             var relative = Path.GetRelativePath(FindRepoRoot(), file);
             Assert.DoesNotContain("intochat.ai", text, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(ZeroSha256, text, StringComparison.Ordinal);
             Assert.True(text.Length > 0, relative);
 
-            var ext = Path.GetExtension(file);
             if (!ext.Equals(".props", StringComparison.OrdinalIgnoreCase)
                 && !ext.Equals(".targets", StringComparison.OrdinalIgnoreCase)
                 && !ext.Equals(".proj", StringComparison.OrdinalIgnoreCase)

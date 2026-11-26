@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Trust or remove the IntoChat Dev public signing certificate for Windows MSIX sideloading.
+    Trust or remove the IntoChat Dev public signing certificate for Windows MSIX sideloading (https://intochat.io).
 .DESCRIPTION
     Resolves IntoChat-DevCert.cer locally (adjacent eng/release/windows/IntoChat-DevCert.cer
     or -CertPath) or downloads it over HTTPS from GitHub Releases, verifies its pinned SHA-1
