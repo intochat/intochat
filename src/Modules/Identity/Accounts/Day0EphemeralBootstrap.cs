@@ -52,7 +52,7 @@ public static class Day0EphemeralBootstrap
         return app;
     }
 
-    private static bool ShouldBootstrap(HttpRequest request)
+    internal static bool ShouldBootstrap(HttpRequest request)
     {
         if (!HttpMethods.IsGet(request.Method)) { return false; }
 
@@ -61,11 +61,40 @@ public static class Day0EphemeralBootstrap
         if (request.Headers.ContainsKey(PresenceProof.HeaderName) || request.Cookies.ContainsKey(PresenceProof.CookieName)) { return false; }
 
         var path = request.Path.Value;
-        return string.Equals(path, "/", StringComparison.Ordinal)
-            || string.Equals(path, "/index.html", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(path, AccountSession.CheckPath, StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(path, "/", StringComparison.Ordinal)
+            || string.Equals(path, "/index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsBrowserNavigation(request);
+        }
+
+        return string.Equals(path, AccountSession.CheckPath, StringComparison.OrdinalIgnoreCase)
             || string.Equals(path, "/identity/session", StringComparison.OrdinalIgnoreCase)
             || string.Equals(path, "/identity/residency", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBrowserNavigation(HttpRequest request)
+    {
+        // Reject explicit non-navigation Fetch Metadata (e.g. fetch/XHR/subresource) even if Accept mentions text/html.
+        if (request.Headers.TryGetValue("Sec-Fetch-Mode", out var fetchMode)
+            && !string.IsNullOrWhiteSpace(fetchMode)
+            && !string.Equals(fetchMode.ToString(), "navigate", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Browsers navigating to / or /index.html explicitly advertise text/html in Accept;
+        // stateless probes/crawlers typically send no Accept header, Accept: */*, or Accept: application/json.
+        var accept = request.GetTypedHeaders().Accept;
+        if (accept is null || accept.Count == 0) { return false; }
+        foreach (var mediaType in accept)
+        {
+            if (mediaType.MediaType.Equals("text/html", StringComparison.OrdinalIgnoreCase)
+                && mediaType.Quality is not 0.0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     internal static async Task<bool> TryMintIfUnauthenticatedAsync(HttpContext context)

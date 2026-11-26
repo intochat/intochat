@@ -68,9 +68,23 @@ internal sealed class LocalIdentityClient(
             ? Task.FromResult<Member?>(string.Equals(rec.Owner.PrincipalId, principalId, StringComparison.Ordinal) ? rec.Owner : null)
             : SystemCall(() => Directory.Membership(brainScopeId, principalId));
 
-    public Task<Member?> EnsureMember(Member member) => SystemCall(() => Directory.EnsureMember(member));
-    public Task RemoveMember(string brainScopeId, string accountId) => SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
-    public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
+    public Task<Member?> EnsureMember(Member member)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        return ephemeral is not null && ephemeral.Contains(member.BrainId)
+            ? Task.FromResult<Member?>(null)
+            : SystemCall(() => Directory.EnsureMember(member));
+    }
+
+    public Task RemoveMember(string brainScopeId, string accountId)
+        => ephemeral is not null && ephemeral.Contains(brainScopeId)
+            ? Task.CompletedTask
+            : SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
+
+    public Task RemovePrincipalMember(string brainScopeId, string principalId)
+        => ephemeral is not null && ephemeral.Contains(brainScopeId)
+            ? Task.CompletedTask
+            : SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
 
     // Decided here, from the caller value, over the directory's state (or RAM registry for active ephemeral brains).
     public Task<CallDecision?> Authorize(Caller? caller, CallRequest request)

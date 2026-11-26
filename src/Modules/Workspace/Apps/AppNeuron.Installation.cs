@@ -328,22 +328,21 @@ internal sealed partial class AppNeuron
 
     // Phase F: an installed app is a principal of its brain. Its membership (role App, under the brain owner's account)
     // exists from the moment the copy is created or lands until it is deleted. A host without the identity
-    // authority, or a brain nobody owns yet, records none; the app proxy still stamps the app principal.
+    // authority, a brain nobody owns yet, or a non-owner caller (e.g. Kernel during ephemeral birth, App, Agent,
+    // Module, Scheduler, or non-owner Person) records none; the app proxy still stamps the app principal.
     private async Task EnsureAppPrincipal()
     {
         if (services?.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
+        if (Context.Caller?.Actor is not Actor.Person person) { return; }
         var brain = BrainId();
         try
         {
             var directory = await broker.Identity();
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
+            if (await directory.Membership(brain, person.Principal) is not { Role: MemberRole.Owner }) { return; }
             var principalId = AppPrincipal.Id(Key);
             if (await directory.Membership(brain, principalId) is { Role: MemberRole.App }) { return; }
-            if (Context.Caller is { Actor: Actor.App or Actor.Module or Actor.Scheduler })
-            {
-                return;
-            }
             using (Edge?.EnterInProcess())
             {
                 await directory.EnsureMember(new Member
@@ -368,6 +367,7 @@ internal sealed partial class AppNeuron
     private async Task RemoveAppPrincipal()
     {
         if (services?.GetService<ICapabilityBroker>() is not { } broker) { return; }
+        if (Context.Caller?.Actor is not Actor.Person person) { return; }
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
         try
@@ -375,6 +375,7 @@ internal sealed partial class AppNeuron
             var directory = await broker.Identity();
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
+            if (await directory.Membership(brain, person.Principal) is not { Role: MemberRole.Owner }) { return; }
             if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
             using (Edge?.EnterInProcess())
             {
