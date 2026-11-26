@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/desktop/desktop_overlays.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -54,16 +54,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          home: IcTheme(
-            colors: IcColors.dark,
-            child: Scaffold(
-              body: StatefulBuilder(
-                builder: (context, setState) => DesktopSystemModalSheet(
-                  kind: activeSheet,
-                  onClose: () =>
-                      setState(() => activeSheet = DesktopSystemSheetKind.none),
-                  onOpenSheet: (next) => setState(() => activeSheet = next),
-                ),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => DesktopSystemModalSheet(
+                kind: activeSheet,
+                onClose: () =>
+                    setState(() => activeSheet = DesktopSystemSheetKind.none),
+                onOpenSheet: (next) => setState(() => activeSheet = next),
               ),
             ),
           ),

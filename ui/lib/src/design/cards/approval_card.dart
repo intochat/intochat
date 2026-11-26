@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -102,7 +104,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = widget.data;
     switch (widget.state) {
       case ApprovalState.approved:
@@ -129,7 +131,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
     }
   }
 
-  Widget _body(IcColors c, {required bool readOnly}) {
+  Widget _body(UiColors c, {required bool readOnly}) {
     final d = widget.data;
     final rows = _all ? d.rows : d.rows.take(widget.visibleRows).toList();
     final hidden = d.rows.length - rows.length;
@@ -152,7 +154,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
         children: [
           Text(
             d.title,
-            style: IcType.text(
+            style: UiType.textStyle(
               16,
               weight: FontWeight.w600,
               color: c.textStrong,
@@ -162,14 +164,14 @@ class _ApprovalCardState extends State<ApprovalCard> {
           const SizedBox(height: 4),
           Text(
             d.summary,
-            style: IcType.text(13, color: c.textMuted, height: 1.45),
+            style: UiType.textStyle(13, color: c.textMuted, height: 1.45),
           ),
           const SizedBox(height: 14),
           // Table
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: c.borderHairline),
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             ),
             child: Column(
               children: [
@@ -202,7 +204,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
                           ),
                           child: Text(
                             'Show all ${d.rows.length}',
-                            style: IcType.text(
+                            style: UiType.textStyle(
                               13,
                               weight: FontWeight.w600,
                               color: c.accent,
@@ -275,15 +277,19 @@ class _HeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    final st = IcType.text(12, weight: FontWeight.w600, color: c.textMuted);
+    final c = UiColors.of(context);
+    final st = UiType.textStyle(
+      12,
+      weight: FontWeight.w600,
+      color: c.textMuted,
+    );
     return Container(
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: c.surfaceSunk,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(IcRadius.button - 1),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(UiTokens.of(context).button - 1),
         ),
       ),
       child: Row(
@@ -374,9 +380,9 @@ class _RowState extends State<_Row> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final r = widget.row;
-    final valueStyle = IcType.text(
+    final valueStyle = UiType.textStyle(
       13,
       weight: FontWeight.w600,
       color: r.edited ? c.accent : c.textStrong,
@@ -399,7 +405,7 @@ class _RowState extends State<_Row> {
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
             color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.xs),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
             border: Border.all(color: c.accent),
             boxShadow: [BoxShadow(color: c.ring, spreadRadius: 2)],
           ),
@@ -426,13 +432,15 @@ class _RowState extends State<_Row> {
               onTap: widget.readOnly ? null : _start,
               child: SelectionRing(
                 on: v.selected,
-                radius: IcRadius.xs,
+                radius: UiTokens.of(context).xs,
                 child: Container(
                   height: 26,
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   decoration: BoxDecoration(
                     color: lit ? c.surfaceSunk : const Color(0x00000000),
-                    borderRadius: BorderRadius.circular(IcRadius.xs),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).xs,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -471,7 +479,7 @@ class _RowState extends State<_Row> {
               r.label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(
+              style: UiType.textStyle(
                 13,
                 weight: FontWeight.w500,
                 color: c.textBody,
@@ -484,7 +492,7 @@ class _RowState extends State<_Row> {
               child: Text(
                 r.amount!,
                 textAlign: TextAlign.right,
-                style: IcType.text(13, color: c.textBody, tnum: true),
+                style: UiType.textStyle(13, color: c.textBody, tnum: true),
               ),
             ),
           const SizedBox(width: 16),
@@ -495,7 +503,7 @@ class _RowState extends State<_Row> {
                 Text(
                   r.oldValue,
                   style:
-                      IcType.text(
+                      UiType.textStyle(
                         13,
                         color: r.warn ? c.error : c.textMuted,
                         tnum: true,

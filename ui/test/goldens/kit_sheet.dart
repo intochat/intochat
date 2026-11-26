@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_avatar.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_divider.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_list.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_menu.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_modal.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_toast.dart';
 
 /// A fixed sheet of kit components for golden comparison across palettes,
-/// mirroring the Figma `ComponentsPage` sections. Kit widgets are used
-/// directly; menu, modal, toast, list, badge, avatar and divider are value
-/// nodes drawn with their widgets. Each overlay demo gets its own
-/// [Overlay] so the open menu, modal and toast stay inside their section.
+/// mirroring the Figma `ComponentsPage` sections. Kit primitives are used
+/// directly; each overlay demo gets its own [Overlay] so the open menu stays
+/// inside its section.
 class KitSheet extends StatelessWidget {
   const KitSheet({super.key});
 
@@ -317,17 +310,99 @@ class _ValueTree extends StatelessWidget {
             ),
         ],
       ),
-      6 => ViewMenu(node: node, action: _action),
-      7 => ViewModal(
-        node: node,
-        children: [for (final child in children) (child, _node(child))],
-        action: _action,
+      6 => UiMenu(node: node, action: _action),
+      7 => Builder(
+        builder: (context) {
+          final c = UiColors.of(context);
+          final type = UiType.of(context);
+          final detail = node['detail'] as String? ?? '';
+          return Container(
+            color: c.scrim,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(16),
+            child: UiMixSurface(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(text, style: type.cardTitle),
+                  if (detail.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(detail, style: type.bodyMuted),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    spacing: 8,
+                    children: [for (final child in children) _node(child)],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
-      8 => ViewToast(node: node, generation: 1, action: _action),
-      9 => ViewList(count: children.length, row: (i) => _node(children[i])),
-      10 => ViewBadge(text: text, tone: node['tone']),
-      11 => ViewAvatar(initials: text),
-      12 => ViewDivider(label: text),
+      8 => UiMixToastBody(
+        message: text,
+        actionLabel: children.isEmpty
+            ? null
+            : children.first['text'] as String?,
+        onAction: children.isEmpty ? null : () {},
+      ),
+      9 => Builder(
+        builder: (context) {
+          final c = UiColors.of(context);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) Container(height: 1, color: c.hairline),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: _node(children[i]),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+      10 => UiBadge.fromWire(label: text, tone: node['tone']),
+      11 => Builder(
+        builder: (context) {
+          final c = UiColors.of(context);
+          final type = UiType.of(context);
+          return Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: c.accentTint,
+              shape: BoxShape.circle,
+            ),
+            child: Text(text, style: type.metaStrong.copyWith(color: c.accent)),
+          );
+        },
+      ),
+      12 => Builder(
+        builder: (context) {
+          final c = UiColors.of(context);
+          final line = Container(height: 1, color: c.hairline);
+          if (text.isEmpty) return line;
+          return Row(
+            children: [
+              Expanded(child: line),
+              const SizedBox(width: 14),
+              Text(
+                text,
+                style: UiType.of(context).bodyMuted.copyWith(fontSize: 13),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: line),
+            ],
+          );
+        },
+      ),
       _ => const SizedBox.shrink(),
     };
   }

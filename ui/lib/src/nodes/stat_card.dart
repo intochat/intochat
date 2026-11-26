@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
-import 'node_common.dart';
+import '../primitives/badge.dart';
 import '../primitives/surface.dart';
-import '../composition/value_nodes/view_badge.dart';
 import '../theme/ui_theme.dart';
 
 Widget renderStatCard(StatCardNode node, NodeContext ctx) => Semantics(
@@ -30,14 +29,14 @@ Widget renderStatCard(StatCardNode node, NodeContext ctx) => Semantics(
               ).copyWith(fontFeatures: UiType.tabular),
             ),
             if (node.delta case final delta?)
-              ViewBadge(
-                text: delta,
+              UiBadge.fromWire(
+                label: delta,
                 tone: switch (node.tone) {
-                  BadgeTone.accent => UiNodeTone.accent,
-                  BadgeTone.done => UiNodeTone.done,
-                  BadgeTone.working => UiNodeTone.working,
-                  BadgeTone.error => UiNodeTone.error,
-                  BadgeTone.neutral => UiNodeTone.neutral,
+                  BadgeTone.accent => UiBadgeTone.accent,
+                  BadgeTone.done => UiBadgeTone.success,
+                  BadgeTone.working => UiBadgeTone.warning,
+                  BadgeTone.error => UiBadgeTone.danger,
+                  BadgeTone.neutral => UiBadgeTone.neutral,
                 },
               ),
           ],

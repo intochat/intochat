@@ -259,10 +259,10 @@ class _WindowFrameState extends State<WindowFrame> {
     return ListenableBuilder(
       listenable: widget.window,
       builder: (context, _) {
-        final c = IcTheme.of(context);
+        final c = UiColors.of(context);
         final w = widget.window;
         final zoomed = w.zoomed || widget.forceZoom;
-        final radius = zoomed ? 0.0 : IcRadius.card;
+        final radius = zoomed ? 0.0 : UiTokens.of(context).card;
         final effectivePinned = widget.isPinned || w.isPinned;
         final effectiveMode = widget.executionMode ?? w.executionMode;
 
@@ -320,7 +320,7 @@ class _WindowFrameState extends State<WindowFrame> {
             border: Border.all(color: borderColor, width: zoomed ? 0 : 1),
             boxShadow: zoomed
                 ? null
-                : (widget.focused ? IcShadow.xl(c) : IcShadow.lg(c)),
+                : (widget.focused ? UiShadows.xl(c) : UiShadows.lg(c)),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(radius == 0 ? 0 : radius - 1),
@@ -390,9 +390,9 @@ class _WindowFrameState extends State<WindowFrame> {
         return AnimatedPositioned(
           duration:
               zoomed != WindowFrame._lastZoom.putIfAbsent(w.id, () => zoomed)
-              ? IcMotion.base
+              ? UiTokens.of(context).base
               : Duration.zero,
-          curve: IcMotion.ease,
+          curve: UiTokens.of(context).ease,
           left: rect.left,
           top: rect.top,
           width: rect.width,
@@ -486,7 +486,7 @@ class _TitleBarState extends State<_TitleBar>
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final w = widget.window;
     final effectivePinned = widget.isPinned || w.isPinned;
 
@@ -567,7 +567,7 @@ class _TitleBarState extends State<_TitleBar>
                         w.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           13,
                           weight: FontWeight.w600,
                           color: widget.focused ? c.textStrong : c.textMuted,
@@ -698,7 +698,7 @@ class _Light extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Semantics(
       button: true,
       label: label,
@@ -753,7 +753,7 @@ class _OverflowActionButtonState extends State<_OverflowActionButton> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     Widget iconWidget = Icon(
       widget.icon,
       size: 13.5,
@@ -785,7 +785,7 @@ class _OverflowActionButtonState extends State<_OverflowActionButton> {
               color: widget.active
                   ? widget.color.withValues(alpha: 0.14)
                   : (_hover ? c.surfaceSunk : Colors.transparent),
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             ),
             child: iconWidget,
           ),

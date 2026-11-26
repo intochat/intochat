@@ -3,6 +3,8 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 import 'button.dart';
 import 'node_context.dart';
@@ -29,7 +31,7 @@ class ErrorLineView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final action = node.action;
     final detail = node.detail;
     return ConstrainedBox(
@@ -38,7 +40,7 @@ class ErrorLineView extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
         decoration: BoxDecoration(
           color: c.errorBg,
-          borderRadius: BorderRadius.circular(IcRadius.card),
+          borderRadius: BorderRadius.circular(UiTokens.of(context).card),
           border: Border.all(color: c.error.withValues(alpha: 0.35)),
         ),
         child: Row(
@@ -58,7 +60,7 @@ class ErrorLineView extends StatelessWidget {
                   children: [
                     Text(
                       node.what,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         14,
                         weight: FontWeight.w500,
                         color: c.textStrong,
@@ -69,7 +71,7 @@ class ErrorLineView extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         detail,
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           12.5,
                           color: c.textMuted,
                           height: 1.35,

@@ -194,7 +194,7 @@ class _CommandPaletteState extends State<CommandPalette> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final entries = _buildEntries();
     final safeIndex = entries.isEmpty
         ? 0
@@ -240,10 +240,10 @@ class _CommandPaletteState extends State<CommandPalette> {
             },
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
-              child: IcAcrylicBox(
-                radius: IcRadius.panel,
+              child: UiAcrylicSurface(
+                radius: UiTokens.of(context).panel,
                 padding: EdgeInsets.zero,
-                shadows: IcShadow.xl(c),
+                shadows: UiShadows.xl(c),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -259,12 +259,15 @@ class _CommandPaletteState extends State<CommandPalette> {
                               key: const ValueKey('command-palette-input'),
                               controller: _text,
                               focusNode: _focus,
-                              style: IcType.text(14, color: c.textStrong),
+                              style: UiType.textStyle(14, color: c.textStrong),
                               decoration: InputDecoration(
                                 isDense: true,
                                 border: InputBorder.none,
                                 hintText: 'Search apps, switch UI identity, or ask Ino…',
-                                hintStyle: IcType.text(14, color: c.textMuted),
+                                hintStyle: UiType.textStyle(
+                                  14,
+                                  color: c.textMuted,
+                                ),
                               ),
                               onSubmitted: (_) {
                                 if (entries.isNotEmpty) {
@@ -302,7 +305,7 @@ class _CommandPaletteState extends State<CommandPalette> {
                                       ? c.accentTint
                                       : const Color(0x00000000),
                                   borderRadius: BorderRadius.circular(
-                                    IcRadius.sm,
+                                    UiTokens.of(context).sm,
                                   ),
                                 ),
                                 child: Row(
@@ -326,7 +329,7 @@ class _CommandPaletteState extends State<CommandPalette> {
                                         item.label,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: IcType.text(
+                                        style: UiType.textStyle(
                                           13,
                                           weight: selected
                                               ? FontWeight.w600
@@ -342,7 +345,7 @@ class _CommandPaletteState extends State<CommandPalette> {
                                           item.detail!,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: IcType.text(
+                                          style: UiType.textStyle(
                                             11.5,
                                             color: c.textMuted,
                                             tnum: true,

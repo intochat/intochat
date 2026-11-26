@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
-import 'package:material_ui/material_ui.dart' as material;
 
 import 'ui_colors.dart';
 import 'ui_shadows.dart';
@@ -87,46 +86,66 @@ abstract final class UiType {
     ],
   );
 
-  /// Unified text builder matching `IcType.text`.
+  /// Unified body/UI text builder (`Inter`).
   static TextStyle textStyle(
     double size, {
     FontWeight weight = FontWeight.w400,
     Color? color,
     bool tnum = false,
     double? height,
+    double? letterSpacing,
   }) => TextStyle(
     fontFamily: sans,
     fontSize: size,
     fontWeight: weight,
     color: color,
     height: height,
-    letterSpacing: size >= 20 ? -0.2 : 0,
+    letterSpacing: letterSpacing ?? (size >= 20 ? -0.2 : 0),
     fontFeatures: tnum ? tabular : null,
   );
 
-  /// Unified display heading builder matching `IcType.heading`.
+  /// Unified display heading builder (`InterDisplay`).
   static TextStyle displayStyle(
     double size, {
     FontWeight weight = FontWeight.w700,
     Color? color,
+    double height = 1.15,
+    double letterSpacing = -0.4,
   }) => TextStyle(
     fontFamily: display,
     fontSize: size,
     fontWeight: weight,
     color: color,
-    letterSpacing: -0.4,
-    height: 1.15,
+    letterSpacing: letterSpacing,
+    height: height,
   );
 
-  /// Unified tabular/URI style matching `IcType.mono`.
+  /// Unified tabular/URI style (`Inter` + `tnum`).
   static TextStyle tabularStyle(
     double size, {
     FontWeight weight = FontWeight.w500,
     Color? color,
+    double? height,
   }) => TextStyle(
     fontFamily: mono,
     fontSize: size,
     fontWeight: weight,
+    color: color,
+    height: height,
+    fontFeatures: tabular,
+  );
+
+  /// Compact tabular code/URI text style (`Inter` + `tnum`, 1.4 line height).
+  static TextStyle codeStyle(
+    double size, {
+    required Color color,
+    FontWeight weight = FontWeight.w500,
+    double height = 1.4,
+  }) => TextStyle(
+    fontFamily: monoFamily,
+    fontSize: size,
+    fontWeight: weight,
+    height: height,
     color: color,
     fontFeatures: tabular,
   );
@@ -355,38 +374,22 @@ abstract final class UiTheme {
 
   /// Light theme for a stored palette, built directly from its [UiColors]
   /// palette so every preset renders its exact identity colors.
-  static ThemeData light(String? stored) => switch (paletteName(stored)) {
-    'fluent-acrylic' => fromColors(UiColors.fluentAcrylicLight),
-    'spatial-glass' => fromColors(UiColors.spatialGlassLight),
-    'cyber-synaptic' => fromColors(UiColors.cyberSynapticLight),
-    'warm-paper' => intochat(Brightness.light),
-    'fluent-warm-mica' => fromColors(UiColors.fluentWarmMicaLight),
-    'linear-carbon' => fromColors(UiColors.linearCarbonLight),
-    'nordic-tactical' => fromColors(UiColors.nordicTacticalLight),
-    'lumen' => fromColors(UiColors.lumen),
-    'midnight' => fromColors(UiColors.midnight),
-    'paper' => fromColors(UiColors.paper),
-    _ => intochat(Brightness.light),
-  };
+  static ThemeData light(String? stored) => fromColors(
+    UiColors.forStoredTheme(paletteName(stored), brightness: Brightness.light),
+  );
 
   /// Dark theme for a stored palette, built directly from its [UiColors]
-  /// palette (eliminating the legacy `workspaceDark` Lumen green fallback).
-  static ThemeData dark(String? stored) => switch (paletteName(stored)) {
-    'fluent-acrylic' => fromColors(UiColors.fluentAcrylicDark),
-    'spatial-glass' => fromColors(UiColors.spatialGlassDark),
-    'cyber-synaptic' => fromColors(UiColors.cyberSynapticDark),
-    'warm-paper' => intochat(Brightness.dark),
-    'fluent-warm-mica' => fromColors(UiColors.fluentWarmMicaDark),
-    'linear-carbon' => fromColors(UiColors.linearCarbonDark),
-    'nordic-tactical' => fromColors(UiColors.nordicTacticalDark),
-    'lumen' => fromColors(UiColors.lumen),
-    'midnight' => fromColors(UiColors.midnight),
-    'paper' => fromColors(UiColors.paper),
-    _ => intochat(Brightness.dark),
-  };
+  /// palette.
+  static ThemeData dark(String? stored) => fromColors(
+    UiColors.forStoredTheme(paletteName(stored), brightness: Brightness.dark),
+  );
 
-  /// Builds a complete Material 3 [ThemeData] directly from a [UiColors] palette.
-  static ThemeData fromColors(UiColors c) {
+  /// Builds a complete Material 3 [ThemeData] directly from a [UiColors]
+  /// palette and [UiTokens] scale.
+  static ThemeData fromColors(
+    UiColors c, {
+    UiTokens tokens = const UiTokens(),
+  }) {
     final brightness = c.brightness;
     final scheme = ColorScheme(
       brightness: brightness,
@@ -437,13 +440,13 @@ abstract final class UiTheme {
       labelSmall: w(base.labelSmall),
     );
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(tokens.input),
       borderSide: BorderSide(color: c.inputBorder),
     );
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      extensions: [const UiTokens(), c],
+      extensions: [tokens, c],
       colorScheme: scheme,
       fontFamily: UiType.sans,
       scaffoldBackgroundColor: c.page,
@@ -460,10 +463,10 @@ abstract final class UiTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(36, 36),
+          minimumSize: Size(tokens.buttonHeight, tokens.buttonHeight),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(tokens.button),
           ),
           textStyle: const TextStyle(
             fontFamily: UiType.sans,
@@ -475,13 +478,13 @@ abstract final class UiTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(36, 36),
+          minimumSize: Size(tokens.buttonHeight, tokens.buttonHeight),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           backgroundColor: c.surface,
           foregroundColor: c.strong,
           side: BorderSide(color: c.inputBorder),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(tokens.button),
           ),
           textStyle: const TextStyle(
             fontFamily: UiType.sans,
@@ -496,7 +499,7 @@ abstract final class UiTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(tokens.card),
           side: BorderSide(color: c.hairline),
         ),
       ),
@@ -514,16 +517,16 @@ abstract final class UiTheme {
         backgroundColor: c.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(tokens.card),
           side: BorderSide(color: c.hairline),
         ),
       ),
       tooltipTheme: TooltipThemeData(
-        waitDuration: const Duration(milliseconds: 350),
+        waitDuration: tokens.hintDelay,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: c.isDark ? c.surface : c.ink,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(tokens.xs),
           border: c.isDark ? Border.all(color: c.hairline) : null,
           boxShadow: UiShadows.sm(c.ink),
         ),
@@ -556,7 +559,7 @@ abstract final class UiTheme {
   static ThemeData baseDark() => fromColors(UiColors.midnight);
 }
 
-/// Installs the approved product control foundation below MaterialApp.
+/// Installs the transparent Material surface foundation below MaterialApp.
 final class UiThemeScope extends StatelessWidget {
   const UiThemeScope({super.key, required this.child, this.brightness});
 
@@ -565,10 +568,7 @@ final class UiThemeScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return material.Material(
-      type: material.MaterialType.transparency,
-      child: child,
-    );
+    return Material(type: MaterialType.transparency, child: child);
   }
 }
 

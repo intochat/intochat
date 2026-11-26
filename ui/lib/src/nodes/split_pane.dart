@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 import 'node_context.dart';
 import 'node_renderer.dart';
@@ -53,7 +55,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final node = widget.node;
     final ctx = widget.ctx;
 
@@ -191,7 +193,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
                     width: sashWidth,
                     child: Center(
                       child: AnimatedContainer(
-                        duration: _motion(context, IcMotion.fast),
+                        duration: _motion(context, UiTokens.of(context).fast),
                         width: sashActive ? 3 : 1,
                         constraints: const BoxConstraints(minHeight: 24),
                         decoration: BoxDecoration(
@@ -226,7 +228,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
 
   Widget _buildCompact(
     BuildContext context, {
-    required IcColors c,
+    required UiColors c,
     required Widget leading,
     required Widget trailing,
     required bool stretch,
@@ -265,14 +267,16 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
               behavior: HitTestBehavior.opaque,
               onTap: interactive ? toggleDrawer : null,
               child: AnimatedContainer(
-                duration: _motion(context, IcMotion.fast),
+                duration: _motion(context, UiTokens.of(context).fast),
                 height: 32,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: _compactDrawerOpen
                       ? c.accentTint
                       : (_hoverDrawerToggle ? c.hoverOverlay : c.surfaceCard),
-                  borderRadius: BorderRadius.circular(IcRadius.button),
+                  borderRadius: BorderRadius.circular(
+                    UiTokens.of(context).button,
+                  ),
                   border: Border.all(
                     color: _focusDrawerToggle || _compactDrawerOpen
                         ? c.accent
@@ -299,7 +303,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
                     const SizedBox(width: 6),
                     Text(
                       'Navigation',
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         12.5,
                         weight: FontWeight.w600,
                         color: _compactDrawerOpen ? c.accent : c.textStrong,
@@ -322,7 +326,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
             constraints: const BoxConstraints(maxHeight: 280),
             decoration: BoxDecoration(
               color: c.surfaceSunk,
-              borderRadius: BorderRadius.circular(IcRadius.card),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).card),
               border: Border.all(color: c.borderHairline),
             ),
             child: SingleChildScrollView(primary: false, child: leading),

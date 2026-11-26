@@ -4,6 +4,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/app_tile.dart';
 import '../design/keys.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
 import '../theme/ui_icon.dart';
 import '../theme/wire_node_values.dart';
@@ -23,7 +26,7 @@ class EmptyStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final body = node.body;
     final suggestions = node.suggestions ?? const <ButtonNode>[];
     final appId = inferAppIdFromViewPath(ctx.view);
@@ -40,7 +43,7 @@ class EmptyStateView extends StatelessWidget {
               Text(
                 node.title,
                 textAlign: TextAlign.center,
-                style: IcType.heading(
+                style: UiType.displayStyle(
                   26,
                   weight: FontWeight.w800,
                   color: c.textStrong,
@@ -51,7 +54,7 @@ class EmptyStateView extends StatelessWidget {
                 Text(
                   body,
                   textAlign: TextAlign.center,
-                  style: IcType.text(14, color: c.textMuted, height: 1.45),
+                  style: UiType.textStyle(14, color: c.textMuted, height: 1.45),
                 ),
               ],
               if (suggestions.isNotEmpty) ...[
@@ -116,7 +119,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final disabled = widget.onTap == null;
     final glyph =
         (widget.button.icon != null ? uiIcon(widget.button.icon!) : null) ??
@@ -132,7 +135,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
           child: GestureDetector(
             onTap: widget.onTap,
             child: AnimatedContainer(
-              duration: IcMotion.fast,
+              duration: UiTokens.of(context).fast,
               width: widget.width,
               constraints: const BoxConstraints(minHeight: 62),
               transform: Matrix4.translationValues(
@@ -143,7 +146,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: v.selected ? c.accentTint : c.surfaceCard,
-                borderRadius: BorderRadius.circular(IcRadius.card),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).card),
                 border: Border.all(
                   color: v.selected
                       ? c.accent
@@ -152,7 +155,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                             : c.borderHairline),
                   width: v.selected ? 1.5 : 1,
                 ),
-                boxShadow: [IcShadow.sm(c).first],
+                boxShadow: [UiShadows.sm(c).first],
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,7 +165,11 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                   Expanded(
                     child: Text(
                       widget.button.label,
-                      style: IcType.text(14, color: c.textBody, height: 1.4),
+                      style: UiType.textStyle(
+                        14,
+                        color: c.textBody,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],

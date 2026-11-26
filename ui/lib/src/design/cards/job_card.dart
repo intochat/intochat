@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -56,7 +58,7 @@ class JobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = data;
     switch (state) {
       case JobState.done:
@@ -65,7 +67,7 @@ class JobCard extends StatelessWidget {
           tone: ResultTone.done,
           text: d.resultText ?? d.title,
           detail: d.elapsed,
-          expanded: _body(c),
+          expanded: _body(context, c),
         );
       case JobState.cancelled:
         return CardResult(
@@ -75,11 +77,11 @@ class JobCard extends StatelessWidget {
           detail: d.title,
         );
       default:
-        return _body(c);
+        return _body(context, c);
     }
   }
 
-  Widget _body(IcColors c) {
+  Widget _body(BuildContext context, UiColors c) {
     final d = data;
     final running = state == JobState.running;
     return CardShell(
@@ -98,7 +100,7 @@ class JobCard extends StatelessWidget {
         children: [
           Text(
             d.title,
-            style: IcType.text(
+            style: UiType.textStyle(
               15,
               weight: FontWeight.w600,
               color: c.textStrong,
@@ -108,14 +110,14 @@ class JobCard extends StatelessWidget {
           for (final s in d.steps) _StepRow(step: s),
           const SizedBox(height: 12),
           ClipRRect(
-            borderRadius: BorderRadius.circular(IcRadius.pill),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).pill),
             child: Container(
               height: 6,
               color: c.surfaceSunk,
               alignment: Alignment.centerLeft,
               child: AnimatedFractionallySizedBox(
-                duration: IcMotion.slow,
-                curve: IcMotion.ease,
+                duration: UiTokens.of(context).slow,
+                curve: UiTokens.of(context).ease,
                 widthFactor: d.progress.clamp(0.03, 1.0),
                 child: Container(
                   color: state == JobState.error
@@ -149,7 +151,7 @@ class _StepRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final s = step;
     final icon = switch (s.status) {
       StepStatus.done => Container(
@@ -197,7 +199,7 @@ class _StepRow extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: s.label,
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       13,
                       weight: s.status == StepStatus.running
                           ? FontWeight.w600
@@ -208,7 +210,11 @@ class _StepRow extends StatelessWidget {
                   if (s.detail != null)
                     TextSpan(
                       text: '  ${s.detail}',
-                      style: IcType.text(13, color: c.textMuted, tnum: true),
+                      style: UiType.textStyle(
+                        13,
+                        color: c.textMuted,
+                        tnum: true,
+                      ),
                     ),
                 ],
               ),

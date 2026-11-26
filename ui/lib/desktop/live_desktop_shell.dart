@@ -1837,7 +1837,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   Widget _buildCompactShell({
     required BuildContext context,
-    required IcColors c,
+    required UiColors c,
     required Size size,
     required Size desk,
     required List<_ParsedDesktopWindow> windows,
@@ -1952,7 +1952,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   Widget _buildMediumShell({
     required BuildContext context,
-    required IcColors c,
+    required UiColors c,
     required Size size,
     required Size desk,
     required List<_ParsedDesktopWindow> windows,
@@ -2128,7 +2128,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       for (final node in _walk(effectiveRoot))
         if (node is AppTileNode) node.key else if (node is ButtonNode) node.key,
     };
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final dockTiles = _parseDockTiles(effectiveRoot);
     final catalogTiles = _parseCatalogTiles(effectiveRoot);
     final catalogById = <String, SmartAppTileSpec>{

@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'keys.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 
 /// Primary and secondary buttons (tokens: radius 10, firm edges).
@@ -35,7 +37,7 @@ class _BtnState extends State<Btn> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final disabled = widget.onTap == null;
     final fill = widget.danger ? c.error : (_hover ? c.accentHover : c.accent);
     final bg = widget.primary
@@ -63,7 +65,7 @@ class _BtnState extends State<Btn> {
             child: SelectionRing(
               on: v.selected,
               child: AnimatedContainer(
-                duration: IcMotion.fast,
+                duration: UiTokens.of(context).fast,
                 transform: Matrix4.translationValues(0, _down ? 1 : 0, 0),
                 height: widget.small ? 30 : 36,
                 padding: EdgeInsets.symmetric(
@@ -71,7 +73,9 @@ class _BtnState extends State<Btn> {
                 ),
                 decoration: BoxDecoration(
                   color: bg,
-                  borderRadius: BorderRadius.circular(IcRadius.button),
+                  borderRadius: BorderRadius.circular(
+                    UiTokens.of(context).button,
+                  ),
                   border: widget.primary
                       ? null
                       : Border.all(
@@ -91,7 +95,7 @@ class _BtnState extends State<Btn> {
                         widget.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           13,
                           weight: FontWeight.w600,
                           color: fg,
@@ -136,8 +140,8 @@ class Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    final st = style ?? IcType.text(14, color: c.textStrong);
+    final c = UiColors.of(context);
+    final st = style ?? UiType.textStyle(14, color: c.textStrong);
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) => Stack(
@@ -211,7 +215,7 @@ class _WorkingSpinnerState extends State<WorkingSpinner>
     final icon = Icon(
       LucideIcons.loaderCircle,
       size: widget.size,
-      color: widget.color ?? IcTheme.of(context).textMuted,
+      color: widget.color ?? UiColors.of(context).textMuted,
     );
     if (MediaQuery.disableAnimationsOf(context)) return icon;
     return RotationTransition(turns: _a, child: icon);
@@ -233,22 +237,22 @@ class IcSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final enabled = onChanged != null && !locked;
     final track = AnimatedContainer(
-      duration: IcMotion.fast,
-      curve: IcMotion.ease,
+      duration: UiTokens.of(context).fast,
+      curve: UiTokens.of(context).ease,
       width: 36,
       height: 20,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: value ? c.accent : c.surfaceSunk,
-        borderRadius: BorderRadius.circular(IcRadius.pill),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).pill),
         border: Border.all(color: value ? c.accent : c.borderInput),
       ),
       child: AnimatedAlign(
-        duration: IcMotion.fast,
-        curve: IcMotion.ease,
+        duration: UiTokens.of(context).fast,
+        curve: UiTokens.of(context).ease,
         alignment: value ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           width: 14,
@@ -299,7 +303,7 @@ class TagPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final (bg, fg) = switch (tone) {
       TagTone.neutral => (c.surfaceSunk, c.textMuted),
       TagTone.accent => (c.accentTint, c.accent),
@@ -312,7 +316,7 @@ class TagPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(IcRadius.xs),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
         border: Border.all(color: fg.withValues(alpha: 0.25)),
       ),
       child: Row(
@@ -327,7 +331,7 @@ class TagPill extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(
+              style: UiType.textStyle(
                 11.5,
                 weight: FontWeight.w600,
                 color: fg,

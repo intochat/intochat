@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
 import '../generated/node_commands.dart';
 import '../theme/ui_icon.dart';
@@ -26,7 +27,7 @@ Widget renderTreeView(TreeViewNode node, NodeContext ctx) {
   List<Widget> level(
     String? parentId,
     int depth,
-    IcColors c,
+    UiColors c,
     Set<String> drawn,
   ) => [
     for (final item in props.nodes)
@@ -62,12 +63,12 @@ Widget renderTreeView(TreeViewNode node, NodeContext ctx) {
     enabled: enabled,
     child: Builder(
       builder: (context) {
-        final c = IcTheme.of(context);
+        final c = UiColors.of(context);
         return Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).card),
             border: Border.all(color: c.borderHairline),
           ),
           child: Column(
@@ -99,7 +100,7 @@ class _TreeRow extends StatelessWidget {
   final bool isFolder;
   final bool isExpanded;
   final bool isSelected;
-  final IcColors colors;
+  final UiColors colors;
   final VoidCallback? onSelect;
   final VoidCallback? onExpand;
 
@@ -119,9 +120,9 @@ class _TreeRow extends StatelessWidget {
           color: isSelected
               ? colors.accent.withValues(alpha: 0.12)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(IcRadius.xs),
+          borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
           child: InkWell(
-            borderRadius: BorderRadius.circular(IcRadius.xs),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
             onTap: onSelect,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

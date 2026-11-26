@@ -253,7 +253,7 @@ class SmartDesktopState extends State<SmartDesktop> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final hasOpenWindows = widget.hasOpenWindows;
 
     return LayoutBuilder(
@@ -291,13 +291,15 @@ class SmartDesktopState extends State<SmartDesktop> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IcAcrylicBox(
+                  UiAcrylicSurface(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 6,
                     ),
-                    borderRadius: BorderRadius.circular(IcRadius.pill),
-                    shadows: IcShadow.md(c),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).pill,
+                    ),
+                    shadows: UiShadows.md(c),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -346,11 +348,13 @@ class SmartDesktopState extends State<SmartDesktop> {
                   ),
                   if (_widgetsMenuOpen) ...[
                     const SizedBox(height: 8),
-                    IcAcrylicBox(
+                    UiAcrylicSurface(
                       key: const ValueKey('whiteboard-widgets-menu'),
                       padding: const EdgeInsets.all(10),
-                      borderRadius: BorderRadius.circular(IcRadius.card),
-                      shadows: IcShadow.lg(c),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).card,
+                      ),
+                      shadows: UiShadows.lg(c),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -383,7 +387,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                 key: ValueKey('sticky-card-pos-$id'),
                 rect: _cardBounds[id]!,
                 child: AnimatedOpacity(
-                  duration: IcMotion.base,
+                  duration: UiTokens.of(context).base,
                   opacity: hasOpenWindows ? 0.88 : 1.0,
                   child: _StickyWhiteboardCard(
                     cardId: id,
@@ -408,7 +412,7 @@ class SmartDesktopState extends State<SmartDesktop> {
     );
   }
 
-  Widget _buildLauncherCardContent(IcColors c) {
+  Widget _buildLauncherCardContent(UiColors c) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -423,7 +427,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                 children: [
                   Text(
                     'Ino · DigitalBrain OS',
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       14,
                       weight: FontWeight.w700,
                       color: c.textStrong,
@@ -431,7 +435,11 @@ class SmartDesktopState extends State<SmartDesktop> {
                   ),
                   Text(
                     'neuron://local/apps/ino',
-                    style: IcType.text(11.5, color: c.textMuted, tnum: true),
+                    style: UiType.textStyle(
+                      11.5,
+                      color: c.textMuted,
+                      tnum: true,
+                    ),
                   ),
                 ],
               ),
@@ -453,7 +461,9 @@ class SmartDesktopState extends State<SmartDesktop> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: c.surfaceSunk,
-                borderRadius: BorderRadius.circular(IcRadius.button),
+                borderRadius: BorderRadius.circular(
+                  UiTokens.of(context).button,
+                ),
                 border: Border.all(color: c.borderInput),
               ),
               child: Row(
@@ -463,7 +473,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                   Expanded(
                     child: Text(
                       'Ask Ino or create a smart app…',
-                      style: IcType.text(13, color: c.textMuted),
+                      style: UiType.textStyle(13, color: c.textMuted),
                     ),
                   ),
                   const TagPill(label: '/ or ⌘K', tone: TagTone.neutral),
@@ -508,7 +518,7 @@ class SmartDesktopState extends State<SmartDesktop> {
     );
   }
 
-  Widget _buildSignalApprovalCardContent(IcColors c) {
+  Widget _buildSignalApprovalCardContent(UiColors c) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -522,7 +532,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                 'LIVE SMART APP SIGNAL',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(
+                style: UiType.textStyle(
                   11,
                   weight: FontWeight.w700,
                   color: c.textMuted,
@@ -540,12 +550,16 @@ class SmartDesktopState extends State<SmartDesktop> {
         const SizedBox(height: 10),
         Text(
           'Nordlys Q4 Renewal · Close date shift',
-          style: IcType.text(14, weight: FontWeight.w600, color: c.textStrong),
+          style: UiType.textStyle(
+            14,
+            weight: FontWeight.w600,
+            color: c.textStrong,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           'Salesforce sync detected an email from Kari Holm confirming 15 Nov 2026 (480,000 NOK).',
-          style: IcType.text(12.5, color: c.textBody, height: 1.4),
+          style: UiType.textStyle(12.5, color: c.textBody, height: 1.4),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -574,7 +588,7 @@ class SmartDesktopState extends State<SmartDesktop> {
     );
   }
 
-  Widget _buildIdentitySwitcherCardContent(IcColors c) {
+  Widget _buildIdentitySwitcherCardContent(UiColors c) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -588,7 +602,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                 'UI IDENTITY & GLASS THEME',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(
+                style: UiType.textStyle(
                   11,
                   weight: FontWeight.w700,
                   color: c.textMuted,
@@ -627,7 +641,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                 'Bar layout',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(12, color: c.textMuted),
+                style: UiType.textStyle(12, color: c.textMuted),
               ),
             ),
             const SizedBox(width: 8),
@@ -648,7 +662,7 @@ class SmartDesktopState extends State<SmartDesktop> {
     );
   }
 
-  Widget _buildSmartAppGridCardContent(IcColors c) {
+  Widget _buildSmartAppGridCardContent(UiColors c) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -662,7 +676,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                 'SMART APPS & WORKSPACE',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(
+                style: UiType.textStyle(
                   11,
                   weight: FontWeight.w700,
                   color: c.textMuted,
@@ -672,7 +686,7 @@ class SmartDesktopState extends State<SmartDesktop> {
             const SizedBox(width: 8),
             Text(
               '${(widget.tokensToday / 1000).toStringAsFixed(1)}k tok',
-              style: IcType.text(
+              style: UiType.textStyle(
                 11.5,
                 weight: FontWeight.w600,
                 color: c.accent,
@@ -735,13 +749,13 @@ class _StickyWhiteboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return IcAcrylicBox(
+    final c = UiColors.of(context);
+    return UiAcrylicSurface(
       key: ValueKey('sticky-card-$cardId'),
-      radius: IcRadius.card,
+      radius: UiTokens.of(context).card,
       padding: EdgeInsets.zero,
       borderColor: pinned ? c.accent : null,
-      shadows: IcShadow.lg(c),
+      shadows: UiShadows.lg(c),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -775,7 +789,7 @@ class _StickyWhiteboardCard extends StatelessWidget {
                           pinned ? 'PINNED STICKY NOTE' : 'STICKY NOTE',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             10,
                             weight: FontWeight.w700,
                             color: pinned ? c.accent : c.textMuted,
@@ -799,7 +813,7 @@ class _StickyWhiteboardCard extends StatelessWidget {
                                     ? c.accentTint
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(
-                                  IcRadius.xs,
+                                  UiTokens.of(context).xs,
                                 ),
                               ),
                               child: Icon(
@@ -824,7 +838,7 @@ class _StickyWhiteboardCard extends StatelessWidget {
                               height: 22,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(
-                                  IcRadius.xs,
+                                  UiTokens.of(context).xs,
                                 ),
                               ),
                               child: Icon(
@@ -900,7 +914,7 @@ class _ThemePresetRowState extends State<_ThemePresetRow> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -908,13 +922,13 @@ class _ThemePresetRowState extends State<_ThemePresetRow> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             color: widget.selected
                 ? c.accentTint
                 : (_hover ? c.surfaceSunk : const Color(0x00000000)),
-            borderRadius: BorderRadius.circular(IcRadius.sm),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
             border: Border.all(
               color: widget.selected ? c.accent : const Color(0x00000000),
             ),
@@ -930,7 +944,7 @@ class _ThemePresetRowState extends State<_ThemePresetRow> {
               Expanded(
                 child: Text(
                   widget.preset.label,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     13,
                     weight: widget.selected ? FontWeight.w600 : FontWeight.w500,
                     color: widget.selected ? c.textStrong : c.textBody,
@@ -939,7 +953,7 @@ class _ThemePresetRowState extends State<_ThemePresetRow> {
               ),
               Text(
                 widget.preset.defaultBarLayout.label.split(' ').first,
-                style: IcType.text(11, color: c.textMuted),
+                style: UiType.textStyle(11, color: c.textMuted),
               ),
             ],
           ),
@@ -969,7 +983,7 @@ class _SmartAppTileState extends State<_SmartAppTile> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -978,12 +992,12 @@ class _SmartAppTileState extends State<_SmartAppTile> {
         onTap: widget.onTap,
         onSecondaryTap: widget.onCopyUri,
         child: AnimatedContainer(
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           width: 94,
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
           decoration: BoxDecoration(
             color: _hover ? c.accentTint : c.surfaceSunk,
-            borderRadius: BorderRadius.circular(IcRadius.button),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             border: Border.all(color: _hover ? c.accent : c.borderHairline),
           ),
           child: Column(
@@ -1000,7 +1014,7 @@ class _SmartAppTileState extends State<_SmartAppTile> {
                 widget.spec.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(
+                style: UiType.textStyle(
                   12,
                   weight: FontWeight.w600,
                   color: c.textStrong,

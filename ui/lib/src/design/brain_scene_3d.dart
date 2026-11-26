@@ -4,6 +4,9 @@ import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'controls.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
+import '../primitives/surface.dart';
 import '../theme/ui_tokens.dart';
 
 enum BrainNodeStatus {
@@ -431,7 +434,7 @@ class _BrainScene3DState extends State<BrainScene3D>
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final effectiveShader = widget.shaderMode ?? c.preset.defaultShaderMode;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -537,12 +540,14 @@ class _BrainScene3DState extends State<BrainScene3D>
                   Positioned(
                     right: 16,
                     bottom: 14,
-                    child: IcAcrylicBox(
+                    child: UiAcrylicSurface(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 5,
                       ),
-                      borderRadius: BorderRadius.circular(IcRadius.pill),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).pill,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -608,7 +613,7 @@ class _HudIconBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -655,7 +660,7 @@ class _BrainScenePainter extends CustomPainter {
     required this.onProjected,
   });
 
-  final IcColors colors;
+  final UiColors colors;
   final List<BrainNode3D> nodes;
   final List<BrainSynapse3D> synapses;
   final double yaw;
@@ -832,7 +837,7 @@ class _BrainScenePainter extends CustomPainter {
 
       // Node label pill below sphere
       if (!compact) {
-        final labelStyle = IcType.text(
+        final labelStyle = UiType.textStyle(
           (isCore ? 12.0 : 11.0) * p.scale.clamp(0.85, 1.15),
           weight: (isSelected || isCore) ? FontWeight.w600 : FontWeight.w500,
           color: colors.textStrong.withValues(alpha: depthAlpha),
@@ -888,7 +893,7 @@ class _BrainScenePainter extends CustomPainter {
       ..shader = RadialGradient(
         colors: [
           colors.accent.withValues(alpha: colors.isDark ? 0.16 : 0.09),
-          colors.glowColor.withValues(alpha: colors.isDark ? 0.06 : 0.03),
+          colors.ambientGlow.withValues(alpha: colors.isDark ? 0.06 : 0.03),
           const Color(0x00000000),
         ],
         stops: const [0.0, 0.55, 1.0],
@@ -1139,7 +1144,7 @@ class _BrainScenePainter extends CustomPainter {
           p.screen,
           baseRadius,
           Paint()
-            ..color = (isSelected ? colors.surfaceInk : colors.glassHighlight)
+            ..color = (isSelected ? colors.surfaceInk : colors.specularBorder)
                 .withValues(alpha: (isSelected ? 0.9 : 0.55) * depthAlpha)
             ..style = PaintingStyle.stroke
             ..strokeWidth = isSelected ? 2.2 : 1.1,

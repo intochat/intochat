@@ -12,10 +12,6 @@ void main() {
   Widget wrapShell(IntoChatOSUiClient client) {
     return MaterialApp(
       theme: UiTheme.dark('fluent-acrylic'),
-      builder: (context, child) => IcTheme(
-        colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-        child: child!,
-      ),
       home: Scaffold(
         body: LiveDesktopShell(
           knowsApp: (app) => app == 'ino' || app == 'tasks',

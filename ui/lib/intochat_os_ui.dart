@@ -6,7 +6,6 @@ export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
 export 'src/theme/ui_icon.dart'
     show uiIcon, uiIconSize, UiIconEntry, uiIconCatalog, uiIconCategories;
-export 'src/composition/value_nodes/view_badge.dart' show ViewBadge;
 export 'src/components/image/ui_image.dart';
 export 'src/entries/entries_client.dart';
 export 'src/entries/ui_entry_control.dart';

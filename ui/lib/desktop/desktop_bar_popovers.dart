@@ -19,7 +19,7 @@ class BarTooltip extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = label;
     if (text == null || text.isEmpty) return const SizedBox.shrink();
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final bottomOffset =
         kOsBarHeight + (barLayout == BarLayout.classicBottom ? 8.0 : 14.0);
     return Stack(
@@ -35,13 +35,13 @@ class BarTooltip extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: c.surfaceElevated,
-                borderRadius: BorderRadius.circular(IcRadius.xs),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
                 border: Border.all(color: c.borderHairline),
-                boxShadow: IcShadow.sm(c),
+                boxShadow: UiShadows.sm(c),
               ),
               child: Text(
                 text,
-                style: IcType.text(
+                style: UiType.textStyle(
                   12,
                   weight: FontWeight.w500,
                   color: c.textStrong,
@@ -135,7 +135,7 @@ class DesktopBarPopover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (kind == DesktopPopoverKind.none) return const SizedBox.shrink();
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
 
     final (double width, Widget content, Key popoverKey) = switch (kind) {
       DesktopPopoverKind.clock => (
@@ -259,18 +259,18 @@ class DesktopBarPopover extends StatelessWidget {
       width: width,
       child: ClipRRect(
         key: popoverKey,
-        borderRadius: BorderRadius.circular(IcRadius.card),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).card),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: c.surfaceElevated.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(IcRadius.card),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).card),
               border: Border.all(
                 color: c.isGlass ? c.specularBorder : c.borderHairline,
               ),
-              boxShadow: IcShadow.lg(c),
+              boxShadow: UiShadows.lg(c),
             ),
             child: content,
           ),
@@ -310,7 +310,7 @@ class _ClockPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final now = DateTime.now();
     final headerText =
         '${_weekdays[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]}';
@@ -333,7 +333,7 @@ class _ClockPopover extends StatelessWidget {
         children: [
           Text(
             headerText,
-            style: IcType.text(
+            style: UiType.textStyle(
               14,
               weight: FontWeight.w600,
               color: c.textStrong,
@@ -342,7 +342,7 @@ class _ClockPopover extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '${_months[now.month - 1]} ${now.year} · DigitalBrain Schedule',
-            style: IcType.text(12, color: c.textMuted),
+            style: UiType.textStyle(12, color: c.textMuted),
           ),
           const SizedBox(height: 10),
           Row(
@@ -352,7 +352,7 @@ class _ClockPopover extends StatelessWidget {
                   child: Center(
                     child: Text(
                       d,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         11,
                         weight: FontWeight.w600,
                         color: c.textSubtle,
@@ -380,11 +380,13 @@ class _ClockPopover extends StatelessWidget {
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: today ? c.accent : const Color(0x00000000),
-                              borderRadius: BorderRadius.circular(IcRadius.xs),
+                              borderRadius: BorderRadius.circular(
+                                UiTokens.of(context).xs,
+                              ),
                             ),
                             child: Text(
                               '$day',
-                              style: IcType.text(
+                              style: UiType.textStyle(
                                 12,
                                 weight: today
                                     ? FontWeight.w600
@@ -427,7 +429,7 @@ class _TokensPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     const sessions = [
       ('Ino Assistant', '6,420'),
       ('Workspace Canvas', '4,110'),
@@ -446,7 +448,7 @@ class _TokensPopover extends StatelessWidget {
                 child: Text(
                   'Tokens today',
                   overflow: TextOverflow.ellipsis,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12,
                     weight: FontWeight.w600,
                     color: c.textMuted,
@@ -455,7 +457,7 @@ class _TokensPopover extends StatelessWidget {
               ),
               Text(
                 _fmt(tokensToday),
-                style: IcType.text(
+                style: UiType.textStyle(
                   15,
                   weight: FontWeight.w600,
                   color: c.textStrong,
@@ -473,12 +475,12 @@ class _TokensPopover extends StatelessWidget {
                 child: Text(
                   'Estimated cost',
                   overflow: TextOverflow.ellipsis,
-                  style: IcType.text(12, color: c.textMuted),
+                  style: UiType.textStyle(12, color: c.textMuted),
                 ),
               ),
               Text(
                 '~\$0.18 · 412k/mo',
-                style: IcType.text(12, color: c.textMuted, tnum: true),
+                style: UiType.textStyle(12, color: c.textMuted, tnum: true),
               ),
             ],
           ),
@@ -493,12 +495,12 @@ class _TokensPopover extends StatelessWidget {
                   child: Text(
                     s.$1,
                     overflow: TextOverflow.ellipsis,
-                    style: IcType.text(12.5, color: c.textBody),
+                    style: UiType.textStyle(12.5, color: c.textBody),
                   ),
                 ),
                 Text(
                   s.$2,
-                  style: IcType.text(12, color: c.textMuted, tnum: true),
+                  style: UiType.textStyle(12, color: c.textMuted, tnum: true),
                 ),
               ],
             ),
@@ -560,7 +562,7 @@ class _NotificationsPopover extends StatelessWidget {
     return '${diff.inDays}d';
   }
 
-  static (IconData, Color) _priorityIcon(int priority, IcColors c) =>
+  static (IconData, Color) _priorityIcon(int priority, UiColors c) =>
       switch (priority) {
         3 => (LucideIcons.triangleAlert, c.error),
         2 => (LucideIcons.hand, c.working),
@@ -570,7 +572,7 @@ class _NotificationsPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final hasUnread =
         notificationsCount > 0 || notifications.any((n) => !n.read);
 
@@ -622,7 +624,7 @@ class _NotificationsPopover extends StatelessWidget {
                         children: [
                           Text(
                             it.$3,
-                            style: IcType.text(
+                            style: UiType.textStyle(
                               13,
                               weight: FontWeight.w600,
                               color: c.textStrong,
@@ -631,7 +633,7 @@ class _NotificationsPopover extends StatelessWidget {
                           const SizedBox(height: 1),
                           Text(
                             it.$4,
-                            style: IcType.text(12, color: c.textMuted),
+                            style: UiType.textStyle(12, color: c.textMuted),
                           ),
                         ],
                       ),
@@ -639,7 +641,11 @@ class _NotificationsPopover extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       it.$5,
-                      style: IcType.text(11.5, color: c.textSubtle, tnum: true),
+                      style: UiType.textStyle(
+                        11.5,
+                        color: c.textSubtle,
+                        tnum: true,
+                      ),
                     ),
                   ],
                 ),
@@ -671,7 +677,7 @@ class _NotificationsPopover extends StatelessWidget {
             child: Center(
               child: Text(
                 'Loading notifications…',
-                style: IcType.text(12.5, color: c.textMuted),
+                style: UiType.textStyle(12.5, color: c.textMuted),
               ),
             ),
           )
@@ -687,7 +693,7 @@ class _NotificationsPopover extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'No notifications yet',
-                    style: IcType.text(12.5, color: c.textMuted),
+                    style: UiType.textStyle(12.5, color: c.textMuted),
                   ),
                 ],
               ),
@@ -724,7 +730,7 @@ class _NotificationsPopover extends StatelessWidget {
                                 children: [
                                   Text(
                                     it.title,
-                                    style: IcType.text(
+                                    style: UiType.textStyle(
                                       13,
                                       weight: it.read
                                           ? FontWeight.w500
@@ -738,7 +744,7 @@ class _NotificationsPopover extends StatelessWidget {
                                     const SizedBox(height: 1),
                                     Text(
                                       it.body,
-                                      style: IcType.text(
+                                      style: UiType.textStyle(
                                         12,
                                         color: c.textMuted,
                                       ),
@@ -753,7 +759,7 @@ class _NotificationsPopover extends StatelessWidget {
                               children: [
                                 Text(
                                   _formatAge(it.createdUtc),
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     11.5,
                                     color: c.textSubtle,
                                     tnum: true,
@@ -792,7 +798,7 @@ class _NotificationsPopover extends StatelessWidget {
   }
 
   Widget _buildHeader(
-    IcColors c, {
+    UiColors c, {
     required bool hasUnread,
     required bool hasItems,
   }) {
@@ -804,7 +810,7 @@ class _NotificationsPopover extends StatelessWidget {
             child: Text(
               'Notifications',
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(
+              style: UiType.textStyle(
                 12,
                 weight: FontWeight.w600,
                 color: c.textMuted,
@@ -819,7 +825,7 @@ class _NotificationsPopover extends StatelessWidget {
                 cursor: SystemMouseCursors.click,
                 child: Text(
                   'Mark all as read',
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12,
                     weight: FontWeight.w500,
                     color: c.accent,
@@ -836,7 +842,7 @@ class _NotificationsPopover extends StatelessWidget {
                 cursor: SystemMouseCursors.click,
                 child: Text(
                   'Clear all',
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12,
                     weight: FontWeight.w500,
                     color: c.textMuted,
@@ -882,7 +888,7 @@ class _DockContextMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -897,7 +903,7 @@ class _DockContextMenu extends StatelessWidget {
                 child: Text(
                   _appName,
                   overflow: TextOverflow.ellipsis,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12.5,
                     weight: FontWeight.w700,
                     color: c.textStrong,
@@ -954,7 +960,7 @@ class _PopoverDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Container(
       height: 1,
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -981,7 +987,7 @@ class _PopoverItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final fg = danger ? c.error : c.textStrong;
     return _PopoverRow(
       onTap: onTap,
@@ -995,11 +1001,11 @@ class _PopoverItem extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(13, weight: FontWeight.w500, color: fg),
+                style: UiType.textStyle(13, weight: FontWeight.w500, color: fg),
               ),
             ),
             if (trailing != null)
-              Text(trailing!, style: IcType.text(12, color: c.textMuted)),
+              Text(trailing!, style: UiType.textStyle(12, color: c.textMuted)),
           ],
         ),
       ),
@@ -1022,7 +1028,7 @@ class _PopoverRowState extends State<_PopoverRow> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -1034,7 +1040,7 @@ class _PopoverRowState extends State<_PopoverRow> {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
             color: _hover ? c.surfaceSunk : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(IcRadius.sm),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
           ),
           child: widget.child,
         ),

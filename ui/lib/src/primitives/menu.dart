@@ -1,45 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mix/mix.dart';
 
-import '../../primitives/button.dart';
-import '../../primitives/surface.dart';
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_icon.dart';
-import '../../theme/ui_shadows.dart';
-import '../../theme/ui_theme.dart';
-import '../../theme/ui_tokens.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_icon.dart';
+import '../theme/ui_shadows.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_tokens.dart';
+import 'button.dart';
+import 'surface.dart';
 
-/// Wire `style` index to the kit style; unknown values fall back to primary.
-UiKitButtonStyle viewButtonStyle(Object? style) =>
-    style is int && style >= 0 && style < UiKitButtonStyle.values.length
-    ? UiKitButtonStyle.values[style]
-    : UiKitButtonStyle.primary;
-
-/// Figma icon button: 34 square, radius 8, ghost. [label] is the
-/// accessible name and tooltip; it is not drawn.
-final class ViewIconButton extends StatefulWidget {
-  const ViewIconButton({
+/// Ghost square icon button (34x34, `radiusSmall` corners) with tooltip,
+/// semantic label, hover fill, and keyboard focus halo.
+final class UiGhostIconButton extends StatefulWidget {
+  const UiGhostIconButton({
     super.key,
     required this.icon,
     required this.label,
     this.onPressed,
     this.focusNode,
   });
+
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
   final FocusNode? focusNode;
 
   @override
-  State<ViewIconButton> createState() => _ViewIconButtonState();
+  State<UiGhostIconButton> createState() => _UiGhostIconButtonState();
 }
 
-class _ViewIconButtonState extends State<ViewIconButton> {
-  bool _hover = false, _focused = false;
+class _UiGhostIconButtonState extends State<UiGhostIconButton> {
+  bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
     final enabled = widget.onPressed != null;
     return Opacity(
       opacity: enabled ? 1 : 0.45,
@@ -66,18 +64,24 @@ class _ViewIconButtonState extends State<ViewIconButton> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: widget.onPressed,
-              child: Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: _hover && enabled ? c.recessed : Colors.transparent,
-                  borderRadius: BorderRadius.circular(
-                    UiTokens.of(context).radiusSmall,
-                  ),
-                  border: _focused
-                      ? Border.all(color: c.accent, width: 2)
-                      : null,
-                ),
+              child: Box(
+                style: (() {
+                  var s = BoxStyler()
+                      .width(34)
+                      .height(34)
+                      .color(
+                        _hover && enabled ? c.recessed : Colors.transparent,
+                      )
+                      .borderRadius(
+                        BorderRadiusGeometryMix.circular(tokens.radiusSmall),
+                      );
+                  if (_focused) {
+                    s = s.border(
+                      BoxBorderMix.all(BorderSideMix.color(c.accent).width(2)),
+                    );
+                  }
+                  return s;
+                })(),
                 child: Icon(widget.icon, size: uiIconSize, color: c.body),
               ),
             ),
@@ -88,35 +92,18 @@ class _ViewIconButtonState extends State<ViewIconButton> {
   }
 }
 
-/// A Button value node: a ghost button with a known icon is an icon button;
-/// everything else is a [UiKitButton] with the wire style and icon.
-Widget viewButton(Map node, VoidCallback? onPressed, {bool compact = false}) {
-  final text = node['text'] as String? ?? '';
-  final style = viewButtonStyle(node['style']);
-  final icon = node['icon'] as String?;
-  final glyph = icon == null ? null : uiIcon(icon);
-  if (style == UiKitButtonStyle.ghost && glyph != null) {
-    return ViewIconButton(icon: glyph, label: text, onPressed: onPressed);
-  }
-  return UiKitButton(
-    label: text,
-    style: style,
-    icon: icon,
-    compact: compact,
-    onPressed: onPressed,
-  );
-}
-
-/// Menu value node: a ghost trigger opening a 240 px popover. Children are
-/// Buttons (items), Dividers and Text (section labels). Escape or a tap
-/// outside closes it; selecting an item dispatches, then closes.
-final class ViewMenu extends StatefulWidget {
-  const ViewMenu({
+/// Popover menu primitive: ghost trigger opening a 240 px surface menu.
+/// Children are buttons (kind 1), references (kind 5), dividers (kind 12), and
+/// section labels. Escape or tapping outside closes the popover and restores
+/// focus to its trigger.
+final class UiMenu extends StatefulWidget {
+  const UiMenu({
     super.key,
     required this.node,
     required this.action,
     this.reference,
   });
+
   final Map node;
   final VoidCallback? Function(Map node) action;
 
@@ -125,14 +112,12 @@ final class ViewMenu extends StatefulWidget {
   final Widget Function(Map node)? reference;
 
   @override
-  State<ViewMenu> createState() => _ViewMenuState();
+  State<UiMenu> createState() => _UiMenuState();
 }
 
-class _ViewMenuState extends State<ViewMenu> {
-  // The open panel takes focus so Escape closes it however it was opened.
-  final _panel = FocusNode(debugLabel: 'view menu');
-  // Closing the menu returns focus to its trigger.
-  final _trigger = FocusNode(debugLabel: 'view menu trigger');
+class _UiMenuState extends State<UiMenu> {
+  final _panel = FocusNode(debugLabel: 'ui menu');
+  final _trigger = FocusNode(debugLabel: 'ui menu trigger');
   final _menu = MenuController();
 
   void _after(FocusNode node) =>
@@ -155,6 +140,7 @@ class _ViewMenuState extends State<ViewMenu> {
     final node = widget.node;
     final action = widget.action;
     final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
     final type = UiType.of(context);
     final text = node['text'] as String? ?? '';
     final icon = node['icon'] as String?;
@@ -165,9 +151,7 @@ class _ViewMenuState extends State<ViewMenu> {
     final items = <Widget>[
       for (final child in children)
         switch (child['kind']) {
-          1 => _MenuItem(node: child, onPressed: action(child)),
-          // The neuron handles its own press (pointer, Enter or Space); the
-          // menu then closes. The key is observed, not consumed.
+          1 => _UiMenuItem(node: child, onPressed: action(child)),
           5 when widget.reference != null => Focus(
             canRequestFocus: false,
             skipTraversal: true,
@@ -225,9 +209,7 @@ class _ViewMenuState extends State<ViewMenu> {
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: c.surface,
-              borderRadius: BorderRadius.circular(
-                UiTokens.of(context).fieldRadius,
-              ),
+              borderRadius: BorderRadius.circular(tokens.fieldRadius),
               border: Border.all(color: c.hairline),
               boxShadow: UiShadows.lg(uiKitShadowBase(context)),
             ),
@@ -243,7 +225,7 @@ class _ViewMenuState extends State<ViewMenu> {
         void toggle() =>
             controller.isOpen ? controller.close() : controller.open();
         return glyph != null
-            ? ViewIconButton(
+            ? UiGhostIconButton(
                 icon: glyph,
                 label: text,
                 onPressed: toggle,
@@ -260,14 +242,16 @@ class _ViewMenuState extends State<ViewMenu> {
   }
 }
 
-class _MenuItem extends StatelessWidget {
-  const _MenuItem({required this.node, required this.onPressed});
+class _UiMenuItem extends StatelessWidget {
+  const _UiMenuItem({required this.node, required this.onPressed});
+
   final Map node;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
     final icon = node['icon'] as String?;
     final glyph = icon == null ? null : uiIcon(icon);
     bool lit(Set<WidgetState> s) =>
@@ -282,12 +266,9 @@ class _MenuItem extends StatelessWidget {
         ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              UiTokens.of(context).radiusSmall,
-            ),
+            borderRadius: BorderRadius.circular(tokens.radiusSmall),
           ),
         ),
-        // Figma `.menu-item:focus-visible`: hover fill plus a 3px inset halo.
         side: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.focused)
               ? BorderSide(color: c.focus, width: 3)

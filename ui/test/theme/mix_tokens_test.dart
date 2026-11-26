@@ -119,6 +119,78 @@ void main() {
         expect(resolvedMixSpace, resolvedUiSpace);
       },
     );
+
+    test('forPreset preserves all 7 OS preset palettes verbatim and morphs custom accent on top', () {
+      for (final preset in IcStylePreset.values) {
+        for (final brightness in Brightness.values) {
+          final dark = brightness == Brightness.dark;
+          final canonical = UiColors.forPreset(preset, dark: dark);
+          final seeds = UiThemeSeeds.forPreset(preset, brightness: brightness);
+          expect(seeds.toUiColors(), canonical);
+          expect(seeds.toUiColors().preset, canonical.preset);
+
+          const customAccent = Color(0xFFEA580C);
+          final morphed = seeds.copyWith(accent: customAccent).toUiColors();
+          expect(morphed.preset, canonical.preset);
+          expect(morphed.accent, customAccent);
+          expect(morphed.surfacePage, canonical.surfacePage);
+          expect(morphed.isGlass, canonical.isGlass);
+          expect(morphed.blurSigma, canonical.blurSigma);
+        }
+      }
+    });
+
+    test('fromStoredTheme preserves wire preset names and legacy palettes', () {
+      for (final preset in IcStylePreset.values) {
+        final seeds = UiThemeSeeds.fromStoredTheme(
+          preset.id,
+          brightness: Brightness.dark,
+        );
+        expect(seeds.preset, preset);
+        expect(seeds.toUiColors(), UiColors.forPreset(preset, dark: true));
+      }
+
+      final lumen = UiThemeSeeds.fromStoredTheme(
+        'lumen',
+        brightness: Brightness.light,
+      );
+      expect(lumen.toUiColors(), UiColors.lumen);
+    });
+
+    testWidgets(
+      'single-scope MaterialApp + UiSeedThemeScope(wrapTheme: false) does not clobber active IcStylePreset',
+      (tester) async {
+        final seeds = UiThemeSeeds.forPreset(
+          IcStylePreset.cyberSynaptic,
+          brightness: Brightness.dark,
+        );
+        late UiColors observedColors;
+        late Color observedMixAccent;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: seeds.toThemeData(),
+            builder: (context, child) =>
+                UiSeedThemeScope(seeds: seeds, wrapTheme: false, child: child!),
+            home: Builder(
+              builder: (context) {
+                observedColors = UiColors.of(context);
+                observedMixAccent = UiMixTokens.resolveOr<Color>(
+                  context,
+                  UiMixTokens.accent,
+                  Colors.transparent,
+                );
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+
+        expect(observedColors.preset, IcStylePreset.cyberSynaptic);
+        expect(observedColors, UiColors.cyberSynapticDark);
+        expect(observedMixAccent, UiColors.cyberSynapticDark.accent);
+      },
+    );
   });
 
   group('ThemeStudioPanel live interaction', () {

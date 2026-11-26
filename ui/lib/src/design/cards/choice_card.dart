@@ -2,7 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../keys.dart';
-import '../../theme/ui_tokens.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import 'card_shell.dart';
 
 class ChoiceOption {
@@ -35,7 +36,7 @@ class ChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     if (picked != null && picked! >= 0 && picked! < options.length) {
       return CardResult(
         source: source,
@@ -58,7 +59,7 @@ class ChoiceCard extends StatelessWidget {
         children: [
           Text(
             question,
-            style: IcType.text(
+            style: UiType.textStyle(
               15,
               weight: FontWeight.w600,
               color: c.textStrong,

@@ -6,6 +6,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/app_tile.dart';
 import '../design/controls.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
 import 'button.dart';
 import 'node_common.dart';
@@ -71,7 +74,7 @@ class _MetricTileViewState extends State<MetricTileView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final node = widget.node;
     final statusLabel = node.statusLabel;
     final statusTone = _tagTone(node.statusTone);
@@ -93,9 +96,9 @@ class _MetricTileViewState extends State<MetricTileView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: c.surfaceCard,
-        borderRadius: BorderRadius.circular(IcRadius.card),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).card),
         border: Border.all(color: c.borderHairline),
-        boxShadow: IcShadow.xs(c),
+        boxShadow: UiShadows.xs(c),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -113,7 +116,7 @@ class _MetricTileViewState extends State<MetricTileView> {
                   node.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12.5,
                     weight: FontWeight.w600,
                     color: c.textMuted,
@@ -138,7 +141,7 @@ class _MetricTileViewState extends State<MetricTileView> {
             children: [
               Text(
                 node.value,
-                style: IcType.text(
+                style: UiType.textStyle(
                   26,
                   weight: FontWeight.w700,
                   color: c.textStrong,
@@ -164,7 +167,7 @@ class _MetricTileViewState extends State<MetricTileView> {
                 const SizedBox(width: 5),
                 Text(
                   'Threshold ${_formatHoverValue(node.threshold!)}',
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     11.5,
                     weight: FontWeight.w500,
                     color: c.textMuted,
@@ -191,7 +194,7 @@ class _MetricTileViewState extends State<MetricTileView> {
   }
 
   Widget _buildSparklineArea(
-    IcColors c,
+    UiColors c,
     List<double> points,
     double? threshold,
     Color lineColor,
@@ -258,7 +261,7 @@ class _MetricTileViewState extends State<MetricTileView> {
                     const SizedBox(width: 5),
                     Text(
                       'Threshold ${_formatHoverValue(threshold)}',
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         11.5,
                         weight: FontWeight.w500,
                         color: c.textMuted,
@@ -271,7 +274,7 @@ class _MetricTileViewState extends State<MetricTileView> {
               if (activeIdx != null)
                 Text(
                   _formatHoverValue(points[activeIdx]),
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     11.5,
                     weight: FontWeight.w600,
                     color: c.textStrong,

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
@@ -75,7 +77,7 @@ class _ModelPickerButtonState extends State<ModelPickerButton> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final activeChoice = _findActiveChoice();
     final rawLabel = widget.activeModelLabel?.trim();
     final displayLabel = (rawLabel != null && rawLabel.isNotEmpty)
@@ -104,7 +106,7 @@ class _ModelPickerButtonState extends State<ModelPickerButton> {
         ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(IcRadius.panel),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).panel),
             side: BorderSide(color: c.borderHairline),
           ),
         ),
@@ -162,7 +164,7 @@ class _PickerChipTrigger extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final tint = spec.accent ?? c.accent;
 
     return Container(
@@ -189,7 +191,7 @@ class _PickerChipTrigger extends StatelessWidget {
               spec.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(
+              style: UiType.textStyle(
                 10.5,
                 weight: FontWeight.w600,
                 color: c.textStrong,
@@ -244,7 +246,7 @@ class _ModelPickerPopoverState extends State<ModelPickerPopover> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final viewport = MediaQuery.sizeOf(context);
     final width = math.min(340.0, math.max(240.0, viewport.width - 32));
     final maxListHeight = math.min(
@@ -296,7 +298,7 @@ class _ModelPickerPopoverState extends State<ModelPickerPopover> {
                       ),
                       child: Text(
                         'No matching models',
-                        style: IcType.text(12.5, color: c.textMuted),
+                        style: UiType.textStyle(12.5, color: c.textMuted),
                       ),
                     ),
                   if (local.isNotEmpty) ...[
@@ -338,12 +340,12 @@ class _AbilityFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: c.surfaceSunk,
-        borderRadius: BorderRadius.circular(IcRadius.sm),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
         border: Border.all(color: c.borderHairline),
       ),
       child: Row(
@@ -356,13 +358,15 @@ class _AbilityFilterBar extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => onChanged(filter),
                   child: AnimatedContainer(
-                    duration: IcMotion.fast,
+                    duration: UiTokens.of(context).fast,
                     padding: const EdgeInsets.symmetric(vertical: 5),
                     decoration: BoxDecoration(
                       color: filter == selected
                           ? c.surfaceCard
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(IcRadius.xs),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).xs,
+                      ),
                       border: filter == selected
                           ? Border.all(color: c.borderHairline)
                           : null,
@@ -372,7 +376,7 @@ class _AbilityFilterBar extends StatelessWidget {
                         filter.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           11.5,
                           weight: filter == selected
                               ? FontWeight.w600
@@ -400,12 +404,16 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
       child: Text(
         title,
-        style: IcType.text(11, weight: FontWeight.w600, color: c.textSubtle),
+        style: UiType.textStyle(
+          11,
+          weight: FontWeight.w600,
+          color: c.textSubtle,
+        ),
       ),
     );
   }
@@ -442,7 +450,7 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final choice = widget.choice;
     final note = choice.note?.trim();
     final hasNote = note != null && note.isNotEmpty;
@@ -471,7 +479,7 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
             color: widget.active
                 ? c.accentTint
                 : (_hovered && canChoose ? c.surfaceSunk : Colors.transparent),
-            borderRadius: BorderRadius.circular(IcRadius.sm),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -512,7 +520,7 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
                                               choice.label,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: IcType.text(
+                                              style: UiType.textStyle(
                                                 13,
                                                 weight: widget.active
                                                     ? FontWeight.w600
@@ -537,7 +545,7 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
                                           note,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
-                                          style: IcType.text(
+                                          style: UiType.textStyle(
                                             11.5,
                                             color: c.textMuted,
                                           ),
@@ -600,7 +608,7 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
                                 decoration: BoxDecoration(
                                   color: c.accentTint,
                                   borderRadius: BorderRadius.circular(
-                                    IcRadius.xs,
+                                    UiTokens.of(context).xs,
                                   ),
                                   border: Border.all(
                                     color: c.accent.withValues(alpha: 0.35),
@@ -617,7 +625,7 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
                                     const SizedBox(width: 4),
                                     Text(
                                       'Install',
-                                      style: IcType.text(
+                                      style: UiType.textStyle(
                                         11,
                                         weight: FontWeight.w600,
                                         color: c.accent,

@@ -30,10 +30,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -104,10 +100,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -260,10 +252,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: const Scaffold(body: SmartDesktop()),
         ),
       );
@@ -333,10 +321,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -452,10 +436,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -548,10 +528,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -650,10 +626,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -723,10 +695,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'ino' || app == 'files',
@@ -778,10 +746,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (app) => app == 'files' || app == 'ino',
@@ -848,10 +812,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               knowsApp: (_) => true,

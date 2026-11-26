@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 import 'window_frame.dart';
@@ -124,7 +124,7 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final w = widget.window;
 
     if (widget.inWindowHeader) {
@@ -181,7 +181,7 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
     );
   }
 
-  Widget _buildAppIdentityCluster(IcColors c, DesktopWindowState w) {
+  Widget _buildAppIdentityCluster(UiColors c, DesktopWindowState w) {
     return GestureDetector(
       key: ValueKey('window-settings-btn-${w.id}'),
       onTap: widget.onToggleMenu,
@@ -191,7 +191,7 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: widget.menuOpen ? c.surfaceSunk : Colors.transparent,
-            borderRadius: BorderRadius.circular(IcRadius.button),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).button),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -200,7 +200,7 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
               const SizedBox(width: 8),
               Text(
                 w.title,
-                style: IcType.text(
+                style: UiType.textStyle(
                   12.5,
                   weight: widget.focused ? FontWeight.w700 : FontWeight.w600,
                   color: widget.focused ? c.textStrong : c.textBody,
@@ -225,7 +225,7 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
     );
   }
 
-  Widget _buildTabCluster(IcColors c) {
+  Widget _buildTabCluster(UiColors c) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -246,14 +246,16 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
                     ),
                     decoration: BoxDecoration(
                       color: t.selected ? c.surfaceSunk : Colors.transparent,
-                      borderRadius: BorderRadius.circular(IcRadius.pill),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).pill,
+                      ),
                       border: t.selected
                           ? Border.all(color: c.borderInput)
                           : null,
                     ),
                     child: Text(
                       t.label,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         11.5,
                         weight: t.selected ? FontWeight.w600 : FontWeight.w400,
                         color: t.selected ? c.textStrong : c.textMuted,
@@ -268,7 +270,7 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
     );
   }
 
-  Widget _buildActionCluster(IcColors c, DesktopWindowState w) {
+  Widget _buildActionCluster(UiColors c, DesktopWindowState w) {
     final effectivePinned = widget.isPinned || w.isPinned;
 
     return Row(
@@ -354,7 +356,7 @@ class _HeaderActionButtonState extends State<_HeaderActionButton> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     Widget iconWidget = Icon(
       widget.icon,
       size: 14.5,
@@ -390,7 +392,7 @@ class _HeaderActionButtonState extends State<_HeaderActionButton> {
                   : (_hover
                         ? (widget.hoverColor ?? c.surfaceSunk)
                         : Colors.transparent),
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             ),
             child: iconWidget,
           ),
@@ -431,13 +433,13 @@ class AppTestingMenuPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
 
-    return IcAcrylicBox(
+    return UiAcrylicSurface(
       key: ValueKey('window-settings-popover-${window.id}'),
       padding: const EdgeInsets.all(12),
-      borderRadius: BorderRadius.circular(IcRadius.card),
-      shadows: IcShadow.xl(c),
+      borderRadius: BorderRadius.circular(UiTokens.of(context).card),
+      shadows: UiShadows.xl(c),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -457,7 +459,7 @@ class AppTestingMenuPopover extends StatelessWidget {
                   children: [
                     Text(
                       window.title,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         13,
                         weight: FontWeight.w700,
                         color: c.textStrong,
@@ -465,7 +467,11 @@ class AppTestingMenuPopover extends StatelessWidget {
                     ),
                     Text(
                       window.neuronUri,
-                      style: IcType.text(11, color: c.textMuted, tnum: true),
+                      style: UiType.textStyle(
+                        11,
+                        color: c.textMuted,
+                        tnum: true,
+                      ),
                     ),
                   ],
                 ),
@@ -483,7 +489,7 @@ class AppTestingMenuPopover extends StatelessWidget {
           // Execution Mode Switcher
           Text(
             'EXECUTION MODE',
-            style: IcType.text(
+            style: UiType.textStyle(
               10.5,
               weight: FontWeight.w700,
               color: c.textMuted,
@@ -507,7 +513,9 @@ class AppTestingMenuPopover extends StatelessWidget {
                       color: executionMode == id
                           ? c.accentTint
                           : c.surfaceSunk.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(IcRadius.xs),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).xs,
+                      ),
                       border: Border.all(
                         color: executionMode == id
                             ? c.accent
@@ -525,7 +533,7 @@ class AppTestingMenuPopover extends StatelessWidget {
                         Expanded(
                           child: Text(
                             label,
-                            style: IcType.text(
+                            style: UiType.textStyle(
                               12,
                               weight: executionMode == id
                                   ? FontWeight.w600
@@ -551,7 +559,7 @@ class AppTestingMenuPopover extends StatelessWidget {
           // Testing & Sandbox Actions
           Text(
             'TESTING & SANDBOX CONTROLS',
-            style: IcType.text(
+            style: UiType.textStyle(
               10.5,
               weight: FontWeight.w700,
               color: c.textMuted,

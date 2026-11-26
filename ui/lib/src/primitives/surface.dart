@@ -1,6 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 
+import '../theme/mix_tokens.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
@@ -12,11 +15,82 @@ Color uiKitShadowBase(BuildContext context) =>
     ? Colors.black
     : UiColors.of(context).strong;
 
+/// Reusable WinUI 3 / visionOS Acrylic Frosted Glass surface driven directly
+/// by [UiColors] and [UiTokens].
+final class UiAcrylicSurface extends StatelessWidget {
+  const UiAcrylicSurface({
+    super.key,
+    required this.child,
+    this.borderRadius,
+    this.radius,
+    this.padding,
+    this.strong = false,
+    this.blurSigma,
+    this.sigmaOverride,
+    this.fillColor,
+    this.color,
+    this.borderColor,
+    this.shadows,
+    this.specularTop = false,
+  });
+
+  final Widget child;
+  final BorderRadius? borderRadius;
+  final double? radius;
+  final EdgeInsetsGeometry? padding;
+  final bool strong;
+  final double? blurSigma;
+  final double? sigmaOverride;
+  final Color? fillColor;
+  final Color? color;
+  final Color? borderColor;
+  final List<BoxShadow>? shadows;
+  final bool specularTop;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
+    final cardRadius = UiMixTokens.resolveOr(
+      context,
+      UiMixTokens.cardRadius,
+      Radius.circular(tokens.card),
+    ).x;
+    final effectiveRadius =
+        borderRadius ?? BorderRadius.circular(radius ?? cardRadius);
+    final sigma = sigmaOverride ?? blurSigma ?? c.blurSigma;
+    final fill =
+        color ?? fillColor ?? (strong ? c.surfaceGlassStrong : c.surface);
+    final border = borderColor ?? (c.isGlass ? c.specularBorder : c.hairline);
+
+    final box = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: effectiveRadius,
+        border: Border.all(color: border),
+        boxShadow: shadows,
+      ),
+      child: child,
+    );
+
+    if (sigma <= 0) return box;
+
+    return ClipRRect(
+      borderRadius: effectiveRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        child: box,
+      ),
+    );
+  }
+}
+
 /// Visual elevation tier for [UiMixSurface].
 enum UiMixSurfaceVariant { card, elevated, recessed }
 
-/// Option B `mix` Surface primitive driven by [UiColors] and [UiTokens] for
-/// card, elevated, recessed, and glassmorphic containers.
+/// Option B `mix` Surface primitive driven by [UiMixTokens], [UiColors], and
+/// [UiTokens] for card, elevated, recessed, and glassmorphic containers.
 final class UiMixSurface extends StatelessWidget {
   const UiMixSurface({
     super.key,
@@ -48,14 +122,35 @@ final class UiMixSurface extends StatelessWidget {
     final colors = UiColors.of(context);
     final tokens = UiTokens.of(context);
 
+    final surfaceColor = UiMixTokens.resolveOr(
+      context,
+      UiMixTokens.surface,
+      colors.surface,
+    );
+    final recessedColor = UiMixTokens.resolveOr(
+      context,
+      UiMixTokens.recessed,
+      colors.recessed,
+    );
+    final spaceMedium = UiMixTokens.resolveOr(
+      context,
+      UiMixTokens.spaceMedium,
+      tokens.spaceMedium,
+    );
+    final cardRadius = UiMixTokens.resolveOr(
+      context,
+      UiMixTokens.cardRadius,
+      Radius.circular(tokens.card),
+    ).x;
+
     final bg =
         color ??
         (style != null && style!.tone != 'default'
             ? UiStyleMapper.resolveToneBackground(colors, style!.tone)
             : switch (variant) {
-                UiMixSurfaceVariant.card => colors.surface,
-                UiMixSurfaceVariant.elevated => colors.surface,
-                UiMixSurfaceVariant.recessed => colors.recessed,
+                UiMixSurfaceVariant.card => surfaceColor,
+                UiMixSurfaceVariant.elevated => surfaceColor,
+                UiMixSurfaceVariant.recessed => recessedColor,
               });
 
     final styleShadows =
@@ -64,16 +159,22 @@ final class UiMixSurface extends StatelessWidget {
             ? UiStyleMapper.elevationShadows(colors, style!.elevation)
             : null);
 
-    final effectiveRadius = radius ?? style?.radius ?? tokens.card;
-    final effectiveBorder =
+    final effectiveRadius = radius ?? style?.radius ?? cardRadius;
+    final Color effectiveBorder =
         borderColor ??
-        (colors.isGlass ? colors.specularBorder : colors.hairline);
+        (colors.isGlass
+            ? colors.specularBorder
+            : UiMixTokens.resolveOr<Color>(
+                context,
+                UiMixTokens.hairline,
+                colors.hairline,
+              ));
 
     Widget surface;
     if (blurSigma != null ||
         colors.isGlass ||
         (styleShadows != null && styleShadows.isNotEmpty)) {
-      surface = IcAcrylicBox(
+      surface = UiAcrylicSurface(
         radius: effectiveRadius,
         color: bg,
         borderColor: effectiveBorder,
@@ -81,15 +182,15 @@ final class UiMixSurface extends StatelessWidget {
         padding:
             padding ??
             EdgeInsets.symmetric(
-              horizontal: style?.paddingX ?? tokens.spaceMedium,
-              vertical: style?.paddingY ?? tokens.spaceMedium,
+              horizontal: style?.paddingX ?? spaceMedium,
+              vertical: style?.paddingY ?? spaceMedium,
             ),
         sigmaOverride: blurSigma ?? colors.blurSigma,
         child: child,
       );
     } else {
-      final px = style?.paddingX ?? tokens.spaceMedium;
-      final py = style?.paddingY ?? tokens.spaceMedium;
+      final px = style?.paddingX ?? spaceMedium;
+      final py = style?.paddingY ?? spaceMedium;
 
       var boxStyle = BoxStyler()
           .color(bg)
@@ -107,7 +208,7 @@ final class UiMixSurface extends StatelessWidget {
       if (variant == UiMixSurfaceVariant.elevated) {
         boxStyle = boxStyle.shadow(
           BoxShadowMix(
-            color: colors.hairline.withValues(alpha: 0.35),
+            color: effectiveBorder.withValues(alpha: 0.35),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

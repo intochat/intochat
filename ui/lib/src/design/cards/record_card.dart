@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -52,7 +54,7 @@ class RecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = data;
     return CardShell(
       source: source,
@@ -94,7 +96,7 @@ class RecordCard extends StatelessWidget {
           children: [
             Text(
               d.objectLabel,
-              style: IcType.text(
+              style: UiType.textStyle(
                 12,
                 weight: FontWeight.w600,
                 color: c.textMuted,
@@ -103,7 +105,7 @@ class RecordCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               d.name,
-              style: IcType.text(
+              style: UiType.textStyle(
                 17,
                 weight: FontWeight.w700,
                 color: c.textStrong,
@@ -112,7 +114,10 @@ class RecordCard extends StatelessWidget {
             ),
             if (d.subtitle != null) ...[
               const SizedBox(height: 2),
-              Text(d.subtitle!, style: IcType.text(13, color: c.textMuted)),
+              Text(
+                d.subtitle!,
+                style: UiType.textStyle(13, color: c.textMuted),
+              ),
             ],
             const SizedBox(height: 14),
             LayoutBuilder(
@@ -130,7 +135,7 @@ class RecordCard extends StatelessWidget {
                           children: [
                             Text(
                               f.label,
-                              style: IcType.text(12, color: c.textMuted),
+                              style: UiType.textStyle(12, color: c.textMuted),
                             ),
                             const SizedBox(height: 2),
                             Row(
@@ -146,7 +151,7 @@ class RecordCard extends StatelessWidget {
                                 Flexible(
                                   child: Text(
                                     f.value,
-                                    style: IcType.text(
+                                    style: UiType.textStyle(
                                       14,
                                       weight: FontWeight.w600,
                                       color: f.warn ? c.error : c.textStrong,
@@ -173,7 +178,7 @@ class RecordCard extends StatelessWidget {
                 isDefault: true,
                 builder: (context, v) => SelectionRing(
                   on: v.selected,
-                  radius: IcRadius.xs,
+                  radius: UiTokens.of(context).xs,
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
@@ -188,7 +193,7 @@ class RecordCard extends StatelessWidget {
                           children: [
                             Text(
                               d.linkLabel,
-                              style: IcType.text(
+                              style: UiType.textStyle(
                                 13,
                                 weight: FontWeight.w700,
                                 color: c.accent,
