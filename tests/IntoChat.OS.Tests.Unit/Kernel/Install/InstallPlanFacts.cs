@@ -575,6 +575,53 @@ public sealed class InstallPlanFacts
         Assert.Equal(5, preserved.MaxReplicas);
     }
 
+    [Fact]
+    public async Task PulumiYamlEscapesEmbeddedShellParameterExpansionsWhileKeepingAzRetryScriptUnescaped()
+    {
+        Assert.Equal(
+            """_x="$${_x}$${_x:+ }$rev"; echo "$(cmd)" $((i+1)) "$${_a}/$${_b}" """,
+            PulumiAssets.EscapePulumiYaml("""_x="${_x}${_x:+ }$rev"; echo "$(cmd)" $((i+1)) "${_a}/${_b}" """));
+
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules);
+
+        // Every command:local:Command create script block must escape POSIX ${...} as $${...} so Pulumi YAML
+        // never tries to resolve shell variables (e.g. _deactivated_revs) as Pulumi resources/config values.
+        var unescapedShellExpr = new System.Text.RegularExpressions.Regex(@"(?<!\$)\$\{", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        var commandBlocks = new[]
+        {
+            ResourceBlock(plan.PulumiYaml, $"container-app-{config.OsName}-stop"),
+            ResourceBlock(plan.PulumiYaml, $"container-app-{config.OsName}-start"),
+            ResourceBlock(plan.PulumiYaml, $"container-app-{config.CloudName}-stop"),
+            ResourceBlock(plan.PulumiYaml, $"container-app-{config.CloudName}-start"),
+        };
+
+        foreach (var block in commandBlocks)
+        {
+            var createIndex = block.IndexOf("      create: |\n", StringComparison.Ordinal);
+            Assert.True(createIndex >= 0, $"Expected 'create: |' script block in:\n{block}");
+            var scriptSection = block[(createIndex + "      create: |\n".Length)..];
+            var match = unescapedShellExpr.Match(scriptSection);
+            Assert.False(match.Success, $"Found unescaped Pulumi YAML interpolation '{match.Value}' in command block:\n{block}");
+        }
+
+        Assert.Contains("$${_deactivated_revs}", commandBlocks[0], StringComparison.Ordinal);
+        Assert.Contains("$${_nonzero_list:-none}", commandBlocks[0], StringComparison.Ordinal);
+        Assert.Contains("$${_live_replicas:-none}", commandBlocks[0], StringComparison.Ordinal);
+        Assert.Contains("$${_rev}/$${_rep}", commandBlocks[0], StringComparison.Ordinal);
+
+        // Standalone scripts/az-retry.sh must remain unescaped POSIX /bin/sh.
+        using var workspace = new DigitalBrain.Testing.TempDirectory("intochat-pulumi-escape-");
+        await PulumiStackSynthesizer.WriteWorkspaceAsync(plan, workspace.Path, TestContext.Current.CancellationToken);
+        var azRetry = await File.ReadAllTextAsync(Path.Combine(workspace.Path, "scripts", "az-retry.sh"), TestContext.Current.CancellationToken);
+        Assert.Contains("${_deactivated_revs}", azRetry, StringComparison.Ordinal);
+        Assert.DoesNotContain("$${_deactivated_revs}", azRetry, StringComparison.Ordinal);
+    }
+
     private static string ResourceBlock(string yaml, string logicalName)
     {
         var start = yaml.IndexOf("\n  " + logicalName + ":\n", StringComparison.Ordinal);
