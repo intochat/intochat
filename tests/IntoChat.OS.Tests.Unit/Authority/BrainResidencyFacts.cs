@@ -291,8 +291,23 @@ public sealed class BrainResidencyFacts
 
         try
         {
+            // Non-browser probes (no Accept or Accept: */*) on / and /index.html do NOT mint ephemeral brains.
+            using var probeClient = new HttpClient(new HttpClientHandler { UseCookies = false }) { BaseAddress = new Uri(app.Urls.First()) };
+            using (var bareProbe = await probeClient.GetAsync("/", Ct))
+            {
+                Assert.False(bareProbe.Headers.Contains("Set-Cookie"));
+            }
+            using (var wildcardReq = new HttpRequestMessage(HttpMethod.Get, "/index.html"))
+            {
+                wildcardReq.Headers.TryAddWithoutValidation("Accept", "*/*");
+                using var wildcardProbe = await probeClient.SendAsync(wildcardReq, Ct);
+                Assert.False(wildcardProbe.Headers.Contains("Set-Cookie"));
+            }
+            Assert.Empty(births.Minted);
+
             var handler = new HttpClientHandler { UseCookies = true, CookieContainer = new CookieContainer() };
             using var browser1 = new HttpClient(handler) { BaseAddress = new Uri(app.Urls.First()) };
+            browser1.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
 
             using var firstResp = await browser1.GetAsync("/", Ct);
             Assert.Equal(HttpStatusCode.OK, firstResp.StatusCode);
@@ -315,9 +330,10 @@ public sealed class BrainResidencyFacts
             Assert.Equal(HttpStatusCode.OK, repeatResp.StatusCode);
             Assert.Single(births.Minted);
 
-            // Explicit Authorization header is never hijacked by Day-0 bootstrap.
+            // Explicit Authorization header is never hijacked by Day-0 bootstrap even with browser Accept header.
             using var noCookie = new HttpClient(new HttpClientHandler { UseCookies = false }) { BaseAddress = new Uri(app.Urls.First()) };
             using var authReq = new HttpRequestMessage(HttpMethod.Get, "/");
+            authReq.Headers.TryAddWithoutValidation("Accept", "text/html");
             authReq.Headers.TryAddWithoutValidation("Authorization", "Bearer external-token");
             using var authResp = await noCookie.SendAsync(authReq, Ct);
             Assert.False(authResp.Headers.Contains("Set-Cookie"));
@@ -325,6 +341,7 @@ public sealed class BrainResidencyFacts
 
             // Second fresh browser succeeds (limit = 2/min/IP-prefix), third gets 429.
             using var browser2 = new HttpClient(new HttpClientHandler { UseCookies = false }) { BaseAddress = new Uri(app.Urls.First()) };
+            browser2.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,*/*;q=0.8");
             using var secondResp = await browser2.GetAsync("/", Ct);
             Assert.Equal(HttpStatusCode.OK, secondResp.StatusCode);
             Assert.Equal(2, births.Minted.Count);
@@ -478,6 +495,158 @@ public sealed class BrainResidencyFacts
         var ownerCaller = IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "acct-alice", new BrainId("brain-alice"));
         await BrainCall.EnforceCapabilityAsync(sp, ownerCaller, "brain-alice", "IntoChat.OS.Modules.Time.Reminders.IReminder", "brain-alice/daily", surface: null, Ct);
         await BrainCall.EnforceCapabilityAsync(sp, ownerCaller, "brain-alice", "IntoChat.OS.Modules.Devices.IDeviceEnrollment", "brain-alice/device-enrollment", surface: null, Ct);
+    }
+
+    [Theory]
+    [InlineData("GET", "/", null, null, false)]
+    [InlineData("GET", "/", "*/*", null, false)]
+    [InlineData("GET", "/", "application/json", null, false)]
+    [InlineData("GET", "/", "text/html;q=0, */*;q=0.8", null, false)]
+    [InlineData("GET", "/", "not-a-media-type", null, false)]
+    [InlineData("GET", "/", "text/html", "cors", false)]
+    [InlineData("GET", "/", "text/html", "no-cors", false)]
+    [InlineData("GET", "/", "text/html", "same-origin", false)]
+    [InlineData("GET", "/index.html", null, null, false)]
+    [InlineData("GET", "/index.html", "*/*", null, false)]
+    [InlineData("GET", "/index.html", "text/html", "cors", false)]
+    [InlineData("HEAD", "/", "text/html", "navigate", false)]
+    [InlineData("POST", "/", "text/html", "navigate", false)]
+    [InlineData("GET", "/", "text/html", null, true)]
+    [InlineData("GET", "/", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", null, true)]
+    [InlineData("GET", "/", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "navigate", true)]
+    [InlineData("GET", "/index.html", "text/html,application/xhtml+xml,*/*;q=0.8", "navigate", true)]
+    [InlineData("GET", "/auth/check", null, null, true)]
+    [InlineData("GET", "/auth/check", "*/*", "cors", true)]
+    [InlineData("GET", "/identity/session", null, null, true)]
+    [InlineData("GET", "/identity/session", "application/json", "same-origin", true)]
+    [InlineData("GET", "/identity/residency", "*/*", "same-origin", true)]
+    public void Day0EphemeralBootstrap_ShouldBootstrap_FiltersNonBrowserProbesOnRootAndIndex(
+        string method, string path, string? accept, string? secFetchMode, bool expected)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = method;
+        context.Request.Path = path;
+        if (accept is not null)
+        {
+            context.Request.Headers.Accept = accept;
+        }
+        if (secFetchMode is not null)
+        {
+            context.Request.Headers["Sec-Fetch-Mode"] = secFetchMode;
+        }
+
+        Assert.Equal(expected, Day0EphemeralBootstrap.ShouldBootstrap(context.Request));
+    }
+
+    [Fact]
+    public async Task LocalIdentityClient_MembershipMutations_ShortCircuitOnEphemeralBrains()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+        var ephemeral = new EphemeralBrainRegistry(clock, Options.Create(new EphemeralBrainOptions()));
+        var record = ephemeral.Mint();
+
+        // Empty service provider has no IGrainFactory: any call reaching Directory.EnsureMember/Remove* throws immediately.
+        using var emptySp = new ServiceCollection().BuildServiceProvider();
+        var neurons = new IntoChat.OS.Modules.Identity.AuthorityNeurons(null!, emptySp);
+        var client = new LocalIdentityClient(neurons, IntoChat.OS.Tests.TestEdge.Authority, edgeCache: null, ephemeral);
+
+        var appMember = new Member
+        {
+            PrincipalId = DigitalBrain.Capabilities.AppPrincipal.Id($"{record.BrainId}/apps/notes"),
+            AccountId = record.Account.AccountId,
+            BrainId = record.BrainId,
+            Role = MemberRole.App,
+            DisplayName = "Notes",
+            JoinedAt = clock.GetUtcNow(),
+        };
+
+        // Short-circuits cleanly for active ephemeral brains without touching durable DirectoryNeuron.
+        Assert.Null(await client.EnsureMember(appMember));
+        await client.RemovePrincipalMember(record.BrainId, appMember.PrincipalId);
+        await client.RemoveMember(record.BrainId, record.Account.AccountId);
+
+        // Non-ephemeral brain DOES attempt to delegate to durable DirectoryNeuron (throwing InvalidOperationException from empty SP).
+        var durableMember = new Member
+        {
+            PrincipalId = DigitalBrain.Capabilities.AppPrincipal.Id("owner/apps/notes"),
+            AccountId = "owner",
+            BrainId = "owner",
+            Role = MemberRole.App,
+            DisplayName = "Notes",
+            JoinedAt = clock.GetUtcNow(),
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.EnsureMember(durableMember));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.RemovePrincipalMember("owner", durableMember.PrincipalId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.RemoveMember("owner", "owner"));
+    }
+
+    [Fact]
+    public async Task DirectoryPort_RequireOwner_StillRejectsNonOwnerMembershipMutations()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
+        services.AddSingleton<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>();
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
+            .Register<IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain>()
+            .Register<IntoChat.OS.Modules.Identity.Grants.GrantsNeuron>();
+
+        var directoryId = new NeuronId(new BrainId("system"), IntoChat.OS.Modules.Identity.Directory.IDirectoryStore.Type, "main");
+        var directory = os.Get<IntoChat.OS.Modules.Identity.Directory.IDirectoryStore>(directoryId);
+        var identity = new IntoChat.OS.Authority.Identity.OwnerBootstrapFacts.TestIdentityClient(directory, os.Edge);
+        var port = new IntoChat.OS.Modules.Identity.Ports.DirectoryPort(identity, os.Callers);
+
+        var owner = new Member
+        {
+            PrincipalId = "alice",
+            AccountId = "acct-alice",
+            BrainId = "brain-alice",
+            Role = MemberRole.Owner,
+            DisplayName = "Alice",
+            JoinedAt = DateTimeOffset.UtcNow,
+        };
+        await identity.EnsureAccount(new Account { AccountId = "acct-alice", OwnerPrincipalId = "alice", Name = "Alice" });
+        await identity.EnsureBrain(owner);
+
+        var appMember = new Member
+        {
+            PrincipalId = DigitalBrain.Capabilities.AppPrincipal.Id("brain-alice/apps/notes"),
+            AccountId = "acct-alice",
+            BrainId = "brain-alice",
+            Role = MemberRole.App,
+            DisplayName = "Notes",
+            JoinedAt = DateTimeOffset.UtcNow,
+        };
+
+        var brainId = new BrainId("brain-alice");
+        DigitalBrain.Access.Caller?[] nonOwners =
+        [
+            null,
+            os.Edge.Kernel(brainId),
+            os.Edge.App("brain-alice/apps/notes", new DigitalBrain.Access.Actor.Person("alice", "acct-alice"), brainId),
+            os.Edge.Agent(new DigitalBrain.Access.Actor.Person("alice", "acct-alice"), brainId),
+            os.Edge.Module("apps.catalog", brainId),
+            os.Edge.Scheduler(brainId),
+            os.Edge.Person("bob", "acct-bob", brainId),
+        ];
+
+        foreach (var caller in nonOwners)
+        {
+            using var _ = caller is null ? null : os.Edge.Enter(caller);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.EnsureMember(appMember, Ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RemovePrincipalMember("brain-alice", appMember.PrincipalId, Ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RemoveMember("brain-alice", "acct-bob", Ct));
+        }
+
+        // The actual brain owner (Actor.Person with MemberRole.Owner) still succeeds.
+        using (os.Edge.Enter(os.Edge.Person("alice", "acct-alice", brainId)))
+        {
+            var added = await port.EnsureMember(appMember, Ct);
+            Assert.NotNull(added);
+            Assert.Equal(MemberRole.App, added!.Role);
+            await port.RemovePrincipalMember("brain-alice", appMember.PrincipalId, Ct);
+            Assert.Null(await port.Membership("brain-alice", appMember.PrincipalId, Ct));
+        }
     }
 
     private sealed class MutableTimeProvider(DateTimeOffset start) : TimeProvider

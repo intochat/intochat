@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -10,11 +11,13 @@ using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Host.Callers;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Time.Reminders;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Tests.Integration.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Tests.Integration.Modules.Identity;
@@ -24,6 +27,7 @@ namespace IntoChat.OS.Tests.Integration.Modules.Identity;
 /// - Day-0 instant boot (GET / auto-mints an HttpOnly, SameSite=Lax ephemeral session cookie in RAM)
 /// - Residency metadata surface on /identity/session and /identity/residency
 /// - Zero orphan try-* disk files or durable directory entries while ephemeral
+/// - Zero AppNeuron warnings during BornEphemeral + OsDefaults shipped app installation
 /// - Structured HTTP 428 CLAIM_REQUIRED upgrade prompts on external OAuth connectors & durable secrets
 /// - Background schedule/automation gating via IBrainCapabilityPolicy
 /// - In-place promotion via POST /identity/claim preserving the exact BrainId and state into durable disk storage
@@ -35,6 +39,7 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
     {
         private string _webRoot = "";
 
+        internal RecordingLoggerProvider Logs { get; } = new();
         internal Gate20EdgeApprovalWallFacts.EdgeKernelHarness Host { get; private set; } = null!;
 
         public async ValueTask InitializeAsync()
@@ -53,6 +58,7 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
                     ["IntoChatOS:ForwardedHeaders:KnownNetworks:0"] = "127.0.0.0/8",
                     ["IntoChatOS:ForwardedHeaders:KnownNetworks:1"] = "::1/128",
                 });
+                builder.Logging.AddProvider(Logs);
             });
         }
 
@@ -67,6 +73,7 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
             }
             finally
             {
+                Logs.Dispose();
                 DigitalBrain.Testing.TempDirectory.DeleteIfPresent(_webRoot);
             }
         }
@@ -74,6 +81,7 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
     private Gate20EdgeApprovalWallFacts.EdgeKernelHarness Host => fixture.Host;
+    private RecordingLoggerProvider Logs => fixture.Logs;
 
     private HttpClient NewBrowser() => new(new HttpClientHandler
     {
@@ -88,6 +96,22 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
     [Fact]
     public async Task Day0Boot_AutoMintsEphemeralBrainInRam_GatesExternalCapabilitiesWith428_AndPromotesInPlaceOnClaim()
     {
+        var ephemeralRegistry = Host.Services.GetRequiredService<EphemeralBrainRegistry>();
+        var activeBeforeProbes = ephemeralRegistry.ActiveCount;
+
+        // 0. Non-browser probes on / and /index.html must NOT mint RAM brains.
+        using (var probe = NewBrowser())
+        {
+            using var rootProbe = await probe.GetAsync("/", Ct);
+            Assert.False(rootProbe.Headers.Contains("Set-Cookie"));
+
+            using var indexReq = new HttpRequestMessage(HttpMethod.Get, "/index.html");
+            indexReq.Headers.TryAddWithoutValidation("Accept", "*/*");
+            using var indexProbe = await probe.SendAsync(indexReq, Ct);
+            Assert.False(indexProbe.Headers.Contains("Set-Cookie"));
+        }
+        Assert.Equal(activeBeforeProbes, ephemeralRegistry.ActiveCount);
+
         using var browser = NewBrowser();
         var storeDir = Host.Services.GetRequiredService<IOptions<BrainStoreOptions>>().Value.Directory;
 
@@ -170,8 +194,18 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
             Assert.True(claimError.Decision.RequiresClaim);
         }
 
-        // Still zero files on disk before claim!
+        // Still zero files on disk and zero durable DirectoryNeuron entries before claim!
         Assert.False(Directory.Exists(brainDiskDir));
+        using (edge.Enter(edge.Module("identity.directory", new BrainId("system"))))
+        {
+            var durableDirectory = proxies.Get<IDirectoryStore>(IDirectoryStore.Key);
+            Assert.False(await durableDirectory.BrainExists(ephemeralBrainId!));
+        }
+
+        // BornEphemeral + OsDefaults shipped app installation must emit zero AppNeuron warnings.
+        Assert.DoesNotContain(Logs.Entries, entry =>
+            entry.Level >= LogLevel.Warning
+            && entry.Category.Contains("AppNeuron", StringComparison.Ordinal));
 
         // 7. In-place promotion via POST /identity/claim (password registration): exact BrainId preserved!
         var username = "claimer-" + Guid.NewGuid().ToString("N")[..8];
@@ -220,6 +254,31 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
             new { name = "API_KEY", label = "API Key", value = "sk-live-456" },
             Ct);
         Assert.Equal(HttpStatusCode.OK, secretAfterResp.StatusCode);
+
+        Assert.DoesNotContain(Logs.Entries, entry =>
+            entry.Level >= LogLevel.Warning
+            && entry.Category.Contains("AppNeuron", StringComparison.Ordinal));
+    }
+
+    internal sealed record LogEntry(LogLevel Level, string Category, string Message, Exception? Exception);
+
+    internal sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<LogEntry> entries = new();
+
+        public IReadOnlyList<LogEntry> Entries => [.. entries];
+
+        public ILogger CreateLogger(string categoryName) => new Logger(categoryName, entries);
+
+        public void Dispose() { }
+
+        private sealed class Logger(string category, ConcurrentQueue<LogEntry> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => entries.Enqueue(new LogEntry(logLevel, category, formatter(state, exception), exception));
+        }
     }
 
     [Fact]
@@ -232,6 +291,7 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
         using (var httpsProxyClient = NewBrowser())
         {
             using var httpsReq = new HttpRequestMessage(HttpMethod.Get, "/");
+            httpsReq.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
             httpsReq.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
             using var httpsResp = await httpsProxyClient.SendAsync(httpsReq, Ct);
             Assert.Equal(HttpStatusCode.OK, httpsResp.StatusCode);
@@ -246,7 +306,9 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
         // 2. Full Day-0 visitor journey: GET / -> /identity/session -> POST /apps/connect -> GET /apps/node -> POST /act
         //    -> GET /chats -> GET/PUT /preferences/workspace -> GET /connectors -> GET /downloads -> 200 OK with zero 403s.
         using var browserA = NewBrowser();
-        using var rootResp = await browserA.GetAsync("/", Ct);
+        using var rootReq = new HttpRequestMessage(HttpMethod.Get, "/");
+        rootReq.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        using var rootResp = await browserA.SendAsync(rootReq, Ct);
         Assert.Equal(HttpStatusCode.OK, rootResp.StatusCode);
 
         using var sessionAResp = await browserA.GetAsync("/identity/session", Ct);
