@@ -47,8 +47,15 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         .Replace(": this(0)", ": this(0, \"\")", StringComparison.Ordinal);
 
     private const string Alias = "tick-poller";
+    private const string TwoFileAlias = "two-file";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private static BrainId UniqueBrain() => new($"studio-{Guid.NewGuid():N}");
+
+    private static string UniqueAppKey(string prefix) => $"apps/{prefix}-{Guid.NewGuid().ToString("N")[..8]}";
+
+    private static IDisposable AsPerson(INeuronRuntime runtime, BrainId brain) => runtime.Edge.Enter(Stamp.Of(runtime.Edge, Who.Person, brain));
 
     internal sealed class EmptyCapabilityConnections : ICapabilityConnections
     {
@@ -82,10 +89,16 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
 
     public sealed class StudioFixture : BothRuntimesFixture
     {
+        // Ephemeral brain per fixture so concurrent test classes/silos never contend on the default "facts" grain address space.
+        public override BrainId Brain { get; } = UniqueBrain();
+
         protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlutterModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
+            // Roslyn synapse compilation + deployment runs inside grain calls; give Orleans headroom under parallel CI load.
+            services.Configure<Orleans.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
+            services.Configure<Orleans.Configuration.ClientMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
@@ -99,16 +112,18 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         }
     }
 
-    private static ISynapseStudio Studio(INeuronRuntime runtime) => runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+    private static ISynapseStudio Studio(INeuronRuntime runtime, BrainId? brain = null) => runtime.Get<ISynapseStudio>(ISynapseStudio.Key((brain ?? runtime.Brain).Value));
 
     [Fact]
     public async Task CheckReportsAnalyzerDiagnostics()
     {
         var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
-        using var person = runtime.As(Who.Person);
+        var brain = UniqueBrain();
+        using var person = AsPerson(runtime, brain);
+        var studio = Studio(runtime, brain);
 
-        var clean = await Studio(runtime).Check(TickPoller);
-        var flagged = await Studio(runtime).Check(WithStatus);
+        var clean = await studio.Check(TickPoller);
+        var flagged = await studio.Check(WithStatus);
 
         Assert.StartsWith("No diagnostics", clean.Text, StringComparison.Ordinal);
         Assert.Contains("DB0043", flagged.Text, StringComparison.Ordinal);
@@ -118,10 +133,12 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
     public async Task CheckReportsCompileFailure()
     {
         var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
-        using var person = runtime.As(Who.Person);
+        var brain = UniqueBrain();
+        using var person = AsPerson(runtime, brain);
+        var studio = Studio(runtime, brain);
 
-        var clean = await Studio(runtime).Check(TickPoller);
-        var broken = await Studio(runtime).Check("this is not C# {");
+        var clean = await studio.Check(TickPoller);
+        var broken = await studio.Check("this is not C# {");
 
         Assert.True(clean.Ok, clean.Text);
         Assert.False(broken.Ok);
@@ -131,19 +148,21 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
     [Fact]
     public async Task AHeadlessBuildDeploysAUnitAndWaitsForItsNeeds()
     {
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
-        using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias));
+        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
+        var brain = UniqueBrain();
+        var appKey = UniqueAppKey(Alias);
+        using var person = AsPerson(runtime, brain);
+        var studio = Studio(runtime, brain);
+        var app = runtime.Get<IApp>(new NeuronId(brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, appKey));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
 
         await app.BeginBuild(null);
         var attempt = await app.CurrentBuildAttempt();
 
-        var failure = await UnitDeploy.Complete(app, attempt, Studio(runtime), Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller }, new Dictionary<string, string>());
+        var failure = await UnitDeploy.Complete(app, attempt, studio, Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller }, new Dictionary<string, string>());
 
         Assert.Null(failure);
-        var unit = Assert.Single(await Studio(runtime).List());
+        var unit = Assert.Single(await studio.List());
         Assert.Equal(Alias, unit.SourceKey);
         Assert.Contains("ino.tick-poller", unit.Aliases);
         var snapshot = await app.Read();
@@ -157,9 +176,10 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
     [Fact]
     public async Task AUnitOfTwoFilesDeploysWithEachNamespace()
     {
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
-        using var person = runtime.As(Who.Person);
+        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
+        var brain = UniqueBrain();
+        using var person = AsPerson(runtime, brain);
+        var studio = Studio(runtime, brain);
         var signals = """
             namespace Ino.Units.Signals;
 
@@ -186,22 +206,23 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
             }
             """;
 
-        var deployed = await Studio(runtime).DeployFiles("two-file", new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller }, new Dictionary<string, string>());
+        var deployed = await studio.DeployFiles(TwoFileAlias, new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller }, new Dictionary<string, string>());
 
         Assert.True(deployed.Ok, deployed.Text);
-        Assert.Contains("ino.two-file", Assert.Single(await Studio(runtime).List()).Aliases);
+        Assert.Contains("ino.two-file", Assert.Single(await studio.List()).Aliases);
     }
 
     [Fact]
     public async Task DeployThenListShowsTheUnit()
     {
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
-        using var person = runtime.As(Who.Person);
+        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
+        var brain = UniqueBrain();
+        using var person = AsPerson(runtime, brain);
+        var studio = Studio(runtime, brain);
 
-        var deployed = await Studio(runtime).Deploy(Alias, TickPoller);
+        var deployed = await studio.Deploy(Alias, TickPoller);
 
-        var unit = Assert.Single(await Studio(runtime).List());
+        var unit = Assert.Single(await studio.List());
         Assert.Equal((Alias, DeployStatus.Deployed), (unit.SourceKey, unit.Status));
         Assert.Contains(unit.Hash, deployed.Text, StringComparison.Ordinal);
     }
@@ -226,6 +247,7 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var probeAppKey = UniqueAppKey("resilience-probe");
         using var person = runtime.As(Who.Person);
 
         // 1. Deploy a multi-file unit ("two-file") and a scheduled tick unit ("tick-poller")
@@ -254,7 +276,7 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
                     Reaction<PollerState>.Of(state with { Polls = state.Polls + 1 }, new Polled(tick.At));
             }
             """;
-        var twoFileDeploy = await Studio(runtime).DeployFiles("two-file", new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller }, new Dictionary<string, string>());
+        var twoFileDeploy = await Studio(runtime).DeployFiles(TwoFileAlias, new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller }, new Dictionary<string, string>());
         Assert.True(twoFileDeploy.Ok, twoFileDeploy.Text);
         var tickDeploy = await Studio(runtime).Deploy(Alias, TickPoller);
         Assert.True(tickDeploy.Ok, tickDeploy.Text);
@@ -264,7 +286,7 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         await sessions.Open("c-deadbeef");
 
         // 3. Create and configure an app snapshot on the silo
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/resilience-probe"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, probeAppKey));
         await app.Create(new AppManifest("Resilience Probe", "Verifies state across restart", [], [], [], Headless: true), "probe-spec");
 
         // 4. Simulate host/silo restart
@@ -273,13 +295,13 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         // 5. Verify all deployed units, conversation registry, and app state recovered deterministically without data loss
         var deployedAfter = await Studio(runtime).List();
         Assert.Equal(2, deployedAfter.Length);
-        Assert.Contains(deployedAfter, u => u.SourceKey == "two-file" && u.Status == DeployStatus.Deployed);
+        Assert.Contains(deployedAfter, u => u.SourceKey == TwoFileAlias && u.Status == DeployStatus.Deployed);
         Assert.Contains(deployedAfter, u => u.SourceKey == Alias && u.Status == DeployStatus.Deployed);
 
         var currentSession = await runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.ISessionList>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, IntoChat.OS.Modules.Flutter.Conversations.ISessionList.DefaultKey)).Current();
         Assert.Equal("c-deadbeef", currentSession);
 
-        var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/resilience-probe")).Read();
+        var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, probeAppKey)).Read();
         Assert.Equal("Resilience Probe", appAfter.Manifest.Title);
         Assert.Equal("probe-spec", appAfter.Spec);
     }
@@ -289,9 +311,10 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var appKey = UniqueAppKey(Alias);
         using var person = runtime.As(Who.Person);
 
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, appKey));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
         await app.BeginBuild(null);
         var attempt = await app.CurrentBuildAttempt();
@@ -316,7 +339,7 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         var stagedConsentAfter = Assert.Single(approvalsAfter, a => a.Kind == IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.SynapseStaged);
         Assert.Equal((stagedConsentBefore.PlanId, stagedConsentBefore.Subject), (stagedConsentAfter.PlanId, stagedConsentAfter.Subject));
 
-        var snapshotAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias)).Read();
+        var snapshotAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, appKey)).Read();
         Assert.Equal(AppStatus.Building, snapshotAfter.Status);
         Assert.StartsWith("waiting for approval: ", snapshotAfter.Activity[^1], StringComparison.Ordinal);
     }
