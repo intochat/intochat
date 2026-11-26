@@ -41,4 +41,38 @@ public sealed class CallerRulesFacts
         Assert.Equal(kind == "app", isApp);
         Assert.Equal(kind == "app" ? "assistant" : null, key);
     }
+
+    [Fact]
+    public void Day0GuestOnOwnTryBrain_IsGuest_NotThirdPartyApp()
+    {
+        var tryBrain = new BrainId("try-abc123");
+        var guest = Edge.Guest("try-abc123", "try-abc123", tryBrain);
+
+        Assert.True(CallerRules.IsGuest(guest));
+        Assert.False(CallerRules.IsApp(guest, out var key));
+        Assert.Null(key);
+    }
+
+    [Fact]
+    public void SandboxMiniAppInsideTryBrain_RemainsAnApp_NotHumanGuest()
+    {
+        var tryBrain = new BrainId("try-abc123");
+        var miniApp = Edge.App("try-abc123/apps/untrusted", new Actor.Person("try-abc123", "try-abc123"), tryBrain);
+
+        Assert.False(CallerRules.IsGuest(miniApp));
+        Assert.True(CallerRules.IsApp(miniApp, out var key));
+        Assert.Equal("try-abc123/apps/untrusted", key);
+    }
+
+    [Fact]
+    public void CrossBrainOrNonTryGuest_IsNotTreatedAsOwnBrainGuest()
+    {
+        var crossBrainGuest = Edge.Guest("try-aaa", "try-aaa", new BrainId("try-bbb"));
+        var nonTryGuest = Edge.Guest("owner", "owner", new BrainId("owner"));
+
+        Assert.False(CallerRules.IsGuest(crossBrainGuest));
+        Assert.True(CallerRules.IsApp(crossBrainGuest, out _));
+        Assert.False(CallerRules.IsGuest(nonTryGuest));
+        Assert.True(CallerRules.IsApp(nonTryGuest, out _));
+    }
 }

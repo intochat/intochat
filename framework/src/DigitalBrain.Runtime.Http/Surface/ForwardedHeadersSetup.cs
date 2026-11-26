@@ -66,10 +66,22 @@ public sealed class ForwardedHeadersSetup(IConfiguration configuration, string? 
 
 public static class ForwardedHeadersHosting
 {
+    private sealed class Registration(string? section)
+    {
+        public string? Section { get; } = section;
+    }
+
     // Applies forwarded headers first in the pipeline, from the named configuration section.
     public static IServiceCollection AddForwardedHeadersSetup(this IServiceCollection services, string? section = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+        if (services.Any(descriptor => descriptor.ImplementationInstance is Registration existing
+            && string.Equals(existing.Section, section, StringComparison.Ordinal)))
+        {
+            return services;
+        }
+
+        services.AddSingleton(new Registration(section));
         return services.AddSingleton<IStartupFilter>(sp => new ForwardedHeadersSetup(sp.GetRequiredService<IConfiguration>(), section));
     }
 }

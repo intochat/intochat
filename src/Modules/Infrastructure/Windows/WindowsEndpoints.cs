@@ -31,7 +31,7 @@ internal static class WindowsEndpoints
 {
     internal static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/windows");
+        var group = OsBrainRoutes.Group(endpoints, "/windows").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
         group.MapGet("/device", ([FromServices] MachineId thisMachine) =>
             OperatingSystem.IsWindows()
                 ? Results.Ok(new { machineId = thisMachine.Value, machineName = Environment.MachineName })

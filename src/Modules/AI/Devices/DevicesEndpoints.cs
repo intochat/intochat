@@ -37,7 +37,7 @@ internal static class DevicesEndpoints
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        var group = OsBrainRoutes.Group(endpoints, "/devices");
+        var group = OsBrainRoutes.Group(endpoints, "/devices").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
         group.MapGet("/this", GetThisAsync);
         group.MapGet("/compute/nodes", GetComputeNodesAsync);
         group.MapGet("/{machineId}", GetDeviceAsync);

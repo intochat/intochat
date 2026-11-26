@@ -77,16 +77,19 @@ public sealed partial class DownloadHubEndpointsFacts
         var app = WebApplication.CreateBuilder().Build();
         app.MapDownloadHub();
 
-        var endpoint = ((IEndpointRouteBuilder)app).DataSources
-            .SelectMany(static source => source.Endpoints)
-            .OfType<RouteEndpoint>()
-            .Single(static route => string.Equals(route.RoutePattern.RawText, DownloadHubEndpoints.Path, StringComparison.Ordinal));
+        foreach (var path in new[] { DownloadHubEndpoints.Path, DownloadHubEndpoints.PluralPath })
+        {
+            var endpoint = ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(static source => source.Endpoints)
+                .OfType<RouteEndpoint>()
+                .Single(route => string.Equals(route.RoutePattern.RawText, path, StringComparison.Ordinal));
 
-        Assert.NotNull(endpoint.Metadata.GetMetadata<IAllowAnonymous>());
-        var methods = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods;
-        Assert.NotNull(methods);
-        Assert.Contains("GET", methods);
-        Assert.Contains("HEAD", methods);
+            Assert.NotNull(endpoint.Metadata.GetMetadata<IAllowAnonymous>());
+            var methods = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods;
+            Assert.NotNull(methods);
+            Assert.Contains("GET", methods);
+            Assert.Contains("HEAD", methods);
+        }
     }
 
     [GeneratedRegex(@"<script\b[^>]*\bsrc\s*=", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

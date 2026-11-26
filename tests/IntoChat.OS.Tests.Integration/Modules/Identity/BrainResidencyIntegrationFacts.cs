@@ -28,27 +28,52 @@ namespace IntoChat.OS.Tests.Integration.Modules.Identity;
 /// - Background schedule/automation gating via IBrainCapabilityPolicy
 /// - In-place promotion via POST /identity/claim preserving the exact BrainId and state into durable disk storage
 /// </summary>
-public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
+public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFacts.HostFixture fixture)
+    : IClassFixture<BrainResidencyIntegrationFacts.HostFixture>
 {
-    private static CancellationToken Ct => TestContext.Current.CancellationToken;
-    private Gate20EdgeApprovalWallFacts.EdgeKernelHarness host = null!;
-
-    public async ValueTask InitializeAsync()
+    public sealed class HostFixture : IAsyncLifetime
     {
-        host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [AuthKeys.Day0EphemeralTry] = "true",
-            }));
-    }
+        private string _webRoot = "";
 
-    public async ValueTask DisposeAsync()
-    {
-        if (host is not null)
+        internal Gate20EdgeApprovalWallFacts.EdgeKernelHarness Host { get; private set; } = null!;
+
+        public async ValueTask InitializeAsync()
         {
-            await host.DisposeAsync();
+            _webRoot = Path.Combine(Path.GetTempPath(), $"intochat-day0-webroot-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(_webRoot);
+            await File.WriteAllTextAsync(Path.Combine(_webRoot, "index.html"), "<!DOCTYPE html><html><body>IntoChat OS Day-0 Shell</body></html>");
+
+            Host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(TestContext.Current.CancellationToken, builder =>
+            {
+                builder.Environment.WebRootPath = _webRoot;
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    [AuthKeys.Day0EphemeralTry] = "true",
+                    ["IntoChatOS:ForwardedHeaders:ForwardLimit"] = "2",
+                    ["IntoChatOS:ForwardedHeaders:KnownNetworks:0"] = "127.0.0.0/8",
+                    ["IntoChatOS:ForwardedHeaders:KnownNetworks:1"] = "::1/128",
+                });
+            });
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                if (Host is not null)
+                {
+                    await Host.DisposeAsync();
+                }
+            }
+            finally
+            {
+                DigitalBrain.Testing.TempDirectory.DeleteIfPresent(_webRoot);
+            }
         }
     }
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+    private Gate20EdgeApprovalWallFacts.EdgeKernelHarness Host => fixture.Host;
 
     private HttpClient NewBrowser() => new(new HttpClientHandler
     {
@@ -57,17 +82,17 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
         CookieContainer = new CookieContainer(),
     })
     {
-        BaseAddress = host.BaseAddress,
+        BaseAddress = Host.BaseAddress,
     };
 
     [Fact]
     public async Task Day0Boot_AutoMintsEphemeralBrainInRam_GatesExternalCapabilitiesWith428_AndPromotesInPlaceOnClaim()
     {
         using var browser = NewBrowser();
-        var storeDir = host.Services.GetRequiredService<IOptions<BrainStoreOptions>>().Value.Directory;
+        var storeDir = Host.Services.GetRequiredService<IOptions<BrainStoreOptions>>().Value.Directory;
 
         // 1. Unauthenticated visitor hits GET /identity/session -> Day-0 bootstrap auto-mints an HttpOnly, SameSite=Lax ephemeral session.
-        var cookieName = host.Services.GetRequiredService<IOptions<IdentityHostOptions>>().Value.CookieName;
+        var cookieName = Host.Services.GetRequiredService<IOptions<IdentityHostOptions>>().Value.CookieName;
         using var sessionResp = await browser.GetAsync("/identity/session", Ct);
         Assert.Equal(HttpStatusCode.OK, sessionResp.StatusCode);
         Assert.True(sessionResp.Headers.TryGetValues("Set-Cookie", out var setCookies));
@@ -134,8 +159,8 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
         }
 
         // 6. Background automations / schedules throw ClaimRequiredException for ephemeral brains.
-        var edge = host.Services.GetRequiredService<EdgeAuthority>();
-        var proxies = host.Services.GetRequiredService<INeuronProxies>();
+        var edge = Host.Services.GetRequiredService<EdgeAuthority>();
+        var proxies = Host.Services.GetRequiredService<INeuronProxies>();
         using (edge.Enter(edge.Guest(ephemeralBrainId, ephemeralBrainId, new BrainId(ephemeralBrainId))))
         {
             var reminder = proxies.Get<IReminder>($"{ephemeralBrainId}/daily-brief");
@@ -195,5 +220,152 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
             new { name = "API_KEY", label = "API Key", value = "sk-live-456" },
             Ct);
         Assert.Equal(HttpStatusCode.OK, secretAfterResp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Day0GuestShellJourney_ConnectActChatsPreferencesDownloads_Returns200WithZero403s_AndEnforcesBoundaries()
+    {
+        var cookieName = Host.Services.GetRequiredService<IOptions<IdentityHostOptions>>().Value.CookieName;
+
+        // 1. ForwardedHeaders (X-Forwarded-Proto: https) runs before Day0EphemeralBootstrap / CookieAuthentication,
+        //    so Set-Cookie: os.session carries '; secure' behind HTTPS ingress (e.g. Azure Container Apps).
+        using (var httpsProxyClient = NewBrowser())
+        {
+            using var httpsReq = new HttpRequestMessage(HttpMethod.Get, "/");
+            httpsReq.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+            using var httpsResp = await httpsProxyClient.SendAsync(httpsReq, Ct);
+            Assert.Equal(HttpStatusCode.OK, httpsResp.StatusCode);
+            Assert.True(httpsResp.Headers.TryGetValues("Set-Cookie", out var httpsSetCookies));
+            var httpsCookie = string.Join("; ", httpsSetCookies);
+            Assert.Contains(cookieName + "=", httpsCookie, StringComparison.Ordinal);
+            Assert.Contains("httponly", httpsCookie, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("samesite=lax", httpsCookie, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("; secure", httpsCookie, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // 2. Full Day-0 visitor journey: GET / -> /identity/session -> POST /apps/connect -> GET /apps/node -> POST /act
+        //    -> GET /chats -> GET/PUT /preferences/workspace -> GET /connectors -> GET /downloads -> 200 OK with zero 403s.
+        using var browserA = NewBrowser();
+        using var rootResp = await browserA.GetAsync("/", Ct);
+        Assert.Equal(HttpStatusCode.OK, rootResp.StatusCode);
+
+        using var sessionAResp = await browserA.GetAsync("/identity/session", Ct);
+        Assert.Equal(HttpStatusCode.OK, sessionAResp.StatusCode);
+        using var sessionADoc = JsonDocument.Parse(await sessionAResp.Content.ReadAsStringAsync(Ct));
+        var tryA = sessionADoc.RootElement.GetProperty("brainId").GetString()!;
+        Assert.True(GuestSurface.IsGuestPrincipal(tryA));
+
+        using var connectResp = await browserA.PostAsJsonAsync($"/brains/{tryA}/apps/connect", new { }, Ct);
+        var connectBody = await connectResp.Content.ReadAsStringAsync(Ct);
+        Assert.True(connectResp.StatusCode == HttpStatusCode.OK, $"POST /brains/{tryA}/apps/connect failed: {(int)connectResp.StatusCode} {connectBody}");
+        using var connectDoc = JsonDocument.Parse(connectBody);
+        var rootViewName = connectDoc.RootElement.GetProperty("root").GetProperty("name").GetString()!;
+        Assert.Equal(IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(tryA), "desktop").ViewKey, rootViewName);
+
+        using var nodeResp = await browserA.GetAsync($"/brains/{tryA}/apps/node?kind=view&name={Uri.EscapeDataString(rootViewName)}", Ct);
+        var nodeBody = await nodeResp.Content.ReadAsStringAsync(Ct);
+        Assert.True(nodeResp.StatusCode == HttpStatusCode.OK, $"GET /brains/{tryA}/apps/node failed: {(int)nodeResp.StatusCode} {nodeBody}");
+        Assert.Contains("dock-ino", nodeBody, StringComparison.Ordinal);
+
+        // Press dock-ino through POST /brains/{tryA}/act -> real DesktopApp -> real WorkspaceNeuron.Apply.
+        using var nodeDoc = JsonDocument.Parse(nodeBody);
+        var dockCommand = FindCommandByKey(nodeDoc.RootElement, "dock-ino")
+            ?? throw new Xunit.Sdk.XunitException($"Expected command for 'dock-ino' in desktop view: {nodeBody}");
+        using var actResp = await browserA.PostAsJsonAsync($"/brains/{tryA}/act", new
+        {
+            neuron = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(tryA), "desktop").Key,
+            target = dockCommand.GetProperty("target").GetString(),
+            signal = dockCommand.GetProperty("signal").GetString(),
+            args = dockCommand.TryGetProperty("args", out var cmdArgs) ? cmdArgs.Clone() : (JsonElement?)null,
+        }, Ct);
+        var actBody = await actResp.Content.ReadAsStringAsync(Ct);
+        Assert.True(actResp.StatusCode == HttpStatusCode.OK, $"POST /brains/{tryA}/act failed: {(int)actResp.StatusCode} {actBody}");
+
+        using var chatsResp = await browserA.GetAsync($"/brains/{tryA}/chats", Ct);
+        Assert.Equal(HttpStatusCode.OK, chatsResp.StatusCode);
+
+        using var prefsResp = await browserA.GetAsync($"/brains/{tryA}/preferences/workspace", Ct);
+        Assert.Equal(HttpStatusCode.OK, prefsResp.StatusCode);
+
+        using var putPrefsResp = await browserA.PutAsJsonAsync($"/brains/{tryA}/preferences/workspace", new { newTabApp = "ino" }, Ct);
+        Assert.Equal(HttpStatusCode.OK, putPrefsResp.StatusCode);
+
+        using var connectorsResp = await browserA.GetAsync("/connectors", Ct);
+        Assert.Equal(HttpStatusCode.OK, connectorsResp.StatusCode);
+
+        using var downloadsResp = await browserA.GetAsync("/downloads", Ct);
+        Assert.Equal(HttpStatusCode.OK, downloadsResp.StatusCode);
+        var downloadsHtml = await downloadsResp.Content.ReadAsStringAsync(Ct);
+        Assert.Contains("IntoChat-Setup-win-x64.exe", downloadsHtml, StringComparison.Ordinal);
+
+        using var downloadResp = await browserA.GetAsync("/download", Ct);
+        Assert.Equal(HttpStatusCode.OK, downloadResp.StatusCode);
+
+        // 3. Unmatched route with a try-* cookie falls through cleanly to 404 (never falsely 403).
+        using var notFoundResp = await browserA.GetAsync("/this-route-does-not-exist-404", Ct);
+        Assert.Equal(HttpStatusCode.NotFound, notFoundResp.StatusCode);
+
+        // 4. Operator, device-pairing, and host-install routes stay closed (403).
+        using var devicesResp = await browserA.GetAsync($"/brains/{tryA}/devices/this", Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, devicesResp.StatusCode);
+
+        using var integrationsResp = await browserA.GetAsync("/integrations", Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, integrationsResp.StatusCode);
+
+        // 5. Cross-brain isolation: try-A cannot access try-B (403 Forbidden).
+        using var browserB = NewBrowser();
+        using var sessionBResp = await browserB.GetAsync("/identity/session", Ct);
+        Assert.Equal(HttpStatusCode.OK, sessionBResp.StatusCode);
+        using var sessionBDoc = JsonDocument.Parse(await sessionBResp.Content.ReadAsStringAsync(Ct));
+        var tryB = sessionBDoc.RootElement.GetProperty("brainId").GetString()!;
+        Assert.NotEqual(tryA, tryB);
+
+        using var crossConnect = await browserA.PostAsJsonAsync($"/brains/{tryB}/apps/connect", new { }, Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, crossConnect.StatusCode);
+        using var crossChats = await browserA.GetAsync($"/brains/{tryB}/chats", Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, crossChats.StatusCode);
+        using var crossPrefs = await browserA.GetAsync($"/brains/{tryB}/preferences/workspace", Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, crossPrefs.StatusCode);
+
+        // 6. External OAuth and durable secrets still return 428 CLAIM_REQUIRED.
+        using var oauthResp = await browserA.PostAsJsonAsync(
+            $"/brains/{tryA}/connections/gh-main/login",
+            new { connectorId = "github", authMethodId = "oauth" },
+            Ct);
+        Assert.Equal(HttpStatusCode.PreconditionRequired, oauthResp.StatusCode);
+
+        using var secretResp = await browserA.PostAsJsonAsync(
+            $"/secrets/{tryA}",
+            new { name = "API_KEY", label = "API Key", value = "sk-test-789" },
+            Ct);
+        Assert.Equal(HttpStatusCode.PreconditionRequired, secretResp.StatusCode);
+
+        // 7. Logout succeeds cleanly for the guest session.
+        using var logoutResp = await browserA.PostAsync("/identity/logout", content: null, Ct);
+        Assert.Equal(HttpStatusCode.NoContent, logoutResp.StatusCode);
+    }
+
+    private static JsonElement? FindCommandByKey(JsonElement element, string key)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
+                && element.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object)
+            {
+                return command.Clone();
+            }
+            foreach (var property in element.EnumerateObject())
+            {
+                if (FindCommandByKey(property.Value, key) is { } found) { return found; }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (FindCommandByKey(item, key) is { } found) { return found; }
+            }
+        }
+        return null;
     }
 }
