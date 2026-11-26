@@ -1,3 +1,4 @@
+using System.Diagnostics;
 #pragma warning disable ASPIREPIPELINES001
 using Aspire.Hosting;
 using Aspire.Hosting.Pipelines;
@@ -60,13 +61,41 @@ public static class ReleasePipelineExtensions
 
         builder.Pipeline.AddStep(PackageMsixStepName, async context =>
         {
-            await using var task = await context.ReportingStep.CreateTaskAsync("Packaging IntoChat OS Windows MSIX installer", context.CancellationToken);
-            var exitCode = await MsixPackager.RunAsync([]);
-            if (exitCode != 0)
+            await using var task = await context.ReportingStep.CreateTaskAsync("Packaging IntoChat OS Windows bundle and MSIX installer via eng/package.cs", context.CancellationToken);
+            var repoRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."));
+            var packageScript = Path.Combine(repoRoot, "eng", "package.cs");
+            var start = new ProcessStartInfo("dotnet")
             {
-                throw new InvalidOperationException($"MSIX packaging failed with exit code {exitCode}.");
+                WorkingDirectory = repoRoot,
+                UseShellExecute = false,
+            };
+            start.ArgumentList.Add("run");
+            start.ArgumentList.Add(packageScript);
+            start.ArgumentList.Add("--platform");
+            start.ArgumentList.Add("win-x64");
+            if (builder.Configuration["Release:OutputDir"] is { Length: > 0 } outputDir)
+            {
+                start.ArgumentList.Add("--output");
+                start.ArgumentList.Add(outputDir);
             }
-            await task.SucceedAsync("Packaged Windows MSIX installer.", context.CancellationToken);
+            if (builder.Configuration.GetValue<bool>("Release:SkipFlutter"))
+            {
+                start.ArgumentList.Add("--skip-flutter");
+            }
+            if (builder.Configuration.GetValue<bool>("Release:DevCert"))
+            {
+                start.ArgumentList.Add("--dev-cert");
+            }
+
+            using var process = Process.Start(start)
+                ?? throw new InvalidOperationException($"Could not start dotnet run '{packageScript}'.");
+            await process.WaitForExitAsync(context.CancellationToken);
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"Windows MSIX packaging via eng/package.cs failed with exit code {process.ExitCode}.");
+            }
+
+            await task.SucceedAsync("Packaged Windows MSIX installer and portable bundle.", context.CancellationToken);
         });
 
         return builder;

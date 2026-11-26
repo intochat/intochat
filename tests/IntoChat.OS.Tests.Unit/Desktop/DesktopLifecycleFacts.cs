@@ -271,6 +271,65 @@ public sealed class DesktopLifecycleFacts
         Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(bearerCtx.Request, proof));
     }
 
+    [Fact]
+    public void ShutdownCoordinatorHandlesWindowsSessionEndCloseAndConsoleEventsIdempotently()
+    {
+        var shutdownCalls = 0;
+        using var coordinator = new DesktopShutdownCoordinator(() => Interlocked.Increment(ref shutdownCalls));
+
+        // Unhandled Win32 messages are forwarded to DefWindowProcW.
+        Assert.False(coordinator.HandleWindowMessage(0x0001, 0, 0, out _));
+        Assert.False(coordinator.ShutdownTriggered);
+        Assert.Equal(0, shutdownCalls);
+
+        // WM_QUERYENDSESSION acknowledges MSIX update / Windows logoff without tearing down yet.
+        Assert.True(coordinator.HandleWindowMessage(DesktopShutdownCoordinator.WmQueryEndSession, 0, 0, out var queryResult));
+        Assert.Equal(1, queryResult);
+        Assert.False(coordinator.ShutdownTriggered);
+        Assert.Equal(0, shutdownCalls);
+
+        // WM_ENDSESSION with wParam == 0 means session end was cancelled -> no teardown.
+        Assert.True(coordinator.HandleWindowMessage(DesktopShutdownCoordinator.WmEndSession, 0, 0, out var cancelEndResult));
+        Assert.Equal(0, cancelEndResult);
+        Assert.False(coordinator.ShutdownTriggered);
+        Assert.Equal(0, shutdownCalls);
+
+        // WM_ENDSESSION with wParam == 1 triggers clean kernel + shell teardown exactly once.
+        Assert.True(coordinator.HandleWindowMessage(DesktopShutdownCoordinator.WmEndSession, 1, 0, out var endResult));
+        Assert.Equal(0, endResult);
+        Assert.True(coordinator.ShutdownTriggered);
+        Assert.True(coordinator.ShutdownToken.IsCancellationRequested);
+        Assert.Equal(1, shutdownCalls);
+
+        // Subsequent WM_CLOSE and console shutdown events are idempotent.
+        Assert.True(coordinator.HandleWindowMessage(DesktopShutdownCoordinator.WmClose, 0, 0, out var closeResult));
+        Assert.Equal(0, closeResult);
+        Assert.True(coordinator.HandleConsoleCtrlEvent(DesktopShutdownCoordinator.CtrlShutdownEvent));
+        Assert.Equal(1, shutdownCalls);
+
+        // Verify all supported console control events trigger shutdown on a fresh coordinator, while unknown codes return false.
+        uint[] supportedCtrlEvents =
+        [
+            DesktopShutdownCoordinator.CtrlCEvent,
+            DesktopShutdownCoordinator.CtrlBreakEvent,
+            DesktopShutdownCoordinator.CtrlCloseEvent,
+            DesktopShutdownCoordinator.CtrlLogoffEvent,
+            DesktopShutdownCoordinator.CtrlShutdownEvent,
+        ];
+
+        foreach (var ctrlEvent in supportedCtrlEvents)
+        {
+            var calls = 0;
+            using var ctrlCoordinator = new DesktopShutdownCoordinator(() => Interlocked.Increment(ref calls));
+            Assert.False(ctrlCoordinator.HandleConsoleCtrlEvent(99));
+            Assert.Equal(0, calls);
+
+            Assert.True(ctrlCoordinator.HandleConsoleCtrlEvent(ctrlEvent));
+            Assert.True(ctrlCoordinator.ShutdownTriggered);
+            Assert.Equal(1, calls);
+        }
+    }
+
     private sealed class DelegateHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
