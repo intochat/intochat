@@ -31,9 +31,7 @@ A pull request that adds a line here is not done until the line is gone.
 - `InoAppState.DetectedLocalModel` and `InoAppState.DetectedLocalModels` (`src/IntoChat.OS.Apps/Ino/InoAppState.cs`) are legacy persisted members: live local models come from `IDevice.Read()`, but `InoView.RenderModelSetupNodes` still falls back to them and `InoSession.ToAppState` still writes them for the explorer facts. Retire the fallback first. Owner: the repo owner.
 - Old `agent` rows at `ino/conversations/*`, `chat` rows at `ino/chats/*`, `IInoConversations.List` and `LegacyImport` stay two releases after S3 for the lazy import; then delete the import and, with the owner's go, the rows. Owner: the repo owner.
 - `InoAppState.Messages` and `ChatRevision` are legacy persisted members; remove after two releases. Nothing reads `ChatRevision`. `Messages` is only cleared to null by `InoApp.Commit` on save; drop that scrub and the `Assert.Null` checks on `Messages` in the Ino unit facts together with the property. Owner: the repo owner.
-- `IToneObserver.Follow` listens to agent turn signals; feed it from `ConversationChanged`. Owner: the repo owner.
 - Ino's DevUI context inspector (`ui.chat` `SetContext`) is gone with the mirror; bring it back as a projection of the conversation. Owner: the repo owner.
-- Flow agents (`AgentStep`) keep their own `AgentNeuron` transcript; move them to a conversation with one agent seat. Owner: the repo owner.
 - Gemini Live as a second cloud Talk card (`GeminiLiveRealtimeClient : IRealtimeClient`, WebSocket), ~5× cheaper than OpenAI Realtime. Owner: the repo owner.
 - Cloud Talk carries no tools; wire S2 `ContractTool`s through `FunctionInvokingRealtimeClient`. Owner: the repo owner.
 - MarkItDotNet core (ElBruno.MarkItDotNet 0.9.5): 8 AOT warnings (5 collapsed), 39.1 MB publish EXE (trims ReverseMarkdown converters at runtime without TrimmerRootAssembly); for attachments slice; owner S-attachments.

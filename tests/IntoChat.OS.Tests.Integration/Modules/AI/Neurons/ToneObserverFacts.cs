@@ -1,22 +1,23 @@
-using IntoChat.OS.Tests;
+using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Testing;
+using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
-using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Tests;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Capabilities.Secrets;
-using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
-// The tone observer reads an agent's transcript after each turn. A turn needs the model loop, which reaches contexts
-// through the silo's grain factory: silo runtime only.
+// The tone observer follows ConversationChanged and reads the conversation after each completed turn. A turn needs the
+// model loop, which reaches contexts through the silo's grain factory: silo runtime only.
 public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixture>
 {
     private static readonly TimeSpan Within = TimeSpan.FromSeconds(20);
@@ -27,9 +28,9 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
         using var person = runtime.As(Who.Person);
-        var (agent, id) = await Watched(runtime, "short");
+        var conversation = await Watched(runtime, "short");
 
-        await Talk(runtime, agent, id, 0, ["hi", "and then?", "ok go on"], ct);
+        await Talk(conversation, 0, ["hi", "and then?", "ok go on"], ct);
 
         var tone = Assert.Single(await Entries(runtime, ct, entries => entries.Length > 0), entry => entry.Name == "tone");
         Assert.Equal("""{"persona":"concise"}""", tone.Text);
@@ -42,31 +43,45 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
         using var person = runtime.As(Who.Person);
-        var (agent, id) = await Watched(runtime, "long");
-        await Talk(runtime, agent, id, 0, ["hi", "and then?", "ok go on"], ct);
+        var conversation = await Watched(runtime, "long");
+        await Talk(conversation, 0, ["hi", "and then?", "ok go on"], ct);
         await Entries(runtime, ct, entries => entries.Length > 0);
 
-        await Talk(runtime, agent, id, 3, ["Please walk me through the whole migration plan in detail."], ct);
+        await Talk(conversation, 3, ["Please walk me through the whole migration plan in detail."], ct);
 
         Assert.Empty(await Entries(runtime, ct, entries => entries.Length == 0));
     }
 
-    private static async Task<(IAgent Agent, NeuronId Id)> Watched(INeuronRuntime runtime, string name)
+    private static async Task<IConversation> Watched(INeuronRuntime runtime, string name)
     {
-        var id = runtime.Id("agent", "agents/tone-" + name);
-        var agent = runtime.Get<IAgent>(id);
-        await agent.Configure(new(), 0);
-        await runtime.Get<IToneObserver>(runtime.Id("ai.tone-observer", "observer/tone/agents/tone-" + name)).Follow("agents/tone-" + name);
-        return (agent, id);
+        var key = IConversation.KeyOf(ConversationId.Parse("tone-" + name));
+        var id = runtime.Id(IConversation.Type, key);
+        var conversation = runtime.Get<IConversation>(id);
+        await conversation.Seat("ino", new AgentDefinition());
+        await runtime.Get<IToneObserver>(runtime.Id("ai.tone-observer", "observer/tone/" + key)).Follow(key);
+        return conversation;
     }
 
-    private static async Task Talk(INeuronRuntime runtime, IAgent agent, NeuronId id, int done, string[] texts, CancellationToken ct)
+    private static async Task Talk(IConversation conversation, int done, string[] texts, CancellationToken ct)
     {
         for (var turn = 0; turn < texts.Length; turn++)
         {
-            await agent.Start(new AgentTurn(new AiMessage("user", [new AiText(texts[turn])])));
-            await runtime.WaitForSignals<TurnCompleted>(id, done + turn + 1, Within, ct);
+            await conversation.Say(texts[turn]);
+            await WaitUntilIdle(conversation, done + turn + 1, ct);
         }
+    }
+
+    private static async Task WaitUntilIdle(IConversation conversation, int minRuns, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < Within)
+        {
+            var view = await conversation.Read();
+            if (view.Active is null && view.Runs.Length >= minRuns) { return; }
+            await Task.Delay(30, ct);
+        }
+        var final = await conversation.Read();
+        Assert.True(final.Active is null && final.Runs.Length >= minRuns, $"Conversation did not finish {minRuns} runs within timeout.");
     }
 
     private static async Task<ContextEntry[]> Entries(INeuronRuntime runtime, CancellationToken ct, Func<ContextEntry[], bool> done)

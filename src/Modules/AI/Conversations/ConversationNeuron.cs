@@ -1,18 +1,16 @@
 using System.Diagnostics;
-using DigitalBrain.Log;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Host.Conversations;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -30,34 +28,40 @@ internal sealed class ConversationNeuron(
     TimeProvider clock,
     IServiceProvider services,
     ILogger<ConversationNeuron>? logger = null)
-    : AiNeuron<ConversationState>, IConversation, IConversationDriver
+    : InterleavingRunHost<ConversationState>(redactor, clock, services, (ILogger?)logger ?? OsConsoleLog.For<ConversationNeuron>()), IConversation, IConversationDriver
 {
-    private const int KeptRuns = 64;
     private const int MaxSayCharacters = 32_000;
     private const string ConversationsKeyPrefix = "conversations/";
 
-    private ConversationDefaults Defaults => services.GetService<ConversationDefaults>() ?? ConversationDefaults.Generic;
-    private string DefaultAgentId => Defaults.DefaultAgentId;
-
-    private CancellationTokenSource? _active;
-    private string? _cancelBeforeDrive;
-    private bool _mutating;
-    private ConversationState _state = new();
-    private bool _stale;
-    private bool _blocked;
-    private string? _interrupt;
-    private long _reconsidering;
     private Task? _importing;
-    private TurnRunner? _runner;
-    private ConversationState? _beforeWrite;
-    private TaskCompletionSource? _write;
 
-    private new ConversationState State => _state;
-    private ConversationState Committed => _beforeWrite ?? State;
-    private string Scope => Id.Brain.Value;
-    private ILogger Logger => (ILogger?)logger ?? OsConsoleLog.For<ConversationNeuron>();
-    private TimeProvider Clock => clock;
-    private TurnRunner Runner => _runner ??= new(Context, Id, redactor, clock, services, Logger);
+    private ConversationDefaults Defaults => Services.GetService<ConversationDefaults>() ?? ConversationDefaults.Generic;
+    private string DefaultAgentId => Defaults.DefaultAgentId;
+    private IBrainOwners Owners => Services.GetService<IBrainOwners>() ?? throw FriendRelay.Refused();
+    private IFriends Friends => Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
+    private IOffers Offers => Context.Offers;
+
+    protected override string HostKind => "Conversation";
+    protected override string BusyMessage => "This conversation already has an active run.";
+
+    protected override AgentRun? ActiveRunOf(ConversationState state) => state.ActiveRun;
+    protected override bool BlockedOf(ConversationState state) => state.Blocked;
+    protected override string[] ContextsOf(ConversationState state) => AllContexts(state);
+
+    protected override ConversationState WithInterruptedRun(ConversationState state, AgentRun closedRun)
+        => state with { ActiveRun = null, Replacing = null, Runs = Keep(state.Runs, closedRun) };
+
+    protected override ConversationState PrepareWrite(ConversationState previous, ConversationState next, bool blocked, bool bumpRevision)
+        => next with { Revision = bumpRevision ? previous.Revision + 1 : previous.Revision, Blocked = blocked };
+
+    protected override Task OnStateLoaded(CancellationToken cancellationToken) => SyncPersistedOffersAsync(cancellationToken);
+
+    protected override async Task AfterCommit(ConversationState committed, bool announce)
+    {
+        if (!announce) { return; }
+        try { await Publish(new ConversationChanged(ConvId, committed.Revision)); }
+        catch (Exception error) { Logger.LogWarning(error, "ConversationChanged signal delivery failed; consumers can reconcile through Read."); }
+    }
 
     private ConversationId ConvId
     {
@@ -65,89 +69,15 @@ internal sealed class ConversationNeuron(
         {
             var raw = Id.Key.StartsWith(ConversationsKeyPrefix, StringComparison.Ordinal)
                 ? Id.Key[ConversationsKeyPrefix.Length..]
-                : Id.Key;
+                : Id.Key.Replace('/', '-');
             return ConversationId.TryParse(raw, out var parsed) ? parsed : ConversationId.Parse("main");
         }
     }
 
-    protected override async Task OnActivate(CancellationToken cancellationToken)
-    {
-        _state = base.State;
-        _blocked = _state.Blocked;
-        await SyncPersistedOffersAsync(cancellationToken);
-        await Resume();
-    }
-
-    private async Task Resume()
-    {
-        if (State.ActiveRun is { } open)
-        {
-            const string Error = "Activation ended before the run committed; external tool outcomes may be unknown.";
-            await Persist(State with
-            {
-                ActiveRun = null,
-                Replacing = null,
-                Runs = Keep(State.Runs, Close(open, AgentRunStatus.Interrupted, Error)),
-            });
-        }
-        await Reconsider();
-    }
-
-    [On]
-    public Task OnContextUpdated(ContextUpdated signal)
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        return Reconsidered();
-    }
-
-    [On]
-    public Task OnContextRemoved(ContextRemoved signal)
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        return Reconsidered();
-    }
-
-    private async Task Reconsidered()
-    {
-        await Fresh();
-        await Reconsider();
-    }
-
-    private async Task Reconsider()
-    {
-        var turn = ++_reconsidering;
-        var contexts = AllContexts(State);
-        var interrupt = await Runner.FirstInterrupt(contexts);
-        if (turn != _reconsidering) { return; }
-        var blocked = interrupt is not null;
-        var changed = blocked != _blocked;
-        _blocked = blocked;
-        _interrupt = interrupt?.Text;
-        if (changed && blocked) { await Stop(); }
-        if (State.Blocked != blocked && _active is null && !_mutating && _write is null && State.ActiveRun is null)
-        {
-            _mutating = true;
-            try { await Persist(State); }
-            finally { _mutating = false; }
-        }
-    }
-
-    private async Task Fresh()
-    {
-        if (!_stale || _active is not null || _mutating) { return; }
-        _stale = false;
-        _state = base.State;
-        await Resume();
-    }
-
-    private IBrainOwners Owners => services.GetService<IBrainOwners>() ?? throw FriendRelay.Refused();
-    private IFriends Friends => Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
-    private IOffers Offers => Context.Offers;
-
     private async Task SyncPersistedOffersAsync(CancellationToken cancellationToken)
     {
         if (State.Participants.Length == 0) { return; }
-        var owners = services.GetService<IBrainOwners>();
+        var owners = Services.GetService<IBrainOwners>();
         if (owners is null) { return; }
         var ownerAccount = await owners.OwnerAccount(Id.Brain, cancellationToken);
         var offers = Offers;
@@ -204,19 +134,6 @@ internal sealed class ConversationNeuron(
         return !string.IsNullOrWhiteSpace(account) ? new AccountId(account) : new AccountId(Id.Brain.Value);
     }
 
-    private void EnsureIdle()
-    {
-        if (_active is not null || _mutating || State.ActiveRun is not null)
-        {
-            throw new InvalidOperationException("This conversation already has an active run.");
-        }
-    }
-
-    private void EnsureUnblocked()
-    {
-        if (_blocked) { throw new InvalidOperationException("Blocked: " + _interrupt); }
-    }
-
     private Task EnsureImportedAsync()
     {
         if (State.Imported) { return Task.CompletedTask; }
@@ -233,14 +150,14 @@ internal sealed class ConversationNeuron(
             if (State.Imported) { return; }
             if (!Id.Key.StartsWith(ConversationsKeyPrefix, StringComparison.Ordinal))
             {
-                _state = _state with { Imported = true };
+                UpdateLocalState(static s => s with { Imported = true });
                 return;
             }
 
             var legacyPrefix = Defaults.LegacyAgentKeyPrefix;
             if (string.IsNullOrWhiteSpace(legacyPrefix))
             {
-                _state = _state with { Imported = true };
+                UpdateLocalState(static s => s with { Imported = true });
                 return;
             }
 
@@ -249,7 +166,7 @@ internal sealed class ConversationNeuron(
             var oldState = await oldAgent.Read();
             if (oldState.Revision == 0 && oldState.Runs.Length == 0 && string.IsNullOrWhiteSpace(oldState.Summary))
             {
-                _state = _state with { Imported = true };
+                UpdateLocalState(static s => s with { Imported = true });
                 return;
             }
 
@@ -259,13 +176,9 @@ internal sealed class ConversationNeuron(
 
             var nextAgents = State.Agents.Any(a => string.Equals(a.AgentId, DefaultAgentId, StringComparison.Ordinal))
                 ? State.Agents
-                : [.. State.Agents, new SeatedAgent(DefaultAgentId, NormalizeDefinition(oldState.Definition))];
+                : [.. State.Agents, new SeatedAgent(DefaultAgentId, AgentDefinitionRules.Normalize(oldState.Definition))];
 
-            foreach (var ctxId in Runner.ContextIds(nextAgents.SelectMany(a => a.Definition.Contexts).Distinct(StringComparer.Ordinal).ToArray()))
-            {
-                await Context.Wires.Ensure<ContextUpdated>(ctxId);
-                await Context.Wires.Ensure<ContextRemoved>(ctxId);
-            }
+            await EnsureContextWires([.. nextAgents.SelectMany(a => a.Definition.Contexts).Distinct(StringComparer.Ordinal)]);
 
             var nextParticipants = WithParticipants(State.Participants, new Participant.Human(ownerAccount), new Participant.Assistant(DefaultAgentId));
             var nextRevision = State.Revision + 1;
@@ -276,7 +189,7 @@ internal sealed class ConversationNeuron(
                 ? importedRuns[(importedRuns.Length - KeptRuns)..]
                 : importedRuns;
 
-            _blocked = oldState.Blocked;
+            SetBlockedCache(oldState.Blocked);
             await Persist(State with
             {
                 Participants = nextParticipants,
@@ -300,25 +213,19 @@ internal sealed class ConversationNeuron(
     public async Task Seat(string agentId, AgentDefinition definition)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
-        ArgumentNullException.ThrowIfNull(definition);
-        ValidateDefinition(definition);
+        AgentDefinitionRules.Validate(definition);
         await Fresh();
 
         var trimmedId = agentId.Trim();
-        var normalized = NormalizeDefinition(definition);
+        var normalized = AgentDefinitionRules.Normalize(definition);
         var existingIndex = Array.FindIndex(State.Agents, a => string.Equals(a.AgentId, trimmedId, StringComparison.Ordinal));
-        if (existingIndex >= 0 && SameDefinition(State.Agents[existingIndex].Definition, normalized))
+        if (existingIndex >= 0 && AgentDefinitionRules.AreEqual(State.Agents[existingIndex].Definition, normalized))
         {
             return;
         }
 
         EnsureIdle();
-
-        foreach (var ctxId in Runner.ContextIds(normalized.Contexts))
-        {
-            await Context.Wires.Ensure<ContextUpdated>(ctxId);
-            await Context.Wires.Ensure<ContextRemoved>(ctxId);
-        }
+        await EnsureContextWires(normalized.Contexts);
 
         var agents = State.Agents.ToList();
         var seated = new SeatedAgent(trimmedId, normalized);
@@ -326,16 +233,11 @@ internal sealed class ConversationNeuron(
         else { agents.Add(seated); }
 
         var participants = WithParticipants(State.Participants, new Participant.Assistant(trimmedId));
-        _mutating = true;
-        try
+        await Mutate(() => Persist(State with
         {
-            await Persist(State with
-            {
-                Participants = participants,
-                Agents = [.. agents],
-            });
-        }
-        finally { _mutating = false; }
+            Participants = participants,
+            Agents = [.. agents],
+        }));
         await Reconsider();
     }
 
@@ -348,9 +250,9 @@ internal sealed class ConversationNeuron(
         await EnsureImportedAsync();
 
         var entryId = EntryIds.Post(id);
-        if (_mutating) { throw new InvalidOperationException("The conversation is answering; post again when the run ends."); }
+        if (IsMutating) { throw new InvalidOperationException("The conversation is answering; post again when the run ends."); }
         if (State.Log.Any(item => item.Entry.Id == entryId)) { return; }
-        if (_active is not null || State.ActiveRun is not null) { throw new InvalidOperationException("The conversation is answering; post again when the run ends."); }
+        EnsureIdle("The conversation is answering; post again when the run ends.");
 
         var masked = await Runner.Mask(text);
         var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
@@ -358,16 +260,11 @@ internal sealed class ConversationNeuron(
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, entry);
         var participants = WithParticipants(State.Participants, new Participant.Assistant(agentId));
 
-        _mutating = true;
-        try
+        await Mutate(() => Persist(State with
         {
-            await Persist(State with
-            {
-                Participants = participants,
-                Log = nextLog,
-            });
-        }
-        finally { _mutating = false; }
+            Participants = participants,
+            Log = nextLog,
+        }));
     }
 
     public async Task Voiced(string heard, string reply, ModelId model, string id)
@@ -389,11 +286,7 @@ internal sealed class ConversationNeuron(
         AuthorizeOwnerOnly();
         await Fresh();
         await EnsureImportedAsync();
-
-        if (_mutating || _active is not null || State.ActiveRun is not null)
-        {
-            throw new InvalidOperationException("This conversation already has an active run.");
-        }
+        EnsureIdle();
 
         var heardId = EntryIds.Heard(id);
         var spokenId = EntryIds.Spoken(id);
@@ -402,17 +295,15 @@ internal sealed class ConversationNeuron(
             return;
         }
 
-        _mutating = true;
-        string maskedHeard;
-        try
+        var maskedHeard = await Mutate(async () =>
         {
-            maskedHeard = await Runner.Mask(heard);
+            var masked = await Runner.Mask(heard);
             var maskedReply = await Runner.Mask(reply);
             var now = Clock.GetUtcNow();
             var speaker = new Participant.Human(CallerAccount());
             var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
             var assistant = new Participant.Assistant(agentId);
-            var heardEntry = new Said(heardId, speaker, now, maskedHeard);
+            var heardEntry = new Said(heardId, speaker, now, masked);
             var spokenEntry = new Said(spokenId, assistant, now, maskedReply, model);
             var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, heardEntry, spokenEntry);
             var participants = WithParticipants(State.Participants, speaker, assistant);
@@ -422,8 +313,8 @@ internal sealed class ConversationNeuron(
                 Participants = participants,
                 Log = nextLog,
             });
-        }
-        finally { _mutating = false; }
+            return masked;
+        });
 
         await TouchSessionListBestEffortAsync(maskedHeard);
     }
@@ -446,6 +337,7 @@ internal sealed class ConversationNeuron(
         await EnsureImportedAsync();
         EnsureUnblocked();
         EnsureIdle();
+        await EnforceTrialTurnPolicyAsync();
 
         var masked = await Runner.Mask(text);
         var runId = Guid.NewGuid().ToString("N");
@@ -475,8 +367,7 @@ internal sealed class ConversationNeuron(
         }
         catch
         {
-            try { await Persist(State with { ActiveRun = null, Replacing = null }); }
-            catch (Exception undoError) { Logger.LogWarning(undoError, "Failed to clear active conversation run {RunId} after hand-off failure.", runId); Abandon(undoError, runId); }
+            await UndoHandOffAsync(State with { ActiveRun = null, Replacing = null }, runId);
             throw;
         }
     }
@@ -496,7 +387,7 @@ internal sealed class ConversationNeuron(
         }
 
         var masked = await Runner.Mask(text);
-        if (_write is { } pending) { await pending.Task; }
+        await AwaitPendingWrite();
 
         var said = new Said(EntryIds.Said(Guid.NewGuid().ToString("N")), new Participant.Human(friend), Clock.GetUtcNow(), masked);
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
@@ -506,8 +397,7 @@ internal sealed class ConversationNeuron(
     public Task Stop()
     {
         AuthorizeOwnerOnly();
-        if (_active is { } active) { active.Cancel(); }
-        else if (State.ActiveRun is { } pending) { _cancelBeforeDrive = pending.RunId; }
+        CancelActiveRun();
         return Task.CompletedTask;
     }
 
@@ -530,6 +420,8 @@ internal sealed class ConversationNeuron(
         {
             throw new InvalidOperationException("Only the latest run's reply can be regenerated.");
         }
+
+        await EnforceTrialTurnPolicyAsync();
 
         var newRunId = Guid.NewGuid().ToString("N");
         var now = Clock.GetUtcNow();
@@ -554,8 +446,7 @@ internal sealed class ConversationNeuron(
         }
         catch
         {
-            try { await Persist(State with { ActiveRun = null, Replacing = null }); }
-            catch (Exception undoError) { Logger.LogWarning(undoError, "Failed to clear active regeneration run {RunId} after hand-off failure.", newRunId); Abandon(undoError, newRunId); }
+            await UndoHandOffAsync(State with { ActiveRun = null, Replacing = null }, newRunId);
             throw;
         }
     }
@@ -565,16 +456,14 @@ internal sealed class ConversationNeuron(
         // The owner's view, or a friend's; a call with no caller is neither.
         if (RequireCaller().Brain != Id.Brain)
         {
-            await Fresh();
-            if (_write is { } pendingWrite) { await pendingWrite.Task; }
-            var committed = Committed;
+            var committed = await ReadCommittedAsync();
             var shared = ConversationLog.Visible(committed.Log, sinceRevision, owner: false);
             return new ConversationView(ConvId, committed.Revision, [.. committed.Participants], shared, Active: null, Runs: [], Blocked: false, Contexts: []);
         }
 
         await Fresh();
         await EnsureImportedAsync();
-        if (_write is { } pending) { await pending.Task; }
+        await AwaitPendingWrite();
         var state = Committed;
         var visible = ConversationLog.Visible(state.Log, sinceRevision, owner: true);
         return new ConversationView(
@@ -584,11 +473,11 @@ internal sealed class ConversationNeuron(
             visible,
             state.ActiveRun,
             [.. state.Runs],
-            _blocked,
+            IsBlocked,
             AllContexts(state))
         {
             Replacing = state.Replacing,
-            BlockedReason = _blocked ? _interrupt : null,
+            BlockedReason = IsBlocked ? InterruptReason : null,
         };
     }
 
@@ -614,12 +503,12 @@ internal sealed class ConversationNeuron(
 
         var title = await ReadTitleBestEffortAsync();
         var invite = new GroupInvite(Id.Brain, ConvId, title, owner);
-        await SiloNeurons.Get<IFriends>(services, FriendsDefaults.Id(target.Brain.Value)).Invited(invite);
+        await SiloNeurons.Get<IFriends>(Services, FriendsDefaults.Id(target.Brain.Value)).Invited(invite);
     }
 
     public async Task Drive(string runId, string? model, string? replaces)
     {
-        if (State.ActiveRun?.RunId != runId || _active is not null)
+        if (State.ActiveRun?.RunId != runId || IsActive)
         {
             Logger.LogWarning("Conversation run {RunId} was no longer active when its driver arrived.", runId);
             return;
@@ -630,13 +519,7 @@ internal sealed class ConversationNeuron(
         var agentParticipant = new Participant.Assistant(seated.AgentId);
         EntryId? replacingId = string.IsNullOrWhiteSpace(replaces) ? null : new EntryId(replaces);
 
-        using var timeout = new CancellationTokenSource(definition.Timeout);
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
-        var timedOut = $"The run exceeded its {definition.Timeout} timeout.";
-        _active = lifetime;
-        if (_cancelBeforeDrive == runId) { lifetime.Cancel(); }
-        _cancelBeforeDrive = null;
-
+        using var activeRun = BeginRun(runId, definition.Timeout);
         var turnState = new TurnState(State.ActiveRun);
         var committed = false;
         var deltaCount = 0;
@@ -669,20 +552,9 @@ internal sealed class ConversationNeuron(
             if (AgentHistoryCompactor.TryParseCompactCommand(turnState.Run.UserText, out var compactFocus))
             {
                 var previousCount = window.Messages.Length;
-                var compacted = await AgentHistoryCompactor.CompactAsync(
-                    window.Messages,
-                    definition,
-                    window.Summary,
-                    compactFocus,
-                    force: true,
-                    Scope,
-                    services,
-                    Logger,
-                    lifetime.Token);
+                var compacted = await CompactHistoryAsync(window.Messages, definition, window.Summary, compactFocus, force: true, activeRun.Token);
                 var maskedSummary = string.IsNullOrWhiteSpace(compacted.Summary) ? (window.Summary ?? "") : await Runner.Mask(compacted.Summary);
-                var replyText = previousCount == 0
-                    ? "No conversation messages to compact yet."
-                    : $"Compacted {compacted.EvictedCount} of {previousCount} message(s) ({compacted.Messages.Length} kept in active window).\n{maskedSummary}";
+                var replyText = FormatCompactReply(previousCount, compacted.EvictedCount, compacted.Messages.Length, maskedSummary);
                 var maskedReply = await Runner.Mask(replyText);
                 var now = Clock.GetUtcNow();
                 turnState.Run = turnState.Run with { Status = AgentRunStatus.Completed, EndedAt = now, Reply = maskedReply };
@@ -710,13 +582,7 @@ internal sealed class ConversationNeuron(
             }
 
             await Runner.Hydrate(definition.Contexts, turnState.Run.UserText);
-            var preTurnMax = Math.Max(1, Math.Min(definition.MaxHistoryMessages, definition.CompactionThreshold) - 1);
-            var bounded = AgentHistoryCompactor.BoundWindow(
-                window.Messages,
-                definition with { MaxHistoryMessages = Math.Max(2, preTurnMax), CompactionThreshold = Math.Max(2, preTurnMax) },
-                Math.Max(0, TurnRunner.MaxHistoryCharacters - AgentHistoryCompactor.MessageSize(input)),
-                window.Summary);
-
+            var bounded = BoundPreTurnHistory(window.Messages, definition, input, window.Summary);
             var turnModel = !string.IsNullOrWhiteSpace(model) ? new ModelSelection(model) : definition.Model;
             var plan = new TurnPlan(
                 Scope,
@@ -741,7 +607,7 @@ internal sealed class ConversationNeuron(
 
             streamStart = Clock.GetTimestamp();
             streamStarted = true;
-            await foreach (var ev in Runner.Stream(plan, turnState, sink, lifetime.Token))
+            await foreach (var ev in Runner.Stream(plan, turnState, sink, activeRun.Token))
             {
                 switch (ev)
                 {
@@ -777,16 +643,7 @@ internal sealed class ConversationNeuron(
                     case AgentTurnEvent.Completed done:
                         {
                             var combinedWindow = (AiMessage[])[.. window.Messages, input, .. done.Messages];
-                            var compacted = await AgentHistoryCompactor.CompactAsync(
-                                combinedWindow,
-                                definition,
-                                window.Summary,
-                                focusInstructions: null,
-                                force: false,
-                                Scope,
-                                services,
-                                Logger,
-                                lifetime.Token);
+                            var compacted = await CompactHistoryAsync(combinedWindow, definition, window.Summary, focusInstructions: null, force: false, activeRun.Token);
                             var nextSummary = string.IsNullOrWhiteSpace(compacted.Summary)
                                 ? window.Summary
                                 : (compacted.Summary == window.Summary ? window.Summary : await Runner.Mask(compacted.Summary));
@@ -817,12 +674,8 @@ internal sealed class ConversationNeuron(
                             break;
                         }
                     case AgentTurnEvent.TurnFailed failed:
-                        {
-                            turnState.Failure = failed.Cancelled && timeout.IsCancellationRequested
-                                ? new(timedOut, Cancelled: false) { Failure = AgentFailure.TimedOut }
-                                : failed;
-                            break;
-                        }
+                        turnState.Failure = activeRun.NormalizeFailure(failed);
+                        break;
                 }
             }
         }
@@ -832,54 +685,26 @@ internal sealed class ConversationNeuron(
         }
         finally
         {
-            try
+            if (!committed)
             {
-                if (!committed)
-                {
-                    var expired = timeout.IsCancellationRequested;
-                    var failure = turnState.Failure;
-                    var cancelled = !expired && (failure is not null ? failure.Cancelled : lifetime.IsCancellationRequested);
-                    var error = expired ? timedOut
-                        : failure?.Message ?? "Execution failed before committing its result.";
-                    try
+                var closed = await FinalizeFailedRunAsync(activeRun, turnState, sink, runId);
+                storeCount++;
+                await TryPersistClosedRunAsync(
+                    State with
                     {
-                        await Runner.Refresh(turnState, final: true);
-                        await Runner.FlushShown(turnState, sink);
-                        error = await Runner.Mask(error);
-                    }
-                    catch (Exception maskError) { Logger.LogWarning(maskError, "Conversation run {RunId} could not mask its outcome.", runId); error = "Execution failed before committing its result."; }
-
-                    var failureKind = expired
-                        ? AgentFailure.TimedOut
-                        : (cancelled ? AgentFailure.Unknown : (failure?.Failure ?? AgentFailure.Unknown));
-                    var closedRun = Close(turnState.Streamed, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted")
-                        with
-                    { Failure = failureKind };
-                    try
-                    {
-                        storeCount++;
-                        await Persist(State with
-                        {
-                            ActiveRun = null,
-                            Replacing = null,
-                            Runs = Keep(State.Runs, closedRun),
-                        });
-                    }
-                    catch (Exception persistError)
-                    {
-                        Logger.LogWarning(persistError, "Failed to persist final conversation run {RunId}.", runId);
-                        Abandon(persistError, runId);
-                    }
-                }
-                if (streamStarted)
-                {
-                    var maskMs = Math.Round(Stopwatch.GetElapsedTime(0, turnState.MaskTicks).TotalMilliseconds, 1);
-                    Logger.LogInformation(
-                        "Run {RunId} streamed {Deltas} deltas in {Stores} stores; first token {FirstTokenMs} ms; masking {MaskMs} ms",
-                        runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
-                }
+                        ActiveRun = null,
+                        Replacing = null,
+                        Runs = Keep(State.Runs, closed.Run),
+                    },
+                    runId);
             }
-            finally { _active = null; }
+            if (streamStarted)
+            {
+                var maskMs = Math.Round(Stopwatch.GetElapsedTime(0, turnState.MaskTicks).TotalMilliseconds, 1);
+                Logger.LogInformation(
+                    "Run {RunId} streamed {Deltas} deltas in {Stores} stores; first token {FirstTokenMs} ms; masking {MaskMs} ms",
+                    runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
+            }
         }
     }
 
@@ -955,116 +780,6 @@ internal sealed class ConversationNeuron(
             }
         }
         return list is null ? existing : [.. list];
-    }
-
-    private static void ValidateDefinition(AgentDefinition definition)
-    {
-        if (definition.MaxModelCalls is < 1 or > 512 || definition.Timeout <= TimeSpan.Zero || definition.Timeout > TimeSpan.FromMinutes(60)
-            || definition.MaxHistoryMessages is < 2 or > 4096
-            || definition.CompactionThreshold is < 2 or > 4096
-            || definition.CompactionRecentWindow is < 1 or > 4096)
-        {
-            throw new ArgumentException("Invalid agent execution limits.", nameof(definition));
-        }
-
-        if (definition.Instructions.Length > 32_000 || definition.Contracts.Length > 128 || definition.Contracts.Any(string.IsNullOrWhiteSpace)
-            || definition.Contracts.Distinct(StringComparer.Ordinal).Count() != definition.Contracts.Length
-            || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
-            || (definition.OperationApps is { } operationApps
-                && (operationApps.Length > 64
-                    || operationApps.Any(app => string.IsNullOrWhiteSpace(app) || app.Length > 128)
-                    || operationApps.Distinct(StringComparer.OrdinalIgnoreCase).Count() != operationApps.Length))
-            || (definition.ToolSources is { } toolSources
-                && (toolSources.Length > 64
-                    || toolSources.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
-                    || toolSources.Distinct(StringComparer.Ordinal).Count() != toolSources.Length)))
-        {
-            throw new ArgumentException("Instructions, contracts, operation apps, tool sources or contexts are invalid.", nameof(definition));
-        }
-    }
-
-    private static AgentDefinition NormalizeDefinition(AgentDefinition definition) => definition with
-    {
-        Contracts = [.. definition.Contracts],
-        Capabilities = [.. definition.Capabilities],
-        RoutingExamples = [.. definition.RoutingExamples],
-        Contexts = [.. definition.Contexts],
-        OperationApps = definition.OperationApps is null ? null : [.. definition.OperationApps],
-        ToolSources = definition.ToolSources is null ? null : [.. definition.ToolSources],
-    };
-
-    private static bool SameDefinition(AgentDefinition a, AgentDefinition b)
-        => string.Equals(a.DisplayName, b.DisplayName, StringComparison.Ordinal)
-            && string.Equals(a.Description, b.Description, StringComparison.Ordinal)
-            && string.Equals(a.Instructions, b.Instructions, StringComparison.Ordinal)
-            && Equals(a.Model, b.Model)
-            && Equals(a.Options, b.Options)
-            && a.MaxModelCalls == b.MaxModelCalls
-            && a.Timeout == b.Timeout
-            && a.MaxHistoryMessages == b.MaxHistoryMessages
-            && a.CompactionThreshold == b.CompactionThreshold
-            && a.CompactionRecentWindow == b.CompactionRecentWindow
-            && a.UseModelSummarizer == b.UseModelSummarizer
-            && a.IncludeComponentOperations == b.IncludeComponentOperations
-            && a.Contracts.SequenceEqual(b.Contracts, StringComparer.Ordinal)
-            && a.Capabilities.SequenceEqual(b.Capabilities, StringComparer.Ordinal)
-            && a.RoutingExamples.SequenceEqual(b.RoutingExamples, StringComparer.Ordinal)
-            && a.Contexts.SequenceEqual(b.Contexts, StringComparer.Ordinal)
-            && SameOptionalSequence(a.OperationApps, b.OperationApps)
-            && SameOptionalSequence(a.ToolSources, b.ToolSources);
-
-    private static bool SameOptionalSequence(string[]? left, string[]? right)
-        => (left, right) switch
-        {
-            (null, null) => true,
-            (null, _) or (_, null) => false,
-            _ => left.SequenceEqual(right, StringComparer.Ordinal),
-        };
-
-    private void Abandon(Exception error, string runId)
-    {
-        Logger.LogError(error, "Conversation run {RunId} could not store its outcome; the conversation recovers from storage on its next call.", runId);
-        _stale = true;
-    }
-
-    private AgentRun Close(AgentRun run, AgentRunStatus status, string error, string openCallCode = "tool_interrupted") => run with
-    {
-        Status = status,
-        EndedAt = Clock.GetUtcNow(),
-        Error = error,
-        ToolCalls = [.. run.ToolCalls.Select(call => call.Result is null && call.Code is null
-            ? call with { Code = openCallCode, Error = "Execution ended before the tool call completed." } : call)],
-    };
-
-    private static AgentRun[] Keep(AgentRun[] runs, AgentRun run) => [.. runs.Where(item => item.RunId != run.RunId).TakeLast(KeptRuns - 1), run];
-
-    private async Task Persist(ConversationState next, bool announce = true)
-    {
-        var previous = _state;
-        var writing = _write = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _beforeWrite = previous;
-        _state = next with { Revision = announce ? previous.Revision + 1 : previous.Revision, Blocked = _blocked };
-        try
-        {
-            await Store(_state);
-        }
-        catch
-        {
-            _state = previous;
-            throw;
-        }
-        finally
-        {
-            _beforeWrite = null;
-            _write = null;
-            writing.TrySetResult();
-        }
-
-        if (announce)
-        {
-            try { await Publish(new ConversationChanged(ConvId, _state.Revision)); }
-            catch (Exception error) { Logger.LogWarning(error, "ConversationChanged signal delivery failed; consumers can reconcile through Read."); }
-        }
     }
 
     private sealed class ConversationTurnSink(Func<AgentRun, Task> store, Func<string, int, Task> shown) : ITurnSink

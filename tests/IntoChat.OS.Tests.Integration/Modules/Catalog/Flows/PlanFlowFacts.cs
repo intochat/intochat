@@ -25,7 +25,7 @@ public sealed class PlanFlowFacts
     [Fact]
     public async Task PlanDraftsWaitsAndStartsSubtasksOnApprove()
     {
-        ScriptedAgent.Replies["Plan"] = Plan;
+        ScriptedConversation.Replies["Plan"] = Plan;
         await using var fixture = new FlowTypesFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
@@ -36,7 +36,7 @@ public sealed class PlanFlowFacts
         var waiting = await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Waiting && v.WaitingStep == "approve");
         Assert.Equal(["draft"], waiting.Done);
         Assert.Equal(WaitReason.Approval, waiting.WaitingFor);
-        Assert.Contains("Keep notes", ScriptedAgent.Prompts[id], StringComparison.Ordinal);
+        Assert.Contains("Keep notes", ScriptedConversation.Prompts[Id(id).Key], StringComparison.Ordinal);
         Assert.Empty(waiting.Relations);
 
         // An approval wait is resolved by the person through the confirmations inbox, as ApprovalsFacts does it.
@@ -52,7 +52,6 @@ public sealed class PlanFlowFacts
         Assert.Equal(("Write the notes", id), (first.Title, first.ParentFlowId));
         var second = await Eventually(() => flows.Read(inner.Started[1], Ct), v => v.Relations.Length == 1);
         Assert.Equal(new FlowRelation(inner.Started[0], RelationKind.BlockedBy, TimeSpan.FromDays(1)), second.Relations[0]);
-
     }
 
     private static async Task<string> PendingPlan(INeuronRuntime runtime, string flowId)
@@ -77,7 +76,7 @@ public sealed class PlanFlowFacts
     public async Task MalformedPlanFailsTheFlowCleanly(string plan)
     {
         var goal = "Malformed " + Guid.NewGuid().ToString("N");
-        ScriptedAgent.Replies["Plan this goal as subtasks: " + goal] = plan;
+        ScriptedConversation.Replies["Plan this goal as subtasks: " + goal] = plan;
         await using var fixture = new FlowTypesFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
@@ -89,5 +88,22 @@ public sealed class PlanFlowFacts
         Assert.Equal(FlowStatus.Failed, view.Status);
         Assert.StartsWith("plan:", view.Detail, StringComparison.Ordinal);
         Assert.Contains(await runtime.Signals<FlowDone>(Id(id), Ct), done => done is { Outcome: FlowOutcome.Failed } && done.Detail!.StartsWith("plan:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task FailedConversationRunFailsTheFlowCleanly()
+    {
+        var goal = "Unavailable " + Guid.NewGuid().ToString("N");
+        ScriptedConversation.Replies["Plan this goal as subtasks: " + goal] = ScriptedConversation.Fail;
+        await using var fixture = new FlowTypesFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
+        var flows = Index(runtime);
+
+        var id = await flows.Start(PlanFlow.Alias, "Unavailable", null, JsonSerializer.Serialize(new PlanInner { Goal = goal }, PlanFlow.Json), Ct);
+
+        var view = await Eventually(() => flows.Read(id, Ct), v => v is { Status: FlowStatus.Failed, Detail: not null });
+        Assert.Equal(FlowStatus.Failed, view.Status);
+        Assert.Equal("the model is unavailable", view.Detail);
     }
 }
