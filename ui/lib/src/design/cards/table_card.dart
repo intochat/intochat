@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -178,7 +180,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = widget.data;
     final totalCount = d.rows.length;
     final showQuickFilter =
@@ -220,8 +222,12 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
             overflow: TextOverflow.ellipsis,
             textAlign: col.numeric ? TextAlign.right : TextAlign.left,
             style: head
-                ? IcType.text(11.5, weight: FontWeight.w600, color: c.textMuted)
-                : IcType.text(13, color: c.textStrong, tnum: hasDigits),
+                ? UiType.textStyle(
+                    11.5,
+                    weight: FontWeight.w600,
+                    color: c.textMuted,
+                  )
+                : UiType.textStyle(13, color: c.textStrong, tnum: hasDigits),
           ),
         ),
       );
@@ -233,7 +239,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
         col.label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: IcType.text(
+        style: UiType.textStyle(
           11.5,
           weight: on ? FontWeight.w700 : FontWeight.w600,
           color: on ? c.textStrong : c.textMuted,
@@ -254,7 +260,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                 cursor: SystemMouseCursors.click,
                 child: SelectionRing(
                   on: v.selected,
-                  radius: IcRadius.xs,
+                  radius: UiTokens.of(context).xs,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Row(
@@ -305,7 +311,9 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                           margin: const EdgeInsets.only(right: 16),
                           decoration: BoxDecoration(
                             color: c.surfaceSunk,
-                            borderRadius: BorderRadius.circular(IcRadius.xs),
+                            borderRadius: BorderRadius.circular(
+                              UiTokens.of(context).xs,
+                            ),
                           ),
                         ),
                       ),
@@ -324,7 +332,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
             Expanded(
               child: Text(
                 d.emptyText,
-                style: IcType.text(14, color: c.textBody),
+                style: UiType.textStyle(14, color: c.textBody),
               ),
             ),
           ],
@@ -339,7 +347,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
             Expanded(
               child: Text(
                 d.errorText,
-                style: IcType.text(
+                style: UiType.textStyle(
                   14,
                   weight: FontWeight.w500,
                   color: c.textStrong,
@@ -372,7 +380,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                   Expanded(
                     child: Text(
                       'No rows match "${_filterController.text.trim()}".',
-                      style: IcType.text(13.5, color: c.textBody),
+                      style: UiType.textStyle(13.5, color: c.textBody),
                     ),
                   ),
                   GestureDetector(
@@ -382,7 +390,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                       cursor: SystemMouseCursors.click,
                       child: Text(
                         'Clear filter',
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           13,
                           weight: FontWeight.w600,
                           color: c.accent,
@@ -443,7 +451,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                     ),
                     child: Text(
                       _all ? 'Show fewer' : 'Show all $totalCount',
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         13,
                         weight: FontWeight.w600,
                         color: c.accent,
@@ -495,7 +503,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                     d.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       15,
                       weight: FontWeight.w600,
                       color: c.textStrong,
@@ -505,7 +513,11 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                 if (widget.state == TableState.ready)
                   Text(
                     countLabel,
-                    style: IcType.text(12.5, color: c.textMuted, tnum: true),
+                    style: UiType.textStyle(
+                      12.5,
+                      color: c.textMuted,
+                      tnum: true,
+                    ),
                   ),
               ],
             ),
@@ -515,10 +527,12 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
           ],
           const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(IcRadius.button),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(IcRadius.button),
+                borderRadius: BorderRadius.circular(
+                  UiTokens.of(context).button,
+                ),
                 border: Border.all(color: c.borderHairline),
               ),
               child: body,
@@ -564,7 +578,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
     );
   }
 
-  Widget _buildFilterBox(IcColors c) {
+  Widget _buildFilterBox(UiColors c) {
     final focused = _filterFocus.hasFocus;
     final hasText = _filterController.text.isNotEmpty;
     return Stack(
@@ -579,7 +593,9 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(IcRadius.button + 3),
+                  borderRadius: BorderRadius.circular(
+                    UiTokens.of(context).button + 3,
+                  ),
                   border: Border.all(color: c.ring, width: 3),
                 ),
               ),
@@ -591,7 +607,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.button),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             border: Border.all(color: focused ? c.accent : c.borderInput),
           ),
           child: Row(
@@ -609,11 +625,11 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                     key: const ValueKey('table_quick_filter_input'),
                     controller: _filterController,
                     focusNode: _filterFocus,
-                    style: IcType.text(13, color: c.textStrong),
+                    style: UiType.textStyle(13, color: c.textStrong),
                     cursorColor: c.accent,
                     decoration: InputDecoration.collapsed(
                       hintText: 'Filter rows…',
-                      hintStyle: IcType.text(13, color: c.textSubtle),
+                      hintStyle: UiType.textStyle(13, color: c.textSubtle),
                     ),
                     onChanged: _updateFilter,
                   ),

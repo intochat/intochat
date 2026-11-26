@@ -3,6 +3,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
@@ -74,7 +77,7 @@ class _DiffCardViewState extends State<DiffCardView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final node = widget.node;
     final shortSha = _shortSha(node.headSha);
     final fileWord = node.filesChanged == 1 ? 'file' : 'files';
@@ -83,9 +86,9 @@ class _DiffCardViewState extends State<DiffCardView> {
       key: ValueKey('diffCard:${node.id}'),
       decoration: BoxDecoration(
         color: c.surfaceCard,
-        borderRadius: BorderRadius.circular(IcRadius.card),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).card),
         border: Border.all(color: c.borderHairline),
-        boxShadow: IcShadow.xs(c),
+        boxShadow: UiShadows.xs(c),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -106,7 +109,7 @@ class _DiffCardViewState extends State<DiffCardView> {
                 Icon(LucideIcons.gitPullRequest, size: 15, color: c.accent),
                 Text(
                   node.repo,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     13.5,
                     weight: FontWeight.w600,
                     color: c.textStrong,
@@ -126,7 +129,7 @@ class _DiffCardViewState extends State<DiffCardView> {
                   ),
                 Text(
                   '${node.filesChanged} $fileWord',
-                  style: IcType.text(12, color: c.textMuted, tnum: true),
+                  style: UiType.textStyle(12, color: c.textMuted, tnum: true),
                 ),
                 _DiffStatChip(
                   additions: node.additions,
@@ -158,13 +161,13 @@ class _DiffStatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           '+$additions',
-          style: IcType.text(
+          style: UiType.textStyle(
             12,
             weight: FontWeight.w600,
             color: c.done,
@@ -174,7 +177,7 @@ class _DiffStatChip extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           '-$deletions',
-          style: IcType.text(
+          style: UiType.textStyle(
             12,
             weight: FontWeight.w600,
             color: c.error,
@@ -201,7 +204,7 @@ class _DiffFileSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final (badgeLabel, badgeTone) = badge;
 
     return Column(
@@ -322,14 +325,14 @@ class _DiffHunkBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final rows = _parsedLines();
     const codeBase = TextStyle(
       fontFamily: 'JetBrains Mono',
       fontFamilyFallback: ['JetBrainsMono', 'Consolas', 'monospace'],
       fontSize: 12,
       height: 1.45,
-      fontFeatures: IcType.tabular,
+      fontFeatures: UiType.tabular,
     );
 
     return Column(
@@ -353,7 +356,7 @@ class _DiffHunkBlock extends StatelessWidget {
   }
 
   Widget _buildRow(
-    IcColors c,
+    UiColors c,
     TextStyle codeBase,
     ({int? oldNo, int? newNo, String line, _DiffLineKind kind}) row,
   ) {

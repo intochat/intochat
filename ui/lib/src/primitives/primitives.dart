@@ -6,6 +6,7 @@ export 'expander.dart';
 export 'field.dart';
 export 'icon_button.dart';
 export 'info_bar.dart';
+export 'menu.dart';
 export 'nav_bar.dart';
 export 'progress.dart';
 export 'radio.dart';

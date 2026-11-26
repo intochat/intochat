@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../theme/ui_tokens.dart';
+import '../theme/ui_colors.dart';
 import '../generated/node_commands.dart';
 import '../primitives/slider.dart';
 import 'node_context.dart';
@@ -49,7 +49,7 @@ class _SliderViewState extends State<_SliderView> {
     final value = (_dragged ?? props.value ?? widget.node.value ?? props.min)
         .clamp(props.min, max)
         .toDouble();
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Semantics(
       container: true,
       explicitChildNodes: true,

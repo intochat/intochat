@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'ui_colors.dart';
 
-/// Elevation & ambient shadow scale unified across `UiShadows` and `IcShadow`.
+/// Elevation & ambient shadow scale.
 /// Accepts either a base [Color] (single-stop Figma scale) or a [UiColors]
 /// palette (multi-stop key + ambient elevation).
 abstract final class UiShadows {

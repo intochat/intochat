@@ -95,10 +95,6 @@ void main() {
   group('GuestStatusPill widget', () {
     Widget wrap(Widget child, {bool dark = false}) => MaterialApp(
       theme: dark ? UiTheme.dark('warm-paper') : UiTheme.light('warm-paper'),
-      builder: (context, inner) => IcTheme(
-        colors: IcColors.forPreset(IcStylePreset.warmPaper, dark: dark),
-        child: inner!,
-      ),
       home: Scaffold(body: Center(child: child)),
     );
 
@@ -168,10 +164,6 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             theme: UiTheme.light('warm-paper'),
-            builder: (context, child) => IcTheme(
-              colors: IcColors.forPreset(IcStylePreset.warmPaper, dark: false),
-              child: child!,
-            ),
             home: Scaffold(
               body: DownloadAppModal(
                 onClose: () => closed = true,
@@ -240,10 +232,6 @@ void main() {
     }) {
       return MaterialApp(
         theme: UiTheme.light('warm-paper'),
-        builder: (context, child) => IcTheme(
-          colors: IcColors.forPreset(IcStylePreset.warmPaper, dark: false),
-          child: child!,
-        ),
         home: Scaffold(
           body: LiveDesktopShell(
             knowsApp: (app) => app == 'ino',

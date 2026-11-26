@@ -8,6 +8,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
 import '../design/keys.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
 import '../nodes/button.dart';
 import '../nodes/empty_state.dart';
@@ -160,8 +163,8 @@ class _ConversationViewState extends State<ConversationView> {
       if (_scrollController.offset <= 64) {
         _scrollController.animateTo(
           0,
-          duration: IcMotion.fast,
-          curve: IcMotion.ease,
+          duration: UiTokens.of(context).fast,
+          curve: UiTokens.of(context).ease,
         );
       }
     }
@@ -472,7 +475,7 @@ class _ConversationViewState extends State<ConversationView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final messages = widget.node.messages;
     final error = widget.node.error;
     final empty = widget.node.empty;
@@ -610,7 +613,7 @@ class _ConversationViewState extends State<ConversationView> {
     return true;
   }
 
-  Widget _buildBottomDock(BuildContext context, IcColors c, Node? waiting) {
+  Widget _buildBottomDock(BuildContext context, UiColors c, Node? waiting) {
     final stop = widget.node.stop;
     final composer = widget.node.composer;
     final focused = _composerFocus.hasFocus;
@@ -672,18 +675,20 @@ class _ConversationViewState extends State<ConversationView> {
                         onTap: _activateStop,
                       ),
                     AnimatedContainer(
-                      duration: IcMotion.fast,
+                      duration: UiTokens.of(context).fast,
                       padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
                       decoration: BoxDecoration(
                         color: c.surfaceCard,
-                        borderRadius: BorderRadius.circular(IcRadius.panel),
+                        borderRadius: BorderRadius.circular(
+                          UiTokens.of(context).panel,
+                        ),
                         border: Border.all(
                           color: focused ? c.accent : c.borderInput,
                         ),
                         boxShadow: [
                           if (focused)
                             BoxShadow(color: c.ring, spreadRadius: 3),
-                          ...IcShadow.sm(c),
+                          ...UiShadows.sm(c),
                         ],
                       ),
                       child: Row(
@@ -701,7 +706,7 @@ class _ConversationViewState extends State<ConversationView> {
                                 maxLines: 6,
                                 keyboardType: TextInputType.multiline,
                                 textInputAction: TextInputAction.newline,
-                                style: IcType.text(
+                                style: UiType.textStyle(
                                   14,
                                   color: c.textStrong,
                                   height: 1.45,
@@ -717,7 +722,7 @@ class _ConversationViewState extends State<ConversationView> {
                                     vertical: 7,
                                   ),
                                   hintText: composer.placeholder,
-                                  hintStyle: IcType.text(
+                                  hintStyle: UiType.textStyle(
                                     14,
                                     color: c.textSubtle,
                                     height: 1.45,
@@ -795,7 +800,7 @@ class _UserMessageItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final sending =
         parseMessageStatus(message.status) == WireMessageStatus.sending;
     final bubbleBg = c.bubbleMine;
@@ -825,16 +830,24 @@ class _UserMessageItem extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: bubbleBg,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(IcRadius.bubble),
-                          topRight: Radius.circular(IcRadius.bubble),
-                          bottomLeft: Radius.circular(IcRadius.bubble),
-                          bottomRight: Radius.circular(6),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(UiTokens.of(context).bubble),
+                          topRight: Radius.circular(
+                            UiTokens.of(context).bubble,
+                          ),
+                          bottomLeft: Radius.circular(
+                            UiTokens.of(context).bubble,
+                          ),
+                          bottomRight: const Radius.circular(6),
                         ),
                       ),
                       child: Text(
                         message.text,
-                        style: IcType.text(14, color: bubbleFg, height: 1.5),
+                        style: UiType.textStyle(
+                          14,
+                          color: bubbleFg,
+                          height: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -875,7 +888,7 @@ class _AssistantMessageItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final text = textOverride ?? message.text;
     final activities = message.activities ?? const <ActivityNode>[];
     final cards = message.cards ?? const <Node>[];
@@ -938,7 +951,7 @@ class _AssistantMessageItem extends StatelessWidget {
                       Flexible(
                         child: GptMarkdown(
                           text,
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             14,
                             color: c.textBody,
                             height: 1.6,
@@ -1026,7 +1039,7 @@ class _ActivityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final status = parseActivityStatus(activity.status);
     final running = status == WireActivityStatus.running;
     final failed = status == WireActivityStatus.failed;
@@ -1046,7 +1059,7 @@ class _ActivityPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(IcRadius.xs),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
         border: Border.all(
           color: (brandSpec != null && !failed && !running)
               ? (brandSpec.accent ?? c.accent).withValues(alpha: 0.28)
@@ -1075,7 +1088,7 @@ class _ActivityPill extends StatelessWidget {
               primaryLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(
+              style: UiType.textStyle(
                 12,
                 weight: brandSpec != null ? FontWeight.w600 : FontWeight.w500,
                 color: (brandSpec != null && !failed) ? c.textStrong : fg,
@@ -1089,7 +1102,7 @@ class _ActivityPill extends StatelessWidget {
                 '· $secondaryDetail',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(12, weight: FontWeight.w500, color: fg),
+                style: UiType.textStyle(12, weight: FontWeight.w500, color: fg),
               ),
             ),
           ],
@@ -1116,7 +1129,7 @@ class _StopHintBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: MouseRegion(
@@ -1127,7 +1140,7 @@ class _StopHintBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: c.surfaceCard,
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
               border: Border.all(color: c.borderHairline),
             ),
             child: Row(
@@ -1139,7 +1152,7 @@ class _StopHintBar extends StatelessWidget {
                     label.isEmpty ? 'Working…' : label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       13,
                       weight: FontWeight.w600,
                       color: c.textStrong,
@@ -1149,7 +1162,7 @@ class _StopHintBar extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   'Esc to stop',
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12.5,
                     weight: FontWeight.w600,
                     color: c.textMuted,
@@ -1216,7 +1229,7 @@ class _VoiceModeIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Semantics(
       container: true,
       button: true,
@@ -1229,12 +1242,14 @@ class _VoiceModeIconButton extends StatelessWidget {
           child: GestureDetector(
             onTap: enabled ? onTap : null,
             child: AnimatedContainer(
-              duration: IcMotion.fast,
+              duration: UiTokens.of(context).fast,
               width: 34,
               height: 34,
               decoration: BoxDecoration(
                 color: c.surfaceSunk,
-                borderRadius: BorderRadius.circular(IcRadius.button),
+                borderRadius: BorderRadius.circular(
+                  UiTokens.of(context).button,
+                ),
                 border: Border.all(color: c.borderHairline),
               ),
               child: Center(
@@ -1266,7 +1281,7 @@ class _SendIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     // Its own node: without one, the button role, label and disabled state merge
     // into the enclosing node and mark the whole thread a disabled button.
     return Semantics(
@@ -1279,12 +1294,12 @@ class _SendIconButton extends StatelessWidget {
         child: GestureDetector(
           onTap: enabled ? onTap : null,
           child: AnimatedContainer(
-            duration: IcMotion.fast,
+            duration: UiTokens.of(context).fast,
             width: 34,
             height: 34,
             decoration: BoxDecoration(
               color: enabled ? c.accent : c.surfaceSunk,
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             ),
             child: Center(
               child: busy

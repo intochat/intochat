@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../composition/value_nodes/view_menu.dart';
 import '../primitives/icon_button.dart';
+import '../primitives/menu.dart';
 import '../primitives/style.dart';
 import '../theme/ui_icon.dart';
 import 'button.dart';
@@ -37,7 +37,7 @@ Widget renderIconButton(IconButtonNode node, NodeContext ctx) => !node.visible
                   style: structuredStyle,
                   onPressed: onPressed,
                 )
-              : ViewIconButton(
+              : UiGhostIconButton(
                   key: ValueKey('iconButton:${node.key}'),
                   icon: iconData,
                   label: node.tooltip,

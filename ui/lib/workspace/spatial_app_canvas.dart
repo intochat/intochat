@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -246,7 +246,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -344,7 +344,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
     String winId,
     DesktopWindowState w,
     Size viewportSize,
-    IcColors c,
+    UiColors c,
   ) {
     final isFocused = widget.topWindowId == winId;
     final worldRect = w.bounds;
@@ -370,7 +370,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
           decoration: BoxDecoration(
             color: c.surfaceCard.withValues(alpha: c.isGlass ? 0.88 : 0.98),
             borderRadius: BorderRadius.circular(
-              IcRadius.card * _zoom.clamp(0.6, 1.0),
+              UiTokens.of(context).card * _zoom.clamp(0.6, 1.0),
             ),
             border: Border.all(
               color: w.isPinned
@@ -378,7 +378,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
                   : (isFocused ? c.borderInput : c.borderHairline),
               width: w.isPinned || isFocused ? 2.0 : 1.0,
             ),
-            boxShadow: isFocused ? IcShadow.lg(c) : IcShadow.md(c),
+            boxShadow: isFocused ? UiShadows.lg(c) : UiShadows.md(c),
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -469,7 +469,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
     );
   }
 
-  Widget _buildLODPreview(DesktopWindowState w, IcColors c) {
+  Widget _buildLODPreview(DesktopWindowState w, UiColors c) {
     return Container(
       color: c.surfacePage.withValues(alpha: 0.6),
       alignment: Alignment.center,
@@ -480,7 +480,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
           const SizedBox(height: 8),
           Text(
             w.title,
-            style: IcType.text(
+            style: UiType.textStyle(
               14,
               weight: FontWeight.w700,
               color: c.textStrong,
@@ -496,11 +496,11 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
     );
   }
 
-  Widget _buildCanvasControlsPill(IcColors c, Size viewportSize) {
-    return IcAcrylicBox(
+  Widget _buildCanvasControlsPill(UiColors c, Size viewportSize) {
+    return UiAcrylicSurface(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      borderRadius: BorderRadius.circular(IcRadius.pill),
-      shadows: IcShadow.md(c),
+      borderRadius: BorderRadius.circular(UiTokens.of(context).pill),
+      shadows: UiShadows.md(c),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -536,7 +536,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
                   '${(_zoom * 100).round()}%',
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     11.5,
                     weight: FontWeight.w600,
                     color: c.textStrong,
@@ -587,7 +587,7 @@ class _HudIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Tooltip(
       message: tooltip,
       child: MouseRegion(
@@ -600,7 +600,7 @@ class _HudIconButton extends StatelessWidget {
             height: 26,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             ),
             child: Icon(icon, size: 14, color: c.textBody),
           ),
@@ -798,7 +798,7 @@ class _SectorLabelsPainter extends CustomPainter {
   final Offset cameraOffset;
   final double zoom;
   final Size viewportSize;
-  final IcColors colors;
+  final UiColors colors;
 
   @override
   void paint(Canvas canvas, Size size) {

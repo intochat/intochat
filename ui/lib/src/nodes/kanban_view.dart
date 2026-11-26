@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
 import '../generated/node_commands.dart';
 import '../theme/ui_icon.dart';
@@ -45,12 +46,12 @@ Widget renderKanbanView(KanbanViewNode node, NodeContext ctx) {
     enabled: enabled,
     child: Builder(
       builder: (context) {
-        final c = IcTheme.of(context);
+        final c = UiColors.of(context);
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).card),
             border: Border.all(color: c.borderHairline),
           ),
           child: Column(
@@ -135,7 +136,7 @@ class _Column extends StatelessWidget {
 
   final KanbanColumnItem column;
   final List<KanbanCardItem> cards;
-  final IcColors colors;
+  final UiColors colors;
   final bool enabled;
   // The move a dropped card makes into this column, or null when it makes none.
   final void Function()? Function(String cardId) accept;
@@ -160,7 +161,7 @@ class _Column extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: hovering ? colors.accentTint : colors.surfaceSunk,
-              borderRadius: BorderRadius.circular(IcRadius.sm),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
               border: Border.all(
                 color: hovering ? colors.accent : colors.borderHairline,
               ),
@@ -232,7 +233,7 @@ class _Card extends StatelessWidget {
 
   final KanbanCardItem card;
   final bool isSelected;
-  final IcColors colors;
+  final UiColors colors;
   final bool enabled;
   final VoidCallback? onSelect;
   final VoidCallback? onLeft;
@@ -249,14 +250,14 @@ class _Card extends StatelessWidget {
       selected: isSelected,
       child: Material(
         color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(IcRadius.xs),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
         child: InkWell(
-          borderRadius: BorderRadius.circular(IcRadius.xs),
+          borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
           onTap: onSelect,
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(IcRadius.xs),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
               border: Border.all(
                 color: isSelected ? colors.accent : colors.borderHairline,
               ),
@@ -348,7 +349,7 @@ class _Card extends StatelessWidget {
       data: card.id,
       feedback: Material(
         elevation: 6,
-        borderRadius: BorderRadius.circular(IcRadius.xs),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
         child: SizedBox(width: 200, child: tile),
       ),
       childWhenDragging: Opacity(opacity: 0.4, child: tile),
@@ -368,7 +369,7 @@ class _Arrow extends StatelessWidget {
 
   final IconData icon;
   final String tooltip;
-  final IcColors colors;
+  final UiColors colors;
   final VoidCallback onPressed;
 
   @override

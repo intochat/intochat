@@ -3,6 +3,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
+import '../../theme/ui_shadows.dart';
 import '../../theme/ui_tokens.dart';
 
 /// The app a card comes from, shown small at the top of the card.
@@ -39,18 +42,18 @@ class CardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final focused = PromptKeys.maybeOf(context)?.focused ?? false;
     final docked = PromptScope.maybeOf(context)?.docked ?? false;
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: docked ? double.infinity : width),
       child: AnimatedContainer(
-        duration: IcMotion.fast,
+        duration: UiTokens.of(context).fast,
         padding: EdgeInsets.all(focused ? 17.5 : 18),
         decoration: BoxDecoration(
           color: c.surfaceCard,
           borderRadius: BorderRadius.circular(
-            docked ? IcRadius.panel : IcRadius.card,
+            docked ? UiTokens.of(context).panel : UiTokens.of(context).card,
           ),
           border: Border.all(
             color: focused
@@ -60,7 +63,7 @@ class CardShell extends StatelessWidget {
           ),
           boxShadow: [
             if (focused) BoxShadow(color: c.ring, spreadRadius: docked ? 3 : 2),
-            ...(docked ? IcShadow.lg(c) : IcShadow.sm(c)),
+            ...(docked ? UiShadows.lg(c) : UiShadows.sm(c)),
           ],
         ),
         child: Column(
@@ -77,7 +80,7 @@ class CardShell extends StatelessWidget {
                       source.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         12,
                         weight: FontWeight.w600,
                         color: c.textMuted,
@@ -120,7 +123,7 @@ class CardChip extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
       color: bg,
-      borderRadius: BorderRadius.circular(IcRadius.pill),
+      borderRadius: BorderRadius.circular(UiTokens.of(context).pill),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -128,7 +131,7 @@ class CardChip extends StatelessWidget {
         if (icon != null) ...[icon!, const SizedBox(width: 5)],
         Text(
           label,
-          style: IcType.text(12, weight: FontWeight.w600, color: fg),
+          style: UiType.textStyle(12, weight: FontWeight.w600, color: fg),
         ),
       ],
     ),
@@ -168,7 +171,7 @@ class _CardResultState extends State<CardResult> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final (icon, fg, bg) = switch (widget.tone) {
       ResultTone.done => (LucideIcons.check, c.done, c.doneBg),
       ResultTone.rejected => (LucideIcons.x, c.textMuted, c.surfaceSunk),
@@ -190,7 +193,7 @@ class _CardResultState extends State<CardResult> {
             onActivate: canOpen ? () => setState(() => _open = !_open) : null,
             builder: (context, v) => SelectionRing(
               on: v.selected,
-              radius: IcRadius.input,
+              radius: UiTokens.of(context).input,
               child: MouseRegion(
                 cursor: canOpen ? SystemMouseCursors.click : MouseCursor.defer,
                 onEnter: (_) => setState(() => _hover = true),
@@ -198,14 +201,16 @@ class _CardResultState extends State<CardResult> {
                 child: GestureDetector(
                   onTap: canOpen ? () => setState(() => _open = !_open) : null,
                   child: AnimatedContainer(
-                    duration: IcMotion.fast,
+                    duration: UiTokens.of(context).fast,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
                       color: c.surfaceCard,
-                      borderRadius: BorderRadius.circular(IcRadius.input),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).input,
+                      ),
                       border: Border.all(
                         color: _hover && canOpen
                             ? c.borderInput
@@ -230,7 +235,7 @@ class _CardResultState extends State<CardResult> {
                               children: [
                                 TextSpan(
                                   text: widget.text,
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     13,
                                     weight: FontWeight.w600,
                                     color: c.textStrong,
@@ -239,7 +244,10 @@ class _CardResultState extends State<CardResult> {
                                 if (widget.detail != null)
                                   TextSpan(
                                     text: '  ·  ${widget.detail}',
-                                    style: IcType.text(13, color: c.textMuted),
+                                    style: UiType.textStyle(
+                                      13,
+                                      color: c.textMuted,
+                                    ),
                                   ),
                               ],
                             ),
@@ -288,7 +296,7 @@ class CardWorking extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Row(
       children: [
         WorkingSpinner(size: 15, color: c.textStrong),
@@ -296,7 +304,11 @@ class CardWorking extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: IcType.text(13, weight: FontWeight.w500, color: c.textBody),
+            style: UiType.textStyle(
+              13,
+              weight: FontWeight.w500,
+              color: c.textBody,
+            ),
           ),
         ),
       ],
@@ -319,12 +331,12 @@ class CardError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: c.errorBg,
-        borderRadius: BorderRadius.circular(IcRadius.button),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).button),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,7 +349,7 @@ class CardError extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: IcType.text(13, color: c.textBody, height: 1.45),
+              style: UiType.textStyle(13, color: c.textBody, height: 1.45),
             ),
           ),
           if (onRetry != null) ...[
@@ -376,13 +388,13 @@ class _SkeletonState extends State<Skeleton>
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final box = Container(
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
         color: c.surfaceSunk,
-        borderRadius: BorderRadius.circular(IcRadius.xs),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
       ),
     );
     if (MediaQuery.disableAnimationsOf(context)) return box;

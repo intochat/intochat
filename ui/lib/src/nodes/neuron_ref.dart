@@ -177,7 +177,7 @@ class _EmbedSkeletonState extends State<EmbedSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: IcMotion.skeleton,
+    duration: UiTokens.defaults.skeleton,
   );
 
   bool get _isTestBinding =>

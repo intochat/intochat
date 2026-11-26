@@ -9,6 +9,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart'
     show PresenceState;
 
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import '../ino/ino_orb_v2.dart';
 import 'audio_out.dart';
@@ -230,7 +232,7 @@ class _VoiceModeViewState extends State<VoiceModeView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
 
     return CallbackShortcuts(
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
@@ -325,7 +327,7 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                                             _phase == TalkPhase.listening
                                         ? 'Hold orb to speak'
                                         : _phaseLabel),
-                              style: IcType.text(
+                              style: UiType.textStyle(
                                 15,
                                 weight: FontWeight.w600,
                                 color: _error != null ? c.error : c.textStrong,
@@ -341,7 +343,7 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                                 decoration: BoxDecoration(
                                   color: c.errorBg,
                                   borderRadius: BorderRadius.circular(
-                                    IcRadius.panel,
+                                    UiTokens.of(context).panel,
                                   ),
                                   border: Border.all(
                                     color: c.error.withValues(alpha: 0.3),
@@ -350,7 +352,7 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                                 child: Text(
                                   error,
                                   textAlign: TextAlign.center,
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     14,
                                     color: c.error,
                                     height: 1.45,
@@ -362,7 +364,7 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                                 Text(
                                   _heard,
                                   textAlign: TextAlign.center,
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     14,
                                     color: c.textMuted,
                                     height: 1.5,
@@ -374,7 +376,7 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                                 Text(
                                   _reply,
                                   textAlign: TextAlign.center,
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     16,
                                     weight: FontWeight.w500,
                                     color: c.textStrong,
@@ -385,7 +387,10 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                                 Text(
                                   'Tap the orb to interrupt',
                                   textAlign: TextAlign.center,
-                                  style: IcType.text(13, color: c.textSubtle),
+                                  style: UiType.textStyle(
+                                    13,
+                                    color: c.textSubtle,
+                                  ),
                                 ),
                             ],
                           ],

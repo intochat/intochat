@@ -88,29 +88,27 @@ Widget _buildShellHarness({
         setSeeds: (_) {},
         resetSeeds: () {},
         child: MaterialApp(
+          theme: UiTheme.light('warm-paper'),
           home: Scaffold(
-            body: IcTheme(
-              colors: IcColors.forPreset(IcStylePreset.warmPaper, dark: false),
-              child: LiveDesktopShell(
-                brain: 'test-brain',
-                name: 'test-brain/apps/desktop/view',
-                load: (kind, name) async {
-                  if (name.endsWith('/apps/desktop/view')) {
-                    return _fakeDesktopView();
-                  }
-                  return _fakeWindowView();
-                },
-                watch: null,
-                onAction: (_) async => const <String, dynamic>{},
-                onActivate: (_) {},
-                stylePreset: IcStylePreset.warmPaper,
-                barLayout: BarLayout.floatingGlass,
-                paletteOpen: false,
-                onTogglePalette: () {},
-                onSelectPreset: (_) {},
-                onCycleBarLayout: () {},
-                knowsApp: (_) => true,
-              ),
+            body: LiveDesktopShell(
+              brain: 'test-brain',
+              name: 'test-brain/apps/desktop/view',
+              load: (kind, name) async {
+                if (name.endsWith('/apps/desktop/view')) {
+                  return _fakeDesktopView();
+                }
+                return _fakeWindowView();
+              },
+              watch: null,
+              onAction: (_) async => const <String, dynamic>{},
+              onActivate: (_) {},
+              stylePreset: IcStylePreset.warmPaper,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+              knowsApp: (_) => true,
             ),
           ),
         ),

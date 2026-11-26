@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../theme/ui_tokens.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
 import 'node_context.dart';
 
 /// Threshold at or above which [renderCollection] switches to a virtualized
@@ -12,12 +13,12 @@ Widget renderCollection(CollectionNode node, NodeContext ctx) {
   if (node.entries.isEmpty) {
     return Builder(
       builder: (context) {
-        final c = IcTheme.of(context);
+        final c = UiColors.of(context);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(
             'Nothing here yet.',
-            style: IcType.text(13.5, color: c.textMuted),
+            style: UiType.textStyle(13.5, color: c.textMuted),
           ),
         );
       },
@@ -27,7 +28,7 @@ Widget renderCollection(CollectionNode node, NodeContext ctx) {
   if (node.entries.length < kVirtualizedCollectionThreshold) {
     return Builder(
       builder: (context) {
-        final c = IcTheme.of(context);
+        final c = UiColors.of(context);
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -46,7 +47,7 @@ Widget renderCollection(CollectionNode node, NodeContext ctx) {
 
   return LayoutBuilder(
     builder: (context, constraints) {
-      final c = IcTheme.of(context);
+      final c = UiColors.of(context);
       final list = ListView.builder(
         key: const ValueKey('virtualized_collection_list'),
         primary: false,
@@ -76,7 +77,7 @@ class _CollectionRow extends StatelessWidget {
   });
 
   final Entry entry;
-  final IcColors colors;
+  final UiColors colors;
   final bool showDivider;
 
   @override
@@ -101,7 +102,7 @@ class _CollectionRow extends StatelessWidget {
                 children: [
                   Text(
                     entry.title,
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       13.5,
                       weight: FontWeight.w500,
                       color: colors.textStrong,
@@ -111,7 +112,7 @@ class _CollectionRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: IcType.text(12.5, color: colors.textMuted),
+                      style: UiType.textStyle(12.5, color: colors.textMuted),
                     ),
                   ],
                 ],
@@ -121,7 +122,11 @@ class _CollectionRow extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 trailing,
-                style: IcType.text(12.5, color: colors.textMuted, tnum: true),
+                style: UiType.textStyle(
+                  12.5,
+                  color: colors.textMuted,
+                  tnum: true,
+                ),
               ),
             ],
           ],

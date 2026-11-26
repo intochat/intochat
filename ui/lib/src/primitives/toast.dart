@@ -24,7 +24,7 @@ enum UiTone {
       : neutral;
 }
 
-/// How long a kit toast stays up; matches ViewToast.
+/// Default display lifetime for a kit toast.
 const kitToastLifetime = Duration(seconds: 4);
 
 OverlayEntry? _current;

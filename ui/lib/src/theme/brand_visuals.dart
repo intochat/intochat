@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'ui_tokens.dart';
+import 'ui_colors.dart';
+import 'ui_theme.dart';
 
 /// Immutable allowlisted visual descriptor bound from C# `VisualCatalog` node fields.
 ///
@@ -187,7 +188,7 @@ class IcBrandIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     if (spec.pngAsset != null) {
       return SizedBox(
         width: size,
@@ -205,7 +206,7 @@ class IcBrandIcon extends StatelessWidget {
     return _buildSvgOrFallback(c);
   }
 
-  Widget _buildSvgOrFallback(IcColors c) {
+  Widget _buildSvgOrFallback(UiColors c) {
     if (spec.svgAsset != null) {
       return SizedBox(
         width: size,
@@ -242,7 +243,7 @@ class IcBrandChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final label = labelOverride ?? spec.label;
     final tint = spec.accent ?? c.accent;
 
@@ -271,7 +272,7 @@ class IcBrandChip extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(
+              style: UiType.textStyle(
                 compact ? 10.5 : 11,
                 weight: FontWeight.w600,
                 color: c.textStrong,

@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -96,7 +98,7 @@ class DraftCard extends StatefulWidget {
 class _DraftCardState extends State<DraftCard> {
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = widget.data;
     final what = '${d.channel.noun} to ${d.to}';
     switch (widget.state) {
@@ -132,7 +134,7 @@ class _DraftCardState extends State<DraftCard> {
   static String _firstLine(String s) =>
       s.split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => s);
 
-  Widget _body(IcColors c, {required bool readOnly}) {
+  Widget _body(UiColors c, {required bool readOnly}) {
     final d = widget.data;
     final pending = widget.state == DraftState.pending;
     final ro = readOnly || !(pending || widget.state == DraftState.error);
@@ -161,7 +163,7 @@ class _DraftCardState extends State<DraftCard> {
               const SizedBox(width: 8),
               Text(
                 '${d.channel.noun} draft',
-                style: IcType.text(
+                style: UiType.textStyle(
                   15,
                   weight: FontWeight.w600,
                   color: c.textStrong,
@@ -171,7 +173,7 @@ class _DraftCardState extends State<DraftCard> {
               if (d.language != null)
                 Text(
                   d.language!,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12,
                     weight: FontWeight.w600,
                     color: c.textMuted,
@@ -183,7 +185,7 @@ class _DraftCardState extends State<DraftCard> {
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: c.borderHairline),
-              borderRadius: BorderRadius.circular(IcRadius.button),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -236,7 +238,7 @@ class _DraftCardState extends State<DraftCard> {
             d.edited
                 ? 'You changed the draft. Sends from ${d.from}.'
                 : 'Select any part to change it. Sends from ${d.from}.',
-            style: IcType.text(12, color: c.textMuted),
+            style: UiType.textStyle(12, color: c.textMuted),
           ),
           const SizedBox(height: 14),
           if (widget.state == DraftState.sending)
@@ -352,8 +354,8 @@ class _LineState extends State<_Line> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    final style = IcType.text(
+    final c = UiColors.of(context);
+    final style = UiType.textStyle(
       widget.multiline ? 14 : 13.5,
       weight: widget.strong ? FontWeight.w600 : FontWeight.w400,
       color: c.textStrong,
@@ -380,7 +382,7 @@ class _LineState extends State<_Line> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: c.surfaceCard,
-                borderRadius: BorderRadius.circular(IcRadius.xs),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
                 border: Border.all(color: c.accent),
                 boxShadow: [BoxShadow(color: c.ring, spreadRadius: 2)],
               ),
@@ -425,7 +427,7 @@ class _LineState extends State<_Line> {
           behavior: HitTestBehavior.opaque,
           onTap: _editing ? null : _start,
           child: AnimatedContainer(
-            duration: IcMotion.fast,
+            duration: UiTokens.of(context).fast,
             padding: EdgeInsets.symmetric(
               horizontal: 12,
               vertical: widget.multiline ? 12 : 9,
@@ -451,7 +453,7 @@ class _LineState extends State<_Line> {
                           padding: EdgeInsets.only(top: _editing ? 7 : 1),
                           child: Text(
                             widget.label!,
-                            style: IcType.text(
+                            style: UiType.textStyle(
                               12.5,
                               weight: FontWeight.w600,
                               color: c.textMuted,

@@ -167,7 +167,7 @@ class GuestStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final ttlLabel = formatGuestRemaining(remaining);
     final statusText = 'Guest Brain · Temp RAM · $ttlLabel';
 
@@ -182,7 +182,7 @@ class GuestStatusPill extends StatelessWidget {
         border: Border.all(
           color: c.isGlass ? c.specularBorder : c.chromeBorder,
         ),
-        boxShadow: IcShadow.md(c),
+        boxShadow: UiShadows.md(c),
       ),
       child: Wrap(
         alignment: WrapAlignment.center,
@@ -209,7 +209,7 @@ class GuestStatusPill extends StatelessWidget {
                   statusText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12,
                     weight: FontWeight.w600,
                     color: c.textStrong,
@@ -280,7 +280,7 @@ class _PillActionButtonState extends State<_PillActionButton> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final bg = widget.primary
         ? (_hover ? c.accentHover : c.accent)
         : (_hover ? c.barHoverOverlay : c.surfaceSunk);
@@ -299,18 +299,18 @@ class _PillActionButtonState extends State<_PillActionButton> {
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
           child: AnimatedContainer(
-            duration: IcMotion.fast,
+            duration: UiTokens.of(context).fast,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(IcRadius.pill),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).pill),
               border: widget.primary
                   ? null
                   : Border.all(color: c.borderHairline),
             ),
             child: Text(
               widget.label,
-              style: IcType.text(11.5, weight: FontWeight.w600, color: fg),
+              style: UiType.textStyle(11.5, weight: FontWeight.w600, color: fg),
             ),
           ),
         ),
@@ -362,7 +362,7 @@ class _DownloadAppModalState extends State<DownloadAppModal> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final detectedId = _detectedPlatformId(Theme.of(context).platform);
     final ordered = [...kGuestPlatformDownloads];
     if (detectedId != null) {
@@ -391,15 +391,19 @@ class _DownloadAppModalState extends State<DownloadAppModal> {
                 child: Material(
                   color: c.surfaceCard,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(IcRadius.panel),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).panel,
+                    ),
                     side: BorderSide(color: c.borderHairline),
                   ),
                   elevation: 0,
                   child: Container(
                     decoration: BoxDecoration(
                       color: c.surfaceCard,
-                      borderRadius: BorderRadius.circular(IcRadius.panel),
-                      boxShadow: IcShadow.xl(c),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).panel,
+                      ),
+                      boxShadow: UiShadows.xl(c),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -414,7 +418,7 @@ class _DownloadAppModalState extends State<DownloadAppModal> {
                                 decoration: BoxDecoration(
                                   color: c.accentTint,
                                   borderRadius: BorderRadius.circular(
-                                    IcRadius.sm,
+                                    UiTokens.of(context).sm,
                                   ),
                                 ),
                                 alignment: Alignment.center,
@@ -431,7 +435,7 @@ class _DownloadAppModalState extends State<DownloadAppModal> {
                                   children: [
                                     Text(
                                       'Download IntoChat OS',
-                                      style: IcType.text(
+                                      style: UiType.textStyle(
                                         16,
                                         weight: FontWeight.w700,
                                         color: c.textStrong,
@@ -440,7 +444,7 @@ class _DownloadAppModalState extends State<DownloadAppModal> {
                                     const SizedBox(height: 2),
                                     Text(
                                       'Native builds for all 5 platforms · Official GitHub Releases',
-                                      style: IcType.text(
+                                      style: UiType.textStyle(
                                         12,
                                         color: c.textMuted,
                                       ),
@@ -497,7 +501,10 @@ class _DownloadAppModalState extends State<DownloadAppModal> {
                               Expanded(
                                 child: Text(
                                   'Want to share this page? Open /download in your browser.',
-                                  style: IcType.text(12, color: c.textMuted),
+                                  style: UiType.textStyle(
+                                    12,
+                                    color: c.textMuted,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -542,7 +549,7 @@ class _PlatformDownloadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
 
     return Container(
       key: ValueKey('download-platform-${platform.id}'),
@@ -550,7 +557,7 @@ class _PlatformDownloadCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: c.surfacePage,
-        borderRadius: BorderRadius.circular(IcRadius.card),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).card),
         border: Border.all(
           color: detected ? c.accent : c.borderHairline,
           width: detected ? 1.5 : 1,
@@ -566,7 +573,7 @@ class _PlatformDownloadCard extends StatelessWidget {
                 height: 30,
                 decoration: BoxDecoration(
                   color: detected ? c.accentTint : c.surfaceSunk,
-                  borderRadius: BorderRadius.circular(IcRadius.xs),
+                  borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
                 ),
                 alignment: Alignment.center,
                 child: Icon(
@@ -582,7 +589,7 @@ class _PlatformDownloadCard extends StatelessWidget {
                   children: [
                     Text(
                       platform.name,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         13.5,
                         weight: FontWeight.w700,
                         color: c.textStrong,
@@ -590,7 +597,7 @@ class _PlatformDownloadCard extends StatelessWidget {
                     ),
                     Text(
                       platform.subtitle,
-                      style: IcType.text(11.5, color: c.textMuted),
+                      style: UiType.textStyle(11.5, color: c.textMuted),
                     ),
                   ],
                 ),
@@ -603,11 +610,13 @@ class _PlatformDownloadCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: c.doneBg,
-                    borderRadius: BorderRadius.circular(IcRadius.pill),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).pill,
+                    ),
                   ),
                   child: Text(
                     'This device',
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       11,
                       weight: FontWeight.w600,
                       color: c.done,
@@ -635,7 +644,7 @@ class _PlatformDownloadCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: c.surfaceSunk,
-                borderRadius: BorderRadius.circular(IcRadius.sm),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
                 border: Border.all(color: c.borderHairline),
               ),
               child: Row(
@@ -646,7 +655,7 @@ class _PlatformDownloadCard extends StatelessWidget {
                       children: [
                         Text(
                           platform.commandLabel ?? 'Install command',
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             10.5,
                             weight: FontWeight.w600,
                             color: c.textMuted,
@@ -655,7 +664,7 @@ class _PlatformDownloadCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         SelectableText(
                           platform.command!,
-                          style: IcType.code(11.5, color: c.textStrong),
+                          style: UiType.codeStyle(11.5, color: c.textStrong),
                         ),
                       ],
                     ),
@@ -678,12 +687,12 @@ class _PlatformDownloadCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: c.workingBg,
-                borderRadius: BorderRadius.circular(IcRadius.sm),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
                 border: Border.all(color: c.borderHairline),
               ),
               child: Text(
                 platform.pwaHint!,
-                style: IcType.text(11.5, color: c.textBody),
+                style: UiType.textStyle(11.5, color: c.textBody),
               ),
             ),
           ],
@@ -708,7 +717,7 @@ class _AssetChipState extends State<_AssetChip> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final bg = widget.asset.primary
         ? (_hover ? c.accentHover : c.accent)
         : (_hover ? c.barHoverOverlay : c.surfaceCard);
@@ -724,11 +733,11 @@ class _AssetChipState extends State<_AssetChip> {
         key: ValueKey('download-asset-${widget.asset.filename}'),
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(IcRadius.sm),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
             border: widget.asset.primary
                 ? null
                 : Border.all(color: c.borderHairline),
@@ -740,12 +749,16 @@ class _AssetChipState extends State<_AssetChip> {
               const SizedBox(width: 6),
               Text(
                 widget.asset.filename,
-                style: IcType.text(11.5, weight: FontWeight.w600, color: fg),
+                style: UiType.textStyle(
+                  11.5,
+                  weight: FontWeight.w600,
+                  color: fg,
+                ),
               ),
               const SizedBox(width: 6),
               Text(
                 widget.asset.label,
-                style: IcType.text(
+                style: UiType.textStyle(
                   10.5,
                   color: fg.withValues(
                     alpha: widget.asset.primary ? 0.85 : 0.7,

@@ -260,6 +260,11 @@ class WorkspaceAppState extends State<WorkspaceApp>
   }
 
   @override
+  void didChangePlatformBrightness() {
+    if (mounted && !_hasCustomThemeSeeds) setState(() {});
+  }
+
+  @override
   Future<bool> didPushRouteInformation(
     RouteInformation routeInformation,
   ) async {
@@ -847,6 +852,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
             PreferenceStore.localTheme,
             preset.substring('theme:'.length),
           );
+          if (mounted && _hasCustomThemeSeeds) {
+            setState(() => _hasCustomThemeSeeds = false);
+          }
         case 'switch':
           await widget.onSwitchAccount?.call();
       }
@@ -857,16 +865,31 @@ class WorkspaceAppState extends State<WorkspaceApp>
     }
   }
 
-  IcStylePreset _currentStylePreset() => switch (store.settings.theme) {
-    'fluent-acrylic' => IcStylePreset.fluentAcrylic,
-    'spatial-glass' => IcStylePreset.spatialGlass,
-    'cyber-synaptic' => IcStylePreset.cyberSynaptic,
-    'warm-paper' || 'intochat' || 'paper' || 'light' => IcStylePreset.warmPaper,
-    'fluent-warm-mica' => IcStylePreset.fluentWarmMica,
-    'linear-carbon' => IcStylePreset.linearCarbon,
-    'nordic-tactical' => IcStylePreset.nordicTactical,
-    _ => IcStylePreset.warmPaper,
-  };
+  IcStylePreset _currentStylePreset() => _hasCustomThemeSeeds
+      ? _themeSeeds.preset
+      : IcStylePreset.fromId(store.settings.theme);
+
+  UiThemeSeeds _resolveActiveSeeds(BuildContext context) {
+    final effectiveTheme = _effectiveTheme;
+    final themeMode = UiTheme.modeFor(effectiveTheme);
+    final platformBrightness =
+        MediaQuery.maybePlatformBrightnessOf(context) ??
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final effectiveBrightness = switch (themeMode) {
+      ThemeMode.dark => Brightness.dark,
+      ThemeMode.light => Brightness.light,
+      ThemeMode.system => platformBrightness,
+    };
+    final baseSeeds = _hasCustomThemeSeeds
+        ? _themeSeeds
+        : UiThemeSeeds.fromStoredTheme(
+            effectiveTheme,
+            brightness: effectiveBrightness,
+          );
+    return store.settings.reducedMotion
+        ? baseSeeds.copyWith(motion: UiMotionMode.reduced)
+        : baseSeeds;
+  }
 
   bool get _isDesktopRoot =>
       _brain != null &&
@@ -908,42 +931,45 @@ class WorkspaceAppState extends State<WorkspaceApp>
     super.dispose();
   }
 
+  UiThemeSeeds? _cachedSeeds;
+  ThemeData? _cachedThemeData;
+
+  ThemeData _themeDataFor(UiThemeSeeds seeds) {
+    if (_cachedSeeds == seeds && _cachedThemeData != null) {
+      return _cachedThemeData!;
+    }
+    _cachedSeeds = seeds;
+    return _cachedThemeData = seeds.toThemeData();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final preset = _currentStylePreset();
-    final effectiveTheme = _effectiveTheme;
+    final activeSeeds = _resolveActiveSeeds(context);
+    final preset = activeSeeds.preset;
+    final themeData = _themeDataFor(activeSeeds);
     return MaterialApp(
       navigatorKey: _navigator,
       debugShowCheckedModeBanner: false,
-      theme: UiTheme.light(effectiveTheme),
-      darkTheme: UiTheme.dark(effectiveTheme),
-      themeMode: UiTheme.modeFor(effectiveTheme),
+      theme: themeData,
+      darkTheme: themeData,
+      themeMode: activeSeeds.brightness == Brightness.dark
+          ? ThemeMode.dark
+          : ThemeMode.light,
       builder: (context, child) {
-        final brightness = Theme.of(context).brightness;
-        final activeSeeds = _hasCustomThemeSeeds
-            ? _themeSeeds
-            : (brightness == Brightness.dark
-                  ? UiThemeSeeds.warmDark
-                  : UiThemeSeeds.warmPaper);
         return UiThemeSeedsController(
           seeds: activeSeeds,
           setSeeds: setThemeSeeds,
           resetSeeds: resetThemeSeeds,
           child: UiSeedThemeScope(
             seeds: activeSeeds,
-            child: IcTheme(
-              colors: IcColors.forPreset(
-                preset,
-                dark: brightness == Brightness.dark,
+            wrapTheme: false,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                disableAnimations:
+                    store.settings.reducedMotion ||
+                    MediaQuery.disableAnimationsOf(context),
               ),
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  disableAnimations:
-                      store.settings.reducedMotion ||
-                      MediaQuery.disableAnimationsOf(context),
-                ),
-                child: child!,
-              ),
+              child: child!,
             ),
           ),
         );

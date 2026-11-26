@@ -1,8 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_menu.dart';
+import 'package:intochat_os_flutter_shell/src/primitives/menu.dart';
 
 Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
   MaterialApp(
@@ -22,7 +22,7 @@ void main() {
       addTearDown(item.dispose);
       await _pump(
         tester,
-        ViewMenu(
+        UiMenu(
           node: const {
             'text': 'More',
             'children': [

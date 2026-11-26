@@ -7,7 +7,6 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 // ignore: depend_on_referenced_packages
 import 'package:widgetbook/widgetbook.dart';
 
-import 'src/widgets/ino/ino_companion_orb.dart';
 import 'src/widgets/ino/ino_orb_v2.dart';
 import 'src/primitives/ui_control_surface.dart';
 
@@ -363,10 +362,6 @@ class _IntoChatWidgetbookAppState extends State<IntoChatWidgetbookApp> {
                 WidgetbookUseCase(
                   name: 'Ino Orb v2 (S10 Flying 3D Lottie Sphere)',
                   builder: (_) => const _InoOrbV2Playground(),
-                ),
-                WidgetbookUseCase(
-                  name: 'Ino Companion Orb (S12c Floating Transparent)',
-                  builder: (_) => const _InoCompanionPlayground(),
                 ),
               ],
             ),
@@ -789,54 +784,6 @@ class _InoOrbV2PlaygroundState extends State<_InoOrbV2Playground> {
           ),
         ),
       ],
-    );
-  }
-}
-
-final class _InoCompanionPlayground extends StatefulWidget {
-  const _InoCompanionPlayground();
-
-  @override
-  State<_InoCompanionPlayground> createState() =>
-      _InoCompanionPlaygroundState();
-}
-
-class _InoCompanionPlaygroundState extends State<_InoCompanionPlayground> {
-  String _status = 'Drag me & tap for quick actions';
-  String _badge = 'S1 · 0.6ms';
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.knobs.object.dropdown<PresenceState>(
-      label: 'Presence State',
-      options: PresenceState.values,
-      initialOption: PresenceState.listening,
-      labelBuilder: (s) => s.name,
-    );
-    final snap = context.knobs.boolean(
-      label: 'Snap To Edge',
-      initialValue: true,
-    );
-
-    return InoCompanionOrb(
-      state: state,
-      snapToEdge: snap,
-      statusLine: _status,
-      routingBadge: _badge,
-      actions: defaultInoCompanionActions(
-        onVoice: () => setState(() {
-          _badge = 'S1 · 0.5ms';
-          _status = 'Listening to voice…';
-        }),
-        onCodebaseTree: () => setState(() {
-          _badge = 'Roslyn Tree';
-          _status = 'Expanded Auth slice (lazy)';
-        }),
-        onLiveNeuron: () => setState(() {
-          _badge = 'Collectible ALC';
-          _status = 'Compiled & hot-loaded neuron';
-        }),
-      ),
     );
   }
 }

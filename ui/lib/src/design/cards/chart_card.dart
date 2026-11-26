@@ -6,6 +6,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
+import '../../theme/ui_shadows.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -147,7 +150,7 @@ class _ChartCardState extends State<ChartCard> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = widget.data;
     final Widget body = switch (widget.state) {
       ChartState.loading => SizedBox(
@@ -180,7 +183,7 @@ class _ChartCardState extends State<ChartCard> {
             Expanded(
               child: Text(
                 d.emptyText,
-                style: IcType.text(14, color: c.textBody),
+                style: UiType.textStyle(14, color: c.textBody),
               ),
             ),
           ],
@@ -195,7 +198,7 @@ class _ChartCardState extends State<ChartCard> {
             Expanded(
               child: Text(
                 d.errorText,
-                style: IcType.text(
+                style: UiType.textStyle(
                   14,
                   weight: FontWeight.w500,
                   color: c.textStrong,
@@ -225,7 +228,7 @@ class _ChartCardState extends State<ChartCard> {
                 ),
                 builder: (context, v) => SelectionRing(
                   on: v.selected,
-                  radius: IcRadius.xs,
+                  radius: UiTokens.of(context).xs,
                   child: _plot(c, d),
                 ),
               ),
@@ -249,14 +252,14 @@ class _ChartCardState extends State<ChartCard> {
             d.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: IcType.text(
+            style: UiType.textStyle(
               15,
               weight: FontWeight.w600,
               color: c.textStrong,
             ),
           ),
           const SizedBox(height: 2),
-          Text(d.from, style: IcType.text(12.5, color: c.textMuted)),
+          Text(d.from, style: UiType.textStyle(12.5, color: c.textMuted)),
           if (d.compares && widget.state == ChartState.ready) ...[
             const SizedBox(height: 10),
             Row(
@@ -268,7 +271,7 @@ class _ChartCardState extends State<ChartCard> {
                 const SizedBox(width: 6),
                 Text(
                   d.seriesName,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     12.5,
                     weight: FontWeight.w600,
                     color: c.textStrong,
@@ -284,7 +287,7 @@ class _ChartCardState extends State<ChartCard> {
                 const SizedBox(width: 6),
                 Text(
                   d.compareName,
-                  style: IcType.text(12.5, color: c.textBody, tnum: true),
+                  style: UiType.textStyle(12.5, color: c.textBody, tnum: true),
                 ),
               ],
             ),
@@ -302,7 +305,7 @@ class _ChartCardState extends State<ChartCard> {
                   onActivate: () => setState(() => _table = !_table),
                   builder: (context, v) => SelectionRing(
                     on: v.selected,
-                    radius: IcRadius.xs,
+                    radius: UiTokens.of(context).xs,
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: GestureDetector(
@@ -325,7 +328,7 @@ class _ChartCardState extends State<ChartCard> {
                               const SizedBox(width: 6),
                               Text(
                                 _table ? 'Show as chart' : 'Show as table',
-                                style: IcType.text(
+                                style: UiType.textStyle(
                                   13,
                                   weight: FontWeight.w600,
                                   color: c.accent,
@@ -373,9 +376,9 @@ class _ChartCardState extends State<ChartCard> {
     );
   }
 
-  Widget _tableView(IcColors c, ChartData d) => Container(
+  Widget _tableView(UiColors c, ChartData d) => Container(
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(IcRadius.button),
+      borderRadius: BorderRadius.circular(UiTokens.of(context).button),
       border: Border.all(color: c.borderHairline),
     ),
     child: Column(
@@ -398,7 +401,7 @@ class _ChartCardState extends State<ChartCard> {
                     child: Text(
                       t,
                       textAlign: TextAlign.right,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         11.5,
                         weight: FontWeight.w600,
                         color: c.textMuted,
@@ -422,7 +425,7 @@ class _ChartCardState extends State<ChartCard> {
                 Expanded(
                   child: Text(
                     p.label,
-                    style: IcType.text(13, color: c.textBody),
+                    style: UiType.textStyle(13, color: c.textBody),
                   ),
                 ),
                 if (d.compares) ...[
@@ -431,7 +434,11 @@ class _ChartCardState extends State<ChartCard> {
                     child: Text(
                       d.full(d.compare![i]),
                       textAlign: TextAlign.right,
-                      style: IcType.text(13, color: c.textBody, tnum: true),
+                      style: UiType.textStyle(
+                        13,
+                        color: c.textBody,
+                        tnum: true,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -441,7 +448,7 @@ class _ChartCardState extends State<ChartCard> {
                   child: Text(
                     d.full(p.value),
                     textAlign: TextAlign.right,
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       13,
                       weight: FontWeight.w600,
                       color: c.textStrong,
@@ -455,7 +462,11 @@ class _ChartCardState extends State<ChartCard> {
                     child: Text(
                       d.change(i) ?? '',
                       textAlign: TextAlign.right,
-                      style: IcType.text(13, color: c.textMuted, tnum: true),
+                      style: UiType.textStyle(
+                        13,
+                        color: c.textMuted,
+                        tnum: true,
+                      ),
                     ),
                   ),
               ],
@@ -465,7 +476,7 @@ class _ChartCardState extends State<ChartCard> {
     ),
   );
 
-  Widget _plot(IcColors c, ChartData d) {
+  Widget _plot(UiColors c, ChartData d) {
     if (_kind == ChartKind.pie) {
       return _piePlot(c, d);
     }
@@ -474,8 +485,8 @@ class _ChartCardState extends State<ChartCard> {
     final maxV = [...pts.map((p) => p.value), ...?cmp].reduce(math.max);
     final ticks = _ticks(maxV);
     final top = ticks.last;
-    final axisStyle = IcType.text(11.5, color: c.textMuted, tnum: true);
-    final labelStyle = IcType.text(
+    final axisStyle = UiType.textStyle(11.5, color: c.textMuted, tnum: true);
+    final labelStyle = UiType.textStyle(
       12,
       weight: FontWeight.w600,
       color: c.textStrong,
@@ -603,7 +614,7 @@ class _ChartCardState extends State<ChartCard> {
                       child: Text(
                         d.compareName,
                         textAlign: TextAlign.right,
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           11.5,
                           weight: FontWeight.w500,
                           color: c.textMuted,
@@ -633,9 +644,11 @@ class _ChartCardState extends State<ChartCard> {
                           ),
                           decoration: BoxDecoration(
                             color: c.surfaceCard,
-                            borderRadius: BorderRadius.circular(IcRadius.sm),
+                            borderRadius: BorderRadius.circular(
+                              UiTokens.of(context).sm,
+                            ),
                             border: Border.all(color: c.borderInput),
-                            boxShadow: IcShadow.sm(c),
+                            boxShadow: UiShadows.sm(c),
                           ),
                           child: cmp == null
                               ? Column(
@@ -643,7 +656,7 @@ class _ChartCardState extends State<ChartCard> {
                                   children: [
                                     Text(
                                       pts[hi].label,
-                                      style: IcType.text(
+                                      style: UiType.textStyle(
                                         11.5,
                                         color: c.textMuted,
                                       ),
@@ -661,7 +674,7 @@ class _ChartCardState extends State<ChartCard> {
                                   children: [
                                     Text(
                                       pts[hi].label,
-                                      style: IcType.text(
+                                      style: UiType.textStyle(
                                         11.5,
                                         color: c.textMuted,
                                       ),
@@ -680,7 +693,7 @@ class _ChartCardState extends State<ChartCard> {
                                               name,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: IcType.text(
+                                              style: UiType.textStyle(
                                                 12,
                                                 color: c.textBody,
                                                 tnum: true,
@@ -697,7 +710,7 @@ class _ChartCardState extends State<ChartCard> {
                                         ch == 'same'
                                             ? 'Same as ${d.compareName}'
                                             : '$ch on ${d.compareName}',
-                                        style: IcType.text(
+                                        style: UiType.textStyle(
                                           11.5,
                                           color: c.textMuted,
                                           tnum: true,
@@ -718,7 +731,7 @@ class _ChartCardState extends State<ChartCard> {
     );
   }
 
-  Widget _piePlot(IcColors c, ChartData d) {
+  Widget _piePlot(UiColors c, ChartData d) {
     final pts = d.points;
     final total = pts.fold<double>(0, (sum, p) => sum + p.value.abs());
     final shades = <Color>[
@@ -821,7 +834,7 @@ class _ChartCardState extends State<ChartCard> {
                                     p.label,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: IcType.text(
+                                    style: UiType.textStyle(
                                       13,
                                       weight: hi == i
                                           ? FontWeight.w600
@@ -835,7 +848,7 @@ class _ChartCardState extends State<ChartCard> {
                                   total <= 0
                                       ? '0%'
                                       : '${((p.value.abs() / total) * 100).round()}%',
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     12.5,
                                     color: c.textMuted,
                                     tnum: true,
@@ -844,7 +857,7 @@ class _ChartCardState extends State<ChartCard> {
                                 const SizedBox(width: 10),
                                 Text(
                                   d.full(p.value),
-                                  style: IcType.text(
+                                  style: UiType.textStyle(
                                     13,
                                     weight: FontWeight.w600,
                                     color: c.textStrong,
@@ -875,9 +888,11 @@ class _ChartCardState extends State<ChartCard> {
                   ),
                   decoration: BoxDecoration(
                     color: c.surfaceCard,
-                    borderRadius: BorderRadius.circular(IcRadius.sm),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).sm,
+                    ),
                     border: Border.all(color: c.borderInput),
-                    boxShadow: IcShadow.sm(c),
+                    boxShadow: UiShadows.sm(c),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -885,11 +900,11 @@ class _ChartCardState extends State<ChartCard> {
                     children: [
                       Text(
                         pts[hi].label,
-                        style: IcType.text(11.5, color: c.textMuted),
+                        style: UiType.textStyle(11.5, color: c.textMuted),
                       ),
                       Text(
                         '${d.full(pts[hi].value)} (${total <= 0 ? 0 : ((pts[hi].value.abs() / total) * 100).round()}%)',
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           12,
                           weight: FontWeight.w600,
                           color: c.textStrong,

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -155,7 +155,7 @@ void main() {
           theme: ThemeData(
             useMaterial3: true,
             extensions: [
-              IcColors.forPreset(IcStylePreset.warmPaper, dark: false),
+              UiColors.forPreset(IcStylePreset.warmPaper, dark: false),
             ],
           ),
           home: Scaffold(

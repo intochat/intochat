@@ -70,14 +70,14 @@ String wcagContrastGrade(double ratio) {
   return 'Fail';
 }
 
-/// Canonical `mix` 2.4.0 design tokens populated by [UiThemeSeeds.toMixTokens]
-/// and provided via [MixScope].
+/// Canonical `mix` 2.4.0 design tokens populated by [UiThemeSeeds.toMixTokens],
+/// provided via [MixScope], and consumed by [UiStyleMapper] and Mix primitives.
 abstract final class UiMixTokens {
   // Colour tokens
   static const accent = ColorToken('ui.color.accent');
   static const accentHover = ColorToken('ui.color.accentHover');
   static const accentTint = ColorToken('ui.color.accentTint');
-  static const accentBorder = ColorToken('ui.color.accentBorder');
+  static const accentCopy = ColorToken('ui.color.accentCopy');
   static const onAccent = ColorToken('ui.color.onAccent');
   static const focus = ColorToken('ui.color.focus');
 
@@ -88,12 +88,7 @@ abstract final class UiMixTokens {
 
   static const strong = ColorToken('ui.color.strong');
   static const body = ColorToken('ui.color.body');
-  static const muted = ColorToken('ui.color.muted');
-  static const subtle = ColorToken('ui.color.subtle');
-
   static const hairline = ColorToken('ui.color.hairline');
-  static const borderStrong = ColorToken('ui.color.borderStrong');
-  static const inputBorder = ColorToken('ui.color.inputBorder');
 
   static const done = ColorToken('ui.color.done');
   static const working = ColorToken('ui.color.working');
@@ -114,33 +109,99 @@ abstract final class UiMixTokens {
   static const fastDuration = DurationToken('ui.motion.fast');
   static const baseDuration = DurationToken('ui.motion.base');
   static const slowDuration = DurationToken('ui.motion.slow');
+
+  /// Resolves [token] from the enclosing [MixScope], falling back cleanly to
+  /// [fallback] when rendered outside a [MixScope] (e.g., isolated widget tests).
+  static T resolveOr<T>(BuildContext context, MixToken<T> token, T fallback) {
+    final scope = MixScope.maybeOf(context, 'tokens');
+    if (scope == null || scope.tokens?[token] == null) return fallback;
+    return scope.getToken(token, context);
+  }
 }
 
-/// Fluent XAML Theme Editor–inspired seed-to-ramp theme definition.
+/// Unified seed-to-ramp theme definition driving every OS identity and live
+/// morphing control from one immutable value.
 ///
-/// A single immutable [UiThemeSeeds] drives:
-/// - [UiColors] (`UiColors.of(context)`)
+/// A single [UiThemeSeeds] drives:
+/// - [UiColors] (`UiColors.of(context)`) across all 7 [IcStylePreset] identities
 /// - [UiTokens] (`UiTokens.of(context)`)
+/// - [UiTypeSet] (`UiType.of(context)`)
 /// - [MixScope] tokens ([UiMixTokens])
 /// - Material 3 [ThemeData]
 @immutable
 final class UiThemeSeeds {
   const UiThemeSeeds({
     required this.accent,
+    this.preset = IcStylePreset.warmPaper,
     this.brightness = Brightness.light,
     this.density = UiDensity.comfortable,
     this.radiusScale = UiRadiusScale.fluent,
     this.motion = UiMotionMode.spring,
+    this.legacyPalette,
   });
 
+  /// Builds canonical seeds for one of the 7 OS [IcStylePreset] identities.
+  factory UiThemeSeeds.forPreset(
+    IcStylePreset preset, {
+    Brightness brightness = Brightness.dark,
+    Color? accent,
+    UiDensity density = UiDensity.comfortable,
+    UiRadiusScale radiusScale = UiRadiusScale.fluent,
+    UiMotionMode motion = UiMotionMode.spring,
+  }) {
+    final base = UiColors.forPreset(
+      preset,
+      dark: brightness == Brightness.dark,
+    );
+    return UiThemeSeeds(
+      preset: preset,
+      accent: accent ?? base.accent,
+      brightness: brightness,
+      density: density,
+      radiusScale: radiusScale,
+      motion: motion,
+    );
+  }
+
+  /// Builds canonical seeds from a persisted theme string (either one of the 7
+  /// OS [IcStylePreset] wire IDs or a legacy v1 palette name).
+  factory UiThemeSeeds.fromStoredTheme(
+    String? stored, {
+    required Brightness brightness,
+    UiDensity density = UiDensity.comfortable,
+    UiRadiusScale radiusScale = UiRadiusScale.fluent,
+    UiMotionMode motion = UiMotionMode.spring,
+  }) {
+    final normalized = UiTheme.paletteName(stored);
+    final isLegacy =
+        normalized == 'midnight' ||
+        normalized == 'paper' ||
+        normalized == 'lumen';
+    final base = UiColors.forStoredTheme(normalized, brightness: brightness);
+    return UiThemeSeeds(
+      preset: base.preset,
+      accent: base.accent,
+      brightness: base.brightness,
+      density: density,
+      radiusScale: radiusScale,
+      motion: motion,
+      legacyPalette: isLegacy ? normalized : null,
+    );
+  }
+
+  final IcStylePreset preset;
   final Color accent;
   final Brightness brightness;
   final UiDensity density;
   final UiRadiusScale radiusScale;
   final UiMotionMode motion;
 
+  /// Optional legacy v1 stored palette (`midnight`, `paper`, `lumen`).
+  final String? legacyPalette;
+
   /// Warm Paper Light (IntoChat default light theme).
   static const warmPaper = UiThemeSeeds(
+    preset: IcStylePreset.warmPaper,
     accent: Color(0xFF1F5EFF),
     brightness: Brightness.light,
     density: UiDensity.comfortable,
@@ -150,6 +211,7 @@ final class UiThemeSeeds {
 
   /// Warm Dark (IntoChat default dark theme).
   static const warmDark = UiThemeSeeds(
+    preset: IcStylePreset.warmPaper,
     accent: Color(0xFF4B7DFF),
     brightness: Brightness.dark,
     density: UiDensity.comfortable,
@@ -157,8 +219,9 @@ final class UiThemeSeeds {
     motion: UiMotionMode.spring,
   );
 
-  /// Fluent Blue (Windows Fluent accent in light mode).
+  /// Fluent Blue (Windows Fluent Acrylic in light mode).
   static const fluentBlue = UiThemeSeeds(
+    preset: IcStylePreset.fluentAcrylic,
     accent: Color(0xFF0078D4),
     brightness: Brightness.light,
     density: UiDensity.comfortable,
@@ -166,8 +229,9 @@ final class UiThemeSeeds {
     motion: UiMotionMode.snappy,
   );
 
-  /// Emerald Studio (dark studio with emerald accent).
+  /// Emerald Studio (Cyber Synaptic dark studio with emerald accent).
   static const emeraldStudio = UiThemeSeeds(
+    preset: IcStylePreset.cyberSynaptic,
     accent: Color(0xFF10B981),
     brightness: Brightness.dark,
     density: UiDensity.comfortable,
@@ -175,8 +239,9 @@ final class UiThemeSeeds {
     motion: UiMotionMode.spring,
   );
 
-  /// Compact Pro (high-density dark workspace with crisp corners).
+  /// Compact Pro (Linear Carbon high-density dark workspace with crisp corners).
   static const compactPro = UiThemeSeeds(
+    preset: IcStylePreset.linearCarbon,
     accent: Color(0xFF6366F1),
     brightness: Brightness.dark,
     density: UiDensity.compact,
@@ -193,8 +258,17 @@ final class UiThemeSeeds {
     (label: 'Compact Pro', seeds: compactPro),
   ];
 
+  UiColors get _baseColors => legacyPalette != null
+      ? UiColors.forStoredTheme(legacyPalette, brightness: brightness)
+      : UiColors.forPreset(preset, dark: brightness == Brightness.dark);
+
   /// Guaranteed readable foreground colour on top of [accent].
-  Color get onAccent => deriveOnAccent(accent);
+  Color get onAccent {
+    final base = _baseColors;
+    return accent.toARGB32() == base.accent.toARGB32()
+        ? base.onAccent
+        : deriveOnAccent(accent);
+  }
 
   /// WCAG 2.1 contrast ratio between [accent] and [onAccent].
   double get accentContrastRatio => contrastRatio(accent, onAccent);
@@ -203,23 +277,38 @@ final class UiThemeSeeds {
   String get accentContrastGrade => wcagContrastGrade(accentContrastRatio);
 
   UiThemeSeeds copyWith({
+    IcStylePreset? preset,
     Color? accent,
     Brightness? brightness,
     UiDensity? density,
     UiRadiusScale? radiusScale,
     UiMotionMode? motion,
+    String? legacyPalette,
+    bool clearLegacyPalette = false,
   }) => UiThemeSeeds(
+    preset: preset ?? this.preset,
     accent: accent ?? this.accent,
     brightness: brightness ?? this.brightness,
     density: density ?? this.density,
     radiusScale: radiusScale ?? this.radiusScale,
     motion: motion ?? this.motion,
+    legacyPalette: clearLegacyPalette
+        ? null
+        : (legacyPalette ?? this.legacyPalette),
   );
 
-  /// Derives a full [UiColors] ramp from [accent] and [brightness].
+  /// Derives a full [UiColors] ramp from [preset], [brightness], and [accent].
+  ///
+  /// When [accent] matches the preset's canonical accent, returns the exact
+  /// hand-tuned [UiColors] palette verbatim (zero rounding drift). Otherwise
+  /// morphs the accent ramp on top of the active preset's surfaces and glass.
   UiColors toUiColors() {
+    final base = _baseColors;
+    if (accent.toARGB32() == base.accent.toARGB32()) {
+      return base;
+    }
+
     final isDark = brightness == Brightness.dark;
-    final base = isDark ? UiColors.intochatDark : UiColors.intochatLight;
     final hsl = HSLColor.fromColor(accent);
     final hoverLightness = isDark
         ? (hsl.lightness + 0.08).clamp(0.0, 1.0)
@@ -229,7 +318,7 @@ final class UiThemeSeeds {
         ? accent.withValues(alpha: 0.18)
         : Color.lerp(Colors.white, accent, 0.12)!;
     final accentBorder = accent.withValues(alpha: isDark ? 0.45 : 0.35);
-    final derivedOnAccent = onAccent;
+    final derivedOnAccent = deriveOnAccent(accent);
 
     return base.copyWith(
       accent: accent,
@@ -248,7 +337,12 @@ final class UiThemeSeeds {
 
   /// Derives scaled [UiTokens] from [density], [radiusScale], and [motion].
   UiTokens toUiTokens() {
-    const base = UiTokens();
+    if (density == UiDensity.comfortable &&
+        radiusScale == UiRadiusScale.fluent &&
+        motion == UiMotionMode.spring) {
+      return UiTokens.defaults;
+    }
+    const base = UiTokens.defaults;
     final d = density.factor;
     final r = radiusScale.factor;
     final m = motion.durationFactor;
@@ -272,11 +366,13 @@ final class UiThemeSeeds {
       spaceSmall: sp(base.spaceSmall),
       spaceMedium: sp(base.spaceMedium),
       spaceLarge: sp(base.spaceLarge),
+      bar: rad(base.bar),
       xs: rad(base.xs),
       sm: rad(base.sm),
       button: rad(base.button),
       input: rad(base.input),
       card: rad(base.card),
+      window: rad(base.window),
       panel: rad(base.panel),
       bubble: rad(base.bubble),
       controlRadius: rad(base.controlRadius),
@@ -307,7 +403,7 @@ final class UiThemeSeeds {
       UiMixTokens.accent: c.accent,
       UiMixTokens.accentHover: c.accentHover,
       UiMixTokens.accentTint: c.accentTint,
-      UiMixTokens.accentBorder: c.accentBorder,
+      UiMixTokens.accentCopy: c.accentCopy,
       UiMixTokens.onAccent: c.onAccent,
       UiMixTokens.focus: c.focus,
       UiMixTokens.page: c.page,
@@ -316,11 +412,7 @@ final class UiThemeSeeds {
       UiMixTokens.recessed: c.recessed,
       UiMixTokens.strong: c.strong,
       UiMixTokens.body: c.body,
-      UiMixTokens.muted: c.muted,
-      UiMixTokens.subtle: c.subtle,
       UiMixTokens.hairline: c.hairline,
-      UiMixTokens.borderStrong: c.borderStrong,
-      UiMixTokens.inputBorder: c.inputBorder,
       UiMixTokens.done: c.done,
       UiMixTokens.working: c.working,
       UiMixTokens.error: c.error,
@@ -339,43 +431,58 @@ final class UiThemeSeeds {
 
   /// Builds a complete Material 3 [ThemeData] carrying both [UiColors] and
   /// [UiTokens] derived from these seeds.
-  ThemeData toThemeData() {
-    final colors = toUiColors();
-    final tokens = toUiTokens();
-    return UiTheme.fromColors(colors).copyWith(extensions: [tokens, colors]);
-  }
+  ThemeData toThemeData() =>
+      UiTheme.fromColors(toUiColors(), tokens: toUiTokens());
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is UiThemeSeeds &&
+          other.preset == preset &&
           other.accent == accent &&
           other.brightness == brightness &&
           other.density == density &&
           other.radiusScale == radiusScale &&
-          other.motion == motion;
+          other.motion == motion &&
+          other.legacyPalette == legacyPalette;
 
   @override
-  int get hashCode =>
-      Object.hash(accent, brightness, density, radiusScale, motion);
+  int get hashCode => Object.hash(
+    preset,
+    accent,
+    brightness,
+    density,
+    radiusScale,
+    motion,
+    legacyPalette,
+  );
 }
 
-/// Provides both [Theme] (`UiColors` + `UiTokens`) and `mix` [MixScope] from a
-/// single [UiThemeSeeds] source of truth.
+/// Provides [Theme] (`UiColors` + `UiTokens`), `mix` [MixScope], and
+/// [UiThemeScope] from a single [UiThemeSeeds] source of truth.
+///
+/// Set [wrapTheme] to `false` when mounted directly inside a `MaterialApp`
+/// whose `theme` was already constructed via [UiThemeSeeds.toThemeData] so no
+/// duplicate nested `Theme` scope is introduced.
 final class UiSeedThemeScope extends StatelessWidget {
-  const UiSeedThemeScope({super.key, required this.seeds, required this.child});
+  const UiSeedThemeScope({
+    super.key,
+    required this.seeds,
+    required this.child,
+    this.wrapTheme = true,
+  });
 
   final UiThemeSeeds seeds;
   final Widget child;
+  final bool wrapTheme;
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: seeds.toThemeData(),
-      child: MixScope(
-        tokens: seeds.toMixTokens(),
-        child: UiThemeScope(brightness: seeds.brightness, child: child),
-      ),
+    final scoped = MixScope(
+      tokens: seeds.toMixTokens(),
+      child: UiThemeScope(brightness: seeds.brightness, child: child),
     );
+    if (!wrapTheme) return scoped;
+    return Theme(data: seeds.toThemeData(), child: scoped);
   }
 }

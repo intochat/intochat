@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
 import '../generated/node_commands.dart';
 import 'node_context.dart';
@@ -23,12 +24,12 @@ Widget renderStepperView(StepperViewNode node, NodeContext ctx) {
     enabled: enabled,
     child: Builder(
       builder: (context) {
-        final c = IcTheme.of(context);
+        final c = UiColors.of(context);
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).card),
             border: Border.all(color: c.borderHairline),
           ),
           child: Column(
@@ -96,7 +97,7 @@ class _Step extends StatelessWidget {
   final int index;
   final StepperItem step;
   final bool isActive;
-  final IcColors colors;
+  final UiColors colors;
   final VoidCallback? onTap;
 
   @override
@@ -128,9 +129,9 @@ class _Step extends StatelessWidget {
       selected: isActive,
       child: Material(
         color: isActive ? colors.accentTint : Colors.transparent,
-        borderRadius: BorderRadius.circular(IcRadius.sm),
+        borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
         child: InkWell(
-          borderRadius: BorderRadius.circular(IcRadius.sm),
+          borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

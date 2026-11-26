@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../primitives/badge.dart';
 import '../primitives/toast.dart';
 import '../primitives/button.dart';
 import '../primitives/field.dart';
-import '../composition/value_nodes/view_badge.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
@@ -250,7 +250,10 @@ class _UiEntryControlState extends State<UiEntryControl> {
                 ),
               ),
               const SizedBox(width: 10),
-              ViewBadge(text: status, tone: entry == null ? 0 : 1),
+              UiBadge.fromWire(
+                label: status,
+                tone: entry == null ? UiBadgeTone.neutral : UiBadgeTone.success,
+              ),
             ],
           ),
           Row(
@@ -311,7 +314,10 @@ class _UiEntryControlState extends State<UiEntryControl> {
               ],
             ),
           ),
-          ViewBadge(text: secret ? 'Secret' : 'Variable', tone: secret ? 2 : 0),
+          UiBadge.fromWire(
+            label: secret ? 'Secret' : 'Variable',
+            tone: secret ? UiBadgeTone.warning : UiBadgeTone.neutral,
+          ),
           const SizedBox(width: 8),
           UiKitButton(
             key: Key('entry-remove-${entry.name}'),

@@ -6,6 +6,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../components/workspace/ui_workspace_components.dart';
+import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
@@ -72,7 +73,7 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
       MediaQuery.disableAnimationsOf(context) ? Duration.zero : base;
 
   Widget _buildPaneToggle({
-    required IcColors c,
+    required UiColors c,
     required String identifier,
     required String buttonKey,
     required IconData icon,
@@ -97,14 +98,14 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(IcRadius.xs),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
               onTap: enabled ? onToggle : null,
               child: Container(
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
                   color: expanded ? c.accentTint : Colors.transparent,
-                  borderRadius: BorderRadius.circular(IcRadius.xs),
+                  borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
                   border: Border.all(
                     color: expanded
                         ? c.accent.withValues(alpha: 0.35)
@@ -128,7 +129,7 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
 
   Widget _buildSash(
     BuildContext context, {
-    required IcColors c,
+    required UiColors c,
     required String sashKey,
     required String identifier,
     required String label,
@@ -190,7 +191,7 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
             width: _kShellSashHitWidth,
             child: Center(
               child: AnimatedContainer(
-                duration: _motion(context, IcMotion.fast),
+                duration: _motion(context, UiTokens.of(context).fast),
                 width: active ? 3 : 1,
                 constraints: const BoxConstraints(minHeight: 24),
                 decoration: BoxDecoration(
@@ -214,7 +215,7 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final node = widget.node;
     final ctx = widget.ctx;
     final inner = ctx.deeper();
@@ -246,7 +247,9 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: c.surfaceSunk,
-                      borderRadius: BorderRadius.circular(IcRadius.card),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).card,
+                      ),
                       border: Border.all(color: c.borderHairline),
                     ),
                     child: NodeRenderer.render(sidebar, inner),
@@ -257,7 +260,9 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: c.surfaceSunk,
-                      borderRadius: BorderRadius.circular(IcRadius.card),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).card,
+                      ),
                       border: Border.all(color: c.borderHairline),
                     ),
                     child: NodeRenderer.render(inspector, inner),

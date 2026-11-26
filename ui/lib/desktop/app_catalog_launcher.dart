@@ -166,7 +166,7 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final filtered = _filteredApps();
 
     return GestureDetector(
@@ -181,10 +181,10 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
           onTap: () {},
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 980, maxHeight: 720),
-            child: IcAcrylicBox(
-              radius: IcRadius.panel,
+            child: UiAcrylicSurface(
+              radius: UiTokens.of(context).panel,
               padding: const EdgeInsets.all(22),
-              shadows: IcShadow.xl(c),
+              shadows: UiShadows.xl(c),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -199,7 +199,7 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                           children: [
                             Text(
                               'All Applications & Neurons (${widget.apps.length})',
-                              style: IcType.text(
+                              style: UiType.textStyle(
                                 16,
                                 weight: FontWeight.w700,
                                 color: c.textStrong,
@@ -207,7 +207,7 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                             ),
                             Text(
                               'DigitalBrain OS Native Grains · .NET Aspire · ArtCraft Studio (WASM / MCP / CLI)',
-                              style: IcType.text(12, color: c.textMuted),
+                              style: UiType.textStyle(12, color: c.textMuted),
                             ),
                           ],
                         ),
@@ -219,10 +219,13 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                           key: const ValueKey('all-apps-search-input'),
                           controller: _searchController,
                           onChanged: (_) => setState(() {}),
-                          style: IcType.text(13, color: c.textStrong),
+                          style: UiType.textStyle(13, color: c.textStrong),
                           decoration: InputDecoration(
                             hintText: 'Filter ${widget.apps.length} apps…',
-                            hintStyle: IcType.text(12.5, color: c.textMuted),
+                            hintStyle: UiType.textStyle(
+                              12.5,
+                              color: c.textMuted,
+                            ),
                             prefixIcon: Icon(
                               LucideIcons.search,
                               size: 14,
@@ -236,13 +239,13 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(
-                                IcRadius.button,
+                                UiTokens.of(context).button,
                               ),
                               borderSide: BorderSide(color: c.borderInput),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(
-                                IcRadius.button,
+                                UiTokens.of(context).button,
                               ),
                               borderSide: BorderSide(color: c.borderInput),
                             ),
@@ -330,7 +333,7 @@ class _AllAppsLauncherCardState extends State<_AllAppsLauncherCard> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final isArtCraft = IcAppIcon.isArtCraftApp(widget.spec.id);
     final runtimeBadge = isArtCraft ? 'WASM · MCP · CLI' : 'Orleans Grain';
 
@@ -341,12 +344,12 @@ class _AllAppsLauncherCardState extends State<_AllAppsLauncherCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           width: 174,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: _hover ? c.accentTint : c.surfaceSunk,
-            borderRadius: BorderRadius.circular(IcRadius.card),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).card),
             border: Border.all(color: _hover ? c.accent : c.borderHairline),
           ),
           child: Row(
@@ -367,7 +370,7 @@ class _AllAppsLauncherCardState extends State<_AllAppsLauncherCard> {
                       widget.spec.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         13,
                         weight: FontWeight.w700,
                         color: c.textStrong,
@@ -378,14 +381,14 @@ class _AllAppsLauncherCardState extends State<_AllAppsLauncherCard> {
                       widget.spec.category,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IcType.text(11, color: c.textMuted),
+                      style: UiType.textStyle(11, color: c.textMuted),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       runtimeBadge,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IcType.text(
+                      style: UiType.textStyle(
                         9.5,
                         weight: FontWeight.w600,
                         color: isArtCraft ? c.accent : c.textMuted,

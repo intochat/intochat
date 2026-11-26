@@ -57,7 +57,7 @@ class AltBacktickWindowSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (windows.isEmpty) return const SizedBox.shrink();
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
 
     return GestureDetector(
       key: const ValueKey('desktop-window-switcher'),
@@ -67,18 +67,20 @@ class AltBacktickWindowSwitcher extends StatelessWidget {
         color: Color.fromRGBO(0, 0, 0, c.isDark ? 0.42 : 0.22),
         child: Center(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(IcRadius.window),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).window),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: c.surfaceElevated.withValues(alpha: 0.94),
-                  borderRadius: BorderRadius.circular(IcRadius.window),
+                  borderRadius: BorderRadius.circular(
+                    UiTokens.of(context).window,
+                  ),
                   border: Border.all(
                     color: c.isGlass ? c.specularBorder : c.borderHairline,
                   ),
-                  boxShadow: IcShadow.xl(c),
+                  boxShadow: UiShadows.xl(c),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -99,7 +101,7 @@ class AltBacktickWindowSwitcher extends StatelessWidget {
                     const SizedBox(height: 10),
                     Text(
                       '⌥`   Release ⌥ to switch  ·  Esc to cancel',
-                      style: IcType.text(12, color: c.textMuted),
+                      style: UiType.textStyle(12, color: c.textMuted),
                     ),
                   ],
                 ),
@@ -132,7 +134,7 @@ class _WindowThumbState extends State<_WindowThumb> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final sel = widget.selected;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -147,7 +149,7 @@ class _WindowThumbState extends State<_WindowThumb> {
             color: sel
                 ? c.accentTint
                 : (_hover ? c.surfaceSunk : c.surfaceCard),
-            borderRadius: BorderRadius.circular(IcRadius.card),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).card),
             border: Border.all(
               color: sel ? c.accent : c.borderHairline,
               width: sel ? 2 : 1,
@@ -159,7 +161,7 @@ class _WindowThumbState extends State<_WindowThumb> {
                 height: 84,
                 decoration: BoxDecoration(
                   color: c.surfacePage,
-                  borderRadius: BorderRadius.circular(IcRadius.sm),
+                  borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
                   border: Border.all(color: c.borderHairline),
                 ),
                 child: Column(
@@ -169,8 +171,8 @@ class _WindowThumbState extends State<_WindowThumb> {
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       decoration: BoxDecoration(
                         color: c.titleBarFocused,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(IcRadius.sm - 1),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(UiTokens.of(context).sm - 1),
                         ),
                       ),
                       child: Row(
@@ -181,7 +183,7 @@ class _WindowThumbState extends State<_WindowThumb> {
                             child: Text(
                               widget.window.title,
                               overflow: TextOverflow.ellipsis,
-                              style: IcType.text(9.5, color: c.textMuted),
+                              style: UiType.textStyle(9.5, color: c.textMuted),
                             ),
                           ),
                         ],
@@ -199,7 +201,7 @@ class _WindowThumbState extends State<_WindowThumb> {
               Text(
                 widget.window.title,
                 overflow: TextOverflow.ellipsis,
-                style: IcType.text(
+                style: UiType.textStyle(
                   12.5,
                   weight: FontWeight.w600,
                   color: c.textStrong,
@@ -268,7 +270,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
     if (widget.kind == DesktopSystemSheetKind.none) {
       return const SizedBox.shrink();
     }
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final (
       String title,
       String appId,
@@ -295,14 +297,14 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
                 ),
                 Text(
                   'neuron://local/vault/secrets',
-                  style: IcType.code(11.5, color: c.textMuted),
+                  style: UiType.codeStyle(11.5, color: c.textMuted),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               'Secrets entered here are encrypted directly into your personal Vault grain and never appear in chat transcripts or LLM prompts.',
-              style: IcType.text(12.5, color: c.textBody),
+              style: UiType.textStyle(12.5, color: c.textBody),
             ),
             const SizedBox(height: 12),
             Container(
@@ -310,7 +312,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: c.surfaceSunk,
-                borderRadius: BorderRadius.circular(IcRadius.input),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).input),
                 border: Border.all(color: c.borderInput),
               ),
               alignment: Alignment.centerLeft,
@@ -358,11 +360,11 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
                     children: [
                       Text(
                         'Jeff Tilley (@jeff)',
-                        style: IcType.heading(18, color: c.textStrong),
+                        style: UiType.displayStyle(18, color: c.textStrong),
                       ),
                       Text(
                         'neuron://nordlys/os.profile/profile · Oslo, Norway',
-                        style: IcType.code(11.5, color: c.textMuted),
+                        style: UiType.codeStyle(11.5, color: c.textMuted),
                       ),
                     ],
                   ),
@@ -418,7 +420,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
                     children: [
                       Text(
                         'Tripletex Accounting Sync (v1.4.0)',
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           14,
                           weight: FontWeight.w700,
                           color: c.textStrong,
@@ -426,7 +428,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
                       ),
                       Text(
                         'Publisher: IntoChat OS · Verified C# App<TState>',
-                        style: IcType.text(12, color: c.textMuted),
+                        style: UiType.textStyle(12, color: c.textMuted),
                       ),
                     ],
                   ),
@@ -438,7 +440,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
               _installStep == 0
                   ? 'Step 1: Verify publisher signature and BDD [Scenario] gate (14/14 passing).'
                   : 'Step 2: Grant read-only access to Files and Workspace storage.',
-              style: IcType.text(12.5, color: c.textBody),
+              style: UiType.textStyle(12.5, color: c.textBody),
             ),
             const SizedBox(height: 14),
             Row(
@@ -483,7 +485,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
             const SizedBox(height: 10),
             Text(
               'Connector Sync v1.5.0 requests write access to external workspace records (gated by LFP ApprovalCard).',
-              style: IcType.text(12.5, color: c.textBody),
+              style: UiType.textStyle(12.5, color: c.textBody),
             ),
             const SizedBox(height: 14),
             Row(
@@ -513,7 +515,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
           children: [
             Text(
               'Both your local editor (11:40) and Ino (11:42) modified CloseDate in nordlys-q4-renewal.md.',
-              style: IcType.text(12.5, color: c.textBody),
+              style: UiType.textStyle(12.5, color: c.textBody),
             ),
             const SizedBox(height: 14),
             Row(
@@ -545,7 +547,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
           children: [
             Text(
               'Hardware authenticator & recovery keys are active for neuron://nordlys/os.profile.',
-              style: IcType.text(12.5, color: c.textBody),
+              style: UiType.textStyle(12.5, color: c.textBody),
             ),
             const SizedBox(height: 14),
             Align(
@@ -578,7 +580,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
           child: GestureDetector(
             onTap: () {},
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(IcRadius.window),
+              borderRadius: BorderRadius.circular(UiTokens.of(context).window),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                 child: Container(
@@ -586,11 +588,13 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: c.surfaceElevated.withValues(alpha: 0.96),
-                    borderRadius: BorderRadius.circular(IcRadius.window),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).window,
+                    ),
                     border: Border.all(
                       color: c.isGlass ? c.specularBorder : c.borderHairline,
                     ),
-                    boxShadow: IcShadow.xl(c),
+                    boxShadow: UiShadows.xl(c),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -603,7 +607,7 @@ class _DesktopSystemModalSheetState extends State<DesktopSystemModalSheet> {
                           Expanded(
                             child: Text(
                               title,
-                              style: IcType.text(
+                              style: UiType.textStyle(
                                 14,
                                 weight: FontWeight.w700,
                                 color: c.textStrong,

@@ -8,9 +8,10 @@ import 'ui_tokens.dart';
 
 /// Semantic colour tokens carried on [ThemeData.extensions].
 ///
-/// Unified with [IcColors] (`tokens.dart`) so all 7 UI Identities (`fluent-acrylic`,
-/// `spatial-glass`, `cyber-synaptic`, `warm-paper`, `fluent-warm-mica`,
-/// `linear-carbon`, `nordic-tactical`) are defined in one place (`tokens.dart`).
+/// Single authoritative palette registry for all 7 OS UI Identities
+/// (`fluent-acrylic`, `spatial-glass`, `cyber-synaptic`, `warm-paper`,
+/// `fluent-warm-mica`, `linear-carbon`, `nordic-tactical`) plus backward-compat
+/// workspace palettes (`midnight`, `paper`, `lumen`).
 final class UiColors extends ThemeExtension<UiColors> {
   const UiColors({
     required this.page,
@@ -49,6 +50,8 @@ final class UiColors extends ThemeExtension<UiColors> {
     this.preset = IcStylePreset.warmPaper,
     this.blurSigma = 0.0,
     this.windowOpacity = 1.0,
+    Color? surfaceGlass,
+    Color? surfaceGlassStrong,
     Color? specularBorder,
     Color? chrome,
     Color? chromeBorder,
@@ -70,6 +73,8 @@ final class UiColors extends ThemeExtension<UiColors> {
        _assistantText = assistantText,
        _assistantBorder = assistantBorder,
        _menuHover = menuHover,
+       _surfaceGlass = surfaceGlass,
+       _surfaceGlassStrong = surfaceGlassStrong,
        _specularBorder = specularBorder,
        _chrome = chrome,
        _chromeBorder = chromeBorder,
@@ -82,68 +87,6 @@ final class UiColors extends ThemeExtension<UiColors> {
        _needsYou = needsYou,
        _needsYouBg = needsYouBg,
        _hoverOverlay = hoverOverlay;
-
-  /// Creates a [UiColors] extension directly from an [IcColors] token set.
-  factory UiColors.fromIc(
-    IcColors ic, {
-    Color? accentCopy,
-    Color? accentCopyHover,
-    Color? userBubble,
-    Color? userText,
-    Color? assistant,
-    Color? assistantText,
-    Color? assistantBorder,
-    Color? menuHover,
-  }) => UiColors(
-    preset: ic.preset,
-    page: ic.surfacePage,
-    elevated: ic.surfaceElevated,
-    surface: ic.surfaceCard,
-    recessed: ic.surfaceSunk,
-    ink: ic.surfaceInk,
-    strong: ic.textStrong,
-    body: ic.textBody,
-    muted: ic.textMuted,
-    subtle: ic.textSubtle,
-    onInk: ic.onInk,
-    accent: ic.accent,
-    accentHover: ic.accentHover,
-    accentTint: ic.accentTint,
-    accentBorder: ic.accentRing,
-    onAccent: ic.onAccent,
-    accentCopy: accentCopy,
-    accentCopyHover: accentCopyHover,
-    focus: ic.accentRing,
-    done: ic.done,
-    doneBg: ic.doneBg,
-    working: ic.working,
-    workingBg: ic.workingBg,
-    error: ic.error,
-    errorBg: ic.errorBg,
-    hairline: ic.borderHairline,
-    borderStrong: ic.borderStrong,
-    inputBorder: ic.borderInput,
-    userBubble: userBubble,
-    userText: userText,
-    assistant: assistant,
-    assistantText: assistantText,
-    assistantBorder: assistantBorder,
-    menuHover: menuHover,
-    blurSigma: ic.glassBlurSigma,
-    windowOpacity: ic.windowOpacity,
-    specularBorder: ic.specularBorder,
-    chrome: ic.chrome,
-    chromeBorder: ic.chromeBorder,
-    titleBarFocused: ic.titleBarFocused,
-    titleBarBlurred: ic.titleBarBlurred,
-    ambientGlow: ic.ambientGlow,
-    secondaryGlow: ic.secondaryGlow,
-    chartContext: ic.chartContext,
-    idle: ic.idle,
-    needsYou: ic.needsYou,
-    needsYouBg: ic.needsYouBg,
-    hoverOverlay: ic.hoverOverlay,
-  );
 
   final IcStylePreset preset;
   final Color page;
@@ -203,6 +146,8 @@ final class UiColors extends ThemeExtension<UiColors> {
 
   final double blurSigma;
   final double windowOpacity;
+  final Color? _surfaceGlass;
+  final Color? _surfaceGlassStrong;
   final Color? _specularBorder;
   final Color? _chrome;
   final Color? _chromeBorder;
@@ -217,11 +162,13 @@ final class UiColors extends ThemeExtension<UiColors> {
   final Color? _hoverOverlay;
 
   bool get isGlass => blurSigma > 0 && windowOpacity < 0.99;
+  Color get surfaceGlass => _surfaceGlass ?? elevated;
+  Color get surfaceGlassStrong => _surfaceGlassStrong ?? surface;
   Color get specularBorder => _specularBorder ?? hairline;
-  Color get chrome => _chrome ?? elevated;
+  Color get chrome => _chrome ?? _surfaceGlassStrong ?? elevated;
   Color get chromeBorder => _chromeBorder ?? hairline;
-  Color get titleBarFocused => _titleBarFocused ?? recessed;
-  Color get titleBarBlurred => _titleBarBlurred ?? page;
+  Color get titleBarFocused => _titleBarFocused ?? elevated;
+  Color get titleBarBlurred => _titleBarBlurred ?? recessed;
   Color get ambientGlow => _ambientGlow ?? accent;
   Color get secondaryGlow => _secondaryGlow ?? done;
   Color get chartContext => _chartContext ?? subtle;
@@ -280,8 +227,52 @@ final class UiColors extends ThemeExtension<UiColors> {
 
   bool get isDark => brightness == Brightness.dark;
 
-  static UiColors of(BuildContext context) =>
-      Theme.of(context).extension<UiColors>() ?? intochatLight;
+  static UiColors of(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<UiColors>();
+    if (ext != null) return ext;
+    return theme.brightness == Brightness.dark ? intochatDark : intochatLight;
+  }
+
+  /// Resolves the canonical palette for an [IcStylePreset] in light or dark mode.
+  static UiColors forPreset(
+    IcStylePreset preset, {
+    bool dark = true,
+  }) => switch (preset) {
+    IcStylePreset.fluentAcrylic =>
+      dark ? fluentAcrylicDark : fluentAcrylicLight,
+    IcStylePreset.spatialGlass => dark ? spatialGlassDark : spatialGlassLight,
+    IcStylePreset.cyberSynaptic =>
+      dark ? cyberSynapticDark : cyberSynapticLight,
+    IcStylePreset.warmPaper => dark ? warmPaperDark : warmPaperLight,
+    IcStylePreset.fluentWarmMica =>
+      dark ? fluentWarmMicaDark : fluentWarmMicaLight,
+    IcStylePreset.linearCarbon => dark ? linearCarbonDark : linearCarbonLight,
+    IcStylePreset.nordicTactical =>
+      dark ? nordicTacticalDark : nordicTacticalLight,
+  };
+
+  /// Resolves a stored theme preference string (including legacy v1 names) into
+  /// its canonical [UiColors] palette for [brightness].
+  static UiColors forStoredTheme(
+    String? stored, {
+    required Brightness brightness,
+  }) {
+    final dark = brightness == Brightness.dark;
+    return switch (stored) {
+      'fluent-acrylic' => dark ? fluentAcrylicDark : fluentAcrylicLight,
+      'spatial-glass' => dark ? spatialGlassDark : spatialGlassLight,
+      'cyber-synaptic' => dark ? cyberSynapticDark : cyberSynapticLight,
+      'warm-paper' || 'intochat' => dark ? warmPaperDark : warmPaperLight,
+      'fluent-warm-mica' => dark ? fluentWarmMicaDark : fluentWarmMicaLight,
+      'linear-carbon' => dark ? linearCarbonDark : linearCarbonLight,
+      'nordic-tactical' => dark ? nordicTacticalDark : nordicTacticalLight,
+      'lumen' => lumen,
+      'dark' || 'midnight' => midnight,
+      'light' || 'paper' => paper,
+      _ => dark ? warmPaperDark : warmPaperLight,
+    };
+  }
 
   /// Warm Paper Light (Figma `:root`).
   static const intochatLight = UiColors(
@@ -290,6 +281,8 @@ final class UiColors extends ThemeExtension<UiColors> {
     elevated: Color(0xFFF5F3EE),
     surface: Color(0xFFFFFFFF),
     recessed: Color(0xFFF2EFE9),
+    surfaceGlass: Color(0xE6FFFFFF),
+    surfaceGlassStrong: Color(0xFFFFFFFF),
     ink: Color(0xFF17140F),
     strong: Color(0xFF17140F),
     body: Color(0xFF2A251E),
@@ -338,6 +331,8 @@ final class UiColors extends ThemeExtension<UiColors> {
     elevated: Color(0xFF1F1B15),
     surface: Color(0xFF2A251E),
     recessed: Color(0xFF110F0B),
+    surfaceGlass: Color(0xE62A251E),
+    surfaceGlassStrong: Color(0xFF2A251E),
     ink: Color(0xFF110F0B),
     strong: Color(0xFFFBFAF7),
     body: Color(0xFFF0ECE4),
@@ -379,28 +374,397 @@ final class UiColors extends ThemeExtension<UiColors> {
     chartContext: Color(0xFF9C9182),
   );
 
-  // --- All 7 UI Identities derived directly from IcColors in tokens.dart ---
-  static final fluentAcrylicDark = UiColors.fromIc(IcColors.fluentDark);
-  static final fluentAcrylicLight = UiColors.fromIc(IcColors.fluentLight);
-  static final spatialGlassDark = UiColors.fromIc(IcColors.spatialDark);
-  static final spatialGlassLight = UiColors.fromIc(IcColors.spatialLight);
-  static final cyberSynapticDark = UiColors.fromIc(IcColors.cyberDark);
-  static final cyberSynapticLight = UiColors.fromIc(IcColors.cyberLight);
   static const warmPaperLight = intochatLight;
   static const warmPaperDark = intochatDark;
-  static final fluentWarmMicaDark = UiColors.fromIc(
-    IcColors.fluentWarmMicaDark,
+
+  static const fluentAcrylicDark = UiColors(
+    preset: IcStylePreset.fluentAcrylic,
+    page: Color(0xFF11131A),
+    elevated: Color(0xFF171B26),
+    surface: Color(0xD91B1F2B),
+    recessed: Color(0xCC0B0D13),
+    surfaceGlass: Color(0xBF171B26),
+    surfaceGlassStrong: Color(0xD91B1F2B),
+    ink: Color(0xFF090B10),
+    strong: Color(0xFFF8FAFC),
+    body: Color(0xFFE2E8F0),
+    muted: Color(0xFF94A3B8),
+    subtle: Color(0xFF64748B),
+    onInk: Color(0xFFF8FAFC),
+    accent: Color(0xFF3B82F6),
+    accentHover: Color(0xFF2563EB),
+    accentTint: Color(0x333B82F6),
+    accentBorder: Color(0x733B82F6),
+    onAccent: Color(0xFFFFFFFF),
+    focus: Color(0x733B82F6),
+    done: Color(0xFF34D399),
+    doneBg: Color(0x2910B981),
+    working: Color(0xFFFBBF24),
+    workingBg: Color(0x29F59E0B),
+    error: Color(0xFFF87171),
+    errorBg: Color(0x29EF4444),
+    hairline: Color(0xFF2A3040),
+    borderStrong: Color(0xFFF1F5F9),
+    inputBorder: Color(0xFF3E475E),
+    specularBorder: Color(0x2EFFFFFF),
+    blurSigma: 26.0,
+    windowOpacity: 0.82,
+    chrome: Color(0xBF171B26),
+    chromeBorder: Color(0x38FFFFFF),
+    titleBarFocused: Color(0xD9222736),
+    titleBarBlurred: Color(0xBF181C26),
+    ambientGlow: Color(0xFF3B82F6),
+    secondaryGlow: Color(0xFF06B6D4),
+    chartContext: Color(0xFF94A3B8),
   );
-  static final fluentWarmMicaLight = UiColors.fromIc(
-    IcColors.fluentWarmMicaLight,
+
+  static const fluentAcrylicLight = UiColors(
+    preset: IcStylePreset.fluentAcrylic,
+    page: Color(0xFFF7F6F2),
+    elevated: Color(0xCCFFFFFF),
+    surface: Color(0xE8FFFFFF),
+    recessed: Color(0xDAEDEAE2),
+    surfaceGlass: Color(0xCCFFFFFF),
+    surfaceGlassStrong: Color(0xE8FFFFFF),
+    ink: Color(0xFF14161D),
+    strong: Color(0xFF12141A),
+    body: Color(0xFF252830),
+    muted: Color(0xFF686D7A),
+    subtle: Color(0xFF8E94A2),
+    onInk: Color(0xFFFFFFFF),
+    accent: Color(0xFF2563EB),
+    accentHover: Color(0xFF1D4ED8),
+    accentTint: Color(0xFFE0EAFF),
+    accentBorder: Color(0x592563EB),
+    onAccent: Color(0xFFFFFFFF),
+    focus: Color(0x592563EB),
+    done: Color(0xFF10B981),
+    doneBg: Color(0xFFDFF9EE),
+    working: Color(0xFFF59E0B),
+    workingBg: Color(0xFFFEF3C7),
+    error: Color(0xFFEF4444),
+    errorBg: Color(0xFFFEE2E2),
+    hairline: Color(0xFFDDE0E7),
+    borderStrong: Color(0xFF12141A),
+    inputBorder: Color(0xFFB8BECB),
+    specularBorder: Color(0x99FFFFFF),
+    blurSigma: 24.0,
+    windowOpacity: 0.86,
+    chrome: Color(0xCCFFFFFF),
+    chromeBorder: Color(0xB3FFFFFF),
+    titleBarFocused: Color(0xD9F1EFE9),
+    titleBarBlurred: Color(0xCCF8F7F4),
+    ambientGlow: Color(0xFF2563EB),
+    secondaryGlow: Color(0xFF0EA5E9),
+    chartContext: Color(0xFF8E94A2),
   );
-  static final linearCarbonDark = UiColors.fromIc(IcColors.linearDark);
-  static final linearCarbonLight = UiColors.fromIc(IcColors.linearLight);
-  static final nordicTacticalDark = UiColors.fromIc(
-    IcColors.nordicTacticalDark,
+
+  static const spatialGlassDark = UiColors(
+    preset: IcStylePreset.spatialGlass,
+    page: Color(0xB80B101B),
+    elevated: Color(0xA6131C2E),
+    surface: Color(0xC7161F30),
+    recessed: Color(0xB3070A12),
+    surfaceGlass: Color(0xA6131C2E),
+    surfaceGlassStrong: Color(0xC7161F30),
+    ink: Color(0xFF060911),
+    strong: Color(0xFFF8FAFC),
+    body: Color(0xFFE2E8F0),
+    muted: Color(0xFF94A3B8),
+    subtle: Color(0xFF64748B),
+    onInk: Color(0xFFF8FAFC),
+    accent: Color(0xFF38BDF8),
+    accentHover: Color(0xFF0284C7),
+    accentTint: Color(0x3338BDF8),
+    accentBorder: Color(0x7338BDF8),
+    onAccent: Color(0xFF082F49),
+    focus: Color(0x7338BDF8),
+    done: Color(0xFF34D399),
+    doneBg: Color(0x2910B981),
+    working: Color(0xFFFBBF24),
+    workingBg: Color(0x29F59E0B),
+    error: Color(0xFFFB7185),
+    errorBg: Color(0x29E11D48),
+    hairline: Color(0x4094A3B8),
+    borderStrong: Color(0xFFF8FAFC),
+    inputBorder: Color(0x6694A3B8),
+    specularBorder: Color(0x45FFFFFF),
+    blurSigma: 36.0,
+    windowOpacity: 0.72,
+    chrome: Color(0xA6131C2E),
+    chromeBorder: Color(0x4DFFFFFF),
+    titleBarFocused: Color(0xCC1E293B),
+    titleBarBlurred: Color(0xA6131C2E),
+    ambientGlow: Color(0xFF38BDF8),
+    secondaryGlow: Color(0xFF818CF8),
+    chartContext: Color(0xFF94A3B8),
   );
-  static final nordicTacticalLight = UiColors.fromIc(
-    IcColors.nordicTacticalLight,
+
+  static const spatialGlassLight = UiColors(
+    preset: IcStylePreset.spatialGlass,
+    page: Color(0xCCF1F5F9),
+    elevated: Color(0xB8FFFFFF),
+    surface: Color(0xD9FFFFFF),
+    recessed: Color(0xB3E2E8F0),
+    surfaceGlass: Color(0xB8FFFFFF),
+    surfaceGlassStrong: Color(0xD9FFFFFF),
+    ink: Color(0xFF0F172A),
+    strong: Color(0xFF0F172A),
+    body: Color(0xFF1E293B),
+    muted: Color(0xFF64748B),
+    subtle: Color(0xFF94A3B8),
+    onInk: Color(0xFFFFFFFF),
+    accent: Color(0xFF0284C7),
+    accentHover: Color(0xFF0369A1),
+    accentTint: Color(0xFFE0F2FE),
+    accentBorder: Color(0x590284C7),
+    onAccent: Color(0xFFFFFFFF),
+    focus: Color(0x590284C7),
+    done: Color(0xFF059669),
+    doneBg: Color(0xFFD1FAE5),
+    working: Color(0xFFD97706),
+    workingBg: Color(0xFFFEF3C7),
+    error: Color(0xFFE11D48),
+    errorBg: Color(0xFFFFE4E6),
+    hairline: Color(0x99CBD5E1),
+    borderStrong: Color(0xFF0F172A),
+    inputBorder: Color(0xFF94A3B8),
+    specularBorder: Color(0xCCFFFFFF),
+    blurSigma: 34.0,
+    windowOpacity: 0.74,
+    chrome: Color(0xB8FFFFFF),
+    chromeBorder: Color(0xCCFFFFFF),
+    titleBarFocused: Color(0xCCE2E8F0),
+    titleBarBlurred: Color(0xB3F1F5F9),
+    ambientGlow: Color(0xFF0284C7),
+    secondaryGlow: Color(0xFF6366F1),
+    chartContext: Color(0xFF64748B),
+  );
+
+  static const cyberSynapticDark = UiColors(
+    preset: IcStylePreset.cyberSynaptic,
+    page: Color(0xFF060B0E),
+    elevated: Color(0xBF091217),
+    surface: Color(0xD90C151B),
+    recessed: Color(0xD9040709),
+    surfaceGlass: Color(0xBF091217),
+    surfaceGlassStrong: Color(0xD90C151B),
+    ink: Color(0xFF030608),
+    strong: Color(0xFFECFDF5),
+    body: Color(0xFFD1FAE5),
+    muted: Color(0xFF6EE7B7),
+    subtle: Color(0xFF34D399),
+    onInk: Color(0xFFECFDF5),
+    accent: Color(0xFF10B981),
+    accentHover: Color(0xFF059669),
+    accentTint: Color(0x2910B981),
+    accentBorder: Color(0x7310B981),
+    onAccent: Color(0xFF022C22),
+    focus: Color(0x7310B981),
+    done: Color(0xFF34D399),
+    doneBg: Color(0x2910B981),
+    working: Color(0xFFFBBF24),
+    workingBg: Color(0x29F59E0B),
+    error: Color(0xFFF87171),
+    errorBg: Color(0x29EF4444),
+    hairline: Color(0xFF132A2E),
+    borderStrong: Color(0xFF34D399),
+    inputBorder: Color(0xFF1E464B),
+    specularBorder: Color(0x4010B981),
+    blurSigma: 28.0,
+    windowOpacity: 0.80,
+    chrome: Color(0xBF091217),
+    chromeBorder: Color(0x4D10B981),
+    titleBarFocused: Color(0xD90F1E26),
+    titleBarBlurred: Color(0xBF091217),
+    ambientGlow: Color(0xFF10B981),
+    secondaryGlow: Color(0xFF06B6D4),
+    chartContext: Color(0xFF06B6D4),
+  );
+
+  static const cyberSynapticLight = fluentAcrylicLight;
+
+  static const fluentWarmMicaDark = UiColors(
+    preset: IcStylePreset.fluentWarmMica,
+    page: Color(0xFF141210),
+    elevated: Color(0xFF1E1B18),
+    surface: Color(0xFF25211D),
+    recessed: Color(0xFF181512),
+    surfaceGlass: Color(0xCC1E1B18),
+    surfaceGlassStrong: Color(0xE625211D),
+    ink: Color(0xFFFAF7F2),
+    strong: Color(0xFFFAF7F2),
+    body: Color(0xFFE6E0D6),
+    muted: Color(0xFFA69D90),
+    subtle: Color(0xFF787065),
+    onInk: Color(0xFF141210),
+    accent: Color(0xFFF59E0B),
+    accentHover: Color(0xFFFBBF24),
+    accentTint: Color(0x26F59E0B),
+    accentBorder: Color(0x66F59E0B),
+    onAccent: Color(0xFF141210),
+    focus: Color(0x66F59E0B),
+    done: Color(0xFF34D399),
+    doneBg: Color(0x2234D399),
+    working: Color(0xFFFBBF24),
+    workingBg: Color(0x24FBBF24),
+    error: Color(0xFFF87171),
+    errorBg: Color(0x24F87171),
+    hairline: Color(0xFF2E2924),
+    borderStrong: Color(0xFF423B34),
+    inputBorder: Color(0xFF38322C),
+    specularBorder: Color(0x22FFFFFF),
+    blurSigma: 26.0,
+    windowOpacity: 0.86,
+    ambientGlow: Color(0xFFF59E0B),
+  );
+
+  static const fluentWarmMicaLight = UiColors(
+    preset: IcStylePreset.fluentWarmMica,
+    page: Color(0xFFF7F4EF),
+    elevated: Color(0xFFFFFFFF),
+    surface: Color(0xFFFFFFFF),
+    recessed: Color(0xFFEDE8DF),
+    surfaceGlass: Color(0xD9FFFFFF),
+    surfaceGlassStrong: Color(0xF0FFFFFF),
+    ink: Color(0xFF1C1917),
+    strong: Color(0xFF1C1917),
+    body: Color(0xFF292524),
+    muted: Color(0xFF57534E),
+    subtle: Color(0xFF78716C),
+    onInk: Color(0xFFFFFFFF),
+    accent: Color(0xFFD97706),
+    accentHover: Color(0xFFB45309),
+    accentTint: Color(0x1FD97706),
+    accentBorder: Color(0x59D97706),
+    onAccent: Color(0xFFFFFFFF),
+    focus: Color(0x59D97706),
+    done: Color(0xFF059669),
+    doneBg: Color(0x18059669),
+    working: Color(0xFFD97706),
+    workingBg: Color(0x18D97706),
+    error: Color(0xFFDC2626),
+    errorBg: Color(0x18DC2626),
+    hairline: Color(0xFFE5DFD5),
+    borderStrong: Color(0xFFD6CEC2),
+    inputBorder: Color(0xFFDDD6CA),
+    specularBorder: Color(0xB3FFFFFF),
+    blurSigma: 22.0,
+    windowOpacity: 0.88,
+    ambientGlow: Color(0xFFD97706),
+  );
+
+  static const linearCarbonDark = UiColors(
+    preset: IcStylePreset.linearCarbon,
+    page: Color(0xFF0D0E12),
+    elevated: Color(0xFF111317),
+    surface: Color(0xFF15171E),
+    recessed: Color(0xFF090A0D),
+    surfaceGlass: Color(0xCC111317),
+    surfaceGlassStrong: Color(0xE615171E),
+    ink: Color(0xFF07080A),
+    strong: Color(0xFFF4F5F8),
+    body: Color(0xFFD8DAE0),
+    muted: Color(0xFF8A8F9E),
+    subtle: Color(0xFF5C606E),
+    onInk: Color(0xFFF4F5F8),
+    accent: Color(0xFF5E6AD2),
+    accentHover: Color(0xFF4E5AC0),
+    accentTint: Color(0x2E5E6AD2),
+    accentBorder: Color(0x735E6AD2),
+    onAccent: Color(0xFFFFFFFF),
+    focus: Color(0x735E6AD2),
+    done: Color(0xFF4CB782),
+    doneBg: Color(0x294CB782),
+    working: Color(0xFFF2C94C),
+    workingBg: Color(0x29F2C94C),
+    error: Color(0xFFEB5757),
+    errorBg: Color(0x29EB5757),
+    hairline: Color(0xFF232630),
+    borderStrong: Color(0xFFF4F5F8),
+    inputBorder: Color(0xFF343846),
+    specularBorder: Color(0x24FFFFFF),
+    blurSigma: 20.0,
+    windowOpacity: 0.92,
+    chrome: Color(0xD914161D),
+    chromeBorder: Color(0xFF262934),
+    titleBarFocused: Color(0xFF1B1E27),
+    titleBarBlurred: Color(0xFF13151B),
+    ambientGlow: Color(0xFF5E6AD2),
+    secondaryGlow: Color(0xFF818CF8),
+    chartContext: Color(0xFF8A8F9E),
+  );
+
+  static const linearCarbonLight = warmPaperLight;
+
+  static const nordicTacticalDark = UiColors(
+    preset: IcStylePreset.nordicTactical,
+    page: Color(0xFF0F1419),
+    elevated: Color(0xFF151C24),
+    surface: Color(0xFF1B242E),
+    recessed: Color(0xFF0B0F14),
+    surfaceGlass: Color(0xCC151C24),
+    surfaceGlassStrong: Color(0xE61B242E),
+    ink: Color(0xFFE6EDF3),
+    strong: Color(0xFFE6EDF3),
+    body: Color(0xFFC9D1D9),
+    muted: Color(0xFF8B949E),
+    subtle: Color(0xFF6E7681),
+    onInk: Color(0xFF0F1419),
+    accent: Color(0xFF38BDF8),
+    accentHover: Color(0xFF7DD3FC),
+    accentTint: Color(0x2438BDF8),
+    accentBorder: Color(0x6638BDF8),
+    onAccent: Color(0xFF0F1419),
+    focus: Color(0x6638BDF8),
+    done: Color(0xFF3FB950),
+    doneBg: Color(0x223FB950),
+    working: Color(0xFFD29922),
+    workingBg: Color(0x24D29922),
+    error: Color(0xFFF85149),
+    errorBg: Color(0x24F85149),
+    hairline: Color(0xFF263240),
+    borderStrong: Color(0xFF38485C),
+    inputBorder: Color(0xFF303E50),
+    specularBorder: Color(0x2438BDF8),
+    blurSigma: 18.0,
+    windowOpacity: 0.88,
+    ambientGlow: Color(0xFF38BDF8),
+  );
+
+  static const nordicTacticalLight = UiColors(
+    preset: IcStylePreset.nordicTactical,
+    page: Color(0xFFF0F4F8),
+    elevated: Color(0xFFFFFFFF),
+    surface: Color(0xFFFFFFFF),
+    recessed: Color(0xFFE2E8F0),
+    surfaceGlass: Color(0xD9FFFFFF),
+    surfaceGlassStrong: Color(0xF0FFFFFF),
+    ink: Color(0xFF0F172A),
+    strong: Color(0xFF0F172A),
+    body: Color(0xFF1E293B),
+    muted: Color(0xFF475569),
+    subtle: Color(0xFF64748B),
+    onInk: Color(0xFFFFFFFF),
+    accent: Color(0xFF0284C7),
+    accentHover: Color(0xFF0369A1),
+    accentTint: Color(0x1F0284C7),
+    accentBorder: Color(0x590284C7),
+    onAccent: Color(0xFFFFFFFF),
+    focus: Color(0x590284C7),
+    done: Color(0xFF16A34A),
+    doneBg: Color(0x1816A34A),
+    working: Color(0xFFD97706),
+    workingBg: Color(0x18D97706),
+    error: Color(0xFFDC2626),
+    errorBg: Color(0x18DC2626),
+    hairline: Color(0xFFCBD5E1),
+    borderStrong: Color(0xFF94A3B8),
+    inputBorder: Color(0xFFCBD5E1),
+    specularBorder: Color(0xB3FFFFFF),
+    blurSigma: 16.0,
+    windowOpacity: 0.90,
+    ambientGlow: Color(0xFF0284C7),
   );
 
   // --- Legacy v1 workspace palettes kept for backward-compat preferences ---
@@ -580,6 +944,8 @@ final class UiColors extends ThemeExtension<UiColors> {
     Color? menuHover,
     double? blurSigma,
     double? windowOpacity,
+    Color? surfaceGlass,
+    Color? surfaceGlassStrong,
     Color? specularBorder,
     Color? chrome,
     Color? chromeBorder,
@@ -629,6 +995,8 @@ final class UiColors extends ThemeExtension<UiColors> {
     menuHover: menuHover ?? _menuHover,
     blurSigma: blurSigma ?? this.blurSigma,
     windowOpacity: windowOpacity ?? this.windowOpacity,
+    surfaceGlass: surfaceGlass ?? _surfaceGlass,
+    surfaceGlassStrong: surfaceGlassStrong ?? _surfaceGlassStrong,
     specularBorder: specularBorder ?? _specularBorder,
     chrome: chrome ?? _chrome,
     chromeBorder: chromeBorder ?? _chromeBorder,
@@ -684,6 +1052,8 @@ final class UiColors extends ThemeExtension<UiColors> {
       menuHover: c(menuHover, other.menuHover),
       blurSigma: lerpDouble(blurSigma, other.blurSigma, t)!,
       windowOpacity: lerpDouble(windowOpacity, other.windowOpacity, t)!,
+      surfaceGlass: c(surfaceGlass, other.surfaceGlass),
+      surfaceGlassStrong: c(surfaceGlassStrong, other.surfaceGlassStrong),
       specularBorder: c(specularBorder, other.specularBorder),
       chrome: c(chrome, other.chrome),
       chromeBorder: c(chromeBorder, other.chromeBorder),
@@ -735,7 +1105,19 @@ final class UiColors extends ThemeExtension<UiColors> {
       other.assistant == assistant &&
       other.assistantText == assistantText &&
       other.assistantBorder == assistantBorder &&
-      other.menuHover == menuHover;
+      other.menuHover == menuHover &&
+      other.blurSigma == blurSigma &&
+      other.windowOpacity == windowOpacity &&
+      other.surfaceGlass == surfaceGlass &&
+      other.surfaceGlassStrong == surfaceGlassStrong &&
+      other.specularBorder == specularBorder &&
+      other.chrome == chrome &&
+      other.chromeBorder == chromeBorder &&
+      other.titleBarFocused == titleBarFocused &&
+      other.titleBarBlurred == titleBarBlurred &&
+      other.ambientGlow == ambientGlow &&
+      other.secondaryGlow == secondaryGlow &&
+      other.chartContext == chartContext;
 
   @override
   int get hashCode => Object.hashAll([
@@ -773,5 +1155,17 @@ final class UiColors extends ThemeExtension<UiColors> {
     assistantText,
     assistantBorder,
     menuHover,
+    blurSigma,
+    windowOpacity,
+    surfaceGlass,
+    surfaceGlassStrong,
+    specularBorder,
+    chrome,
+    chromeBorder,
+    titleBarFocused,
+    titleBarBlurred,
+    ambientGlow,
+    secondaryGlow,
+    chartContext,
   ]);
 }

@@ -3,6 +3,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
@@ -46,7 +48,7 @@ class SecretCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final d = data;
     switch (state) {
       case SecretState.saved:
@@ -93,7 +95,9 @@ class SecretCard extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: c.surfaceInk,
-                      borderRadius: BorderRadius.circular(IcRadius.sm),
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).sm,
+                      ),
                     ),
                     child: Icon(
                       LucideIcons.keyRound,
@@ -108,7 +112,7 @@ class SecretCard extends StatelessWidget {
                       children: [
                         Text(
                           'I need your ${d.name}',
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             15,
                             weight: FontWeight.w600,
                             color: c.textStrong,
@@ -117,7 +121,7 @@ class SecretCard extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           d.why,
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             14,
                             color: c.textBody,
                             height: 1.4,
@@ -136,7 +140,11 @@ class SecretCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'You type it in a secure window. It goes to ${d.savedIn} and never into this session.',
-                      style: IcType.text(12.5, color: c.textMuted, height: 1.4),
+                      style: UiType.textStyle(
+                        12.5,
+                        color: c.textMuted,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],

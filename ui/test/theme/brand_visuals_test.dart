@@ -174,10 +174,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: ViewHost(
               knowsApp: (_) => false,
@@ -280,10 +276,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: AllAppsLauncherOverlay(
               apps: [
@@ -398,10 +390,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: LiveDesktopShell(
               // Caller initially only knew 'ino', yet 'helloworld' is dynamically published on the desktop!
@@ -494,10 +482,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: CommandPalette(
               apps: dynamicExtras,
@@ -537,10 +521,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.dark('fluent-acrylic'),
-          builder: (context, child) => IcTheme(
-            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
-            child: child!,
-          ),
           home: Scaffold(
             body: Stack(
               children: [

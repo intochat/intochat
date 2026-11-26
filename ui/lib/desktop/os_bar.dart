@@ -78,7 +78,7 @@ class OsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final isPill =
         barLayout == BarLayout.floatingGlass ||
         barLayout == BarLayout.compactPill;
@@ -125,7 +125,7 @@ class OsBar extends StatelessWidget {
                         const SizedBox(width: 5),
                         Text(
                           'All Apps',
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             11.5,
                             weight: FontWeight.w600,
                             color: allAppsOpen ? c.textStrong : c.textBody,
@@ -153,7 +153,7 @@ class OsBar extends StatelessWidget {
                         const SizedBox(width: 5),
                         Text(
                           '3D Brain',
-                          style: IcType.text(
+                          style: UiType.textStyle(
                             11.5,
                             weight: FontWeight.w600,
                             color: showingDesktop ? c.textStrong : c.textBody,
@@ -222,7 +222,7 @@ class OsBar extends StatelessWidget {
             vertical: 2,
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(IcRadius.pill),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).pill),
             child: BackdropFilter(
               filter: ImageFilter.blur(
                 sigmaX: c.blurSigma > 0 ? c.blurSigma : 18,
@@ -231,11 +231,13 @@ class OsBar extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: c.chrome,
-                  borderRadius: BorderRadius.circular(IcRadius.pill),
+                  borderRadius: BorderRadius.circular(
+                    UiTokens.of(context).pill,
+                  ),
                   border: Border.all(
                     color: c.isGlass ? c.specularBorder : c.chromeBorder,
                   ),
-                  boxShadow: IcShadow.md(c),
+                  boxShadow: UiShadows.md(c),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: innerRow,
@@ -293,7 +295,7 @@ class _DockAppItemState extends State<_DockAppItem> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: MouseRegion(
@@ -312,7 +314,7 @@ class _DockAppItemState extends State<_DockAppItem> {
             onTap: widget.onTap,
             onSecondaryTapDown: widget.onSecondaryTapDown,
             child: AnimatedContainer(
-              duration: IcMotion.fast,
+              duration: UiTokens.of(context).fast,
               width: 34,
               height: 34,
               decoration: BoxDecoration(
@@ -323,15 +325,15 @@ class _DockAppItemState extends State<_DockAppItem> {
                                 ? const Color(0x1AFBFAF7)
                                 : const Color(0x0F17140F))
                           : const Color(0x00000000)),
-                borderRadius: BorderRadius.circular(IcRadius.xs),
+                borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   AnimatedScale(
                     scale: _hover ? 1.15 : 1.0,
-                    duration: IcMotion.fast,
-                    curve: IcMotion.ease,
+                    duration: UiTokens.of(context).fast,
+                    curve: UiTokens.of(context).ease,
                     child: IcAppIcon(
                       appId: widget.spec.id,
                       icon: widget.spec.icon,
@@ -407,7 +409,7 @@ class _StatusTray extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final now = DateTime.now();
     final clock =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
@@ -426,7 +428,7 @@ class _StatusTray extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   stylePreset.label,
-                  style: IcType.text(
+                  style: UiType.textStyle(
                     11,
                     weight: FontWeight.w600,
                     color: c.textBody,
@@ -462,7 +464,7 @@ class _StatusTray extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 '${(tokensToday / 1000).toStringAsFixed(1)}k',
-                style: IcType.text(
+                style: UiType.textStyle(
                   11.5,
                   weight: FontWeight.w600,
                   color: c.textBody,
@@ -523,11 +525,13 @@ class _StatusTray extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: c.accent,
-                    borderRadius: BorderRadius.circular(IcRadius.pill),
+                    borderRadius: BorderRadius.circular(
+                      UiTokens.of(context).pill,
+                    ),
                   ),
                   child: Text(
                     '$notifications',
-                    style: IcType.text(
+                    style: UiType.textStyle(
                       10.5,
                       weight: FontWeight.w700,
                       color: c.onAccent,
@@ -546,7 +550,7 @@ class _StatusTray extends StatelessWidget {
           onTap: onOpenClock ?? () {},
           child: Text(
             clock,
-            style: IcType.text(
+            style: UiType.textStyle(
               12,
               weight: FontWeight.w600,
               color: c.textStrong,
@@ -586,7 +590,7 @@ class _BarButtonState extends State<_BarButton> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final button = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -595,7 +599,7 @@ class _BarButtonState extends State<_BarButton> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           height: 32,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
@@ -606,7 +610,7 @@ class _BarButtonState extends State<_BarButton> {
                             ? const Color(0x1AFBFAF7)
                             : const Color(0x0F17140F))
                       : const Color(0x00000000)),
-            borderRadius: BorderRadius.circular(IcRadius.xs),
+            borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
           ),
           alignment: Alignment.center,
           child: widget.child,

@@ -9,7 +9,7 @@ void main() {
     return MaterialApp(
       theme: ThemeData(
         useMaterial3: true,
-        extensions: [IcColors.forPreset(IcStylePreset.warmPaper, dark: false)],
+        extensions: [UiColors.forPreset(IcStylePreset.warmPaper, dark: false)],
       ),
       home: Scaffold(body: Center(child: child)),
     );

@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 
 /// Alias for [PromptKeys] keyboard navigation group.
@@ -113,12 +115,12 @@ class PromptKeysState extends State<PromptKeys> {
         if (!s.mounted) return;
         Scrollable.ensureVisible(
           s.context,
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
         );
         Scrollable.ensureVisible(
           s.context,
-          duration: IcMotion.fast,
+          duration: UiTokens.of(context).fast,
           alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
         );
       });
@@ -351,22 +353,22 @@ class SelectionRing extends StatelessWidget {
     super.key,
     required this.on,
     required this.child,
-    this.radius = IcRadius.button,
+    this.radius,
   });
 
   final bool on;
   final Widget child;
-  final double radius;
+  final double? radius;
 
   @override
   Widget build(BuildContext context) {
     if (!on) return child;
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     return CustomPaint(
       foregroundPainter: _RingPainter(
         accent: c.accent,
         ring: c.ring,
-        radius: radius,
+        radius: radius ?? UiTokens.of(context).button,
       ),
       child: child,
     );
@@ -458,7 +460,7 @@ class PromptOptions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final scope = PromptScope.maybeOf(context);
     final group = PromptKeys.maybeOf(context);
     final firstLive = (scope?.suppressDefault ?? false)
@@ -491,7 +493,7 @@ class PromptOptions extends StatelessWidget {
                 Expanded(
                   child: Text(
                     note!,
-                    style: IcType.text(12, color: c.textMuted),
+                    style: UiType.textStyle(12, color: c.textMuted),
                   ),
                 )
               else
@@ -499,7 +501,7 @@ class PromptOptions extends StatelessWidget {
               if (group?.focused ?? false)
                 Text(
                   '↑↓ to move  ·  ↵ to choose  ·  Esc to chat',
-                  style: IcType.text(12, color: c.textSubtle),
+                  style: UiType.textStyle(12, color: c.textSubtle),
                 ),
             ],
           ),
@@ -531,7 +533,7 @@ class _OptionRowState extends State<_OptionRow> {
 
   @override
   Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
+    final c = UiColors.of(context);
     final o = widget.option;
     final disabled = o.onTap == null;
     return Stop(
@@ -553,7 +555,7 @@ class _OptionRowState extends State<_OptionRow> {
             child: GestureDetector(
               onTap: o.onTap,
               child: AnimatedContainer(
-                duration: IcMotion.fast,
+                duration: UiTokens.of(context).fast,
                 constraints: const BoxConstraints(minHeight: 42),
                 padding: EdgeInsets.symmetric(
                   horizontal: on ? 11.5 : 12,
@@ -563,7 +565,9 @@ class _OptionRowState extends State<_OptionRow> {
                   color: on
                       ? c.accentTint
                       : (_hover && !disabled ? c.surfaceSunk : c.surfaceCard),
-                  borderRadius: BorderRadius.circular(IcRadius.button),
+                  borderRadius: BorderRadius.circular(
+                    UiTokens.of(context).button,
+                  ),
                   border: Border.all(
                     color: on ? c.accent : c.borderInput,
                     width: on ? 1.5 : 1,
@@ -577,11 +581,13 @@ class _OptionRowState extends State<_OptionRow> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: on ? c.accent : c.surfaceSunk,
-                        borderRadius: BorderRadius.circular(IcRadius.xs),
+                        borderRadius: BorderRadius.circular(
+                          UiTokens.of(context).xs,
+                        ),
                       ),
                       child: Text(
                         '${widget.number}',
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           12,
                           weight: FontWeight.w700,
                           color: on ? c.onAccent : c.textBody,
@@ -605,7 +611,7 @@ class _OptionRowState extends State<_OptionRow> {
                         children: [
                           Text(
                             o.label,
-                            style: IcType.text(
+                            style: UiType.textStyle(
                               14,
                               weight: widget.chat
                                   ? FontWeight.w500
@@ -618,7 +624,7 @@ class _OptionRowState extends State<_OptionRow> {
                               padding: const EdgeInsets.only(top: 1),
                               child: Text(
                                 o.detail!,
-                                style: IcType.text(12, color: c.textMuted),
+                                style: UiType.textStyle(12, color: c.textMuted),
                               ),
                             ),
                         ],
@@ -628,7 +634,7 @@ class _OptionRowState extends State<_OptionRow> {
                     if (on)
                       Text(
                         '↵',
-                        style: IcType.text(
+                        style: UiType.textStyle(
                           13,
                           weight: FontWeight.w600,
                           color: c.accent,
