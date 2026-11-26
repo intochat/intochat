@@ -978,10 +978,10 @@
       <div class="card">
         <div class="card-header">
           <span class="card-title" style="color:var(--purple);">&#9729; Where Cloud ACA Dynamic Sessions Fits In</span>
-          <span class="badge badge-purple">Headless Fallback for Plane 2</span>
+          <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          When the user is away from their workstation and all connected client machines are asleep, Azure Container Apps (ACA) Dynamic Sessions provides an on-demand, scale-to-zero Kata microVM environment. It acts as the <strong>cloud runner host for Plane 2's <code>agent-dev-slots</code></strong>, executing background refactoring tournaments without draining user battery.
+          When the user is away from their workstation and neither a paired sovereign client device nor a local desktop sandbox is available/enabled, Azure Container Apps (ACA) Dynamic Sessions provides an on-demand, scale-to-zero Kata microVM environment over <code>poolManagementEndpoint</code> with Entra/Managed Identity bearer tokens, per-execution/candidate session-ID isolation, strict timeouts, secret-scrubbed payloads, and fail-closed dormancy when unconfigured. It powers both the <strong>Plane 1 Tier-3 fallback</strong> (<code>AcaDynamicSessionsSandbox</code> in <code>Sovereign Client &rarr; Local Sandbox &rarr; ACA Dynamic Sessions</code>) and the <strong>Plane 2 headless candidate host</strong> (<code>AcaDynamicSessionsCandidateHost</code> via <code>CandidateHostMode.AcaDynamicSessions</code>).
         </p>
       </div>
     </div>
@@ -1108,40 +1108,40 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
       <div class="card">
         <div class="card-header">
           <span class="card-title">Slice RFC-1: CodeOrchestrationSynapse &amp; Scoped AppToken</span>
-          <span class="badge badge-accent">Plane 1 Core</span>
+          <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Implement <code>CodeOrchestrationSynapse</code> in <code>src/Modules/Catalog</code>. Implements Roslyn in-memory compilation of generated C# scripts, contract extraction from <code>CodeGraph</code>, least-privilege <code>AppToken</code> minting, and execution in <code>IntoChat.OS.Sandbox</code>.
+          Implemented <code>CodeOrchestrationSynapse</code> in <code>src/Modules/Workspace/Flows</code>. Roslyn in-memory compilation and AST sanitization of generated C# scripts, contract extraction from <code>NeuronContractDiscovery</code>, least-privilege scoped <code>AppToken</code> minting, and execution in <code>IntoChat.OS.Sandbox</code>.
         </p>
       </div>
 
       <div class="card">
         <div class="card-header">
           <span class="card-title">Slice RFC-2: Connected Client Compute in Devices</span>
-          <span class="badge badge-blue">Plane 1 Sovereign</span>
+          <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Extend <code>IntoChat.OS.Modules.Devices</code> to advertise <code>ICodeSandbox</code> capability over the paired P-256 edge relay. Allows <code>CodeOrchestrationSynapse</code> to dispatch scripts to run locally on the user's Windows, Linux, or Android machine.
+          Extended <code>IntoChat.OS.Modules.Devices</code> to advertise <code>ICodeSandbox</code> capability over the paired P-256 edge relay with explicit device consent toggles. Enables <code>CodeOrchestrationSynapse</code> to dispatch scripts locally to the owner's Windows, macOS, or Linux workstation.
         </p>
       </div>
 
       <div class="card">
         <div class="card-header">
           <span class="card-title">Slice RFC-3: Leased Devcontainer Slot Provider</span>
-          <span class="badge badge-purple">Plane 2 Core</span>
+          <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Implement <code>AgentDevSlotsCandidateHost</code> implementing <code>ICandidateHost</code> for <code>EngineerFlow</code>. Leases Docker Compose slots with dynamic port allocation, unprivileged UID 1000, and ephemeral homes for full Aspire multi-service verification.
+          Implemented <code>AgentDevSlotsCandidateHost</code> and <code>CandidateSlotLeasePool</code> implementing <code>ICandidateHost</code> for <code>EngineerFlow</code>. Leases Docker Compose slots with dynamic port allocation, unprivileged UID 1000, warm sidecar reuse, and ephemeral homes for full Aspire verification.
         </p>
       </div>
 
-      <div class="card">
+      <div class="card" style="border-color: rgba(74, 222, 128, 0.35);">
         <div class="card-header">
-          <span class="card-title">Slice RFC-4: Cloud ACA Sessions &amp; Android Edge Worker</span>
-          <span class="badge badge-amber">Plane 2 Cloud</span>
+          <span class="card-title">Slice RFC-4: ACA Dynamic Sessions (Kata MicroVMs) Fallback</span>
+          <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Implement the headless cloud fallback via Azure Container Apps Dynamic Sessions for off-hours Plane 2 runs, plus the Android client background worker for local small-model drafting and test output streaming.
+          Implemented the headless cloud fallback over Azure Container Apps Dynamic Sessions (<code>poolManagementEndpoint</code>) via shared <code>AcaDynamicSessionsClient</code> + <code>ManagedIdentityAcaTokenProvider</code> with per-session Kata MicroVM <code>identifier</code> isolation, strict timeouts, secret-scrubbed payloads, and fail-closed dormancy when unconfigured: <code>AcaDynamicSessionsSandbox</code> (Plane 1 Tier-3 fallback in <code>Sovereign Client &rarr; Local Sandbox &rarr; ACA Dynamic Sessions</code>) and <code>AcaDynamicSessionsCandidateHost</code> (Plane 2 <code>CandidateHostMode.AcaDynamicSessions</code>).
         </p>
       </div>
     </div>

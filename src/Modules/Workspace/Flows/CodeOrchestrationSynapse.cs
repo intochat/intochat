@@ -381,6 +381,16 @@ internal sealed class CodeOrchestrationSynapse(
                 : $"Executed on consented connected client ({ICodeSandbox.CapabilityId}) '{dispatch.ExecutedByMachineId ?? "unknown"}'.";
         }
 
+        if (string.Equals(dispatch.ExecutionTarget, "aca-dynamic-sessions", StringComparison.Ordinal))
+        {
+            if (routeDecision is { Target: ComputeExecutionTarget.ConnectedClient, Node: { } plannedClient })
+            {
+                return $"Connected client '{plannedClient.DeviceName}' ({plannedClient.MachineId}) and local sandbox unavailable; fell back to ACA Dynamic Sessions (Kata MicroVM).";
+            }
+
+            return "Executed via headless ACA Dynamic Sessions (Kata MicroVM) fallback.";
+        }
+
         if (routeDecision is { Target: ComputeExecutionTarget.ConnectedClient, Node: { } planned })
         {
             var fallback = string.IsNullOrWhiteSpace(dispatch.ExecutionTarget) ? "sandbox" : dispatch.ExecutionTarget;
