@@ -143,7 +143,7 @@ jobs:
 
       - name: Restore dependencies
         if: needs.changes.outputs.dotnet == 'true'
-        run: dotnet restore Intochat.OS.slnx -v quiet
+        run: dotnet restore Intochat.OS.slnx -v quiet -p:RestoreUseStaticGraphEvaluation=true
 
       - name: Check no Orleans in core framework packages
         if: needs.changes.outputs.dotnet == 'true'
@@ -162,12 +162,12 @@ jobs:
         if: needs.changes.outputs.dotnet == 'true'
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
 
-  build-and-unit:
-    name: build-and-unit
+  build:
+    name: build
     needs: [changes]
     if: needs.changes.outputs.dotnet == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -183,7 +183,7 @@ jobs:
           cache-dependency-path: Directory.Packages.props
 
       - name: Restore dependencies
-        run: dotnet restore Intochat.OS.slnx -v quiet
+        run: dotnet restore Intochat.OS.slnx -v quiet -p:RestoreUseStaticGraphEvaluation=true
 
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release --no-restore -p:CodeGraphRefresh=false -p:DebugType=none
@@ -191,6 +191,15 @@ jobs:
       - name: Pack DigitalBrain and IntoChat.OS packages
         run: |
           dotnet pack Intochat.OS.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false -p:DebugType=none -p:IncludeSymbols=false
+
+      - name: Prune non-Linux native runtimes and nightly browser tests from compiled artifacts
+        run: |
+          du -sh artifacts/bin
+          find artifacts/bin -mindepth 4 -maxdepth 4 -path '*/runtimes/*' -type d \
+            ! -name 'linux-x64' ! -name 'linux' ! -name 'unix' -exec rm -rf {} +
+          rm -rf artifacts/bin/*/*/.playwright/node/win* artifacts/bin/*/*/.playwright/node/darwin*
+          rm -rf artifacts/bin/*.Tests.Browser
+          du -sh artifacts/bin
 
       - name: Upload DigitalBrain packages
         uses: actions/upload-artifact@v7
@@ -200,24 +209,18 @@ jobs:
           compression-level: 1
           retention-days: 1
 
-      - name: Test (Architecture Tier — MTP)
-        run: |
-          dotnet restore framework/DigitalBrain.slnx -v quiet
-          dotnet test --test-modules "artifacts/bin/*.Architecture.Tests.Unit/release/*.Architecture.Tests.Unit.dll"
+      - name: Upload unit test artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-artifacts
+          path: |
+            artifacts/bin/*.Tests.Unit
+            artifacts/obj/*/project.assets.json
+          compression-level: 1
+          retention-days: 1
 
-      - name: Test (Unit Tier — MTP)
-        run: |
-          rm -rf artifacts/bin/*.Architecture.Tests.Unit
-          dotnet test --test-modules "artifacts/bin/*.Tests.Unit/release/*.Tests.Unit.dll"
-
-      - name: Prune non-Linux native runtimes and completed unit tests from compiled artifacts
-        run: |
-          du -sh artifacts/bin
-          rm -rf artifacts/bin/*.Tests.Unit
-          find artifacts/bin -mindepth 4 -maxdepth 4 -path '*/runtimes/*' -type d \
-            ! -name 'linux-x64' ! -name 'linux' ! -name 'unix' -exec rm -rf {} +
-          rm -rf artifacts/bin/*/*/.playwright/node/win* artifacts/bin/*/*/.playwright/node/darwin*
-          du -sh artifacts/bin
+      - name: Drop unit test binaries from integration/E2E artifacts
+        run: rm -rf artifacts/bin/*.Tests.Unit
 
       - name: Upload compiled artifacts
         uses: actions/upload-artifact@v7
@@ -227,12 +230,51 @@ jobs:
           compression-level: 1
           retention-days: 1
 
-  test-integration-os:
-    name: test-integration-os
-    needs: [changes, build-and-unit]
+  test-unit:
+    name: test-unit
+    needs: [changes, build]
     if: needs.changes.outputs.dotnet == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: unit-test-artifacts
+          path: artifacts
+
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
+
+      - name: Test (Architecture Tier — MTP)
+        run: dotnet test --test-modules "artifacts/bin/*.Architecture.Tests.Unit/release/*.Architecture.Tests.Unit.dll" --max-parallel-test-modules 8
+
+      - name: Test (Unit Tier — MTP)
+        run: |
+          rm -rf artifacts/bin/*.Architecture.Tests.Unit
+          dotnet test --test-modules "artifacts/bin/*.Tests.Unit/release/*.Tests.Unit.dll" --max-parallel-test-modules 8
+
+  test-integration-os:
+    name: test-integration-os (${{ matrix.shard }}/2)
+    needs: [changes, build]
+    if: needs.changes.outputs.dotnet == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            filter_arg: '--filter-namespace'
+            filter_value: 'IntoChat.OS.Modules.*'
+          - shard: 2
+            filter_arg: '--filter-not-namespace'
+            filter_value: 'IntoChat.OS.Modules.*'
     env:
       AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
     services:
@@ -273,15 +315,15 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
-      - name: Test (IntoChat.OS Integration Tier — MTP)
-        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Tests.Integration/release/IntoChat.OS.Tests.Integration.dll"
+      - name: Test (IntoChat.OS Integration Tier — MTP shard ${{ matrix.shard }}/2)
+        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Tests.Integration/release/IntoChat.OS.Tests.Integration.dll" --max-parallel-test-modules 8 -- ${{ matrix.filter_arg }} "${{ matrix.filter_value }}"
 
   test-framework:
     name: test-framework
-    needs: [changes, build-and-unit]
+    needs: [changes, build]
     if: needs.changes.outputs.dotnet == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     env:
       AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
     steps:
@@ -317,19 +359,20 @@ jobs:
       - name: Test (DigitalBrain Integration Tier — MTP)
         env:
           DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/packages
-        run: dotnet test --test-modules "artifacts/bin/DigitalBrain*.Tests.Integration/release/DigitalBrain*.Tests.Integration.dll"
+        run: dotnet test --test-modules "artifacts/bin/DigitalBrain*.Tests.Integration/release/DigitalBrain*.Tests.Integration.dll" --max-parallel-test-modules 8
 
       - name: Test (DigitalBrain Framework E2E — MTP)
-        run: dotnet test --test-modules "artifacts/bin/DigitalBrain.Framework.Tests.E2E/release/DigitalBrain.Framework.Tests.E2E.dll"
+        run: dotnet test --test-modules "artifacts/bin/DigitalBrain.Framework.Tests.E2E/release/DigitalBrain.Framework.Tests.E2E.dll" --max-parallel-test-modules 8
 
   e2e-os:
     name: e2e-os
-    needs: [changes, build-and-unit]
+    needs: [changes, build]
     if: needs.changes.outputs.dotnet == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     env:
       AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+      INTOCHATOS__KERNEL_BINARY: ${{ github.workspace }}/artifacts/bin/IntoChat.OS.Kernel/release/IntoChat.OS.Kernel
     steps:
       - uses: actions/checkout@v7
 
@@ -343,8 +386,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-          cache: true
-          cache-dependency-path: Directory.Packages.props
 
       - uses: actions/download-artifact@v8
         with:
@@ -370,14 +411,8 @@ jobs:
           chmod +x ~/.aspire/bundle/dcp/dcp ~/.aspire/bundle/dcp/dcptun_c
           rm -f /tmp/dcp.zip
 
-      - name: Restore solution for Aspire AppHost project builds
-        run: dotnet restore Intochat.OS.slnx -v quiet
-
-      - name: Prepare Kernel build state
-        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release --no-restore -p:CodeGraphRefresh=false --nologo -v minimal
-
       - name: Test IntoChat.OS E2E (MTP)
-        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Tests.E2E/release/IntoChat.OS.Tests.E2E.dll"
+        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Tests.E2E/release/IntoChat.OS.Tests.E2E.dll" --max-parallel-test-modules 8
 
   flutter:
     name: flutter
@@ -439,7 +474,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [changes, lint-and-security, build-and-unit, test-integration-os, test-framework, e2e-os, flutter, package-dry-run]
+    needs: [changes, lint-and-security, build, test-unit, test-integration-os, test-framework, e2e-os, flutter, package-dry-run]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -447,5 +482,5 @@ jobs:
       - name: Gate
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: |
-          echo "changes=${{ needs.changes.result }} lint-and-security=${{ needs.lint-and-security.result }} build-and-unit=${{ needs.build-and-unit.result }} test-integration-os=${{ needs.test-integration-os.result }} test-framework=${{ needs.test-framework.result }} e2e-os=${{ needs.e2e-os.result }} flutter=${{ needs.flutter.result }} package-dry-run=${{ needs.package-dry-run.result }}"
+          echo "changes=${{ needs.changes.result }} lint-and-security=${{ needs.lint-and-security.result }} build=${{ needs.build.result }} test-unit=${{ needs.test-unit.result }} test-integration-os=${{ needs.test-integration-os.result }} test-framework=${{ needs.test-framework.result }} e2e-os=${{ needs.e2e-os.result }} flutter=${{ needs.flutter.result }} package-dry-run=${{ needs.package-dry-run.result }}"
           exit 1

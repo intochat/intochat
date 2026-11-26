@@ -55,6 +55,12 @@ public sealed class TestOSOptions
 /// </summary>
 public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 {
+    private static readonly Lazy<SynapseCatalog> EmptyCatalog = new(static () => SynapseCatalog.Scan());
+    private static readonly ConcurrentDictionary<Assembly, SynapseCatalog> AssemblyCatalogs = new();
+    private static readonly ConcurrentDictionary<Assembly, ActionDescriptor[]> AssemblyModuleActions = new();
+    private static readonly ConcurrentDictionary<Assembly, Type[]> AssemblyNeuronTypes = new();
+    private static readonly ConcurrentDictionary<string, Type> StaticSignalTypes = new(StringComparer.Ordinal);
+
     private readonly ConcurrentDictionary<string, Type> _types = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<NeuronId, TestNeuronHost> _hosts = new();
     private readonly ConcurrentDictionary<BrainId, TestJournal> _journals = new();
@@ -83,6 +89,11 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
                 return signalType;
             }
         }
+        if (StaticSignalTypes.TryGetValue(alias, out var cachedSignal))
+        {
+            _signalTypes[alias] = cachedSignal;
+            return cachedSignal;
+        }
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             if (assembly.IsDynamic || assembly.IsCollectible) { continue; }
@@ -90,7 +101,11 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             {
                 if (typeof(Signal).IsAssignableFrom(t) && !t.IsAbstract && SignalAliases.Of(t) == alias)
                 {
-                    if (!t.IsCollectible) { _signalTypes[alias] = t; }
+                    if (!t.IsCollectible)
+                    {
+                        _signalTypes[alias] = t;
+                        StaticSignalTypes.TryAdd(alias, t);
+                    }
                     return t;
                 }
             }
@@ -112,7 +127,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         Capabilities = new CapabilityFakes();
         Loader = new DigitalBrain.Runtime.Synapses.UnitLoader();
         LiveBindings = new LiveBindings();
-        Source = new SynapseCatalogSource(SynapseCatalog.Scan(), () => Loader);
+        Source = new SynapseCatalogSource(EmptyCatalog.Value, () => Loader);
         Resolver = new UnitResolver(
             Loader,
             Source,
@@ -304,7 +319,9 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     {
         ArgumentNullException.ThrowIfNull(assembly);
         ScanModuleActions(assembly);
-        var scanned = SynapseCatalog.Scan(assembly);
+        var scanned = IsCacheable(assembly)
+            ? AssemblyCatalogs.GetOrAdd(assembly, static a => SynapseCatalog.Scan(a))
+            : SynapseCatalog.Scan(assembly);
         Source.Merge(scanned);
         foreach (var (alias, record) in scanned.States)
         {
@@ -312,7 +329,10 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             var registered = _types.GetOrAdd(alias, neuron);
             if (registered != neuron) { throw new ArgumentException($"State alias '{alias}' is already registered for {registered.FullName}.", nameof(assembly)); }
         }
-        foreach (var type in assembly.GetTypes().Where(type => type is { IsAbstract: false, IsClass: true } && typeof(Neuron).IsAssignableFrom(type) && type.IsDefined(typeof(NeuronAttribute), false)))
+        var neuronTypes = IsCacheable(assembly)
+            ? AssemblyNeuronTypes.GetOrAdd(assembly, static a => [.. a.GetTypes().Where(static type => type is { IsAbstract: false, IsClass: true } && typeof(Neuron).IsAssignableFrom(type) && type.IsDefined(typeof(NeuronAttribute), false))])
+            : assembly.GetTypes().Where(static type => type is { IsAbstract: false, IsClass: true } && typeof(Neuron).IsAssignableFrom(type) && type.IsDefined(typeof(NeuronAttribute), false));
+        foreach (var type in neuronTypes)
         {
             Register(type);
         }
@@ -676,18 +696,30 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     private void ScanModuleActions(Assembly assembly)
     {
         if (!_scannedModules.TryAdd(assembly, 0)) { return; }
-        foreach (var moduleType in assembly.GetTypes().Where(type => type is { IsAbstract: false, IsClass: true } && typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type) && type.IsDefined(typeof(ModuleAttribute), false)))
+        var actions = IsCacheable(assembly)
+            ? AssemblyModuleActions.GetOrAdd(assembly, static a => LoadModuleActions(a))
+            : LoadModuleActions(assembly);
+        foreach (var action in actions)
+        {
+            _ = _actions.TryAdd(action.Name, action);
+        }
+    }
+
+    private static ActionDescriptor[] LoadModuleActions(Assembly assembly)
+    {
+        var actions = new List<ActionDescriptor>();
+        foreach (var moduleType in assembly.GetTypes().Where(static type => type is { IsAbstract: false, IsClass: true } && typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type) && type.IsDefined(typeof(ModuleAttribute), false)))
         {
             try
             {
-                foreach (var action in ModuleManifest.Of(moduleType).Actions)
-                {
-                    _ = _actions.TryAdd(action.Name, action);
-                }
+                actions.AddRange(ModuleManifest.Of(moduleType).Actions);
             }
             catch (Exception error) when (error is InvalidOperationException or InvalidDataException) { _ = error; }
         }
+        return [.. actions];
     }
+
+    private static bool IsCacheable(Assembly assembly) => !assembly.IsDynamic && !assembly.IsCollectible;
 
     private static IEnumerable<Type> Loadable(Assembly assembly)
     {
