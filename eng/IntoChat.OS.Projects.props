@@ -1,0 +1,91 @@
+<Project>
+  <!-- Canonical package-to-project map for opt-in ProjectReference unification.
+       Import this file (and eng/IntoChat.OS.ProjectReferences.targets) from any downstream host
+       repository to bind IntoChat.OS.* and DigitalBrain.* PackageReferences directly to local
+       ProjectReferences without requiring lockstep NuGet package downloads during local or CI dev.
+       Leave IntoChatOSUseProjectReferences unset or false (default) for standard NuGet builds. -->
+  <PropertyGroup Condition="'$(_IntoChatOSProjectsPropsImported)' != 'true'">
+    <_IntoChatOSProjectsPropsImported>true</_IntoChatOSProjectsPropsImported>
+    <IntoChatOSRepoRoot Condition="'$(IntoChatOSRepoRoot)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..'))</IntoChatOSRepoRoot>
+    <IntoChatOSRepoRoot>$([MSBuild]::EnsureTrailingSlash('$(IntoChatOSRepoRoot)'))</IntoChatOSRepoRoot>
+    <IntoChatOSUseProjectReferences Condition="'$(IntoChatOSUseProjectReferences)' == ''">false</IntoChatOSUseProjectReferences>
+    <IntoChatOSUseProjectReferences Condition="'$(IntoChatOSUseProjectReferences)' == 'auto' And Exists('$(IntoChatOSRepoRoot)Intochat.OS.slnx')">true</IntoChatOSUseProjectReferences>
+    <IntoChatOSUseProjectReferences Condition="'$(IntoChatOSUseProjectReferences)' == 'auto'">false</IntoChatOSUseProjectReferences>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'@(IntoChatOSProjectMap)' == ''">
+    <!-- Framework (DigitalBrain.*) -->
+    <IntoChatOSProjectMap Include="DigitalBrain" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain/DigitalBrain.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Analyzers" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" IsAnalyzer="true" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Compute" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Connections" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Http" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Identity" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Secrets" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Storage" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Capabilities.Tools" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Graph" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Identity.Local" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Http" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Orleans" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Orleans.Azure" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Runtime.Synapses" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Simulation" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Testing" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.Testing.Silo" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="DigitalBrain.UI" ProjectPath="$(IntoChatOSRepoRoot)framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" IsAnalyzer="false" />
+
+    <!-- OS Core (IntoChat.OS.*) -->
+    <IntoChatOSProjectMap Include="IntoChat.OS" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS/IntoChat.OS.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.AppHost" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Apps" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Host" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS.Host/IntoChat.OS.Host.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Kernel" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.LocalSetup" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.UI" ProjectPath="$(IntoChatOSRepoRoot)src/IntoChat.OS.UI/IntoChat.OS.UI.csproj" IsAnalyzer="false" />
+
+    <!-- Components (IntoChat.OS.Components.*) -->
+    <IntoChatOSProjectMap Include="IntoChat.OS.Components.Aspire" ProjectPath="$(IntoChatOSRepoRoot)src/Components/Aspire/IntoChat.Aspire.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Components.Aspire.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Components.Muncly" ProjectPath="$(IntoChatOSRepoRoot)src/Components/Muncly/IntoChat.Muncly.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Components.Muncly.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Components/Muncly/Contracts/IntoChat.Muncly.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Components.Treg" ProjectPath="$(IntoChatOSRepoRoot)src/Components/Treg/IntoChat.Treg.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Components.Treg.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Components/Treg/Contracts/IntoChat.Treg.Contracts.csproj" IsAnalyzer="false" />
+
+    <!-- Modules (IntoChat.OS.Modules.*) -->
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.AI" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.AI.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.ArtCraft" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Authoring" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Azure" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Catalog" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Catalog.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Circles" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Circles/IntoChat.OS.Modules.Circles.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.ClickHouse" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Devices" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Devices.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Diagnostics" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Diagnostics/IntoChat.OS.Modules.Diagnostics.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.GitHub" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Google" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Google/IntoChat.OS.Modules.Google.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Identity" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Identity.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Mcp" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Mcp.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Notifications" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Playwright" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Postgres" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Roslyn" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Roslyn.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Roslyn/Contracts/IntoChat.OS.Modules.Roslyn.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Runs" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Runs/IntoChat.OS.Modules.Runs.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Salesforce" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Shell" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Shell.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Storage" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Time" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Time/IntoChat.OS.Modules.Time.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.UI" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/UI/IntoChat.OS.Modules.UI.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.UI.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/UI/Contracts/IntoChat.OS.Modules.UI.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Web" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Web/IntoChat.OS.Modules.Web.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Web.Contracts" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Web/Contracts/IntoChat.OS.Modules.Web.Contracts.csproj" IsAnalyzer="false" />
+    <IntoChatOSProjectMap Include="IntoChat.OS.Modules.Windows" ProjectPath="$(IntoChatOSRepoRoot)src/Modules/Windows/IntoChat.OS.Modules.Windows.csproj" IsAnalyzer="false" />
+  </ItemGroup>
+</Project>

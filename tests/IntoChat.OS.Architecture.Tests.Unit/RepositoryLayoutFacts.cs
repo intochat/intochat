@@ -52,9 +52,12 @@ public sealed class RepositoryLayoutFacts
         {
             var relativePath = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
 
-            // Allow systemone-adapter server.py, official installer scripts under eng/install/, and Flutter's gitignored iOS build helper
+            // Allow systemone-adapter server.py, official installer scripts under eng/install/,
+            // the reusable POSIX Azure CLI retry helper embedded by PulumiStackSynthesizer (scripts/az-retry.sh),
+            // and Flutter's gitignored iOS build helper
             if (relativePath.EndsWith("Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase)
                 || relativePath.StartsWith("eng/install/", StringComparison.OrdinalIgnoreCase)
+                || relativePath.Equals("scripts/az-retry.sh", StringComparison.OrdinalIgnoreCase)
                 || relativePath.Equals("ui/ios/Flutter/flutter_export_environment.sh", StringComparison.OrdinalIgnoreCase))
             {
                 continue;

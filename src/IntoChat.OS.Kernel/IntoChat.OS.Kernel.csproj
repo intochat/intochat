@@ -94,4 +94,11 @@
   <ItemGroup>
     <Protobuf Include="Platform/neurons.proto" GrpcServices="Both" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../deploy/Pulumi.yaml" LogicalName="IntoChat.OS.Kernel.Install.Assets.Pulumi.yaml" Link="Install/Assets/Pulumi.yaml" />
+    <EmbeddedResource Include="../../deploy/Pulumi.stack.yaml" LogicalName="IntoChat.OS.Kernel.Install.Assets.Pulumi.stack.yaml" Link="Install/Assets/Pulumi.stack.yaml" />
+    <EmbeddedResource Include="../../deploy/command-stop.yaml" LogicalName="IntoChat.OS.Kernel.Install.Assets.command-stop.yaml" Link="Install/Assets/command-stop.yaml" />
+    <EmbeddedResource Include="../../deploy/command-start.yaml" LogicalName="IntoChat.OS.Kernel.Install.Assets.command-start.yaml" Link="Install/Assets/command-start.yaml" />
+    <EmbeddedResource Include="../../scripts/az-retry.sh" LogicalName="IntoChat.OS.Kernel.Install.Assets.az-retry.sh" Link="Install/Assets/az-retry.sh" />
+  </ItemGroup>
 </Project>

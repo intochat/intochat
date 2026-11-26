@@ -197,6 +197,13 @@ public static partial class PulumiStackSynthesizer
             plan.StackConfigYaml,
             utf8NoBom,
             cancellationToken);
+        var scriptsDirectory = Path.Combine(outputDirectory, "scripts");
+        Directory.CreateDirectory(scriptsDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(scriptsDirectory, "az-retry.sh"),
+            PulumiAssets.AzRetryScript,
+            utf8NoBom,
+            cancellationToken);
     }
 
     public static JsonObject ExportImportEntries(PulumiStackPlan plan)

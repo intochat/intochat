@@ -1,0 +1,11 @@
+  {{logical}}:
+    type: command:local:Command
+    options:
+      dependsOn: [{{dependsOn}}]
+    properties:
+      interpreter: ["/bin/sh", "-c"]
+      triggers: ["{{trigger}}"]
+      create: |
+        app="{{appName}}"; group="{{groupName}}"
+{{azRetry}}
+{{startBody}}

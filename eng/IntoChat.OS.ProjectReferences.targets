@@ -1,0 +1,38 @@
+<Project>
+  <!-- Opt-in MSBuild targets that rebind IntoChat.OS.* and DigitalBrain.* PackageReferences
+       to direct ProjectReferences against a local IntoChat OS checkout when
+       IntoChatOSUseProjectReferences=true (or auto with an accessible IntoChatOSRepoRoot). -->
+  <Import Project="$(MSBuildThisFileDirectory)IntoChat.OS.Projects.props" Condition="'$(_IntoChatOSProjectsPropsImported)' != 'true'" />
+
+  <ItemGroup Condition="'$(IntoChatOSUseProjectReferences)' == 'true'">
+    <_IntoChatOSNonAspireRef Include="@(PackageReference->WithMetadataValue('IsAspireProjectResource', 'false'))" />
+    <IntoChatOSProjectMap Update="@(PackageReference)">
+      <Requested>true</Requested>
+      <NonAspire>false</NonAspire>
+    </IntoChatOSProjectMap>
+    <IntoChatOSProjectMap Update="@(_IntoChatOSNonAspireRef)">
+      <NonAspire>true</NonAspire>
+    </IntoChatOSProjectMap>
+
+    <_IntoChatOSSelectedProject Include="@(IntoChatOSProjectMap->WithMetadataValue('Requested', 'true'))" />
+
+    <ProjectReference Include="@(_IntoChatOSSelectedProject->WithMetadataValue('IsAnalyzer', 'false')->WithMetadataValue('NonAspire', 'false')->'%(ProjectPath)')" />
+    <ProjectReference Include="@(_IntoChatOSSelectedProject->WithMetadataValue('IsAnalyzer', 'false')->WithMetadataValue('NonAspire', 'true')->'%(ProjectPath)')"
+                      IsAspireProjectResource="false" />
+    <ProjectReference Include="@(_IntoChatOSSelectedProject->WithMetadataValue('IsAnalyzer', 'true')->'%(ProjectPath)')"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      IsAspireProjectResource="false" />
+
+    <PackageReference Remove="@(_IntoChatOSSelectedProject->'%(Identity)')" />
+    <PackageVersion Remove="@(IntoChatOSProjectMap->'%(Identity)')" />
+  </ItemGroup>
+
+  <Target Name="_ValidateIntoChatOSProjectReferences"
+          BeforeTargets="CollectPackageReferences;ResolveProjectReferences;BeforeBuild"
+          Condition="'$(IntoChatOSUseProjectReferences)' == 'true'">
+    <Error Condition="!Exists('$(IntoChatOSRepoRoot)Intochat.OS.slnx')"
+           Text="IntoChatOSUseProjectReferences=true requires IntoChatOSRepoRoot ('$(IntoChatOSRepoRoot)') to point to an IntoChat OS checkout containing Intochat.OS.slnx." />
+  </Target>
+</Project>

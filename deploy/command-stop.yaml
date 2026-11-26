@@ -1,0 +1,9 @@
+  {{logical}}:
+    type: command:local:Command
+    properties:
+      interpreter: ["/bin/sh", "-c"]
+      triggers: ["{{trigger}}"]
+      create: |
+        app="{{appName}}"; group="{{groupName}}"; waits={{waits}}
+{{azRetry}}
+{{stopBody}}

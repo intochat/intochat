@@ -1,0 +1,46 @@
+name: {{stackProjectName}}
+runtime: yaml
+description: IntoChat OS ({{env}}) Azure infrastructure synthesized from InstallConfig and ModuleManifests (zero SessionPool).
+
+variables:
+  clientConfig:
+    fn::invoke:
+      function: azure-native:authorization:getClientConfig
+      arguments: {}
+  logSharedKeys:
+    fn::invoke:
+      function: azure-native:operationalinsights:getSharedKeys
+      arguments:
+        resourceGroupName: "${{{rgLogical}}.name}"
+        workspaceName: "${{{logLogical}}.name}"
+  storageKeys:
+    fn::invoke:
+      function: azure-native:storage:listStorageAccountKeys
+      arguments:
+        resourceGroupName: "${{{rgLogical}}.name}"
+        accountName: "${{{storageLogical}}.name}"
+
+resources:
+{{resources}}
+
+outputs:
+  resourceGroupName:
+    value: "{{groupName}}"
+  vaultName:
+    value: "{{vaultName}}"
+  osAppName:
+    value: "{{osAppName}}"
+  osFqdn:
+    value: "${{{osLogical}}.configuration.ingress.fqdn}"
+  environmentDefaultDomain:
+    value: "${{{envLogical}}.defaultDomain}"
+  environmentStaticIp:
+    value: "${{{envLogical}}.staticIp}"
+  customDomainVerificationId:
+    value: "${{{envLogical}}.customDomainConfiguration.customDomainVerificationId}"
+  osImage:
+    value: "{{osImage}}"
+  moduleSecretsCount:
+    value: {{moduleSecretsCount}}
+  moduleVariablesCount:
+    value: {{moduleVariablesCount}}

@@ -393,6 +393,37 @@ public sealed class InstallPlanFacts
         }
     }
 
+    [Fact]
+    public async Task WriteWorkspaceAsyncWritesDeclarativeFilesAndAzRetryScript()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules);
+
+        using var workspace = new DigitalBrain.Testing.TempDirectory("intochat-pulumi-workspace-");
+        await PulumiStackSynthesizer.WriteWorkspaceAsync(plan, workspace.Path, TestContext.Current.CancellationToken);
+
+        var pulumiYamlPath = Path.Combine(workspace.Path, "Pulumi.yaml");
+        var stackConfigPath = Path.Combine(workspace.Path, "Pulumi.test.yaml");
+        var azRetryPath = Path.Combine(workspace.Path, "scripts", "az-retry.sh");
+
+        Assert.True(File.Exists(pulumiYamlPath));
+        Assert.True(File.Exists(stackConfigPath));
+        Assert.True(File.Exists(azRetryPath));
+
+        Assert.Equal(plan.PulumiYaml, await File.ReadAllTextAsync(pulumiYamlPath, TestContext.Current.CancellationToken));
+        Assert.Equal(plan.StackConfigYaml, await File.ReadAllTextAsync(stackConfigPath, TestContext.Current.CancellationToken));
+
+        var scriptBytes = await File.ReadAllBytesAsync(azRetryPath, TestContext.Current.CancellationToken);
+        Assert.False(scriptBytes.Contains((byte)'\r'), "Written az-retry.sh must use LF line endings.");
+        var scriptText = await File.ReadAllTextAsync(azRetryPath, TestContext.Current.CancellationToken);
+        Assert.StartsWith("#!/bin/sh\n", scriptText, StringComparison.Ordinal);
+        Assert.Contains("az_retry()", scriptText, StringComparison.Ordinal);
+    }
+
     private static string ResourceBlock(string yaml, string logicalName)
     {
         var start = yaml.IndexOf("\n  " + logicalName + ":\n", StringComparison.Ordinal);

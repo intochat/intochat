@@ -1,0 +1,34 @@
+<Project DefaultTargets="Build">
+  <!-- Unified MSBuild traversal entry point for building Intochat.OS.slnx together with any
+       external host solutions/projects bound via direct ProjectReferences (no internal NuGet feed).
+       Usage:
+         dotnet build eng/IntoChat.OS.Unified.proj -p:UnifiedProjects=/path/to/host/Host.slnx
+         dotnet test  eng/IntoChat.OS.Unified.proj -p:UnifiedProjects=/path/to/host/Host.slnx -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <IntoChatOSRepoRoot Condition="'$(IntoChatOSRepoRoot)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..'))</IntoChatOSRepoRoot>
+    <IntoChatOSRepoRoot>$([MSBuild]::EnsureTrailingSlash('$(IntoChatOSRepoRoot)'))</IntoChatOSRepoRoot>
+    <_UnifiedProperties>Configuration=$(Configuration);IntoChatOSUseProjectReferences=true;IntoChatOSRepoRoot=$(IntoChatOSRepoRoot)</_UnifiedProperties>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <_UnifiedTarget Include="$(IntoChatOSRepoRoot)Intochat.OS.slnx" />
+    <_UnifiedTarget Include="$(UnifiedProjects)" Condition="'$(UnifiedProjects)' != ''" />
+  </ItemGroup>
+
+  <Target Name="Restore">
+    <MSBuild Projects="@(_UnifiedTarget)" Targets="Restore" Properties="$(_UnifiedProperties)" BuildInParallel="false" />
+  </Target>
+
+  <Target Name="Build">
+    <MSBuild Projects="@(_UnifiedTarget)" Targets="Build" Properties="$(_UnifiedProperties)" BuildInParallel="false" />
+  </Target>
+
+  <Target Name="Clean">
+    <MSBuild Projects="@(_UnifiedTarget)" Targets="Clean" Properties="$(_UnifiedProperties)" BuildInParallel="false" />
+  </Target>
+
+  <Target Name="Test">
+    <MSBuild Projects="@(_UnifiedTarget)" Targets="VSTest" Properties="$(_UnifiedProperties)" BuildInParallel="false" />
+  </Target>
+</Project>
