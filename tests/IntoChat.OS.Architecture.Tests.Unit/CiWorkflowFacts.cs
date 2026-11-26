@@ -230,6 +230,18 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("gh release upload", publishChecksums, StringComparison.Ordinal);
     }
 
+    // On Windows, starting bare "flutter.bat" with WorkingDirectory = uiDir makes cmd.exe expand %~dp0
+    // to uiDir instead of the Flutter SDK bin directory, failing with "The system cannot find the path specified."
+    [Fact]
+    public void PackageScriptResolvesFlutterPathBeforeInvoking()
+    {
+        var packageScript = File.ReadAllText(Path.Combine(Repository.Root, "eng", "package.cs"));
+
+        Assert.Contains("ResolveFlutterCommand()", packageScript, StringComparison.Ordinal);
+        Assert.Contains("ResolveOnPath(executable)", packageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("var flutterCmd = OperatingSystem.IsWindows()", packageScript, StringComparison.Ordinal);
+    }
+
     // A Windows packaging failure must not hold back the image, and the reverse.
     [Fact]
     public void TheWindowsPackagingJobAndThePackageJobDoNotWaitForEachOther()
