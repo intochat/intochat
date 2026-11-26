@@ -441,6 +441,36 @@ public sealed class InstallPlanFacts
     }
 
     [Fact]
+    public void ResolveTerminationGracePeriodSeconds_EnforcesAtLeastShutdownTimeout()
+    {
+        var defaultRequired = (int)Math.Ceiling(
+            IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownTimeout(null, Orleans.Configuration.GrainCollectionOptions.DEFAULT_DEACTIVATION_TIMEOUT).TotalSeconds);
+
+        var defaultApp = new ContainerAppSpec { Name = "intochat-test-os", StopBeforeUpdate = true };
+        Assert.Equal(60, PulumiStackSynthesizer.ResolveTerminationGracePeriodSeconds(defaultApp));
+        Assert.True(PulumiStackSynthesizer.ResolveTerminationGracePeriodSeconds(defaultApp) >= defaultRequired);
+
+        var tooShortApp = new ContainerAppSpec { Name = "intochat-test-os", StopBeforeUpdate = true, TerminationGracePeriodSeconds = 15 };
+        Assert.Equal(defaultRequired, PulumiStackSynthesizer.ResolveTerminationGracePeriodSeconds(tooShortApp));
+
+        var drainDelay = TimeSpan.FromSeconds(30);
+        var expectedWithDrain = (int)Math.Ceiling(
+            IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownTimeout(drainDelay, Orleans.Configuration.GrainCollectionOptions.DEFAULT_DEACTIVATION_TIMEOUT).TotalSeconds);
+        var drainedApp = new ContainerAppSpec
+        {
+            Name = "intochat-test-os",
+            StopBeforeUpdate = true,
+            TerminationGracePeriodSeconds = 60,
+            Variables = new Dictionary<string, string>
+            {
+                [PulumiStackSynthesizer.DrainDelayVariable] = drainDelay.ToString("c", System.Globalization.CultureInfo.InvariantCulture),
+            },
+        };
+        Assert.Equal(expectedWithDrain, PulumiStackSynthesizer.ResolveTerminationGracePeriodSeconds(drainedApp));
+        Assert.True(expectedWithDrain > 60);
+    }
+
+    [Fact]
     public async Task WriteWorkspaceAsyncWritesDeclarativeFilesAndAzRetryScript()
     {
         var config = InstallConfig.Universal(

@@ -63,14 +63,15 @@ public sealed class SingleSiloGuardFacts
     }
 
     [Fact]
-    public async Task PeerLeavesWithinGracePeriod_SucceedsOncePeerTransitionsToDead()
+    public async Task PeerLeavesWithinGracePeriod_WaitsThroughShuttingDownAndStopping_AndSucceedsOnceDead()
     {
         var self = NewSilo(11111, 2);
         var oldPeer = NewSilo(11111, 1);
         var membership = new FakeMembershipService(
             Snapshot(1, Member(self, SiloStatus.Joining, "self"), Member(oldPeer, SiloStatus.Active, "old")),
-            Snapshot(2, Member(self, SiloStatus.Joining, "self"), Member(oldPeer, SiloStatus.Active, "old")),
-            Snapshot(3, Member(self, SiloStatus.Joining, "self"), Member(oldPeer, SiloStatus.Dead, "old")));
+            Snapshot(2, Member(self, SiloStatus.Joining, "self"), Member(oldPeer, SiloStatus.ShuttingDown, "old")),
+            Snapshot(3, Member(self, SiloStatus.Joining, "self"), Member(oldPeer, SiloStatus.Stopping, "old")),
+            Snapshot(4, Member(self, SiloStatus.Joining, "self"), Member(oldPeer, SiloStatus.Dead, "old")));
         var table = new FakeMembershipTable(self, SiloStatus.Joining);
 
         var guard = new SingleSiloGuard(
@@ -83,7 +84,7 @@ public sealed class SingleSiloGuardFacts
 
         await RunCheckStageAsync(guard, Ct);
 
-        Assert.Equal(3, membership.RefreshCount);
+        Assert.Equal(4, membership.RefreshCount);
         Assert.Equal(SiloStatus.Joining, table.StatusOf(self));
         Assert.Equal(0, table.UpdateCalls);
     }
@@ -92,7 +93,9 @@ public sealed class SingleSiloGuardFacts
     [InlineData(SiloStatus.Active)]
     [InlineData(SiloStatus.Joining)]
     [InlineData(SiloStatus.Created)]
-    public async Task PeerStaysLivePastGracePeriod_RefusesFailClosedAndMarksSelfDead(SiloStatus peerStatus)
+    [InlineData(SiloStatus.ShuttingDown)]
+    [InlineData(SiloStatus.Stopping)]
+    public async Task PeerStaysNonDeadPastGracePeriod_RefusesFailClosedAndMarksOnlySelfDead(SiloStatus peerStatus)
     {
         var self = NewSilo(11111, 2);
         var peer = NewSilo(11111, 1);
@@ -119,6 +122,47 @@ public sealed class SingleSiloGuardFacts
         Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
         Assert.Equal(peerStatus, table.StatusOf(peer));
         Assert.Equal(1, table.UpdateCalls);
+    }
+
+    [Fact]
+    public void ResolveGracePeriod_CapsStrictlyBelowMaxJoinAttemptTimeAndStartupBudget()
+    {
+        var acaStartupProbeBudget = TimeSpan.FromSeconds(10 * 30);
+        var prodMaxJoin = TimeSpan.FromMinutes(2);
+
+        Assert.True(SingleSiloGuardOptions.MaxGracePeriod < prodMaxJoin);
+        Assert.True(SingleSiloGuardOptions.MaxGracePeriod < acaStartupProbeBudget);
+        Assert.Equal(TimeSpan.FromSeconds(30), SingleSiloGuard.ResolveGracePeriod(TimeSpan.FromSeconds(30), prodMaxJoin));
+        Assert.Equal(SingleSiloGuardOptions.MaxGracePeriod, SingleSiloGuard.ResolveGracePeriod(TimeSpan.FromMinutes(10), prodMaxJoin));
+        Assert.Equal(TimeSpan.FromSeconds(30), SingleSiloGuard.ResolveGracePeriod(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(45)));
+        Assert.Equal(TimeSpan.FromSeconds(5), SingleSiloGuard.ResolveGracePeriod(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(10)));
+        Assert.Equal(TimeSpan.Zero, SingleSiloGuard.ResolveGracePeriod(TimeSpan.Zero, prodMaxJoin));
+        Assert.Equal(TimeSpan.Zero, SingleSiloGuard.ResolveGracePeriod(TimeSpan.FromSeconds(-5), prodMaxJoin));
+    }
+
+    [Fact]
+    public async Task OptionsExposeNoDisableFlag_AndZeroGraceStillRefusesFailClosed()
+    {
+        var propertyNames = typeof(SingleSiloGuardOptions).GetProperties().Select(p => p.Name).ToArray();
+        Assert.DoesNotContain(propertyNames, name => name.Contains("Enable", StringComparison.OrdinalIgnoreCase) || name.Contains("Disable", StringComparison.OrdinalIgnoreCase));
+
+        var self = NewSilo(11111, 2);
+        var peer = NewSilo(11111, 1);
+        var membership = new FakeMembershipService(
+            Snapshot(1, Member(self, SiloStatus.Joining, "self"), Member(peer, SiloStatus.Active, "peer")));
+        var table = new FakeMembershipTable(self, SiloStatus.Joining);
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+        Assert.Equal(1, membership.RefreshCount);
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
     }
 
     [Fact]

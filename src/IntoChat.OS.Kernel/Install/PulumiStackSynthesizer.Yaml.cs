@@ -1,7 +1,12 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Host.ServiceDefaults;
+using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Modules.Microsoft.Azure;
+using Orleans.Configuration;
 
 namespace IntoChat.OS.Kernel.Install;
 
@@ -386,19 +391,17 @@ public static partial class PulumiStackSynthesizer
             }
         }
         var (minReplicas, maxReplicas) = ResolveScale(app);
+        var terminationGracePeriodSeconds = ResolveTerminationGracePeriodSeconds(app);
         sb.AppendLine("      template:");
         sb.AppendLine("        scale:");
         sb.AppendLine($"          minReplicas: {minReplicas}");
         sb.AppendLine($"          maxReplicas: {maxReplicas}");
-        if (app.TerminationGracePeriodSeconds >= 0)
-        {
-            sb.AppendLine($"        terminationGracePeriodSeconds: {app.TerminationGracePeriodSeconds}");
-        }
+        sb.AppendLine($"        terminationGracePeriodSeconds: {terminationGracePeriodSeconds}");
         sb.AppendLine("        containers:");
         sb.AppendLine("          - name: app");
         sb.AppendLine($"            image: \"{app.Image}\"");
         sb.AppendLine("            resources:");
-        sb.AppendLine($"              cpu: {app.Cpu.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"              cpu: {app.Cpu.ToString(CultureInfo.InvariantCulture)}");
         sb.AppendLine($"              memory: \"{app.Memory}\"");
         if (app.ProbePaths.Length > 0)
         {
@@ -476,6 +479,21 @@ public static partial class PulumiStackSynthesizer
         return app.StopBeforeUpdate ? (1, 1) : (app.MinReplicas, app.MaxReplicas);
     }
 
+    internal static readonly string DrainDelayVariable = ConfigurationKeyGrammar.EnvironmentName(HealthProbes.DrainDelayKey);
+
+    // ACA must never send SIGKILL before the OS host finishes draining, stopping Kestrel, deactivating Orleans grains,
+    // and writing Dead to cluster membership (ServerHostingExtensions.ShutdownTimeout).
+    internal static int ResolveTerminationGracePeriodSeconds(ContainerAppSpec app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        TimeSpan? drainDelay = app.Variables.TryGetValue(DrainDelayVariable, out var rawDrain)
+            && TimeSpan.TryParse(rawDrain, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+        var minimum = (int)Math.Ceiling(ServerHostingExtensions.ShutdownTimeout(drainDelay, GrainCollectionOptions.DEFAULT_DEACTIVATION_TIMEOUT).TotalSeconds);
+        return Math.Max(app.TerminationGracePeriodSeconds, minimum);
+    }
+
     // Only a template change makes a new revision, so only the template section (not the tags) triggers the stop and start.
     private static string TemplateTrigger(string properties)
     {
@@ -492,13 +510,13 @@ public static partial class PulumiStackSynthesizer
     // subscription, where pulumi runs.
     private static void AppendStopBeforeUpdate(StringBuilder sb, InstallConfig c, ContainerAppSpec app, string logical, string trigger)
     {
-        var waits = (Math.Max(app.TerminationGracePeriodSeconds, 0) + 60) / 5;
+        var waits = (ResolveTerminationGracePeriodSeconds(app) + 60) / 5;
         var rendered = PulumiAssets.CommandStopYamlTemplate
             .Replace("{{logical}}", logical, StringComparison.Ordinal)
             .Replace("{{trigger}}", trigger, StringComparison.Ordinal)
             .Replace("{{appName}}", app.Name, StringComparison.Ordinal)
             .Replace("{{groupName}}", c.GroupName, StringComparison.Ordinal)
-            .Replace("{{waits}}", waits.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{{waits}}", waits.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{{azRetry}}", PulumiAssets.Indent(PulumiAssets.AzRetryFunction, 8), StringComparison.Ordinal)
             .Replace("{{stopBody}}", PulumiAssets.Indent(PulumiAssets.StopRevisionsBody, 8), StringComparison.Ordinal);
         sb.Append(rendered);

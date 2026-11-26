@@ -10,6 +10,9 @@ namespace IntoChat.OS.Modules.Identity.Grants;
 
 public sealed class SingleSiloGuardOptions
 {
+    // Hard upper bound kept strictly below the default MaxJoinAttemptTime (2m) and ACA startup probe budget (300s).
+    public static readonly TimeSpan MaxGracePeriod = TimeSpan.FromSeconds(90);
+
     public TimeSpan GracePeriod { get; set; } = TimeSpan.FromSeconds(30);
 
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(1);
@@ -26,6 +29,7 @@ public sealed class SingleSiloGuard(
     ILogger<SingleSiloGuard> logger,
     IMembershipTable? membershipTable = null,
     IOptions<SingleSiloGuardOptions>? options = null,
+    IOptions<ClusterMembershipOptions>? membershipOptions = null,
     TimeProvider? timeProvider = null) : ILifecycleParticipant<ISiloLifecycle>
 {
     // After the silo has written itself Joining into the membership table, before it becomes Active.
@@ -59,7 +63,7 @@ public sealed class SingleSiloGuard(
         }
 
         var guardOptions = options?.Value ?? new SingleSiloGuardOptions();
-        var gracePeriod = guardOptions.GracePeriod > TimeSpan.Zero ? guardOptions.GracePeriod : TimeSpan.Zero;
+        var gracePeriod = ResolveGracePeriod(guardOptions.GracePeriod, membershipOptions?.Value.MaxJoinAttemptTime);
         var pollInterval = guardOptions.PollInterval > TimeSpan.Zero ? guardOptions.PollInterval : TimeSpan.FromSeconds(1);
 
         if (gracePeriod > TimeSpan.Zero)
@@ -67,7 +71,7 @@ public sealed class SingleSiloGuard(
             var clock = timeProvider ?? TimeProvider.System;
             var started = clock.GetTimestamp();
             logger.LogWarning(
-                "Cluster '{ClusterId}' still has live peer silo(s) ({Peers}) while {LocalSilo} is joining; waiting up to {GracePeriod} for prior silo shutdown to complete.",
+                "Cluster '{ClusterId}' still has non-dead peer silo(s) ({Peers}) while {LocalSilo} is joining; waiting up to {GracePeriod} for prior silo shutdown to complete.",
                 cluster.Value.ClusterId,
                 FormatMembers(others),
                 local.SiloAddress,
@@ -81,7 +85,12 @@ public sealed class SingleSiloGuard(
                     break;
                 }
 
-                var delay = remaining < pollInterval ? remaining : pollInterval;
+                var jitterMaxMs = Math.Min(pollInterval.TotalMilliseconds * 0.25, 250.0);
+                var jitter = jitterMaxMs > 0
+                    ? TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * jitterMaxMs)
+                    : TimeSpan.Zero;
+                var candidateDelay = pollInterval + jitter;
+                var delay = remaining < candidateDelay ? remaining : candidateDelay;
                 await Task.Delay(delay, clock, ct).ConfigureAwait(false);
                 await membership.Refresh(default, ct).ConfigureAwait(false);
                 others = Others(membership.CurrentSnapshot, local.SiloAddress);
@@ -102,9 +111,9 @@ public sealed class SingleSiloGuard(
         throw new InvalidOperationException(Refusal(cluster.Value.ClusterId, others));
     }
 
-    // Best-effort cleanup of this silo's own Joining row right before refusing startup. Without this, Orleans leaves
-    // the refused silo as Joining until MaxJoinAttemptTime expires, which blocks subsequent boots or stalls live peers.
-    // Never throws: the single-silo refusal must always win.
+    // Best-effort cleanup of ONLY this silo's own Joining row right before refusing startup (never touches peer rows).
+    // Without this, Orleans leaves the refused silo as Joining until MaxJoinAttemptTime expires, which blocks subsequent
+    // boots or stalls live peers. Never throws: the single-silo refusal must always win.
     private async Task MarkSelfDeadAsync(CancellationToken ct)
     {
         if (membershipTable is null)
@@ -188,10 +197,36 @@ public sealed class SingleSiloGuard(
         return Task.CompletedTask;
     }
 
-    // Live members other than this silo. A silo shutting down or stopping is leaving and holds no new placement.
+    // Cap the grace window strictly below MaxJoinAttemptTime and the ACA startup probe budget so a joining silo never
+    // hangs past Orleans's join timeout or container startup timeout.
+    public static TimeSpan ResolveGracePeriod(TimeSpan configured, TimeSpan? maxJoinAttemptTime)
+    {
+        if (configured <= TimeSpan.Zero)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var cap = SingleSiloGuardOptions.MaxGracePeriod;
+        if (maxJoinAttemptTime is { } maxJoin && maxJoin > TimeSpan.Zero)
+        {
+            var joinCap = maxJoin > TimeSpan.FromSeconds(15)
+                ? maxJoin - TimeSpan.FromSeconds(15)
+                : TimeSpan.FromTicks(maxJoin.Ticks / 2);
+            if (joinCap < cap)
+            {
+                cap = joinCap;
+            }
+        }
+
+        return configured <= cap ? configured : cap;
+    }
+
+    // Non-dead members other than this silo. Pre-BecomeActive checks wait for ShuttingDown and Stopping peers too
+    // so grain activations and BrainLog leases finish releasing before this silo advances; the post-Active watchdog
+    // reports only Active peers.
     internal static ClusterMember[] Others(ClusterMembershipSnapshot snapshot, SiloAddress self, bool onlyActive = false)
         => [.. snapshot.Members.Values.Where(member => !member.SiloAddress.Equals(self)
-            && (onlyActive ? member.Status == SiloStatus.Active : member.Status is SiloStatus.Created or SiloStatus.Joining or SiloStatus.Active))];
+            && (onlyActive ? member.Status == SiloStatus.Active : member.Status != SiloStatus.Dead))];
 
     internal static string Refusal(string clusterId, IEnumerable<ClusterMember> others)
         => $"This silo runs the IntoChat OS access rule (SiloAccessCallFilter), which treats a call as internal only when this silo process sent it, "
