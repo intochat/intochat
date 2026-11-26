@@ -359,11 +359,17 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"          - \"{identityResourceId}\"");
         var targetPort = app.Ingress.TargetPort > 0 ? app.Ingress.TargetPort : app.IngressPort;
         sb.AppendLine("      configuration:");
-        sb.AppendLine("        activeRevisionsMode: Single");
+        sb.AppendLine($"        activeRevisionsMode: {(app.StopBeforeUpdate ? "Multiple" : "Single")}");
         sb.AppendLine("        ingress:");
         sb.AppendLine($"          external: {(app.Ingress.External ? "true" : "false")}");
         sb.AppendLine($"          targetPort: {targetPort}");
         sb.AppendLine("          transport: Auto");
+        if (app.StopBeforeUpdate)
+        {
+            sb.AppendLine("          traffic:");
+            sb.AppendLine("            - latestRevision: true");
+            sb.AppendLine("              weight: 100");
+        }
         if (app.InternalPorts.Length > 0)
         {
             sb.AppendLine("          additionalPortMappings:");
