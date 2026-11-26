@@ -549,6 +549,131 @@ public sealed class SingleSiloGuardFacts
     }
 
     [Fact]
+    public async Task StaleSameNonLoopbackEndpointOlderGeneration_SkipsTcpSelfProbeAndReapsOrphan()
+    {
+        var podIp = IPAddress.Parse("100.100.207.145");
+        var self = SiloAddress.New(podIp, 11111, 200);
+        var priorProcess = SiloAddress.New(podIp, 11111, 100);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var staleTime = now.UtcDateTime.AddSeconds(-90);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        table.AddRow(priorProcess, SiloStatus.Active, staleTime);
+        var membership = new TableBackedMembershipService(table);
+        var probeCalled = false;
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            FastConfirmOptions,
+            clock)
+        {
+            // If the TCP probe were invoked against this same endpoint, it would connect to self and return true.
+            PeerEndpointProbe = (_, _) =>
+            {
+                probeCalled = true;
+                return Task.FromResult(true);
+            },
+        };
+
+        await RunCheckStageAsync(guard, Ct);
+
+        Assert.False(probeCalled, "TCP self-probe must be skipped for a stale older-generation peer on the same non-loopback endpoint.");
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(priorProcess));
+        Assert.Equal(SiloStatus.Joining, table.StatusOf(self));
+        Assert.Equal(staleTime, table.EntryOf(priorProcess).IAmAliveTime);
+        var suspects = Assert.IsType<List<Tuple<SiloAddress, DateTime>>>(table.EntryOf(priorProcess).SuspectTimes);
+        Assert.Contains(suspects, suspect => suspect.Item1.Equals(self));
+        Assert.Equal(1, table.UpdateCalls);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("::1")]
+    public async Task StaleSameLoopbackEndpoint_RefusesFailClosedWithoutProbingOrReaping(string loopbackAddress)
+    {
+        var ip = IPAddress.Parse(loopbackAddress);
+        var self = SiloAddress.New(ip, 11111, 200);
+        var peer = SiloAddress.New(ip, 11111, 100);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        table.AddRow(peer, SiloStatus.Active, now.UtcDateTime.AddSeconds(-120));
+        var membership = new TableBackedMembershipService(table);
+        var probeCalled = false;
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = (_, _) =>
+            {
+                probeCalled = true;
+                return Task.FromResult(false);
+            },
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+
+        Assert.False(probeCalled);
+        Assert.Contains(peer.ToString(), error.Message, StringComparison.Ordinal);
+        Assert.Equal(SiloStatus.Active, table.StatusOf(peer));
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
+        Assert.Equal(1, table.UpdateCalls); // Only self cleanup, peer untouched.
+    }
+
+    [Theory]
+    [InlineData(201)]
+    [InlineData(500)]
+    public async Task StaleSameNonLoopbackEndpointNewerGeneration_RefusesFailClosedWithoutProbingOrReaping(int peerGeneration)
+    {
+        var podIp = IPAddress.Parse("100.100.207.145");
+        var self = SiloAddress.New(podIp, 11111, 200);
+        var newerPeer = SiloAddress.New(podIp, 11111, peerGeneration);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        table.AddRow(newerPeer, SiloStatus.Active, now.UtcDateTime.AddSeconds(-120));
+        var membership = new TableBackedMembershipService(table);
+        var probeCalled = false;
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = (_, _) =>
+            {
+                probeCalled = true;
+                return Task.FromResult(false);
+            },
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+
+        Assert.False(probeCalled);
+        Assert.Contains(newerPeer.ToString(), error.Message, StringComparison.Ordinal);
+        Assert.Equal(SiloStatus.Active, table.StatusOf(newerPeer));
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
+        Assert.Equal(1, table.UpdateCalls); // Only self cleanup, peer untouched.
+    }
+
+    [Fact]
     public void ResolveGracePeriod_CapsStrictlyBelowMaxJoinAttemptTimeAndStartupBudget()
     {
         var acaStartupProbeBudget = TimeSpan.FromSeconds(10 * 30);

@@ -372,6 +372,11 @@ public sealed class InstallPlanFacts
             Assert.Contains("sleep $((_az_attempt * 2))", stopBlock, StringComparison.Ordinal);
             Assert.Contains("*RevisionAlreadyInRequestedState*", stopBlock, StringComparison.Ordinal);
             Assert.Contains("*ResourceNotFound*|*ResourceGroupNotFound*", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("properties.configuration.activeRevisionsMode", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp revision set-mode -n \"$app\" -g \"$group\" --mode multiple >/dev/null", stopBlock, StringComparison.Ordinal);
+            Assert.True(
+                stopBlock.IndexOf("revision set-mode", StringComparison.Ordinal) < stopBlock.IndexOf("revision list -n \"$app\"", StringComparison.Ordinal),
+                "Single -> Multiple revision mode transition must run before listing/deactivating active revisions.");
             Assert.Contains("if [ -n \"$revision\" ]; then", stopBlock, StringComparison.Ordinal);
             // Single-quoted JMESPath so /bin/sh never executes `0` as command substitution, with --all so inactive draining revisions are included.
             Assert.Contains("az containerapp revision list --all -n \"$app\" -g \"$group\" --query '[?properties.replicas > `0`].name' -o tsv", stopBlock, StringComparison.Ordinal);
@@ -396,8 +401,15 @@ public sealed class InstallPlanFacts
             Assert.Contains("az_retry az containerapp revision show -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp replica list -n \"$app\" -g \"$group\" --revision \"$latest\" --query '[].name' -o tsv", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", startBlock, StringComparison.Ordinal);
+            Assert.Contains("properties.configuration.ingress", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp ingress traffic set -n \"$app\" -g \"$group\" --revision-weight \"$ready=100\" >/dev/null", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp ingress traffic set -n \"$app\" -g \"$group\" --revision-weight latest=100 >/dev/null", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$_rev\" >/dev/null", startBlock, StringComparison.Ordinal);
+            Assert.True(
+                startBlock.IndexOf("replica list -n \"$app\" -g \"$group\" --revision \"$latest\"", StringComparison.Ordinal) < startBlock.IndexOf("revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", StringComparison.Ordinal),
+                "Failed latest revision must drain to 0 replicas before reactivating $ready.");
             Assert.True(
                 startBlock.IndexOf("--revision-weight \"$ready=100\"", StringComparison.Ordinal) > startBlock.IndexOf("revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", StringComparison.Ordinal),
                 "Rollback traffic shift to $ready=100 must run after activating $ready.");

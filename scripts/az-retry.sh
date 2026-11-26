@@ -46,6 +46,19 @@ az_stop_revisions() {
   waits="${3:-24}"
   # BEGIN stop_revisions_body
   if az_retry az containerapp show -n "$app" -g "$group" --query name -o tsv >/dev/null 2>&1; then
+    _rev_mode=$(az_retry az containerapp show -n "$app" -g "$group" --query properties.configuration.activeRevisionsMode -o tsv) || {
+      echo "Failed to read activeRevisionsMode for $app in $group." >&2
+      return 1 2>/dev/null || exit 1
+    }
+    case "$_rev_mode" in
+      Multiple|multiple) ;;
+      *)
+        az_retry az containerapp revision set-mode -n "$app" -g "$group" --mode multiple >/dev/null || {
+          echo "Failed to switch $app in $group to Multiple revision mode." >&2
+          return 1 2>/dev/null || exit 1
+        }
+        ;;
+    esac
     _deactivated_revs=""
     _active_revs=$(az_retry az containerapp revision list -n "$app" -g "$group" --query "[?properties.active].name" -o tsv) || {
       echo "Failed to list active revisions for $app in $group." >&2
@@ -113,28 +126,65 @@ az_start_revision() {
   group="$2"
   # BEGIN start_revision_body
   if az_retry az containerapp show -n "$app" -g "$group" --query name -o tsv >/dev/null 2>&1; then
-    latest=$(az_retry az containerapp show -n "$app" -g "$group" --query properties.latestRevisionName -o tsv)
+    latest=$(az_retry az containerapp show -n "$app" -g "$group" --query properties.latestRevisionName -o tsv) || {
+      echo "Failed to resolve latestRevisionName for $app in $group." >&2
+      return 1 2>/dev/null || exit 1
+    }
     if [ -z "$latest" ]; then
       echo "Failed to resolve latestRevisionName for $app in $group." >&2
-      exit 1
+      return 1 2>/dev/null || exit 1
     fi
     if [ "$(az_retry az containerapp revision show -n "$app" -g "$group" --revision "$latest" --query properties.active -o tsv)" != "true" ]; then
-      az_retry az containerapp revision activate -n "$app" -g "$group" --revision "$latest" >/dev/null
+      az_retry az containerapp revision activate -n "$app" -g "$group" --revision "$latest" >/dev/null || {
+        echo "Failed to activate latest revision $latest of $app in $group." >&2
+        return 1 2>/dev/null || exit 1
+      }
     fi
     i=0
     while [ $i -lt 120 ] && [ "$(az_retry az containerapp show -n "$app" -g "$group" --query properties.latestReadyRevisionName -o tsv)" != "$latest" ]; do
       sleep 5; i=$((i+1))
     done
-    ready=$(az_retry az containerapp show -n "$app" -g "$group" --query properties.latestReadyRevisionName -o tsv)
+    ready=$(az_retry az containerapp show -n "$app" -g "$group" --query properties.latestReadyRevisionName -o tsv) || ready=""
+    _has_ingress=$(az_retry az containerapp show -n "$app" -g "$group" --query properties.configuration.ingress -o tsv 2>/dev/null) || _has_ingress=""
     if [ "$ready" != "$latest" ]; then
       if [ -n "$ready" ]; then
-        az_retry az containerapp revision deactivate -n "$app" -g "$group" --revision "$latest" >/dev/null
-        az_retry az containerapp revision activate -n "$app" -g "$group" --revision "$ready" >/dev/null
-        az_retry az containerapp ingress traffic set -n "$app" -g "$group" --revision-weight "$ready=100" >/dev/null
+        az_retry az containerapp revision deactivate -n "$app" -g "$group" --revision "$latest" >/dev/null || true
+        _drain_i=0
+        while [ "$_drain_i" -lt 12 ]; do
+          _latest_replicas=$(az_retry az containerapp revision show -n "$app" -g "$group" --revision "$latest" --query properties.replicas -o tsv 2>/dev/null) || _latest_replicas=""
+          _latest_live=$(az_retry az containerapp replica list -n "$app" -g "$group" --revision "$latest" --query '[].name' -o tsv 2>/dev/null) || _latest_live=""
+          if [ "${_latest_replicas:-0}" = "0" ] && [ -z "$_latest_live" ]; then
+            break
+          fi
+          sleep 5
+          _drain_i=$((_drain_i + 1))
+        done
+        az_retry az containerapp revision activate -n "$app" -g "$group" --revision "$ready" >/dev/null || true
+        if [ -n "$_has_ingress" ]; then
+          az_retry az containerapp ingress traffic set -n "$app" -g "$group" --revision-weight "$ready=100" >/dev/null || true
+        fi
       fi
       echo "Revision $latest of $app did not become ready; $ready runs again." >&2
-      exit 1
+      return 1 2>/dev/null || exit 1
     fi
+    if [ -n "$_has_ingress" ]; then
+      az_retry az containerapp ingress traffic set -n "$app" -g "$group" --revision-weight latest=100 >/dev/null || {
+        echo "Failed to route ingress traffic to latest revision $latest of $app in $group." >&2
+        return 1 2>/dev/null || exit 1
+      }
+    fi
+    _active_revs=$(az_retry az containerapp revision list -n "$app" -g "$group" --query "[?properties.active].name" -o tsv) || {
+      echo "Failed to list active revisions for $app in $group after activating $latest." >&2
+      return 1 2>/dev/null || exit 1
+    }
+    for _rev in $_active_revs; do
+      if [ -n "$_rev" ] && [ "$_rev" != "$latest" ]; then
+        az_retry az containerapp revision deactivate -n "$app" -g "$group" --revision "$_rev" >/dev/null || {
+          echo "Failed to deactivate superseded revision $_rev of $app in $group." >&2
+          return 1 2>/dev/null || exit 1
+        }
+      fi
+    done
   fi
   # END start_revision_body
 }

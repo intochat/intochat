@@ -416,11 +416,17 @@ public sealed class ArmAzure : IAzureArm
         var existing = await rg.GetContainerApps().GetIfExistsAsync(spec.Name, ct);
         var configuration = new ContainerAppConfiguration
         {
-            // Single revision mode deactivates the old revision once the new one is ready. An app that must run one silo
-            // (StopBeforeUpdate) has its running revision stopped first instead, below.
-            ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Single,
+            // Single-silo apps (StopBeforeUpdate) use Multiple revision mode so PUT ContainerApp does not
+            // automatically reactivate the previously deactivated revision alongside the new one.
+            ActiveRevisionsMode = spec.StopBeforeUpdate
+                ? ContainerAppActiveRevisionsMode.Multiple
+                : ContainerAppActiveRevisionsMode.Single,
             Ingress = new ContainerAppIngressConfiguration { External = spec.Ingress.External, TargetPort = targetPort, Transport = ContainerAppIngressTransportMethod.Auto },
         };
+        if (spec.StopBeforeUpdate)
+        {
+            configuration.Ingress.Traffic.Add(new ContainerAppRevisionTrafficWeight { IsLatestRevision = true, Weight = 100 });
+        }
         // Domains and their certificate bindings are managed outside ResourceSpec. A template update
         // must retain these ingress bindings rather than replacing them with an empty collection.
         if (existing.HasValue && existing.Value!.Data.Configuration?.Ingress is { } currentIngress)
@@ -527,6 +533,45 @@ public sealed class ArmAzure : IAzureArm
         {
             var data = (await app.GetAsync(ct)).Value.Data;
             return (data.LatestRevisionName, data.LatestReadyRevisionName);
+        }
+
+        public override async Task EnsureMultipleMode(CancellationToken ct)
+        {
+            var current = (await app.GetAsync(ct)).Value.Data;
+            if (current.Configuration?.ActiveRevisionsMode == ContainerAppActiveRevisionsMode.Multiple)
+            {
+                return;
+            }
+            var patch = new ContainerAppData(current.Location)
+            {
+                Configuration = new ContainerAppConfiguration
+                {
+                    ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Multiple,
+                },
+            };
+            await app.UpdateAsync(WaitUntil.Completed, patch, ct);
+        }
+
+        public override Task SetTrafficToLatest(CancellationToken ct)
+            => SetTraffic(new ContainerAppRevisionTrafficWeight { IsLatestRevision = true, Weight = 100 }, ct);
+
+        public override Task SetTrafficToRevision(string revisionName, CancellationToken ct)
+            => SetTraffic(new ContainerAppRevisionTrafficWeight { RevisionName = revisionName, Weight = 100 }, ct);
+
+        private async Task SetTraffic(ContainerAppRevisionTrafficWeight weight, CancellationToken ct)
+        {
+            var current = (await app.GetAsync(ct)).Value.Data;
+            if (current.Configuration?.Ingress is null)
+            {
+                return;
+            }
+            var ingress = new ContainerAppIngressConfiguration();
+            ingress.Traffic.Add(weight);
+            var patch = new ContainerAppData(current.Location)
+            {
+                Configuration = new ContainerAppConfiguration { Ingress = ingress },
+            };
+            await app.UpdateAsync(WaitUntil.Completed, patch, ct);
         }
     }
 
