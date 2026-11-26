@@ -299,4 +299,60 @@ public sealed class AzureInstallerFacts
             tempDir.Delete(true);
         }
     }
+
+    [Fact]
+    public async Task PulumiEmitProbesExistingKeyVaultIntegrationSecretsAndBindsThemToContainerApp()
+    {
+        var tempDir = Directory.CreateTempSubdirectory();
+        var prevEnv = Environment.GetEnvironmentVariable(AzureInstaller.DeploySecretsJsonVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(AzureInstaller.DeploySecretsJsonVariable, null);
+            var configWithPostgres = """
+                {
+                  "subscription": "00000000-0000-0000-0000-000000000001",
+                  "location": "polandcentral",
+                  "prefix": "intochat",
+                  "env": "test",
+                  "osImage": "acrintochattest.azurecr.io/os:1.0.0",
+                  "registryServer": "acrintochattest.azurecr.io",
+                  "installerPrincipalId": "principal-12345",
+                  "postgres": {
+                    "enabled": true,
+                    "databases": ["intochat"]
+                  }
+                }
+                """;
+            var configPath = Path.Combine(tempDir.FullName, "test.json");
+            var pulumiOut = Path.Combine(tempDir.FullName, "pulumi");
+            await File.WriteAllTextAsync(configPath, configWithPostgres, TestContext.Current.CancellationToken);
+
+            var arm = new TrackingAzureArm();
+            arm.VaultSecrets["openrouter-apikey"] = "sk-or-existing-in-vault";
+            var output = new StringWriter();
+            var error = new StringWriter();
+
+            var code = await AzureInstaller.Run(
+                ["pulumi", "--env", "test", "--config", configPath, "--pulumi-out", pulumiOut],
+                arm,
+                [],
+                output,
+                error,
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(0, code);
+            var yaml = await File.ReadAllTextAsync(Path.Combine(pulumiOut, "Pulumi.yaml"), TestContext.Current.CancellationToken);
+            Assert.Contains("- name: \"openrouter-apikey\"", yaml, StringComparison.Ordinal);
+            Assert.Contains("secretRef: \"openrouter-apikey\"", yaml, StringComparison.Ordinal);
+            Assert.Contains("- name: \"postgres-connectionstring\"", yaml, StringComparison.Ordinal);
+            Assert.Contains("secretRef: \"postgres-connectionstring\"", yaml, StringComparison.Ordinal);
+            Assert.Contains("- name: \"postgres-connection-string\"", yaml, StringComparison.Ordinal);
+            Assert.DoesNotContain("secretName: \"openrouter-apikey\"", yaml, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AzureInstaller.DeploySecretsJsonVariable, prevEnv);
+            tempDir.Delete(true);
+        }
+    }
 }

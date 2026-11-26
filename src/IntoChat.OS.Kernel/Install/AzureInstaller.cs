@@ -103,7 +103,33 @@ public static class AzureInstaller
                 var secretsDict = (!dryRun || secretsFrom is not null || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DeploySecretsJsonVariable)))
                     ? await SecretValues(secretsFrom, ct)
                     : new Dictionary<string, string>(StringComparer.Ordinal);
-                var stackPlan = PulumiStackSynthesizer.Synthesize(config, modules, secretsDict);
+                HashSet<string>? existingVaultSecrets = null;
+                if (!dryRun)
+                {
+                    existingVaultSecrets = new HashSet<string>(StringComparer.Ordinal);
+                    var validated = config.Validated();
+                    var resolvedModules = PulumiStackSynthesizer.ResolveModules(moduleArray);
+                    foreach (var secret in ManifestEnvironment.IntegrationSecretsOf(resolvedModules, validated.VaultName))
+                    {
+                        if (secretsDict.TryGetValue(secret.VaultSecret, out var providedVal) && !string.IsNullOrEmpty(providedVal))
+                        {
+                            continue;
+                        }
+                        try
+                        {
+                            if (await arm.ReadSecret(secret.Vault, secret.VaultSecret, ct) is not null)
+                            {
+                                existingVaultSecrets.Add(secret.VaultSecret);
+                            }
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            System.Diagnostics.Trace.TraceWarning(ex.Message);
+                            break;
+                        }
+                    }
+                }
+                var stackPlan = PulumiStackSynthesizer.Synthesize(config, moduleArray, secretsDict, existingVaultSecrets);
                 if (!string.IsNullOrWhiteSpace(pulumiOut))
                 {
                     await PulumiStackSynthesizer.WriteWorkspaceAsync(stackPlan, pulumiOut, ct);
