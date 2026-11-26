@@ -7,18 +7,25 @@
 
 using System.Diagnostics;
 using System.Formats.Tar;
+using System.Globalization;
 using System.IO.Compression;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 return await ReleasePackageScript.MainAsync(args, CancellationToken.None);
 
 internal sealed record PackageOptions
 {
     public const string DefaultPublicDomain = "intochat.io";
+    public const string DefaultMsixName = "IntoChat.OS";
+    public const string DefaultPublisherDisplayName = "IntoChat";
+    public const string DefaultSignedPublisher = "CN=IntoChat";
+    public const string DefaultDevPublisher = "CN=IntoChat Dev";
+    public const string DefaultAppInstallerBaseUri = "https://github.com/intochat/intochat/releases/latest/download";
 
     public string? Platform { get; init; }
     public string? Version { get; init; }
@@ -26,13 +33,99 @@ internal sealed record PackageOptions
     public string? RepoRoot { get; init; }
     public string Configuration { get; init; } = "Release";
     public string Channel { get; init; } = "stable";
-    public string PublicDomain { get; init; } = Environment.GetEnvironmentVariable("INTOCHAT_PUBLIC_DOMAIN") is { Length: > 0 } envDomain
-        ? envDomain
-        : DefaultPublicDomain;
+    public string PublicDomain { get; init; } = ReadEnv("INTOCHAT_PUBLIC_DOMAIN") ?? DefaultPublicDomain;
     public bool DryRun { get; init; }
     public bool SkipFlutter { get; init; }
+    public bool SkipMsix { get; init; }
+    public bool DevCert { get; init; }
+    public string? CertPath { get; init; }
+    public string? CertPassword { get; init; }
+    public int MsixBuild { get; init; }
+    public string MsixName { get; init; } = DefaultMsixName;
+    public string? Publisher { get; init; } = ReadEnv("WINDOWS_PUBLISHER_SUBJECT");
+    public string PublisherDisplayName { get; init; } = DefaultPublisherDisplayName;
+    public string AppInstallerBaseUri { get; init; } = ReadEnv("INTOCHAT_APPINSTALLER_BASE_URI") ?? DefaultAppInstallerBaseUri;
+    public string? AzureSigningEndpoint { get; init; } = ReadEnv("AZURE_ARTIFACT_SIGNING_ENDPOINT");
+    public string? AzureSigningAccount { get; init; } = ReadEnv("AZURE_ARTIFACT_SIGNING_ACCOUNT");
+    public string? AzureSigningProfile { get; init; } = ReadEnv("AZURE_ARTIFACT_SIGNING_PROFILE");
+    public string? EmitMsixManifestsDir { get; init; }
     public bool NativeAotKernel { get; init; } = true;
     public bool ShowHelp { get; init; }
+
+    public bool HasAnyAzureArtifactSigning =>
+        !string.IsNullOrWhiteSpace(AzureSigningEndpoint)
+        || !string.IsNullOrWhiteSpace(AzureSigningAccount)
+        || !string.IsNullOrWhiteSpace(AzureSigningProfile);
+
+    public bool HasAzureArtifactSigning =>
+        !string.IsNullOrWhiteSpace(AzureSigningEndpoint)
+        && !string.IsNullOrWhiteSpace(AzureSigningAccount)
+        && !string.IsNullOrWhiteSpace(AzureSigningProfile);
+
+    public string ResolvePublisher()
+        => !string.IsNullOrWhiteSpace(Publisher)
+            ? Publisher.Trim()
+            : HasAzureArtifactSigning
+                ? DefaultSignedPublisher
+                : DefaultDevPublisher;
+
+    public string DescribeWindowsSigningMode()
+    {
+        if (HasAzureArtifactSigning)
+        {
+            return $"Azure Artifact Signing (winapp az-sign, account={AzureSigningAccount}, profile={AzureSigningProfile})";
+        }
+
+        if (DevCert)
+        {
+            return "local dev certificate (winapp cert generate + --cert)";
+        }
+
+        if (!string.IsNullOrWhiteSpace(CertPath))
+        {
+            return $"local PFX certificate (--cert {CertPath})";
+        }
+
+        return "unsigned";
+    }
+
+    public void ValidateWindowsSigningOptions()
+    {
+        if (MsixBuild is < 0 or > ushort.MaxValue)
+        {
+            throw new ArgumentException($"--msix-build must be between 0 and {ushort.MaxValue} (got {MsixBuild}).");
+        }
+
+        if (HasAnyAzureArtifactSigning && !HasAzureArtifactSigning)
+        {
+            var missing = new List<string>();
+            if (string.IsNullOrWhiteSpace(AzureSigningEndpoint)) { missing.Add("AZURE_ARTIFACT_SIGNING_ENDPOINT"); }
+            if (string.IsNullOrWhiteSpace(AzureSigningAccount)) { missing.Add("AZURE_ARTIFACT_SIGNING_ACCOUNT"); }
+            if (string.IsNullOrWhiteSpace(AzureSigningProfile)) { missing.Add("AZURE_ARTIFACT_SIGNING_PROFILE"); }
+            throw new InvalidOperationException(
+                $"Incomplete Azure Artifact Signing configuration. Missing: {string.Join(", ", missing)}.");
+        }
+
+        if (DevCert && !string.IsNullOrWhiteSpace(CertPath))
+        {
+            throw new ArgumentException("--dev-cert cannot be combined with --cert.");
+        }
+
+        if (DevCert && HasAzureArtifactSigning)
+        {
+            throw new ArgumentException("--dev-cert cannot be combined with Azure Artifact Signing (AZURE_ARTIFACT_SIGNING_*).");
+        }
+
+        if (!string.IsNullOrWhiteSpace(CertPath) && HasAzureArtifactSigning)
+        {
+            throw new ArgumentException("--cert cannot be combined with Azure Artifact Signing (AZURE_ARTIFACT_SIGNING_*).");
+        }
+    }
+
+    private static string? ReadEnv(string name)
+        => Environment.GetEnvironmentVariable(name) is { Length: > 0 } value && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : null;
 
     public static PackageOptions Parse(string[] args)
     {
@@ -49,8 +142,21 @@ internal sealed record PackageOptions
                 "--configuration" or "-c" when i + 1 < args.Length => options with { Configuration = args[++i].Trim() },
                 "--channel" when i + 1 < args.Length => options with { Channel = args[++i].Trim() },
                 "--public-domain" or "--domain" when i + 1 < args.Length => options with { PublicDomain = args[++i].Trim() },
+                "--msix-build" or "--build" when i + 1 < args.Length => options with { MsixBuild = int.Parse(args[++i].Trim(), CultureInfo.InvariantCulture) },
+                "--msix-name" when i + 1 < args.Length => options with { MsixName = args[++i].Trim() },
+                "--publisher" when i + 1 < args.Length => options with { Publisher = args[++i].Trim() },
+                "--publisher-display-name" when i + 1 < args.Length => options with { PublisherDisplayName = args[++i].Trim() },
+                "--appinstaller-base-uri" or "--base-uri" when i + 1 < args.Length => options with { AppInstallerBaseUri = args[++i].Trim() },
+                "--cert" or "--certificate-path" when i + 1 < args.Length => options with { CertPath = args[++i].Trim() },
+                "--cert-password" or "--certificate-password" when i + 1 < args.Length => options with { CertPassword = args[++i] },
+                "--az-sign-endpoint" when i + 1 < args.Length => options with { AzureSigningEndpoint = args[++i].Trim() },
+                "--az-sign-account" when i + 1 < args.Length => options with { AzureSigningAccount = args[++i].Trim() },
+                "--az-sign-profile" when i + 1 < args.Length => options with { AzureSigningProfile = args[++i].Trim() },
+                "--emit-msix-manifests" when i + 1 < args.Length => options with { EmitMsixManifestsDir = args[++i].Trim() },
                 "--dry-run" => options with { DryRun = true },
-                "--skip-flutter" => options with { SkipFlutter = true },
+                "--skip-flutter" or "--skip-shell" => options with { SkipFlutter = true },
+                "--skip-msix" => options with { SkipMsix = true },
+                "--dev-cert" => options with { DevCert = true },
                 "--no-aot-kernel" => options with { NativeAotKernel = false },
                 "--help" or "-h" or "-?" => options with { ShowHelp = true },
                 _ => throw new ArgumentException($"Unknown argument '{arg}'."),
@@ -96,7 +202,22 @@ internal static class ReleasePackageScript
 
             await Console.Out.WriteLineAsync($"IntoChat OS Release Packager v{version} ({options.Platform})".AsMemory(), cancellationToken);
 
-            var inputs = AssertInputs(repoRoot, options.Platform, options.SkipFlutter);
+            if (options.Platform == "win-x64")
+            {
+                options.ValidateWindowsSigningOptions();
+                if (!options.SkipMsix)
+                {
+                    _ = ToMsixVersion(version, options.MsixBuild);
+                }
+            }
+
+            var inputs = AssertInputs(repoRoot, options.Platform, options.SkipFlutter, options.SkipMsix);
+
+            if (options.Platform == "win-x64" && !string.IsNullOrWhiteSpace(options.EmitMsixManifestsDir))
+            {
+                await WriteMsixManifestsAsync(Path.GetFullPath(options.EmitMsixManifestsDir), version, options, cancellationToken);
+            }
+
             if (options.DryRun)
             {
                 await PrintDryRunAsync(options, version, outputDir, inputs);
@@ -146,7 +267,7 @@ internal static class ReleasePackageScript
 
     private static void PrintUsage(TextWriter writer)
     {
-        writer.WriteLine("Usage: dotnet run eng/package.cs --platform <win-x64|linux-x64|osx-arm64|android|ios> [--version <ver>] [--output <dir>] [--dry-run] [--skip-flutter]");
+        writer.WriteLine("Usage: dotnet run eng/package.cs --platform <win-x64|linux-x64|osx-arm64|android|ios> [--version <ver>] [--output <dir>] [--dry-run] [--skip-flutter] [--skip-msix] [--dev-cert] [--cert <pfx>] [--msix-build <n>] [--publisher <dn>] [--emit-msix-manifests <dir>]");
     }
 
     private static async Task<string> ResolveVersionAsync(string repoRoot, string? requestedVersion, CancellationToken cancellationToken)
@@ -171,7 +292,7 @@ internal static class ReleasePackageScript
         return version;
     }
 
-    private static string[] AssertInputs(string repoRoot, string platform, bool skipFlutter)
+    private static string[] AssertInputs(string repoRoot, string platform, bool skipFlutter, bool skipMsix)
     {
         var inputs = new List<string>();
         var uiDir = Path.Combine(repoRoot, "ui");
@@ -185,6 +306,10 @@ internal static class ReleasePackageScript
             if (platform == "win-x64")
             {
                 inputs.Add(Path.Combine(repoRoot, "eng", "release", "winget", "IntoChat.OS.yaml"));
+                if (!skipMsix)
+                {
+                    inputs.Add(Path.Combine(uiDir, "web", "icons", "Icon-512.png"));
+                }
             }
             else if (platform == "osx-arm64")
             {
@@ -244,7 +369,17 @@ internal static class ReleasePackageScript
             case "win-x64":
                 var kernelMode = options.NativeAotKernel ? "Native AOT" : "ReadyToRun";
                 await StepAsync($"[DryRun] Would stage IntoChat.OS.Desktop, os/IntoChat.OS.Kernel ({kernelMode}), unithost/IntoChat.OS.Sandbox, and Flutter Windows shell");
-                await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, latest.json, winget/IntoChat.OS.yaml, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain})");
+                if (options.SkipMsix)
+                {
+                    await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, latest.json, winget/IntoChat.OS.yaml, SHA256SUMS.win-x64, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain}; MSIX skipped via --skip-msix; signing: {options.DescribeWindowsSigningMode()})");
+                }
+                else
+                {
+                    var msixVersion = ToMsixVersion(version, options.MsixBuild);
+                    var publisher = options.ResolvePublisher();
+                    await StepAsync($"[DryRun] Would pack MSIX via winapp CLI (version: {msixVersion}, publisher: {publisher}, signing: {options.DescribeWindowsSigningMode()})");
+                    await StepAsync($"[DryRun] Would emit intochat-{version}-win-x64.zip, intochat-win-x64.zip, IntoChat-Setup-{version}-win-x64.exe, IntoChat-Setup-win-x64.exe, IntoChat-{version}-win-x64.msix, IntoChat-win-x64.msix, {options.MsixName}.appinstaller, latest.json, winget/IntoChat.OS.yaml, SHA256SUMS.win-x64, and SHA256SUMS in {outputDir} (domain: {options.PublicDomain})");
+                }
                 break;
             case "linux-x64":
                 await StepAsync("[DryRun] Would stage IntoChat.OS.Desktop, os/IntoChat.OS.Kernel, unithost/IntoChat.OS.Sandbox, and Flutter Linux shell");
@@ -448,7 +583,33 @@ internal static class ReleasePackageScript
         PackageOptions options,
         CancellationToken cancellationToken)
     {
+        var winappPath = ResolveWinAppCommand();
+        if (options.HasAzureArtifactSigning && winappPath is null)
+        {
+            throw new InvalidOperationException(
+                "winapp.exe not found on PATH; Microsoft.WinAppCLI is required for Azure Artifact Signing (winapp az-sign).");
+        }
+
+        if (!options.SkipMsix && OperatingSystem.IsWindows() && winappPath is null)
+        {
+            throw new InvalidOperationException(
+                "winapp.exe not found on PATH. Install Microsoft.WinAppCLI (winget install --id Microsoft.WinAppCLI --exact --source winget) or pass --skip-msix.");
+        }
+
+        string? azSignMetadataPath = null;
+        if (options.HasAzureArtifactSigning)
+        {
+            azSignMetadataPath = await WriteAzureSigningMetadataAsync(stageRoot, options, cancellationToken);
+        }
+
         var bundleDir = await StageDesktopBundleAsync(repoRoot, stageRoot, "win-x64", options, cancellationToken);
+
+        // Sign internal executables inside the staged bundle before producing .zip, Setup.exe, and .msix
+        // so every distribution channel carries authenticated signatures.
+        if (azSignMetadataPath is not null && winappPath is not null)
+        {
+            await SignWindowsBundleExecutablesAsync(winappPath, azSignMetadataPath, bundleDir, options.SkipFlutter);
+        }
 
         var versionedZip = $"intochat-{version}-win-x64.zip";
         var stableZip = "intochat-win-x64.zip";
@@ -470,15 +631,59 @@ internal static class ReleasePackageScript
         var versionedSetupPath = Path.Combine(outputDir, versionedSetup);
 
         await BuildWindowsInstallerAsync(repoRoot, stageRoot, bundleDir, versionedZipPath, outputDir, version, stableSetupPath, cancellationToken);
+        if (azSignMetadataPath is not null && winappPath is not null)
+        {
+            await StepAsync($"Signing {stableSetup} via winapp az-sign...");
+            RunChecked(winappPath, ["az-sign", stableSetupPath, "--metadata-file", azSignMetadataPath]);
+        }
+
         File.Copy(stableSetupPath, versionedSetupPath, overwrite: true);
 
+        var zipSha256 = ComputeValidatedSha256(versionedZipPath);
         var checksums = new List<(string FileName, string Sha256)>
         {
-            (versionedZip, ComputeValidatedSha256(versionedZipPath)),
+            (versionedZip, zipSha256),
             (stableZip, ComputeValidatedSha256(stableZipPath)),
             (versionedSetup, ComputeValidatedSha256(versionedSetupPath)),
             (stableSetup, ComputeValidatedSha256(stableSetupPath)),
         };
+
+        string? versionedMsix = null;
+        string? msixSha256 = null;
+        string? appInstallerFileName = null;
+
+        if (!options.SkipMsix)
+        {
+            if (winappPath is not null)
+            {
+                var msixResult = await BuildWindowsMsixAsync(
+                    repoRoot,
+                    stageRoot,
+                    bundleDir,
+                    outputDir,
+                    version,
+                    options,
+                    winappPath,
+                    azSignMetadataPath,
+                    cancellationToken);
+
+                versionedMsix = msixResult.VersionedMsixFileName;
+                msixSha256 = msixResult.VersionedMsixSha256;
+                appInstallerFileName = msixResult.AppInstallerFileName;
+
+                checksums.Add((msixResult.VersionedMsixFileName, msixResult.VersionedMsixSha256));
+                checksums.Add((msixResult.StableMsixFileName, msixResult.StableMsixSha256));
+                checksums.Add((msixResult.AppInstallerFileName, msixResult.AppInstallerSha256));
+            }
+            else
+            {
+                await StepAsync("Skipping .msix generation (winapp CLI is only available on Windows).");
+            }
+        }
+        else
+        {
+            await StepAsync("Skipping .msix generation (--skip-msix was specified).");
+        }
 
         await WriteSha256SumsFileAsync(Path.Combine(outputDir, "SHA256SUMS.win-x64"), checksums, cancellationToken);
         await WriteSha256SumsFileAsync(Path.Combine(outputDir, "SHA256SUMS"), checksums, cancellationToken);
@@ -490,10 +695,339 @@ internal static class ReleasePackageScript
             options.Channel,
             options.PublicDomain,
             versionedZip,
-            checksums[0].Sha256,
+            zipSha256,
+            versionedMsix,
+            msixSha256,
+            appInstallerFileName,
+            options.AppInstallerBaseUri,
             cancellationToken);
 
         await StepAsync($"Windows packaging complete in {outputDir}.");
+    }
+
+    private sealed record MsixBuildResult(
+        string VersionedMsixFileName,
+        string VersionedMsixSha256,
+        string StableMsixFileName,
+        string StableMsixSha256,
+        string AppInstallerFileName,
+        string AppInstallerSha256);
+
+    private static async Task<string> WriteAzureSigningMetadataAsync(
+        string stageRoot,
+        PackageOptions options,
+        CancellationToken cancellationToken)
+    {
+        var metadata = new JsonObject
+        {
+            ["Endpoint"] = options.AzureSigningEndpoint,
+            ["CodeSigningAccountName"] = options.AzureSigningAccount,
+            ["CertificateProfileName"] = options.AzureSigningProfile,
+        };
+        var metadataPath = Path.Combine(stageRoot, "az-sign-metadata.json");
+        var json = metadata.ToJsonString(IndentedJson).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
+        await File.WriteAllTextAsync(metadataPath, json, Utf8NoBom, cancellationToken);
+        return metadataPath;
+    }
+
+    private static async Task SignWindowsBundleExecutablesAsync(
+        string winappPath,
+        string metadataPath,
+        string bundleDir,
+        bool skipFlutter)
+    {
+        var targets = new List<string>
+        {
+            Path.Combine(bundleDir, "IntoChat.OS.Desktop.exe"),
+            Path.Combine(bundleDir, "os", "IntoChat.OS.Kernel.exe"),
+            Path.Combine(bundleDir, "unithost", "IntoChat.OS.Sandbox.exe"),
+        };
+
+        var flutterExe = Path.Combine(bundleDir, "shell", "intochat_os_flutter.exe");
+        if (!skipFlutter || File.Exists(flutterExe))
+        {
+            targets.Add(flutterExe);
+        }
+
+        foreach (var target in targets)
+        {
+            if (!File.Exists(target))
+            {
+                throw new InvalidOperationException($"Expected Windows binary to sign was not found at '{target}'.");
+            }
+
+            await StepAsync($"Signing {Path.GetRelativePath(bundleDir, target)} via winapp az-sign...");
+            RunChecked(winappPath, ["az-sign", target, "--metadata-file", metadataPath]);
+        }
+    }
+
+    private static async Task<MsixBuildResult> BuildWindowsMsixAsync(
+        string repoRoot,
+        string stageRoot,
+        string bundleDir,
+        string outputDir,
+        string version,
+        PackageOptions options,
+        string winappPath,
+        string? azSignMetadataPath,
+        CancellationToken cancellationToken)
+    {
+        var msixVersion = ToMsixVersion(version, options.MsixBuild);
+        var publisher = options.ResolvePublisher();
+        var versionedMsix = $"IntoChat-{version}-win-x64.msix";
+        var stableMsix = "IntoChat-win-x64.msix";
+        var appInstallerName = $"{options.MsixName}.appinstaller";
+
+        var msixLayoutDir = Path.Combine(stageRoot, "msix-layout");
+        CopyDirectory(bundleDir, msixLayoutDir);
+
+        var manifestPath = Path.Combine(msixLayoutDir, "AppxManifest.xml");
+        var manifestXml = RenderAppxManifest(options.MsixName, publisher, options.PublisherDisplayName, msixVersion);
+        await File.WriteAllTextAsync(manifestPath, manifestXml, Utf8NoBom, cancellationToken);
+
+        var sourceIcon = ResolveMsixSourceIcon(repoRoot);
+        await StepAsync($"Generating MSIX visual assets from {Path.GetRelativePath(repoRoot, sourceIcon)}...");
+        RunChecked(winappPath, ["manifest", "update-assets", sourceIcon, "--manifest", manifestPath]);
+
+        var assetsDir = Path.Combine(msixLayoutDir, "Assets");
+        foreach (var requiredLogo in (string[])["Square44x44Logo.png", "Square150x150Logo.png", "StoreLogo.png"])
+        {
+            var logoPath = Path.Combine(assetsDir, requiredLogo);
+            if (!File.Exists(logoPath))
+            {
+                throw new InvalidOperationException($"Expected MSIX visual asset '{logoPath}' was not generated.");
+            }
+        }
+
+        string? packCertPath = null;
+        if (options.DevCert)
+        {
+            var devCertPath = Path.Combine(outputDir, "devcert.pfx");
+            await StepAsync($"Ensuring local development certificate at {devCertPath}...");
+            RunChecked(winappPath, ["cert", "generate", "--manifest", manifestPath, "--output", devCertPath, "--if-exists", "skip"]);
+            packCertPath = devCertPath;
+        }
+        else if (!string.IsNullOrWhiteSpace(options.CertPath))
+        {
+            packCertPath = Path.GetFullPath(options.CertPath);
+            if (!File.Exists(packCertPath))
+            {
+                throw new InvalidOperationException($"Signing certificate not found at '{packCertPath}'.");
+            }
+        }
+
+        var versionedMsixPath = Path.Combine(outputDir, versionedMsix);
+        var stableMsixPath = Path.Combine(outputDir, stableMsix);
+        if (File.Exists(versionedMsixPath))
+        {
+            File.Delete(versionedMsixPath);
+        }
+
+        var packArgs = new List<string>
+        {
+            "pack",
+            msixLayoutDir,
+            "--output",
+            versionedMsixPath,
+            "--skip-pri",
+        };
+
+        if (packCertPath is not null)
+        {
+            packArgs.Add("--cert");
+            packArgs.Add(packCertPath);
+            if (!string.IsNullOrWhiteSpace(options.CertPassword))
+            {
+                packArgs.Add("--cert-password");
+                packArgs.Add(options.CertPassword);
+            }
+        }
+
+        await StepAsync($"Packing {versionedMsix} via winapp CLI (v{msixVersion}, publisher: {publisher})...");
+        RunChecked(winappPath, [.. packArgs]);
+
+        if (!File.Exists(versionedMsixPath))
+        {
+            throw new InvalidOperationException($"winapp pack did not produce expected MSIX package '{versionedMsixPath}'.");
+        }
+
+        if (azSignMetadataPath is not null)
+        {
+            await StepAsync($"Signing {versionedMsix} via winapp az-sign...");
+            RunChecked(winappPath, ["az-sign", versionedMsixPath, "--metadata-file", azSignMetadataPath]);
+        }
+
+        File.Copy(versionedMsixPath, stableMsixPath, overwrite: true);
+
+        var appInstallerPath = Path.Combine(outputDir, appInstallerName);
+        var appInstallerXml = RenderAppInstaller(
+            options.MsixName,
+            publisher,
+            msixVersion,
+            options.AppInstallerBaseUri,
+            versionedMsix);
+        await File.WriteAllTextAsync(appInstallerPath, appInstallerXml, Utf8NoBom, cancellationToken);
+
+        return new MsixBuildResult(
+            VersionedMsixFileName: versionedMsix,
+            VersionedMsixSha256: ComputeValidatedSha256(versionedMsixPath),
+            StableMsixFileName: stableMsix,
+            StableMsixSha256: ComputeValidatedSha256(stableMsixPath),
+            AppInstallerFileName: appInstallerName,
+            AppInstallerSha256: ComputeValidatedSha256(appInstallerPath));
+    }
+
+    private static async Task WriteMsixManifestsAsync(
+        string targetDir,
+        string version,
+        PackageOptions options,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(targetDir);
+        var msixVersion = ToMsixVersion(version, options.MsixBuild);
+        var publisher = options.ResolvePublisher();
+        var versionedMsix = $"IntoChat-{version}-win-x64.msix";
+
+        var manifestXml = RenderAppxManifest(options.MsixName, publisher, options.PublisherDisplayName, msixVersion);
+        await File.WriteAllTextAsync(Path.Combine(targetDir, "AppxManifest.xml"), manifestXml, Utf8NoBom, cancellationToken);
+
+        var appInstallerXml = RenderAppInstaller(
+            options.MsixName,
+            publisher,
+            msixVersion,
+            options.AppInstallerBaseUri,
+            versionedMsix);
+        await File.WriteAllTextAsync(Path.Combine(targetDir, $"{options.MsixName}.appinstaller"), appInstallerXml, Utf8NoBom, cancellationToken);
+    }
+
+    private static string ResolveMsixSourceIcon(string repoRoot)
+    {
+        string[] candidates =
+        [
+            Path.Combine(repoRoot, "ui", "web", "icons", "Icon-512.png"),
+            Path.Combine(repoRoot, "ui", "macos", "Runner", "Assets.xcassets", "AppIcon.appiconset", "app_icon_512.png"),
+            Path.Combine(repoRoot, "ui", "web", "icons", "Icon-192.png"),
+        ];
+
+        return candidates.FirstOrDefault(File.Exists)
+            ?? throw new InvalidOperationException(
+                $"No source PNG icon found for MSIX visual assets. Checked: {string.Join(", ", candidates)}");
+    }
+
+    private static string ToMsixVersion(string version, int buildNumber)
+    {
+        if (buildNumber is < 0 or > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(buildNumber), $"MSIX build number must be in 0..{ushort.MaxValue}.");
+        }
+
+        var match = Regex.Match(version.Trim(), @"^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$");
+        if (!match.Success)
+        {
+            throw new InvalidOperationException($"VERSION '{version}' cannot be converted to a 4-part MSIX version (expected major.minor.patch).");
+        }
+
+        var major = ushort.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+        var minor = ushort.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+        var patch = ushort.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+        return $"{major}.{minor}.{patch}.{buildNumber}";
+    }
+
+    private static string RenderAppxManifest(
+        string packageName,
+        string publisher,
+        string publisherDisplayName,
+        string msixVersion)
+    {
+        var escapedName = SecurityElement.Escape(packageName);
+        var escapedPublisher = SecurityElement.Escape(publisher);
+        var escapedPublisherDisplayName = SecurityElement.Escape(publisherDisplayName);
+        var escapedVersion = SecurityElement.Escape(msixVersion);
+
+        return $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <Package
+              xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+              xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+              xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+              xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+              xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+              xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+              IgnorableNamespaces="uap uap3 desktop desktop6 rescap">
+              <Identity Name="{escapedName}" Publisher="{escapedPublisher}" Version="{escapedVersion}" ProcessorArchitecture="x64" />
+              <Properties>
+                <DisplayName>IntoChat OS</DisplayName>
+                <PublisherDisplayName>{escapedPublisherDisplayName}</PublisherDisplayName>
+                <Logo>Assets\StoreLogo.png</Logo>
+                <Description>Local-first AI operating system with Ino, live C# micro-apps, ArtCraft studios, and hardware-confined sandboxes.</Description>
+                <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+                <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+              </Properties>
+              <Dependencies>
+                <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+              </Dependencies>
+              <Resources>
+                <Resource Language="en-us" />
+              </Resources>
+              <Applications>
+                <Application Id="IntoChatOS" Executable="IntoChat.OS.Desktop.exe" EntryPoint="Windows.FullTrustApplication">
+                  <uap:VisualElements DisplayName="IntoChat OS" Description="IntoChat OS" BackgroundColor="transparent"
+                                      Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+                  <Extensions>
+                    <uap3:Extension Category="windows.appExecutionAlias" Executable="IntoChat.OS.Desktop.exe" EntryPoint="Windows.FullTrustApplication">
+                      <uap3:AppExecutionAlias>
+                        <desktop:ExecutionAlias Alias="intochat.exe" />
+                        <desktop:ExecutionAlias Alias="intochat-os.exe" />
+                      </uap3:AppExecutionAlias>
+                    </uap3:Extension>
+                    <uap:Extension Category="windows.protocol">
+                      <uap:Protocol Name="intochat">
+                        <uap:DisplayName>IntoChat OS</uap:DisplayName>
+                      </uap:Protocol>
+                    </uap:Extension>
+                  </Extensions>
+                </Application>
+              </Applications>
+              <Capabilities>
+                <rescap:Capability Name="runFullTrust" />
+                <rescap:Capability Name="unvirtualizedResources" />
+              </Capabilities>
+            </Package>
+            """.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
+    }
+
+    private static string RenderAppInstaller(
+        string packageName,
+        string publisher,
+        string msixVersion,
+        string baseUri,
+        string versionedMsixFileName)
+    {
+        var trimmedBaseUri = baseUri.TrimEnd('/');
+        var escapedName = SecurityElement.Escape(packageName);
+        var escapedPublisher = SecurityElement.Escape(publisher);
+        var escapedVersion = SecurityElement.Escape(msixVersion);
+        var escapedAppInstallerUri = SecurityElement.Escape($"{trimmedBaseUri}/{packageName}.appinstaller");
+        var escapedPackageUri = SecurityElement.Escape($"{trimmedBaseUri}/{versionedMsixFileName}");
+
+        return $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <AppInstaller
+              xmlns="http://schemas.microsoft.com/appx/appinstaller/2021"
+              Version="{escapedVersion}"
+              Uri="{escapedAppInstallerUri}">
+              <MainPackage
+                Name="{escapedName}"
+                Publisher="{escapedPublisher}"
+                Version="{escapedVersion}"
+                ProcessorArchitecture="x64"
+                Uri="{escapedPackageUri}" />
+              <UpdateSettings>
+                <OnLaunch HoursBetweenUpdateChecks="24" ShowPrompt="true" UpdateBlocksActivation="true" />
+                <AutomaticBackgroundTask />
+              </UpdateSettings>
+            </AppInstaller>
+            """.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
     }
 
     private static async Task BuildWindowsInstallerAsync(
@@ -712,9 +1246,29 @@ internal static class ReleasePackageScript
         string publicDomain,
         string versionedZipName,
         string zipSha256,
+        string? versionedMsixName,
+        string? msixSha256,
+        string? appInstallerFileName,
+        string appInstallerBaseUri,
         CancellationToken cancellationToken)
     {
         await File.WriteAllTextAsync(Path.Combine(outputDir, "VERSION"), $"{version}\n", Utf8NoBom, cancellationToken);
+
+        var winX64Asset = new JsonObject
+        {
+            ["url"] = $"https://releases.{publicDomain}/{channel}/{version}/{versionedZipName}",
+            ["sha256"] = zipSha256,
+        };
+        if (!string.IsNullOrWhiteSpace(versionedMsixName) && !string.IsNullOrWhiteSpace(msixSha256))
+        {
+            var trimmedBase = appInstallerBaseUri.TrimEnd('/');
+            winX64Asset["msixUrl"] = $"{trimmedBase}/{versionedMsixName}";
+            winX64Asset["msixSha256"] = msixSha256;
+            if (!string.IsNullOrWhiteSpace(appInstallerFileName))
+            {
+                winX64Asset["appInstallerUrl"] = $"{trimmedBase}/{appInstallerFileName}";
+            }
+        }
 
         var latestJsonPath = Path.Combine(outputDir, "latest.json");
         var manifestRoot = new JsonObject
@@ -723,11 +1277,7 @@ internal static class ReleasePackageScript
             ["channel"] = channel,
             ["assets"] = new JsonObject
             {
-                ["win-x64"] = new JsonObject
-                {
-                    ["url"] = $"https://releases.{publicDomain}/{channel}/{version}/{versionedZipName}",
-                    ["sha256"] = zipSha256,
-                },
+                ["win-x64"] = winX64Asset,
             },
         };
         var jsonText = manifestRoot.ToJsonString(IndentedJson).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -1283,6 +1833,31 @@ internal static class ReleasePackageScript
         return ResolveOnPath(executable) ?? executable;
     }
 
+    private static string? ResolveWinAppCommand()
+    {
+        var executable = OperatingSystem.IsWindows() ? "winapp.exe" : "winapp";
+        var onPath = ResolveOnPath(executable);
+        if (onPath is not null)
+        {
+            return onPath;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                var wingetLink = Path.Combine(localAppData, "Microsoft", "WinGet", "Links", "winapp.exe");
+                if (File.Exists(wingetLink))
+                {
+                    return Path.GetFullPath(wingetLink);
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static string? ResolveOnPath(string executable)
     {
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
@@ -1338,8 +1913,27 @@ internal static class ReleasePackageScript
         process.WaitForExit();
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"Command '{fileName} {string.Join(" ", args)}' failed with exit code {process.ExitCode}.");
+            throw new InvalidOperationException($"Command '{fileName} {FormatArgsForError(args)}' failed with exit code {process.ExitCode}.");
         }
+    }
+
+    private static string FormatArgsForError(string[] args)
+    {
+        var formatted = new List<string>(args.Length);
+        for (var i = 0; i < args.Length; i++)
+        {
+            var current = args[i];
+            formatted.Add(current);
+            if ((current.Equals("--cert-password", StringComparison.OrdinalIgnoreCase)
+                || current.Equals("--password", StringComparison.OrdinalIgnoreCase))
+                && i + 1 < args.Length)
+            {
+                formatted.Add("***");
+                i++;
+            }
+        }
+
+        return string.Join(" ", formatted);
     }
 
     private static void TryDeleteDirectory(string path)

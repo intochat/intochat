@@ -6,6 +6,7 @@
 // in ~/.intochat/run/presence validated by SHA-256 hash without leaking plain secrets in env vars.
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -100,12 +101,21 @@ try
         }
     }
 
+    using var shutdownCoordinator = new DesktopShutdownCoordinator(
+        () => StopProcessesForOsShutdown(ownedKernel, shellProcess, layout, kernelUrl.Port));
+    using var shutdownListener = DesktopShutdownListener.Start(shutdownCoordinator);
+
     // Verify kernel health concurrently while the Flutter shell initializes its graphics/engine in parallel.
     using (var http = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1500) })
     {
         var deadline = DateTime.UtcNow.AddMinutes(2);
         while (!await Healthy(http, kernelUrl))
         {
+            if (shutdownCoordinator.ShutdownTriggered)
+            {
+                return 0;
+            }
+
             if (ownedKernel is { HasExited: true })
             {
                 throw new InvalidOperationException(
@@ -118,7 +128,14 @@ try
                     $"The OS did not become healthy at {kernelUrl}; see {Path.Combine(layout.LogsDirectory, "kernel.log")}.");
             }
 
-            await Task.Delay(50);
+            try
+            {
+                await Task.Delay(50, shutdownCoordinator.ShutdownToken);
+            }
+            catch (OperationCanceledException) when (shutdownCoordinator.ShutdownTriggered)
+            {
+                return 0;
+            }
         }
     }
 
@@ -141,8 +158,15 @@ try
             {
                 using (shellProcess)
                 {
-                    await shellProcess.WaitForExitAsync();
-                    return shellProcess.ExitCode;
+                    try
+                    {
+                        await shellProcess.WaitForExitAsync(shutdownCoordinator.ShutdownToken);
+                        return shellProcess.ExitCode;
+                    }
+                    catch (OperationCanceledException) when (shutdownCoordinator.ShutdownTriggered)
+                    {
+                        return 0;
+                    }
                 }
             }
 
@@ -150,7 +174,7 @@ try
         }
         finally
         {
-            if (ownedKernel is not null)
+            if (ownedKernel is not null && !shutdownCoordinator.ShutdownTriggered)
             {
                 await TerminateOwnedKernelAsync(ownedKernel, layout, kernelUrl.Port);
             }
@@ -158,13 +182,21 @@ try
     }
 
     // Hide-on-close / background tray daemon mode: closing the UI window leaves IntoChat.OS.Kernel alive for
-    // [Every("1m")] micro-apps and pending PR approvals until `intochat --quit` / `--stop` is invoked.
+    // [Every("1m")] micro-apps and pending PR approvals until `intochat --quit` / `--stop` is invoked,
+    // while Windows WM_ENDSESSION / MSIX update / console shutdown terminates it cleanly via shutdownCoordinator.
     if (shellProcess is not null)
     {
         using (shellProcess)
         {
-            await shellProcess.WaitForExitAsync();
-            return shellProcess.ExitCode;
+            try
+            {
+                await shellProcess.WaitForExitAsync(shutdownCoordinator.ShutdownToken);
+                return shellProcess.ExitCode;
+            }
+            catch (OperationCanceledException) when (shutdownCoordinator.ShutdownTriggered)
+            {
+                return 0;
+            }
         }
     }
 
@@ -250,6 +282,83 @@ static async Task TerminateOwnedKernelAsync(Process ownedKernel, DesktopLayout l
 
         _ = DesktopBootstrap.TryDeleteRunFile(layout.PresenceFilePath);
         _ = DesktopBootstrap.TryDeleteRunFile(DesktopBootstrap.KernelConfigFilePath(layout));
+    }
+}
+
+static void StopProcessesForOsShutdown(Process? ownedKernel, Process? shellProcess, DesktopLayout layout, int port)
+{
+    try
+    {
+        using var stopCompleted = new ManualResetEventSlim(initialState: false);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                _ = await DesktopBootstrap.StopRunningKernelAsync(layout, port);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or Win32Exception or HttpRequestException or TaskCanceledException)
+            {
+                Trace.TraceWarning("Graceful kernel shutdown during OS session end failed: {0}", ex.Message);
+            }
+            finally
+            {
+                try
+                {
+                    stopCompleted.Set();
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    Trace.TraceWarning("OS shutdown wait handle disposed before completion: {0}", ex.Message);
+                }
+            }
+        });
+
+        _ = stopCompleted.Wait(TimeSpan.FromSeconds(4));
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+    {
+        Trace.TraceWarning("Waiting for graceful kernel shutdown during OS session end failed: {0}", ex.Message);
+    }
+
+    if (ownedKernel is not null)
+    {
+        try
+        {
+            if (!ownedKernel.HasExited)
+            {
+                ownedKernel.Kill(entireProcessTree: true);
+                _ = ownedKernel.WaitForExit(2_000);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+            Trace.TraceWarning("Terminating owned kernel during OS shutdown failed: {0}", ex.Message);
+        }
+    }
+
+    _ = DesktopBootstrap.TryDeleteRunFile(layout.KernelPidFilePath);
+    if (!string.IsNullOrWhiteSpace(layout.LegacyKernelPidFilePath))
+    {
+        _ = DesktopBootstrap.TryDeleteRunFile(layout.LegacyKernelPidFilePath);
+    }
+
+    _ = DesktopBootstrap.TryDeleteRunFile(layout.PresenceFilePath);
+    _ = DesktopBootstrap.TryDeleteRunFile(DesktopBootstrap.KernelConfigFilePath(layout));
+
+    if (shellProcess is not null)
+    {
+        try
+        {
+            if (!shellProcess.HasExited)
+            {
+                shellProcess.Kill(entireProcessTree: true);
+                _ = shellProcess.WaitForExit(2_000);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+            Trace.TraceWarning("Terminating desktop shell during OS shutdown failed: {0}", ex.Message);
+        }
     }
 }
 
@@ -448,6 +557,227 @@ internal static unsafe class Dpapi
     }
 }
 
+internal sealed unsafe class DesktopShutdownListener : IDisposable
+{
+    private const uint WmStopListener = 0x8001; // WM_APP + 1: internal listener teardown without triggering OS shutdown.
+
+    private static DesktopShutdownCoordinator? s_activeCoordinator;
+
+    private readonly DesktopShutdownCoordinator _coordinator;
+    private readonly PosixSignalRegistration? _sigTermRegistration;
+    private readonly PosixSignalRegistration? _sigIntRegistration;
+    private readonly Thread? _windowThread;
+    private readonly bool _consoleHandlerRegistered;
+    private IntPtr _hwnd;
+    private int _disposed;
+
+    private DesktopShutdownListener(
+        DesktopShutdownCoordinator coordinator,
+        PosixSignalRegistration? sigTermRegistration,
+        PosixSignalRegistration? sigIntRegistration,
+        Thread? windowThread,
+        IntPtr hwnd,
+        bool consoleHandlerRegistered)
+    {
+        _coordinator = coordinator;
+        _sigTermRegistration = sigTermRegistration;
+        _sigIntRegistration = sigIntRegistration;
+        _windowThread = windowThread;
+        _hwnd = hwnd;
+        _consoleHandlerRegistered = consoleHandlerRegistered;
+    }
+
+    public static DesktopShutdownListener Start(DesktopShutdownCoordinator coordinator)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        _ = Interlocked.Exchange(ref s_activeCoordinator, coordinator);
+
+        PosixSignalRegistration? sigTerm = null;
+        PosixSignalRegistration? sigInt = null;
+        Thread? windowThread = null;
+        var hwnd = IntPtr.Zero;
+        var consoleHandlerRegistered = false;
+
+        if (OperatingSystem.IsWindows())
+        {
+            consoleHandlerRegistered = NativeMethods.SetConsoleCtrlHandler(&OnConsoleCtrlEvent, add: true);
+
+            using var windowReady = new ManualResetEventSlim(initialState: false);
+            var createdHwnd = IntPtr.Zero;
+            windowThread = new Thread(() => RunWindowsShutdownMessageLoop(ref createdHwnd, windowReady))
+            {
+                IsBackground = true,
+                Name = "IntoChatDesktopShutdownWindow",
+            };
+            windowThread.Start();
+            _ = windowReady.Wait(TimeSpan.FromSeconds(2));
+            hwnd = Volatile.Read(ref createdHwnd);
+        }
+        else
+        {
+            sigTerm = TryRegisterPosixSignal(PosixSignal.SIGTERM, coordinator);
+            sigInt = TryRegisterPosixSignal(PosixSignal.SIGINT, coordinator);
+        }
+
+        return new DesktopShutdownListener(coordinator, sigTerm, sigInt, windowThread, hwnd, consoleHandlerRegistered);
+    }
+
+    private static PosixSignalRegistration? TryRegisterPosixSignal(PosixSignal signal, DesktopShutdownCoordinator coordinator)
+    {
+        try
+        {
+            return PosixSignalRegistration.Create(signal, context =>
+            {
+                context.Cancel = true;
+                coordinator.TriggerShutdownAndWait();
+            });
+        }
+        catch (PlatformNotSupportedException ex)
+        {
+            Trace.TraceWarning("POSIX signal registration for {0} is not supported: {1}", signal, ex.Message);
+            return null;
+        }
+    }
+
+    private static void RunWindowsShutdownMessageLoop(ref IntPtr createdHwnd, ManualResetEventSlim windowReady)
+    {
+        var className = $"IntoChatDesktopShutdown_{Environment.ProcessId}_{Guid.NewGuid():N}";
+        var hInstance = NativeMethods.GetModuleHandleW(null);
+        var localHwnd = IntPtr.Zero;
+        ushort atom = 0;
+
+        try
+        {
+            fixed (char* classNamePtr = className)
+            {
+                var windowClass = new NativeMethods.WndClassExW
+                {
+                    CbSize = (uint)sizeof(NativeMethods.WndClassExW),
+                    LpfnWndProc = (nint)(delegate* unmanaged[Stdcall]<IntPtr, uint, nint, nint, nint>)&ShutdownWndProc,
+                    HInstance = hInstance,
+                    LpszClassName = classNamePtr,
+                };
+
+                atom = NativeMethods.RegisterClassExW(in windowClass);
+            }
+
+            if (atom != 0)
+            {
+                // Top-level hidden window (hwndParent == IntPtr.Zero, no WS_VISIBLE) so Windows Restart Manager
+                // and MSIX package updates deliver WM_QUERYENDSESSION / WM_ENDSESSION cleanly.
+                localHwnd = NativeMethods.CreateWindowExW(
+                    dwExStyle: 0,
+                    lpClassName: className,
+                    lpWindowName: "IntoChat OS Desktop",
+                    dwStyle: 0,
+                    x: 0,
+                    y: 0,
+                    nWidth: 0,
+                    nHeight: 0,
+                    hWndParent: IntPtr.Zero,
+                    hMenu: IntPtr.Zero,
+                    hInstance: hInstance,
+                    lpParam: IntPtr.Zero);
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref createdHwnd, localHwnd);
+            try
+            {
+                windowReady.Set();
+            }
+            catch (ObjectDisposedException ex)
+            {
+                Trace.TraceWarning("Shutdown window startup signal already disposed: {0}", ex.Message);
+            }
+        }
+
+        if (localHwnd == IntPtr.Zero)
+        {
+            if (atom != 0)
+            {
+                _ = NativeMethods.UnregisterClassW(className, hInstance);
+            }
+
+            return;
+        }
+
+        try
+        {
+            while (NativeMethods.GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
+            {
+                _ = NativeMethods.TranslateMessage(in msg);
+                _ = NativeMethods.DispatchMessageW(in msg);
+            }
+        }
+        finally
+        {
+            _ = NativeMethods.DestroyWindow(localHwnd);
+            _ = NativeMethods.UnregisterClassW(className, hInstance);
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
+    private static nint ShutdownWndProc(IntPtr hWnd, uint message, nint wParam, nint lParam)
+    {
+        if (message == WmStopListener)
+        {
+            _ = NativeMethods.DestroyWindow(hWnd);
+            NativeMethods.PostQuitMessage(0);
+            return 0;
+        }
+
+        var coordinator = Volatile.Read(ref s_activeCoordinator);
+        if (coordinator is not null && coordinator.HandleWindowMessage(message, wParam, lParam, out var handledResult))
+        {
+            if (message == DesktopShutdownCoordinator.WmClose || (message == DesktopShutdownCoordinator.WmEndSession && wParam != 0))
+            {
+                NativeMethods.PostQuitMessage(0);
+            }
+
+            return handledResult;
+        }
+
+        return NativeMethods.DefWindowProcW(hWnd, message, wParam, lParam);
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
+    private static int OnConsoleCtrlEvent(uint ctrlType)
+    {
+        var coordinator = Volatile.Read(ref s_activeCoordinator);
+        return coordinator is not null && coordinator.HandleConsoleCtrlEvent(ctrlType) ? 1 : 0;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _ = Interlocked.CompareExchange(ref s_activeCoordinator, null, _coordinator);
+
+        if (OperatingSystem.IsWindows())
+        {
+            if (_consoleHandlerRegistered)
+            {
+                _ = NativeMethods.SetConsoleCtrlHandler(&OnConsoleCtrlEvent, add: false);
+            }
+
+            var hwnd = Interlocked.Exchange(ref _hwnd, IntPtr.Zero);
+            if (hwnd != IntPtr.Zero)
+            {
+                _ = NativeMethods.PostMessageW(hwnd, WmStopListener, 0, 0);
+                _ = _windowThread?.Join(TimeSpan.FromSeconds(1));
+            }
+        }
+
+        _sigTermRegistration?.Dispose();
+        _sigIntRegistration?.Dispose();
+    }
+}
+
 internal static partial class NativeMethods
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -455,6 +785,41 @@ internal static partial class NativeMethods
     {
         public int Size;
         public IntPtr Data;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe struct WndClassExW
+    {
+        public uint CbSize;
+        public uint Style;
+        public nint LpfnWndProc;
+        public int CbClsExtra;
+        public int CbWndExtra;
+        public IntPtr HInstance;
+        public IntPtr HIcon;
+        public IntPtr HCursor;
+        public IntPtr HbrBackground;
+        public char* LpszMenuName;
+        public char* LpszClassName;
+        public IntPtr HIconSm;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct Msg
+    {
+        public IntPtr HWnd;
+        public uint Message;
+        public nuint WParam;
+        public nint LParam;
+        public uint Time;
+        public Point Pt;
     }
 
     [LibraryImport("crypt32.dll", EntryPoint = "CryptProtectData", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
@@ -476,6 +841,59 @@ internal static partial class NativeMethods
     [LibraryImport("kernel32.dll")]
     internal static partial IntPtr LocalFree(IntPtr memory);
 
+    [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial IntPtr GetModuleHandleW(string? moduleName);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "SetConsoleCtrlHandler", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static unsafe partial bool SetConsoleCtrlHandler(delegate* unmanaged[Stdcall]<uint, int> handlerRoutine, [MarshalAs(UnmanagedType.Bool)] bool add);
+
     [LibraryImport("user32.dll", EntryPoint = "MessageBoxW", StringMarshalling = StringMarshalling.Utf16)]
     internal static partial int MessageBoxW(IntPtr owner, string text, string caption, uint type);
+
+    [LibraryImport("user32.dll", EntryPoint = "RegisterClassExW", SetLastError = true)]
+    internal static partial ushort RegisterClassExW(in WndClassExW lpwcx);
+
+    [LibraryImport("user32.dll", EntryPoint = "UnregisterClassW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool UnregisterClassW(string lpClassName, IntPtr hInstance);
+
+    [LibraryImport("user32.dll", EntryPoint = "CreateWindowExW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial IntPtr CreateWindowExW(
+        uint dwExStyle,
+        string lpClassName,
+        string lpWindowName,
+        uint dwStyle,
+        int x,
+        int y,
+        int nWidth,
+        int nHeight,
+        IntPtr hWndParent,
+        IntPtr hMenu,
+        IntPtr hInstance,
+        IntPtr lpParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "DestroyWindow", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DestroyWindow(IntPtr hWnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
+    internal static partial nint DefWindowProcW(IntPtr hWnd, uint msg, nint wParam, nint lParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMessageW", SetLastError = true)]
+    internal static partial int GetMessageW(out Msg lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [LibraryImport("user32.dll", EntryPoint = "TranslateMessage")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool TranslateMessage(in Msg lpMsg);
+
+    [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
+    internal static partial nint DispatchMessageW(in Msg lpMsg);
+
+    [LibraryImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool PostMessageW(IntPtr hWnd, uint msg, nint wParam, nint lParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "PostQuitMessage")]
+    internal static partial void PostQuitMessage(int nExitCode);
 }

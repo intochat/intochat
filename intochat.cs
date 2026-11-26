@@ -13,7 +13,7 @@ switch (args)
 {
     case ["package-release", .. var pkgArgs]: return await ReleasePackager.RunAsync(pkgArgs);
     case ["package-dry-run", .. var dryArgs]: return await ReleasePackager.RunAsync(["--dry-run", .. dryArgs]);
-    case ["package-msix", .. var msixArgs]: return await MsixPackager.RunAsync(msixArgs);
+    case ["package-msix", .. var msixArgs]: return await RunUnifiedWindowsPackageAsync(msixArgs);
 }
 
 var command = LauncherCommand.Parse(args);
@@ -53,3 +53,32 @@ using var appHostProcess = Process.Start(start) ?? throw new InvalidOperationExc
 Console.CancelKeyPress += (_, press) => press.Cancel = true;
 await appHostProcess.WaitForExitAsync();
 return appHostProcess.ExitCode;
+
+static async Task<int> RunUnifiedWindowsPackageAsync(string[] forwardedArgs)
+{
+    var repoRoot = AppContext.GetData("EntryPointFileDirectoryPath") as string ?? Directory.GetCurrentDirectory();
+    var packageScript = Path.Combine(repoRoot, "eng", "package.cs");
+    var psi = new ProcessStartInfo("dotnet")
+    {
+        WorkingDirectory = repoRoot,
+        UseShellExecute = false,
+    };
+    psi.ArgumentList.Add("run");
+    psi.ArgumentList.Add(packageScript);
+    if (!forwardedArgs.Any(arg => arg.Equals("--platform", StringComparison.OrdinalIgnoreCase)
+        || arg.Equals("--rid", StringComparison.OrdinalIgnoreCase)))
+    {
+        psi.ArgumentList.Add("--platform");
+        psi.ArgumentList.Add("win-x64");
+    }
+
+    foreach (var arg in forwardedArgs)
+    {
+        psi.ArgumentList.Add(arg);
+    }
+
+    using var process = Process.Start(psi)
+        ?? throw new InvalidOperationException($"Could not start dotnet run '{packageScript}'.");
+    await process.WaitForExitAsync();
+    return process.ExitCode;
+}

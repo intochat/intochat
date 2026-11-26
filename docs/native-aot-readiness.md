@@ -100,12 +100,15 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
 1. **Desktop Launcher (`IntoChat.OS.Desktop`)**:
    - Located at [IntoChat.OS.Desktop.csproj](../src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj) and [IntoChat.OS.Desktop.cs](../src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.cs).
    - It is **already a Native AOT executable (`<PublishAot>true</PublishAot>`)** that supervises and launches `os/IntoChat.OS.Kernel.exe` and the Flutter desktop shell (`shell/intochat_os_flutter.exe`) **in parallel** (`<1.5s` cold start), manages `~/.intochat/secrets/master.key` (DPAPI-protected), and tracks `~/.intochat/run/kernel.pid`.
-2. **MSIX Installer Packager (`MsixPackager`)**:
-   - Located at [MsixPackager.cs](../src/IntoChat.OS.LocalSetup/MsixPackager.cs) and invoked from the repository root through the `intochat.cs` launcher (or as the `package-msix` Aspire pipeline step, which takes no flags):
+2. **Unified Windows Packager (`eng/package.cs` — MSIX + Setup `.exe` + Portable `.zip`)**:
+   - Located at [package.cs](../eng/package.cs) and invoked directly or via the `intochat.cs` launcher / `package-msix` Aspire pipeline step:
      ```powershell
-     dotnet run intochat.cs package-msix
+     dotnet run eng/package.cs --platform win-x64 --dev-cert
+     # or via launcher shortcut:
+     dotnet run intochat.cs package-msix --dev-cert
      ```
-   - We updated [MsixPackager.cs](../src/IntoChat.OS.LocalSetup/MsixPackager.cs#L128) so that when it publishes `IntoChat.OS.Kernel.csproj` into `artifacts/msix/layout/os/IntoChat.OS.Kernel.exe`, it passes **`/p:IntoChatOSAot=true`**, packaging both the Native AOT Desktop supervisor and the Native AOT Kernel into a single `.msix` / `.appinstaller` bundle!
+   - `PackageWindowsAsync` stages the 4-component bundle (`IntoChat.OS.Desktop.exe` + `intochat.cmd`, Native AOT `os/IntoChat.OS.Kernel.exe`, `unithost/IntoChat.OS.Sandbox.exe`, and `shell/intochat_os_flutter.exe` built from `ui/`), generates the unvirtualized `AppxManifest.xml` (`runFullTrust` + `unvirtualizedResources`, `intochat.exe`/`intochat-os.exe` execution aliases, `intochat://` protocol) and 2021 `IntoChat.OS.appinstaller` (`UpdateBlocksActivation="true"`), and invokes Microsoft's `winapp` CLI (`Microsoft.WinAppCLI`) to emit `IntoChat-{version}-win-x64.msix`, `IntoChat-win-x64.msix`, and `IntoChat.OS.appinstaller` alongside the dual-ship `intochat-{version}-win-x64.zip` and `IntoChat-Setup-{version}-win-x64.exe` artifacts.
+   - Cloud signing uses `winapp az-sign` when GitHub repository variables `AZURE_ARTIFACT_SIGNING_ENDPOINT`, `AZURE_ARTIFACT_SIGNING_ACCOUNT`, `AZURE_ARTIFACT_SIGNING_PROFILE` (and optional `WINDOWS_PUBLISHER_SUBJECT`) are configured; local dev installs use `--dev-cert`.
 3. **Azure Infrastructure Installer (`AzureInstaller`)**:
    - Built directly into the Kernel CLI ([AzureInstaller.cs](../src/IntoChat.OS.Kernel/Install/AzureInstaller.cs)):
      ```powershell
@@ -140,7 +143,9 @@ $env:ASPNETCORE_URLS = "http://127.0.0.1:5080"
 .\artifacts\publish\IntoChat.OS.Kernel\release_win-x64\IntoChat.OS.Kernel.exe
 ```
 
-### Build MSIX Installer Package (with Native AOT Kernel + Native AOT Desktop Launcher)
+### Build Windows MSIX + Dual-Ship Portable Package (Native AOT Desktop + Kernel + Sandbox + Flutter)
 ```powershell
-dotnet run intochat.cs package-msix --skip-shell
+dotnet run eng/package.cs --platform win-x64 --dev-cert --skip-flutter
+# or via launcher shortcut:
+dotnet run intochat.cs package-msix --dev-cert --skip-shell
 ```

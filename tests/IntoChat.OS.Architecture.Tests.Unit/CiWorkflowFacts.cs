@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -177,26 +179,45 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("check-runs", job, StringComparison.Ordinal);
         Assert.Contains("does not match VERSION", job, StringComparison.Ordinal);
 
-        // .NET from global.json; Flutter pinned to the version ci tests the shell with.
+        // .NET from global.json; Flutter pinned to the version ci tests the shell with; Microsoft.WinAppCLI installed for MSIX packing and az-sign.
         Assert.Contains("global-json-file: global.json", job, StringComparison.Ordinal);
         var flutterVersion = Regex.Match(Job(Workflow("ci.yml"), "flutter"), @"flutter-version:\s*'(?<v>[^']+)'");
         Assert.True(flutterVersion.Success, "ci flutter job must pin flutter-version");
         Assert.Contains($"flutter-version: '{flutterVersion.Groups["v"].Value}'", job, StringComparison.Ordinal);
         Assert.Contains("flutter pub get --enforce-lockfile", job, StringComparison.Ordinal);
+        Assert.Contains("Microsoft.WinAppCLI", job, StringComparison.Ordinal);
+        Assert.Contains("id-token: write", job, StringComparison.Ordinal);
 
-        // Versioned archive, stable aliases, installer, checksums, and manifests go to the release the tag belongs to.
+        // Conditional Azure Artifact Signing login and repo variable pass-through.
+        Assert.Contains("vars.AZURE_ARTIFACT_SIGNING_ENDPOINT", job, StringComparison.Ordinal);
+        Assert.Contains("vars.AZURE_ARTIFACT_SIGNING_ACCOUNT", job, StringComparison.Ordinal);
+        Assert.Contains("vars.AZURE_ARTIFACT_SIGNING_PROFILE", job, StringComparison.Ordinal);
+        Assert.Contains("vars.WINDOWS_PUBLISHER_SUBJECT", job, StringComparison.Ordinal);
+        Assert.Contains("azure/login@v3", job, StringComparison.Ordinal);
+
+        // Versioned archive, stable aliases, setup installer, MSIX + AppInstaller, checksums, and manifests go to the release the tag belongs to.
         var upload = Regex.Match(job, @"gh release upload [^\r\n]*");
         Assert.True(upload.Success, "package-windows must attach its output with gh release upload");
         Assert.Contains("\"${GITHUB_REF_NAME}\"", upload.Value, StringComparison.Ordinal);
         Assert.Contains("intochat-*-win-x64.zip", upload.Value, StringComparison.Ordinal);
         Assert.Contains("intochat-win-x64.zip", upload.Value, StringComparison.Ordinal);
         Assert.Contains("IntoChat-Setup-win-x64.exe", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("IntoChat-*-win-x64.msix", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("IntoChat-win-x64.msix", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.appinstaller", upload.Value, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", upload.Value, StringComparison.Ordinal);
         Assert.Contains("latest.json", upload.Value, StringComparison.Ordinal);
         Assert.Contains("winget/IntoChat.OS.yaml", upload.Value, StringComparison.Ordinal);
 
-        // Only the repository token, and only action versions another job already uses.
-        Assert.DoesNotContain("secrets.", job, StringComparison.Ordinal);
+        // Only Azure OIDC login secrets (gated on AZURE_ARTIFACT_SIGNING_* repo vars), and only action versions another job already uses.
+        var allowedSecrets = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "AZURE_CLIENT_ID",
+            "AZURE_TENANT_ID",
+            "AZURE_SUBSCRIPTION_ID",
+        };
+        var usedSecrets = Regex.Matches(job, @"secrets\.([A-Za-z0-9_]+)").Select(m => m.Groups[1].Value).Distinct().ToArray();
+        Assert.All(usedSecrets, secret => Assert.Contains(secret, allowedSecrets));
         var known = Uses(Workflow("ci.yml")).Concat(Uses(release.Replace(job, "", StringComparison.Ordinal))).ToHashSet(StringComparer.Ordinal);
         Assert.All(Uses(job), action => Assert.Contains(action, known));
     }
@@ -235,6 +256,8 @@ public sealed partial class CiWorkflowFacts
             Assert.Contains(jobName, needs);
         }
 
+        Assert.Contains("downloaded-bundles/*.msix", publishChecksums, StringComparison.Ordinal);
+        Assert.Contains("downloaded-bundles/*.appinstaller", publishChecksums, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", publishChecksums, StringComparison.Ordinal);
         Assert.Contains("gh release upload", publishChecksums, StringComparison.Ordinal);
     }
@@ -242,13 +265,167 @@ public sealed partial class CiWorkflowFacts
     // On Windows, starting bare "flutter.bat" with WorkingDirectory = uiDir makes cmd.exe expand %~dp0
     // to uiDir instead of the Flutter SDK bin directory, failing with "The system cannot find the path specified."
     [Fact]
-    public void PackageScriptResolvesFlutterPathBeforeInvoking()
+    public void PackageScriptResolvesFlutterAndWinAppPathsBeforeInvoking()
     {
         var packageScript = File.ReadAllText(Path.Combine(Repository.Root, "eng", "package.cs"));
 
         Assert.Contains("ResolveFlutterCommand()", packageScript, StringComparison.Ordinal);
+        Assert.Contains("ResolveWinAppCommand()", packageScript, StringComparison.Ordinal);
         Assert.Contains("ResolveOnPath(executable)", packageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("var flutterCmd = OperatingSystem.IsWindows()", packageScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WindowsPackagingDryRunListsExpectedArtifactsAndGeneratesCompliantMsixManifests()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var manifestOut = Directory.CreateTempSubdirectory("intochat-msix-manifests-");
+        try
+        {
+            var startInfo = new ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = Repository.Root,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            startInfo.ArgumentList.Add("run");
+            startInfo.ArgumentList.Add("eng/package.cs");
+            startInfo.ArgumentList.Add("--platform");
+            startInfo.ArgumentList.Add("win-x64");
+            startInfo.ArgumentList.Add("--version");
+            startInfo.ArgumentList.Add("0.24.0");
+            startInfo.ArgumentList.Add("--dry-run");
+            startInfo.ArgumentList.Add("--emit-msix-manifests");
+            startInfo.ArgumentList.Add(manifestOut.FullName);
+
+            using var process = Process.Start(startInfo);
+            Assert.NotNull(process);
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+            var stderrTask = process.StandardError.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            Assert.True(process.ExitCode == 0, $"eng/package.cs --dry-run failed (exit {process.ExitCode}):\n{stdout}\n{stderr}");
+
+            Assert.Contains("intochat-0.24.0-win-x64.zip", stdout, StringComparison.Ordinal);
+            Assert.Contains("IntoChat-Setup-0.24.0-win-x64.exe", stdout, StringComparison.Ordinal);
+            Assert.Contains("IntoChat-0.24.0-win-x64.msix", stdout, StringComparison.Ordinal);
+            Assert.Contains("IntoChat-win-x64.msix", stdout, StringComparison.Ordinal);
+            Assert.Contains("IntoChat.OS.appinstaller", stdout, StringComparison.Ordinal);
+            Assert.Contains("SHA256SUMS.win-x64", stdout, StringComparison.Ordinal);
+            Assert.Contains("SHA256SUMS", stdout, StringComparison.Ordinal);
+
+            var manifestPath = Path.Combine(manifestOut.FullName, "AppxManifest.xml");
+            Assert.True(File.Exists(manifestPath), "Expected AppxManifest.xml to be emitted.");
+
+            var manifest = XDocument.Load(manifestPath);
+            XNamespace appx = "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
+            XNamespace uap = "http://schemas.microsoft.com/appx/manifest/uap/windows10";
+            XNamespace uap3 = "http://schemas.microsoft.com/appx/manifest/uap/windows10/3";
+            XNamespace desktop = "http://schemas.microsoft.com/appx/manifest/desktop/windows10";
+            XNamespace desktop6 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/6";
+            XNamespace rescap = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities";
+
+            var identity = manifest.Root?.Element(appx + "Identity");
+            Assert.NotNull(identity);
+            Assert.Equal("0.24.0.0", identity.Attribute("Version")?.Value);
+            Assert.Equal("x64", identity.Attribute("ProcessorArchitecture")?.Value);
+
+            var properties = manifest.Root?.Element(appx + "Properties");
+            Assert.NotNull(properties);
+            Assert.Equal("disabled", properties.Element(desktop6 + "FileSystemWriteVirtualization")?.Value);
+            Assert.Equal("disabled", properties.Element(desktop6 + "RegistryWriteVirtualization")?.Value);
+            Assert.Equal(@"Assets\StoreLogo.png", properties.Element(appx + "Logo")?.Value);
+
+            var capabilities = manifest.Descendants(rescap + "Capability").Select(e => e.Attribute("Name")?.Value).ToHashSet(StringComparer.Ordinal);
+            Assert.Contains("runFullTrust", capabilities);
+            Assert.Contains("unvirtualizedResources", capabilities);
+
+            var aliases = manifest.Descendants(uap3 + "AppExecutionAlias")
+                .Descendants(desktop + "ExecutionAlias")
+                .Select(e => e.Attribute("Alias")?.Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("intochat.exe", aliases);
+            Assert.Contains("intochat-os.exe", aliases);
+
+            var protocols = manifest.Descendants(uap + "Protocol").Select(e => e.Attribute("Name")?.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("intochat", protocols);
+
+            var visualElements = manifest.Descendants(uap + "VisualElements").Single();
+            Assert.Equal(@"Assets\Square44x44Logo.png", visualElements.Attribute("Square44x44Logo")?.Value);
+            Assert.Equal(@"Assets\Square150x150Logo.png", visualElements.Attribute("Square150x150Logo")?.Value);
+
+            var appInstallerPath = Path.Combine(manifestOut.FullName, "IntoChat.OS.appinstaller");
+            Assert.True(File.Exists(appInstallerPath), "Expected IntoChat.OS.appinstaller to be emitted.");
+
+            var appInstaller = XDocument.Load(appInstallerPath);
+            XNamespace ai2021 = "http://schemas.microsoft.com/appx/appinstaller/2021";
+            Assert.Equal(ai2021 + "AppInstaller", appInstaller.Root?.Name);
+            Assert.Equal("0.24.0.0", appInstaller.Root?.Attribute("Version")?.Value);
+
+            var mainPackage = appInstaller.Root?.Element(ai2021 + "MainPackage");
+            Assert.NotNull(mainPackage);
+            Assert.EndsWith("IntoChat-0.24.0-win-x64.msix", mainPackage.Attribute("Uri")?.Value, StringComparison.Ordinal);
+
+            var updateSettings = appInstaller.Root?.Element(ai2021 + "UpdateSettings");
+            Assert.NotNull(updateSettings);
+            var onLaunch = updateSettings.Element(ai2021 + "OnLaunch");
+            Assert.NotNull(onLaunch);
+            Assert.Equal("true", onLaunch.Attribute("UpdateBlocksActivation")?.Value);
+            Assert.Equal("true", onLaunch.Attribute("ShowPrompt")?.Value);
+            Assert.NotNull(updateSettings.Element(ai2021 + "AutomaticBackgroundTask"));
+        }
+        finally
+        {
+            if (manifestOut.Exists)
+            {
+                manifestOut.Delete(recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void LegacyMsixPackagerIsRetiredWithZeroDanglingReferences()
+    {
+        var localSetup = Repository.ProjectNamed("IntoChat.OS.LocalSetup");
+        var retiredPath = Path.Combine(localSetup.Directory, "MsixPackager.cs");
+        Assert.False(File.Exists(retiredPath), "Legacy MsixPackager.cs must remain deleted in favor of eng/package.cs.");
+
+        var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".cs", ".csproj", ".md", ".yml", ".yaml" };
+        var offenders = new List<string>();
+
+        var launcherPath = Path.Combine(Repository.Root, "intochat.cs");
+        var launcherText = File.ReadAllText(launcherPath);
+        if (launcherText.Contains("MsixPackager", StringComparison.Ordinal))
+        {
+            offenders.Add("intochat.cs");
+        }
+
+        Assert.Contains("package.cs", launcherText, StringComparison.Ordinal);
+        Assert.Contains("--platform", launcherText, StringComparison.Ordinal);
+        Assert.Contains("win-x64", launcherText, StringComparison.Ordinal);
+
+        var candidateFiles = Repository.ProjectFiles("*.*", projects: project => !Repository.IsTestProject(project))
+            .Concat(Repository.SourceFiles(Path.Combine(Repository.Root, "eng"), "*.*"))
+            .Concat(Repository.SourceFiles(Path.Combine(Repository.Root, "docs"), "*.*"));
+
+        foreach (var file in candidateFiles)
+        {
+            if (!extensions.Contains(Path.GetExtension(file)))
+            {
+                continue;
+            }
+
+            if (File.ReadAllText(file).Contains("MsixPackager", StringComparison.Ordinal))
+            {
+                offenders.Add(Repository.Relative(file));
+            }
+        }
+
+        Assert.True(offenders.Count == 0, "Dangling references to retired MsixPackager found: " + string.Join(", ", offenders));
     }
 
     // A Windows packaging failure must not hold back the image, and the reverse.

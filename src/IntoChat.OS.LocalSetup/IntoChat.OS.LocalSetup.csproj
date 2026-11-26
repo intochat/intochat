@@ -2,7 +2,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
-    <Description>Preflight checks, MSIX packaging, model pull and launcher command parsing behind intochat.cs.</Description>
+    <Description>Preflight checks, release packaging orchestration, model pull and launcher command parsing behind intochat.cs.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
