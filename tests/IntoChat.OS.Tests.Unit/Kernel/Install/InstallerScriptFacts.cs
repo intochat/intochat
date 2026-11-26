@@ -284,6 +284,7 @@ public sealed class InstallerScriptFacts
                 ["INTOCHAT_ARCHIVE_PATH"] = null,
                 ["INTOCHAT_ARCHIVE_SHA256"] = null,
                 ["INTOCHAT_NO_PATH"] = "1",
+                ["INTOCHAT_NO_SHORTCUT"] = "1",
             };
 
             var (exitCode, stdout, stderr) = RunProcess(ResolvePwsh(), args, env);
@@ -321,6 +322,7 @@ public sealed class InstallerScriptFacts
                 "-ExpectedSha256", $"  {realSha}  ",
                 "-HomeDir", homeDir,
                 "-NoLaunch",
+                "-NoShortcut",
             };
 
             var (exitCode, stdout, stderr) = RunProcess(
@@ -330,6 +332,196 @@ public sealed class InstallerScriptFacts
             Assert.True(exitCode == 0, $"Expected exit 0, got {exitCode}.\nstdout:\n{stdout}\nstderr:\n{stderr}");
             Assert.True(File.Exists(Path.Combine(homeDir, "bin", "IntoChat.OS.Desktop.exe")));
             Assert.True(File.Exists(Path.Combine(homeDir, "bin", "intochat.cmd")));
+        }
+        finally
+        {
+            temp.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void InstallPs1CreatesStartMenuShortcutUnblocksFilesAndUninstallPreservesSecretsAndState()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("install.ps1 targets Windows");
+        }
+
+        var temp = Directory.CreateTempSubdirectory("intochat-ps1-lifecycle-");
+        try
+        {
+            var zipPath = CreateDummyZipArchive(temp.FullName, "bundle.zip", "IntoChat.OS.Desktop.exe", "fake-binary-shortcut");
+            var realSha = ComputeSha256Hex(zipPath);
+            var homeDir = Path.Combine(temp.FullName, "home");
+            var fakeAppData = Path.Combine(temp.FullName, "appdata");
+            Directory.CreateDirectory(fakeAppData);
+
+            // Seed custody key and user state before install/uninstall to assert the hard preservation invariant.
+            var secretsDir = Path.Combine(homeDir, "secrets");
+            var stateDir = Path.Combine(homeDir, "state");
+            Directory.CreateDirectory(secretsDir);
+            Directory.CreateDirectory(stateDir);
+            var masterKeyPath = Path.Combine(secretsDir, "master.key");
+            var stateFilePath = Path.Combine(stateDir, "brain.db");
+            File.WriteAllText(masterKeyPath, "sovereign-custody-key-sentinel");
+            File.WriteAllText(stateFilePath, "user-state-data-sentinel");
+
+            var env = new Dictionary<string, string?>
+            {
+                ["APPDATA"] = fakeAppData,
+                ["INTOCHAT_NO_PATH"] = "1",
+                ["INTOCHAT_NO_SHORTCUT"] = null,
+            };
+
+            string[] installArgs =
+            [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", EngPath("install", "install.ps1"),
+                "-LocalArchive", zipPath,
+                "-ExpectedSha256", realSha,
+                "-HomeDir", homeDir,
+                "-NoLaunch",
+            ];
+
+            var (installExit, installOut, installErr) = RunProcess(ResolvePwsh(), installArgs, env);
+            Assert.True(installExit == 0, $"Install failed (exit {installExit}).\nstdout:\n{installOut}\nstderr:\n{installErr}");
+
+            var expectedBinDir = Path.Combine(homeDir, "bin");
+            var expectedDesktopExe = Path.Combine(expectedBinDir, "IntoChat.OS.Desktop.exe");
+            var expectedShortcut = Path.Combine(fakeAppData, "Microsoft", "Windows", "Start Menu", "Programs", "IntoChat OS.lnk");
+            Assert.True(File.Exists(expectedDesktopExe));
+            Assert.True(File.Exists(expectedShortcut), $"Expected Start Menu shortcut at {expectedShortcut}.\nstdout:\n{installOut}\nstderr:\n{installErr}");
+
+            // Inspect created shortcut properties via WScript.Shell COM.
+            var inspectCmd = $$"""
+                $shell = New-Object -ComObject WScript.Shell
+                $sc = $shell.CreateShortcut({{PsEscape(expectedShortcut)}})
+                Write-Output ("TARGET=" + $sc.TargetPath)
+                Write-Output ("WORKDIR=" + $sc.WorkingDirectory)
+                Write-Output ("DESC=" + $sc.Description)
+                Write-Output ("ICON=" + $sc.IconLocation)
+                """;
+            var (inspectExit, inspectOut, inspectErr) = RunProcess(
+                ResolvePwsh(),
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", inspectCmd],
+                new Dictionary<string, string?>());
+            Assert.True(inspectExit == 0, $"Shortcut inspection failed: {inspectOut}\n{inspectErr}");
+            Assert.Contains($"TARGET={expectedDesktopExe}", inspectOut, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains($"WORKDIR={expectedBinDir}", inspectOut, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("DESC=IntoChat OS", inspectOut, StringComparison.Ordinal);
+            Assert.Contains($"ICON={expectedDesktopExe},0", inspectOut, StringComparison.OrdinalIgnoreCase);
+
+            // Uninstall must remove bin/ and the Start Menu shortcut while strictly preserving secrets and state.
+            string[] uninstallArgs =
+            [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", EngPath("install", "install.ps1"),
+                "-Uninstall",
+                "-HomeDir", homeDir,
+                "-NoPath",
+            ];
+            var (uninstallExit, uninstallOut, uninstallErr) = RunProcess(ResolvePwsh(), uninstallArgs, env);
+            Assert.True(uninstallExit == 0, $"Uninstall failed (exit {uninstallExit}).\nstdout:\n{uninstallOut}\nstderr:\n{uninstallErr}");
+
+            Assert.False(Directory.Exists(expectedBinDir), "Uninstall must remove bin/ directory.");
+            Assert.False(File.Exists(expectedShortcut), "Uninstall must remove Start Menu shortcut.");
+            Assert.True(File.Exists(masterKeyPath), "HARD INVARIANT: Uninstall must NEVER delete ~/.intochat/secrets/master.key.");
+            Assert.Equal("sovereign-custody-key-sentinel", File.ReadAllText(masterKeyPath));
+            Assert.True(File.Exists(stateFilePath), "HARD INVARIANT: Uninstall must NEVER delete ~/.intochat/state.");
+            Assert.Equal("user-state-data-sentinel", File.ReadAllText(stateFilePath));
+        }
+        finally
+        {
+            temp.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void InstallPs1NoShortcutSkipsStartMenuShortcutCreation()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("install.ps1 targets Windows");
+        }
+
+        var temp = Directory.CreateTempSubdirectory("intochat-ps1-noshortcut-");
+        try
+        {
+            var zipPath = CreateDummyZipArchive(temp.FullName, "bundle.zip", "IntoChat.OS.Desktop.exe", "fake-binary");
+            var realSha = ComputeSha256Hex(zipPath);
+            var homeDir = Path.Combine(temp.FullName, "home");
+            var fakeAppData = Path.Combine(temp.FullName, "appdata");
+            Directory.CreateDirectory(fakeAppData);
+
+            var (exitCode, stdout, stderr) = RunProcess(
+                ResolvePwsh(),
+                [
+                    "-NoProfile",
+                    "-ExecutionPolicy", "Bypass",
+                    "-File", EngPath("install", "install.ps1"),
+                    "-LocalArchive", zipPath,
+                    "-ExpectedSha256", realSha,
+                    "-HomeDir", homeDir,
+                    "-NoLaunch",
+                    "-NoShortcut",
+                ],
+                new Dictionary<string, string?>
+                {
+                    ["APPDATA"] = fakeAppData,
+                    ["INTOCHAT_NO_PATH"] = "1",
+                });
+
+            Assert.True(exitCode == 0, $"Expected exit 0, got {exitCode}.\nstdout:\n{stdout}\nstderr:\n{stderr}");
+            var shortcutPath = Path.Combine(fakeAppData, "Microsoft", "Windows", "Start Menu", "Programs", "IntoChat OS.lnk");
+            Assert.False(File.Exists(shortcutPath), "Start Menu shortcut must not be created when -NoShortcut is passed.");
+        }
+        finally
+        {
+            temp.Delete(recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void InstallPs1RegisterIdentityInvokesWinAppAndWarnsNonFatallyOnFailure(int mockExitCode)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("install.ps1 targets Windows");
+        }
+
+        var temp = Directory.CreateTempSubdirectory("intochat-ps1-winapp-");
+        try
+        {
+            var zipPath = CreateDummyZipArchive(temp.FullName, "bundle.zip", "IntoChat.OS.Desktop.exe", "fake-binary");
+            var realSha = ComputeSha256Hex(zipPath);
+            var homeDir = Path.Combine(temp.FullName, "home");
+            var invocationLog = Path.Combine(temp.FullName, "winapp-args.txt");
+            var scriptPath = EngPath("install", "install.ps1");
+
+            var command = $$"""
+                $ErrorActionPreference = 'Stop'
+                function global:winapp {
+                    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$ArgsRest)
+                    Set-Content -LiteralPath {{PsEscape(invocationLog)}} -Value ($ArgsRest -join '|') -Encoding UTF8
+                    $global:LASTEXITCODE = {{mockExitCode}}
+                }
+                & {{PsEscape(scriptPath)}} -LocalArchive {{PsEscape(zipPath)}} -ExpectedSha256 {{PsEscape(realSha)}} -HomeDir {{PsEscape(homeDir)}} -NoLaunch -NoShortcut -NoPath -RegisterIdentity
+                """;
+
+            var (exitCode, stdout, stderr) = RunProcess(
+                ResolvePwsh(),
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+                new Dictionary<string, string?>());
+
+            Assert.True(exitCode == 0, $"Install with -RegisterIdentity must remain non-fatal when winapp exits {mockExitCode}.\nstdout:\n{stdout}\nstderr:\n{stderr}");
+            Assert.True(File.Exists(invocationLog), "Expected mock winapp to be invoked.");
+            var recorded = File.ReadAllText(invocationLog).Trim();
+            var expectedExe = Path.Combine(homeDir, "bin", "IntoChat.OS.Desktop.exe");
+            Assert.Equal($"create-debug-identity|{expectedExe}", recorded, ignoreCase: true);
         }
         finally
         {
@@ -398,7 +590,7 @@ public sealed class InstallerScriptFacts
                     param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
                     Copy-Item -LiteralPath {{PsEscape(zipPath)}} -Destination $OutFile -Force
                 }
-                & {{PsEscape(scriptPath)}} -HomeDir {{PsEscape(homeDir)}} {{versionArg}} -NoLaunch
+                & {{PsEscape(scriptPath)}} -HomeDir {{PsEscape(homeDir)}} {{versionArg}} -NoLaunch -NoShortcut
                 """;
 
             var (exitCode, stdout, stderr) = RunProcess(

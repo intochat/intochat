@@ -100,7 +100,9 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
 1. **Desktop Launcher (`IntoChat.OS.Desktop`)**:
    - Located at [IntoChat.OS.Desktop.csproj](../src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj) and [IntoChat.OS.Desktop.cs](../src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.cs).
    - It is **already a Native AOT executable (`<PublishAot>true</PublishAot>`)** that supervises and launches `os/IntoChat.OS.Kernel.exe` and the Flutter desktop shell (`shell/intochat_os_flutter.exe`) **in parallel** (`<1.5s` cold start), manages `~/.intochat/secrets/master.key` (DPAPI-protected), and tracks `~/.intochat/run/kernel.pid`.
-2. **Unified Windows Packager (`eng/package.cs` — MSIX + Setup `.exe` + Portable `.zip`)**:
+2. **Zero-Signing Windows One-Line Installer (`eng/install/install.ps1`)**:
+   - Recommended mainstream install path (`irm https://github.com/intochat/intochat/releases/latest/download/install.ps1 | iex`): verifies SHA-256, clears Mark-of-the-Web (`Unblock-File`) on staged files under `~/.intochat/bin`, registers User `PATH`, creates the Start Menu shortcut (`IntoChat OS.lnk`, skippable with `-NoShortcut`, optional `-DesktopShortcut`), supports opt-in local sparse package identity via `-RegisterIdentity` (`winapp create-debug-identity`), and provides clean `-Uninstall` that removes binaries, `PATH`, and shortcuts while strictly preserving `~/.intochat/secrets` (`master.key`) and `~/.intochat/state`.
+3. **Unified Windows Packager (`eng/package.cs` — MSIX + Setup `.exe` + Portable `.zip`)**:
    - Located at [package.cs](../eng/package.cs) and invoked directly or via the `intochat.cs` launcher / `package-msix` Aspire pipeline step:
      ```powershell
      dotnet run eng/package.cs --platform win-x64 --dev-cert
@@ -108,8 +110,8 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
      dotnet run intochat.cs package-msix --dev-cert
      ```
    - `PackageWindowsAsync` stages the 4-component bundle (`IntoChat.OS.Desktop.exe` + `intochat.cmd`, Native AOT `os/IntoChat.OS.Kernel.exe`, `unithost/IntoChat.OS.Sandbox.exe`, and `shell/intochat_os_flutter.exe` built from `ui/`), generates the unvirtualized `AppxManifest.xml` (`runFullTrust` + `unvirtualizedResources`, `intochat.exe`/`intochat-os.exe` execution aliases, `intochat://` protocol) and 2021 `IntoChat.OS.appinstaller` (`UpdateBlocksActivation="true"`), and invokes Microsoft's `winapp` CLI (`Microsoft.WinAppCLI`) to emit `IntoChat-{version}-win-x64.msix`, `IntoChat-win-x64.msix`, and `IntoChat.OS.appinstaller` alongside the dual-ship `intochat-{version}-win-x64.zip` and `IntoChat-Setup-{version}-win-x64.exe` artifacts.
-   - Cloud signing uses `winapp az-sign` when GitHub repository variables `AZURE_ARTIFACT_SIGNING_ENDPOINT`, `AZURE_ARTIFACT_SIGNING_ACCOUNT`, `AZURE_ARTIFACT_SIGNING_PROFILE` (and optional `WINDOWS_PUBLISHER_SUBJECT`) are configured; local dev installs use `--dev-cert`.
-3. **Azure Infrastructure Installer (`AzureInstaller`)**:
+   - Cloud signing uses `winapp az-sign` when GitHub repository variables `AZURE_ARTIFACT_SIGNING_ENDPOINT`, `AZURE_ARTIFACT_SIGNING_ACCOUNT`, `AZURE_ARTIFACT_SIGNING_PROFILE` (and optional `WINDOWS_PUBLISHER_SUBJECT`) are configured; local dev sideloading requires trusting `--dev-cert` or distributing through the Microsoft Store (unsigned MSIX sideloading otherwise fails with `0x800B0109`).
+4. **Azure Infrastructure Installer (`AzureInstaller`)**:
    - Built directly into the Kernel CLI ([AzureInstaller.cs](../src/IntoChat.OS.Kernel/Install/AzureInstaller.cs)):
      ```powershell
      IntoChat.OS.Kernel.exe install --env test --config deployment/test.json
