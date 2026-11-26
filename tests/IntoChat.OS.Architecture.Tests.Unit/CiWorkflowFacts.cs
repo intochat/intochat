@@ -502,4 +502,179 @@ public sealed partial class CiWorkflowFacts
             .ToArray();
         Assert.True(offenders.Length == 0, "Workflows must restore from committed sources only: " + string.Join(", ", offenders));
     }
+
+    private static string ResolvePowerShellExecutable()
+    {
+        string[] candidates = OperatingSystem.IsWindows()
+            ? ["pwsh.exe", "pwsh", "powershell.exe"]
+            : ["pwsh"];
+        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        var extensions = OperatingSystem.IsWindows()
+            ? (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';', StringSplitOptions.RemoveEmptyEntries)
+            : [""];
+
+        foreach (var candidate in candidates)
+        {
+            foreach (var dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var direct = Path.Combine(dir, candidate);
+                if (File.Exists(direct))
+                {
+                    return direct;
+                }
+
+                foreach (var ext in extensions)
+                {
+                    var withExt = direct + ext;
+                    if (File.Exists(withExt))
+                    {
+                        return withExt;
+                    }
+                }
+            }
+        }
+
+        throw new InvalidOperationException("No PowerShell executable (pwsh / powershell.exe) was found on PATH.");
+    }
+
+    private static async Task<(int ExitCode, string StdOut, string StdErr)> RunPowerShellAsync(
+        IReadOnlyList<string> arguments,
+        CancellationToken ct)
+    {
+        var startInfo = new ProcessStartInfo(ResolvePowerShellExecutable())
+        {
+            WorkingDirectory = Repository.Root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        if (OperatingSystem.IsWindows())
+        {
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+        }
+
+        foreach (var arg in arguments)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(startInfo);
+        Assert.NotNull(process);
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+
+        return (process.ExitCode, await stdoutTask, await stderrTask);
+    }
+
+    [Fact]
+    public async Task InstallPs1DryRunSucceedsAndDeclaresZeroSigningRolloutContract()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scriptPath = Path.Combine(Repository.Root, "eng", "install", "install.ps1");
+        Assert.True(File.Exists(scriptPath), "eng/install/install.ps1 must exist.");
+
+        var scriptText = await File.ReadAllTextAsync(scriptPath, ct);
+
+        // Source contract assertions for zero-signing desktop polish and custody invariants.
+        Assert.Contains("[switch]$NoShortcut", scriptText, StringComparison.Ordinal);
+        Assert.Contains("[switch]$DesktopShortcut", scriptText, StringComparison.Ordinal);
+        Assert.Contains("[switch]$Uninstall", scriptText, StringComparison.Ordinal);
+        Assert.Contains("[switch]$RegisterIdentity", scriptText, StringComparison.Ordinal);
+        Assert.Contains(@"Microsoft\Windows\Start Menu\Programs\IntoChat OS.lnk", scriptText, StringComparison.Ordinal);
+        Assert.Contains("New-Object -ComObject WScript.Shell", scriptText, StringComparison.Ordinal);
+        Assert.Contains("WorkingDirectory", scriptText, StringComparison.Ordinal);
+        Assert.Contains("Description", scriptText, StringComparison.Ordinal);
+        Assert.Contains("IconLocation", scriptText, StringComparison.Ordinal);
+        Assert.Contains("[Environment]::GetFolderPath('Desktop')", scriptText, StringComparison.Ordinal);
+        Assert.Contains("Get-ChildItem -LiteralPath $binDir -Recurse -File | Unblock-File -ErrorAction SilentlyContinue", scriptText, StringComparison.Ordinal);
+        Assert.Contains("create-debug-identity", scriptText, StringComparison.Ordinal);
+        Assert.Contains("Unregister-UserPathEntry", scriptText, StringComparison.Ordinal);
+        Assert.Contains("Test-IsWindowsHost", scriptText, StringComparison.Ordinal);
+        Assert.Contains("--quit", scriptText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoke-Expression", scriptText, StringComparison.OrdinalIgnoreCase);
+
+        // Dry-run install and dry-run uninstall must succeed cleanly on both Windows and non-Windows pwsh hosts.
+        var (installExit, installOut, installErr) = await RunPowerShellAsync(["-File", scriptPath, "-DryRun"], ct);
+        Assert.True(installExit == 0, $"install.ps1 -DryRun failed (exit {installExit}):\n{installOut}\n{installErr}");
+        Assert.Contains("[DryRun]", installOut, StringComparison.Ordinal);
+        Assert.Contains("Start Menu shortcut", installOut, StringComparison.Ordinal);
+
+        var (uninstallExit, uninstallOut, uninstallErr) = await RunPowerShellAsync(["-File", scriptPath, "-DryRun", "-Uninstall"], ct);
+        Assert.True(uninstallExit == 0, $"install.ps1 -DryRun -Uninstall failed (exit {uninstallExit}):\n{uninstallOut}\n{uninstallErr}");
+        Assert.Contains("[DryRun]", uninstallOut, StringComparison.Ordinal);
+        Assert.Contains("secrets", uninstallOut, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("state", uninstallOut, StringComparison.OrdinalIgnoreCase);
+
+        // Parse eng/install/install.ps1 via PowerShell's real AST parser and assert parameters, commands, and custody invariants.
+        var escapedPath = scriptPath.Replace("'", "''", StringComparison.Ordinal);
+        var astInspection = $$"""
+            $errors = $null
+            $tokens = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{escapedPath}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+                throw ("Parse errors: " + (($errors | ForEach-Object { $_.Message }) -join '; '))
+            }
+            $params = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+            foreach ($required in @('NoShortcut', 'DesktopShortcut', 'Uninstall', 'RegisterIdentity', 'DryRun', 'NoPath', 'NoLaunch', 'LocalArchive', 'ExpectedSha256')) {
+                if ($params -notcontains $required) {
+                    throw "Missing parameter -$required in install.ps1 AST."
+                }
+            }
+            $commands = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true))
+            $commandNames = @($commands | ForEach-Object { $_.GetCommandName() } | Where-Object { $_ })
+            foreach ($requiredCmd in @('Unblock-File', 'New-Object', 'Remove-Item')) {
+                if ($commandNames -notcontains $requiredCmd) {
+                    throw "Missing expected command '$requiredCmd' in install.ps1 AST."
+                }
+            }
+            $removeCommands = @($commands | Where-Object { $_.GetCommandName() -eq 'Remove-Item' })
+            foreach ($rm in $removeCommands) {
+                $text = $rm.Extent.Text
+                if ($text -match 'secretsDir|stateDir|resolvedHome|\\secrets\b|\\state\b') {
+                    throw "Custody invariant violated: Remove-Item references protected path: $text"
+                }
+            }
+            Write-Output 'AST_OK'
+            """;
+
+        var (astExit, astOut, astErr) = await RunPowerShellAsync(["-Command", astInspection], ct);
+        Assert.True(astExit == 0, $"install.ps1 AST inspection failed (exit {astExit}):\n{astOut}\n{astErr}");
+        Assert.Contains("AST_OK", astOut, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadmeWindowsInstallCtaLeadsWithOneLinerAndLabelsMsixAsSideload()
+    {
+        var readme = File.ReadAllText(Path.Combine(Repository.Root, "README.md"));
+        var windowsRowMatch = Regex.Match(readme, @"^\|\s*🪟\s*\*\*Windows \(x64\)\*\*\s*\|(?<cell>.+)\|\s*$", RegexOptions.Multiline);
+        Assert.True(windowsRowMatch.Success, "README.md must contain the Windows (x64) row in the Try in 1 Click, Own Forever table.");
+
+        var cell = windowsRowMatch.Groups["cell"].Value;
+        const string oneLiner = "irm https://github.com/intochat/intochat/releases/latest/download/install.ps1";
+        const string portableLink = "[Portable (.zip)](https://github.com/intochat/intochat/releases/latest/download/intochat-win-x64.zip)";
+        const string installerLink = "[Installer (.exe)](https://github.com/intochat/intochat/releases/latest/download/IntoChat-Setup-win-x64.exe)";
+        const string msixLink = "[MSIX (sideload / Store-ready)](https://github.com/intochat/intochat/releases/latest/download/IntoChat-win-x64.msix)";
+
+        var oneLinerIdx = cell.IndexOf(oneLiner, StringComparison.Ordinal);
+        var portableIdx = cell.IndexOf(portableLink, StringComparison.Ordinal);
+        var installerIdx = cell.IndexOf(installerLink, StringComparison.Ordinal);
+        var msixIdx = cell.IndexOf(msixLink, StringComparison.Ordinal);
+
+        Assert.True(oneLinerIdx >= 0, "Windows CTA must include the install.ps1 one-liner.");
+        Assert.True(portableIdx >= 0, "Windows CTA must prominently feature the Portable (.zip) download link.");
+        Assert.True(installerIdx >= 0, "Windows CTA must prominently feature the Installer (.exe) download link.");
+        Assert.True(msixIdx >= 0, "Windows CTA must retain MSIX labeled as sideload / Store-ready.");
+
+        Assert.True(oneLinerIdx < portableIdx && oneLinerIdx < installerIdx && oneLinerIdx < msixIdx,
+            "Windows CTA must lead with the zero-SmartScreen install.ps1 one-liner.");
+        Assert.True(portableIdx < msixIdx && installerIdx < msixIdx,
+            "Windows CTA must place Portable (.zip) and Installer (.exe) ahead of MSIX.");
+        Assert.Contains("dev cert", cell, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Microsoft Store", cell, StringComparison.OrdinalIgnoreCase);
+    }
 }
