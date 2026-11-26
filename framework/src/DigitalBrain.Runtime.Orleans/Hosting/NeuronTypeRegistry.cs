@@ -187,7 +187,7 @@ internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuron
                     && t.IsDefined(typeof(ModuleAttribute), inherit: false))
                 .ToArray();
 
-            if (declaredModules.Length <= 1)
+            if (!HasDisjointNamespaces(declaredModules))
             {
                 foreach (var t in types) { yield return t; }
                 continue;
@@ -200,6 +200,30 @@ internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuron
                 yield return t;
             }
         }
+    }
+
+    private static bool HasDisjointNamespaces(Type[] declaredModules)
+    {
+        var namespaces = declaredModules
+            .Select(static m => m.Namespace)
+            .Where(static ns => !string.IsNullOrEmpty(ns))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (namespaces.Length <= 1) { return false; }
+        for (var i = 0; i < namespaces.Length; i++)
+        {
+            var a = namespaces[i]!;
+            for (var j = 0; j < namespaces.Length; j++)
+            {
+                if (i == j) { continue; }
+                var b = namespaces[j]!;
+                if (b.Length > a.Length && b[a.Length] == '.' && b.StartsWith(a, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static List<Type> OwningModules(Type type, Type[] declaredModules)
