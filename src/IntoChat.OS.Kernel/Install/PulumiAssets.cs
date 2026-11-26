@@ -36,6 +36,16 @@ internal static class PulumiAssets
 
     public static string StartRevisionBody => StartRevisionBodyField.Value;
 
+    /// <summary>
+    /// Escapes literal <c>${</c> sequences (such as POSIX shell parameter expansions) as <c>$${</c>
+    /// so Pulumi YAML passes them through verbatim instead of resolving them as Pulumi expressions.
+    /// </summary>
+    public static string EscapePulumiYaml(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return text.Replace("${", "$${", StringComparison.Ordinal);
+    }
+
     public static string Indent(string text, int spaces)
     {
         ArgumentNullException.ThrowIfNull(text);

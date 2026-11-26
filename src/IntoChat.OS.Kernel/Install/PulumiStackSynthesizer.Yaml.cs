@@ -517,8 +517,8 @@ public static partial class PulumiStackSynthesizer
             .Replace("{{appName}}", app.Name, StringComparison.Ordinal)
             .Replace("{{groupName}}", c.GroupName, StringComparison.Ordinal)
             .Replace("{{waits}}", waits.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
-            .Replace("{{azRetry}}", PulumiAssets.Indent(PulumiAssets.AzRetryFunction, 8), StringComparison.Ordinal)
-            .Replace("{{stopBody}}", PulumiAssets.Indent(PulumiAssets.StopRevisionsBody, 8), StringComparison.Ordinal);
+            .Replace("{{azRetry}}", PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(PulumiAssets.AzRetryFunction), 8), StringComparison.Ordinal)
+            .Replace("{{stopBody}}", PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(PulumiAssets.StopRevisionsBody), 8), StringComparison.Ordinal);
         sb.Append(rendered);
         if (!rendered.EndsWith('\n'))
         {
@@ -539,8 +539,8 @@ public static partial class PulumiStackSynthesizer
             .Replace("{{trigger}}", trigger, StringComparison.Ordinal)
             .Replace("{{appName}}", app.Name, StringComparison.Ordinal)
             .Replace("{{groupName}}", c.GroupName, StringComparison.Ordinal)
-            .Replace("{{azRetry}}", PulumiAssets.Indent(PulumiAssets.AzRetryFunction, 8), StringComparison.Ordinal)
-            .Replace("{{startBody}}", PulumiAssets.Indent(PulumiAssets.StartRevisionBody, 8), StringComparison.Ordinal);
+            .Replace("{{azRetry}}", PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(PulumiAssets.AzRetryFunction), 8), StringComparison.Ordinal)
+            .Replace("{{startBody}}", PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(PulumiAssets.StartRevisionBody), 8), StringComparison.Ordinal);
         sb.Append(rendered);
         if (!rendered.EndsWith('\n'))
         {
