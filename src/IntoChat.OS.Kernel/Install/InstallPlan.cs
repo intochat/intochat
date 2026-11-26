@@ -165,7 +165,10 @@ public static class InstallPlan
             RegistryServer = c.LoginServer,
             // Liveness is the process alone, readiness the drain, startup waits for dependencies.
             ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
-            // The OS silo refuses a second silo in its cluster (SingleSiloGuard), so an update cannot overlap two revisions.
+            // The OS silo refuses a second silo in its cluster (SingleSiloGuard): enforce single-replica scaling
+            // (minReplicas: 1, maxReplicas: 1) and stop the running revision before an update so two revisions never overlap.
+            MinReplicas = 1,
+            MaxReplicas = 1,
             StopBeforeUpdate = true,
             Variables = Variables(c, account, vault, lease, grainState, extraVariables),
             Secrets = osAndCloudSecrets,
@@ -206,6 +209,9 @@ public static class InstallPlan
                 IngressPort = HttpPort,
                 RegistryServer = c.LoginServer,
                 ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
+                // Single-silo cluster: enforce single-replica scaling (minReplicas: 1, maxReplicas: 1) and stop before update.
+                MinReplicas = 1,
+                MaxReplicas = 1,
                 StopBeforeUpdate = true,
                 Variables = cloudVariables,
                 Secrets = osAndCloudSecrets,
