@@ -1,9 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
 import 'node_common.dart';
-import '../components/infobar/ui_info_bar.dart';
+import '../primitives/info_bar.dart';
 import 'button.dart';
 
 /// An info bar; its close control sends the bar's `close` command the way a

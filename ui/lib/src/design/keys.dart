@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'tokens.dart';
+import '../theme/ui_tokens.dart';
 
 /// Alias for [PromptKeys] keyboard navigation group.
 typedef KeyGroup = PromptKeys;

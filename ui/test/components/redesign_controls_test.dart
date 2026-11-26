@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/components/button/ui_neuron_select.dart';
 
 void main() {
   const c = UiColors.intochatLight;
@@ -136,7 +135,7 @@ void main() {
       tester,
       SizedBox(
         width: 300,
-        child: UiToggle(label: 'Dark', on: true, onChanged: (_) {}),
+        child: UiMixToggle(label: 'Dark', value: true, onChanged: (_) {}),
       ),
     );
     expect(
@@ -148,13 +147,11 @@ void main() {
   testWidgets('select trigger is 48 high with radius 12', (tester) async {
     await host(
       tester,
-      UiNeuronSelect(
-        label: 'Pick',
-        options: const [
-          {'id': 'a', 'label': 'Alpha'},
-        ],
-        selected: 'a',
-        onSelected: (_) {},
+      UiKitSelect<String>(
+        hint: 'Pick',
+        items: const [UiKitSelectItem('a', 'Alpha')],
+        value: 'a',
+        onChanged: (_) {},
       ),
     );
     final box = find.byKey(const ValueKey('ui_kit_select_box'));

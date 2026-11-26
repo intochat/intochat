@@ -6,7 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
 import '../keys.dart';
-import '../tokens.dart';
+import '../../theme/ui_tokens.dart';
 import 'card_shell.dart';
 
 enum ChartState { loading, ready, empty, error }

@@ -1,7 +1,7 @@
-﻿import 'package:flutter/rendering.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intochat_os_flutter_shell/src/components/button/ui_neuron_select.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
   testWidgets(
@@ -11,22 +11,14 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: UiNeuronSelect(
-              label: 'Open an app',
-              options: [
-                for (var i = 0; i < 9; i++)
-                  {
-                    'id': 'app-$i',
-                    'label': 'App $i',
-                    'visual': {'icon': 'apps'},
-                  },
-                {
-                  'id': 'customer',
-                  'label': 'CustomerExample',
-                  'visual': {'icon': 'apps'},
-                },
+            body: UiKitSelect<String>(
+              value: null,
+              hint: 'Open an app',
+              items: [
+                for (var i = 0; i < 9; i++) UiKitSelectItem('app-$i', 'App $i'),
+                const UiKitSelectItem('customer', 'CustomerExample'),
               ],
-              onSelected: (value) => selected = value,
+              onChanged: (value) => selected = value,
             ),
           ),
         ),
@@ -58,22 +50,14 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: UiNeuronSelect(
-            label: 'Choose',
-            options: const [
-              {
-                'id': 'a',
-                'label': 'Short',
-                'visual': {'icon': 'apps'},
-              },
-              {
-                'id': 'b',
-                'label': 'A much longer label',
-                'visual': {'icon': 'person'},
-                'enabled': false,
-              },
+          body: UiKitSelect<String>(
+            value: null,
+            hint: 'Choose',
+            items: const [
+              UiKitSelectItem('a', 'Short'),
+              UiKitSelectItem('b', 'A much longer label', enabled: false),
             ],
-            onSelected: (value) => selected = value,
+            onChanged: (value) => selected = value,
           ),
         ),
       ),
@@ -92,6 +76,7 @@ void main() {
     expect(selected, 'a');
     expect(tester.takeException(), isNull);
   });
+
   testWidgets(
     'duplicate labels wrap while preserving full text and alignment',
     (tester) async {
@@ -102,17 +87,11 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: UiNeuronSelect(
-              label: 'Choose',
-              options: [
-                for (final name in names)
-                  {
-                    'id': name,
-                    'label': name,
-                    'visual': {'icon': 'apps'},
-                  },
-              ],
-              onSelected: (_) {},
+            body: UiKitSelect<String>(
+              value: null,
+              hint: 'Choose',
+              items: [for (final name in names) UiKitSelectItem(name, name)],
+              onChanged: (_) {},
             ),
           ),
         ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../components/progress/ui_progress.dart';
+import '../primitives/progress.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import 'node_context.dart';

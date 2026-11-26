@@ -6,9 +6,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../primitives/toast.dart';
 import '../theme/wire_node_values.dart';
-import '../voice_mode/audio_out.dart';
-import '../voice_mode/mic_stream.dart';
-import '../voice_mode/talk_socket.dart';
+import '../widgets/voice/audio_out.dart';
+import '../widgets/voice/mic_stream.dart';
+import '../widgets/voice/talk_socket.dart';
 import '../core/neuron_method_caller.dart';
 
 /// Watches one signal type on a neuron contract, yielding decoded JSON payloads.

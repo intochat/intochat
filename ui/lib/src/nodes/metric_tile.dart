@@ -6,7 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/app_tile.dart';
 import '../design/controls.dart';
-import '../design/tokens.dart';
+import '../theme/ui_tokens.dart';
 import 'button.dart';
 import 'node_common.dart';
 import 'node_context.dart';

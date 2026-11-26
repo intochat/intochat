@@ -44,27 +44,32 @@ class _UiMixCheckboxState extends State<UiMixCheckbox> {
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final activeBg = UiStyleMapper.resolveToneBackground(
-      colors,
-      widget.style.tone,
+    final isInteractive = widget.enabled && widget.onChanged != null;
+    final resolved = widget.style.resolve(
+      hovered: _hovered && isInteractive,
+      pressed: _pressed && isInteractive,
+      focused: _focused && isInteractive,
     );
+    final activeBg = UiStyleMapper.resolveToneBackground(colors, resolved.tone);
     final fillColor = widget.value ? activeBg : colors.recessed;
-    final effectiveFill = !widget.enabled
+    final hasExplicitPressTone =
+        _pressed && isInteractive && widget.style.press?.tone != null;
+    final effectiveFill = !isInteractive
         ? fillColor.withValues(alpha: 0.45)
-        : _pressed
+        : _pressed && !hasExplicitPressTone
         ? fillColor.withValues(alpha: 0.85)
         : fillColor;
     final borderColor = _focused
         ? colors.focus
-        : _hovered
+        : _hovered && isInteractive
         ? colors.accent
         : widget.value
         ? activeBg
         : colors.hairline;
-    final duration = widget.style.motion.duration;
-    final curve = widget.style.motion.curve;
+    final duration = resolved.motion.duration;
+    final curve = resolved.motion.curve;
     final radius =
-        widget.style.radius ?? (tokens.controlRadius / 2).clamp(4.0, 6.0);
+        resolved.radius ?? (tokens.controlRadius / 2).clamp(4.0, 6.0);
 
     final checkbox = NakedCheckbox(
       value: widget.value,

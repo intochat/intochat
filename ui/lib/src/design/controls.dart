@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'keys.dart';
-import 'tokens.dart';
+import '../theme/ui_tokens.dart';
 
 /// Primary and secondary buttons (tokens: radius 10, firm edges).
 class Btn extends StatefulWidget {

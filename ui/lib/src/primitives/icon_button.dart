@@ -46,9 +46,20 @@ class _UiMixIconButtonState extends State<UiMixIconButton> {
     final colors = UiColors.of(context);
     final tokens = UiTokens.of(context);
     final isInteractive = widget.enabled && widget.onPressed != null;
-    final radius = widget.style.radius ?? tokens.controlRadius;
+    final resolved = widget.style.resolve(
+      hovered: _hovered && isInteractive,
+      pressed: _pressed && isInteractive,
+      focused: _focused && isInteractive,
+    );
+    final radius = resolved.radius ?? tokens.controlRadius;
+    final hasToneOverride =
+        (_pressed && isInteractive && widget.style.press?.tone != null) ||
+        (_hovered && isInteractive && widget.style.hover?.tone != null) ||
+        (_focused && isInteractive && widget.style.focus?.tone != null);
     final bg = !isInteractive
         ? Colors.transparent
+        : hasToneOverride
+        ? UiStyleMapper.resolveToneBackground(colors, resolved.tone)
         : _pressed
         ? colors.recessed
         : _hovered
@@ -79,9 +90,9 @@ class _UiMixIconButtonState extends State<UiMixIconButton> {
         setState(() => _focused = focused);
       },
       child: AnimatedScale(
-        scale: _pressed && isInteractive ? 0.94 : 1.0,
-        duration: widget.style.motion.duration,
-        curve: widget.style.motion.curve,
+        scale: resolved.scale ?? (_pressed && isInteractive ? 0.94 : 1.0),
+        duration: resolved.motion.duration,
+        curve: resolved.motion.curve,
         child: Box(
           style: BoxStyler()
               .width(widget.size)
@@ -95,8 +106,8 @@ class _UiMixIconButtonState extends State<UiMixIconButton> {
               )
               .animate(
                 AnimationConfig.curve(
-                  duration: widget.style.motion.duration,
-                  curve: widget.style.motion.curve,
+                  duration: resolved.motion.duration,
+                  curve: resolved.motion.curve,
                 ),
               ),
           child: Center(
