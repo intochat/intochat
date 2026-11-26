@@ -37,16 +37,16 @@ internal static class IdentityEndpoints
         }
         IntoChat.OS.Modules.Identity.External.ExternalSignIn.Map(routes);
         IntoChat.OS.Modules.Identity.External.GuestSignIn.Map(routes);
-        routes.MapGet("/identity/session", Session);
-        routes.MapGet("/identity/residency", Residency);
+        routes.MapGet("/identity/session", Session).WithMetadata(GuestSurface.Door.Instance);
+        routes.MapGet("/identity/residency", Residency).WithMetadata(GuestSurface.Door.Instance);
         routes.MapPost("/identity/claim", ClaimAsync)
             .WithMetadata(GuestSurface.Door.Instance)
             .AddEndpointFilter<IpThrottleFilter>();
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
-        routes.MapPost("/identity/logout", LogoutAsync);
+        routes.MapPost("/identity/logout", LogoutAsync).WithMetadata(GuestSurface.Door.Instance);
         routes.MapPost("/identity/brains", CreateBrainAsync);
         routes.MapGet("/identity/brains", BrainsAsync).WithMetadata(GuestSurface.Door.Instance);
-        var grants = OsBrainRoutes.Group(routes, "/grants");
+        var grants = OsBrainRoutes.Group(routes, "/grants").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
         grants.MapGet("", async (string brainId, HttpContext http, [FromServices] IIdentityClient identity, CancellationToken ct) =>
             Results.Ok(await identity.ListGrants(BrainScope.Create(HttpCaller.RequiredPerson(http).Account, brainId).Id).WaitAsync(ct)));
         grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>

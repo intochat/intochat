@@ -115,6 +115,23 @@ public sealed partial class DownloadHubFacts : IAsyncLifetime
         Assert.Empty(body);
     }
 
+    [Fact]
+    public async Task GetAndHeadDownloadsPluralAliasReturnSelfContainedHtml()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var getResponse = await _client!.GetAsync(DownloadHubEndpoints.PluralPath, ct);
+        var body = await getResponse.Content.ReadAsStringAsync(ct);
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        Assert.Equal("text/html", getResponse.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("IntoChat-Setup-win-x64.exe", body, StringComparison.Ordinal);
+
+        using var headRequest = new HttpRequestMessage(HttpMethod.Head, DownloadHubEndpoints.PluralPath);
+        using var headResponse = await _client!.SendAsync(headRequest, ct);
+        Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
+        Assert.Equal(DownloadHubEndpoints.PayloadByteLength, headResponse.Content.Headers.ContentLength);
+    }
+
     [GeneratedRegex(@"<(script\b[^>]*\bsrc\s*=|link\b[^>]*\bhref\s*=\s*[""']?(https?:|//))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ExternalScriptOrStyleRegex();
 }

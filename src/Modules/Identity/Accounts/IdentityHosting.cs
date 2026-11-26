@@ -20,6 +20,8 @@ public static class IdentityHosting
     {
         if (services.Any(service => service.ServiceType == typeof(IdentityRegistration))) { return; }
         services.AddSingleton<IdentityRegistration>();
+        IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
+        services.AddForwardedHeadersSetup();
         services.TryAddSingleton(TimeProvider.System);
         // The platform endpoints resolve Authority grains through it; a web host that brings its own grain factory gets it here.
         services.TryAddSingleton<AuthorityNeurons>();

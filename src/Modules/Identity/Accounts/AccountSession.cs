@@ -57,7 +57,10 @@ public static class AccountSession
             }
 
             // However a guest identity was made, it passes only the endpoints marked for guests.
-            if (GuestSurface.Is(principal) && context.GetEndpoint()?.Metadata.GetMetadata<GuestSurface.Door>() is null)
+            // Unmatched routes (endpoint is null) fall through cleanly to 404 / static SPA fallback
+            // rather than falsely returning 403 just because the visitor carries a try-* cookie.
+            var endpoint = context.GetEndpoint();
+            if (GuestSurface.Is(principal) && endpoint is not null && !IsGuestAllowed(endpoint))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -73,7 +76,7 @@ public static class AccountSession
             // claim, as a cookie session carries. The Basic operator and the Open owner have no cookie, so those routes alone are
             // shown the resolved caller as that user. Any other route still sees an unauthenticated user for them: the runtime
             // observation and the circle invitation read that as "not a real session" on purpose.
-            if (context.User.Identity?.IsAuthenticated != true && context.GetEndpoint()?.Metadata.GetMetadata<FrameworkSurface>() is not null)
+            if (context.User.Identity?.IsAuthenticated != true && endpoint?.Metadata.GetMetadata<FrameworkSurface>() is not null)
             {
                 context.User = SessionUser(principal);
             }
@@ -83,6 +86,11 @@ public static class AccountSession
 
         return app;
     }
+
+    private static bool IsGuestAllowed(Endpoint endpoint)
+        => endpoint.Metadata.GetMetadata<IntoChat.OS.Host.Http.OsBrainRoutes.GuestClosed>() is null
+            && (endpoint.Metadata.GetMetadata<GuestSurface.Door>() is not null
+                || endpoint.Metadata.GetMetadata<IntoChat.OS.Host.Http.OsBrainRoutes.GuestBrainDoor>() is not null);
 
     // Marks the endpoints of the framework's module HTTP surfaces group (ModuleEndpoints).
     internal sealed class FrameworkSurface

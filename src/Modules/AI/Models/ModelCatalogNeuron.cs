@@ -94,7 +94,7 @@ internal sealed class ModelCatalogNeuron(
                 new DigitalBrain.Rules.Rejected(operation, ["owner-only"], [agentMessage]));
         }
 
-        if (caller.Actor is DigitalBrain.Access.Actor.App && !IsTrustedShellCaller(caller, Brain?.Value))
+        if (DigitalBrain.Access.CallerRules.IsApp(caller, out _) && !IsTrustedShellCaller(caller, Brain?.Value))
         {
             throw new UnauthorizedAccessException(appMessage);
         }

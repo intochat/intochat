@@ -21,7 +21,8 @@ internal static class IntegrationCatalogEndpoints
         endpoints.MapGet("/connectors", async (HttpContext context, [FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
             HttpCaller.Current(context) is not null
                 ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnector(context.RequestServices, entry.Id)).ToArray())
-                : Results.Unauthorized());
+                : Results.Unauthorized())
+            .WithMetadata(IntoChat.OS.Modules.Identity.Contracts.Accounts.GuestSurface.Door.Instance);
 
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");

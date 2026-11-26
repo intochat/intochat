@@ -8,6 +8,7 @@ namespace IntoChat.OS.Host.Http;
 public static class DownloadHubEndpoints
 {
     public const string Path = "/download";
+    public const string PluralPath = "/downloads";
     public const string ReleaseDownloadBase = "https://github.com/intochat/intochat/releases/latest/download";
 
     public const string Html = """
@@ -213,6 +214,7 @@ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.write
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapMethods(Path, [HttpMethods.Get, HttpMethods.Head], WriteAsync).AllowAnonymous();
+        endpoints.MapMethods(PluralPath, [HttpMethods.Get, HttpMethods.Head], WriteAsync).AllowAnonymous();
         return endpoints;
     }
 

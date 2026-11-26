@@ -109,7 +109,7 @@ internal sealed partial class AppNeuron
     // (itself included) never writes one; the kernel's host, the installer and a person do.
     private void RequireOriginWriter(AppOrigin? origin)
     {
-        if (origin is not null && Context.Caller?.Actor is Actor.App)
+        if (origin is not null && CallerRules.IsApp(Context.Caller, out _))
         {
             throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from.");
         }

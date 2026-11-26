@@ -20,9 +20,22 @@ public static class CallerRules
         _ => null,
     };
 
+    // A Day-0 guest visitor acting directly on their own ephemeral try-* brain, as opposed to an
+    // installed or sandboxed third-party app running inside a brain.
+    public static bool IsGuest(Caller? caller)
+        => caller?.Actor is Actor.App { Key: "guest", For: { Principal: var principal } }
+            && principal.StartsWith("try-", StringComparison.Ordinal)
+            && string.Equals(caller.Brain.Value, principal, StringComparison.Ordinal);
+
     public static bool IsApp(Caller? caller, [NotNullWhen(true)] out string? key)
     {
-        key = caller?.Actor is Actor.App app ? app.Key : null;
-        return key is not null;
+        if (caller?.Actor is Actor.App app && !IsGuest(caller))
+        {
+            key = app.Key;
+            return true;
+        }
+
+        key = null;
+        return false;
     }
 }
