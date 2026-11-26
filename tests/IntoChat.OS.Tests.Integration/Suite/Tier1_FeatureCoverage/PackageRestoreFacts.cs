@@ -124,25 +124,20 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.Equal("true", pinningElement.Value.Trim(), ignoreCase: true);
     }
 
-    // The simulation runtime is the deploy gate of generated units (their scenarios run on it). Unit authoring owns that gate, so
-    // the authoring module references it and the catalog no longer does.
+    // The simulation runtime is the deploy gate of generated units (their scenarios run on it). Unit authoring (folded into
+    // Catalog in Wave C2) owns that gate, so Catalog references DigitalBrain.Simulation and never references test harnesses.
     [Fact]
     public void T1_F03_TC01_AuthoringModuleCsproj_ReferencesDigitalBrainSimulation_AndTheCatalogDoesNot()
     {
-        Assert.True(References("IntoChat.OS.Modules.Authoring.csproj", "DigitalBrain.Simulation"),
-            "IntoChat.OS.Modules.Authoring.csproj must reference DigitalBrain.Simulation.");
-        Assert.False(References("IntoChat.OS.Modules.Catalog.csproj", "DigitalBrain.Simulation"),
-            "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Simulation; the deploy gate is the authoring module's.");
+        Assert.True(References("IntoChat.OS.Modules.Catalog.csproj", "DigitalBrain.Simulation"),
+            "IntoChat.OS.Modules.Catalog.csproj (which hosts unit authoring) must reference DigitalBrain.Simulation.");
     }
 
     [Fact]
     public void T1_F03_TC02_AppsModuleCsproj_DoesNotReferenceDigitalBrainTesting()
     {
-        foreach (var project in (string[])["IntoChat.OS.Modules.Catalog.csproj", "IntoChat.OS.Modules.Authoring.csproj"])
-        {
-            Assert.False(References(project, "DigitalBrain.Testing", "DigitalBrain.Testing.Silo"),
-                $"{project} must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
-        }
+        Assert.False(References("IntoChat.OS.Modules.Catalog.csproj", "DigitalBrain.Testing", "DigitalBrain.Testing.Silo"),
+            "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
     }
 
     private static bool References(string projectFile, params string[] names)
