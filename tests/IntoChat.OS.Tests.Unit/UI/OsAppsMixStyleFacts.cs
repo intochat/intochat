@@ -223,6 +223,147 @@ public sealed class OsAppsMixStyleFacts
         }
     }
 
+    [Fact]
+    public void ShellOpenFixturesUseStructuredMixStylesMatchingLiveRenderers()
+    {
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = true,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+
+        var appsDir = ResolveAppsViewsDir();
+        var allShellApps = new[] { "settings", "gallery", "creator", "ino", "desktop", "data", "markdraw", "photocraft", "filmcraft" };
+
+        foreach (var app in allShellApps)
+        {
+            var path = Path.Combine(appsDir, app, "open.json");
+            Assert.True(File.Exists(path), $"Missing view fixture: {path}");
+            using var doc = JsonDocument.Parse(File.ReadAllText(path, System.Text.Encoding.UTF8));
+            AssertNoLegacyButtonStyleStrings(doc.RootElement.GetProperty("main"));
+        }
+
+        void AssertPreviewEqual(string app, Node previewRoot, string title)
+        {
+            var path = Path.Combine(appsDir, app, "open.json");
+            var fixture = JsonSerializer.Deserialize<DigitalBrain.Testing.Views.ViewFixture>(File.ReadAllText(path, System.Text.Encoding.UTF8), jsonOptions)!;
+            var expectedJson = JsonSerializer.Serialize(fixture.Main!, jsonOptions);
+            var actualJson = JsonSerializer.Serialize(new View(title, previewRoot), jsonOptions);
+            Assert.Equal(expectedJson, actualJson);
+        }
+
+        AssertPreviewEqual("photocraft", AggregateExplorer<IntoChat.OS.Apps.PhotoCraft.PhotoCraftAppState>.PreviewNode<IntoChat.OS.Apps.PhotoCraft.PhotoCraftApp>(new IntoChat.OS.Apps.PhotoCraft.PhotoCraftAppState()), "PhotoCraft");
+        AssertPreviewEqual("filmcraft", AggregateExplorer<IntoChat.OS.Apps.FilmCraft.FilmCraftAppState>.PreviewNode<IntoChat.OS.Apps.FilmCraft.FilmCraftApp>(new IntoChat.OS.Apps.FilmCraft.FilmCraftAppState()), "FilmCraft");
+        AssertPreviewEqual(
+            "data",
+            AggregateExplorer<DataStudioAppState>.PreviewNode<DataStudioApp>(new DataStudioAppState() with
+            {
+                ChartTitle = "No Data ()",
+                ActiveQuery = "SELECT * FROM ",
+                Summary = "No dataset found matching query or file reference in database ''.",
+                SourceNeuronUri = "neuron://owner/data//empty",
+            }),
+            "Data Studio");
+
+        void AssertStyleObjectsMatchByKey(string app, Node previewRoot, string title, int minMatched)
+        {
+            var path = Path.Combine(appsDir, app, "open.json");
+            var fixture = JsonSerializer.Deserialize<DigitalBrain.Testing.Views.ViewFixture>(File.ReadAllText(path, System.Text.Encoding.UTF8), jsonOptions)!;
+            using var fixDoc = JsonDocument.Parse(JsonSerializer.Serialize(fixture.Main!, jsonOptions));
+            using var prevDoc = JsonDocument.Parse(JsonSerializer.Serialize(new View(title, previewRoot), jsonOptions));
+            var fixStyles = CollectKeyedStyles(fixDoc.RootElement);
+            var prevStyles = CollectKeyedStyles(prevDoc.RootElement);
+            var matched = 0;
+            foreach (var (k, v) in fixStyles)
+            {
+                if (prevStyles.TryGetValue(k, out var pv))
+                {
+                    Assert.Equal(pv, v);
+                    matched++;
+                }
+            }
+
+            Assert.True(matched >= minMatched, $"Expected at least {minMatched} matched styled nodes for {app}, matched {matched}.");
+        }
+
+        AssertStyleObjectsMatchByKey("markdraw", AggregateExplorer<IntoChat.OS.Apps.Markdraw.MarkdrawAppState>.PreviewNode<IntoChat.OS.Apps.Markdraw.MarkdrawApp>(new IntoChat.OS.Apps.Markdraw.MarkdrawAppState()), "Markdraw", minMatched: 14);
+        AssertStyleObjectsMatchByKey("settings", AggregateExplorer<SettingsAppState>.PreviewNode<SettingsApp>(new SettingsAppState()), "Settings", minMatched: 10);
+        AssertStyleObjectsMatchByKey("desktop", AggregateExplorer<DesktopAppState>.PreviewNode<DesktopApp>(new DesktopAppState()), "Desktop", minMatched: 4);
+        AssertStyleObjectsMatchByKey(
+            "creator",
+            CreatorView.Render(
+                new CreatorWorkspaceState(),
+                new BrainTopology([new("local/ctr/default", "ctr", BrainGraph.Unit)], []),
+                [],
+                [],
+                Inspection.None).Root,
+            "Creator",
+            minMatched: 8);
+    }
+
+    private static Dictionary<string, string> CollectKeyedStyles(JsonElement root)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        Visit(root);
+        return map;
+
+        void Visit(JsonElement el)
+        {
+            switch (el.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (el.TryGetProperty("kind", out var kProp) && kProp.ValueKind == JsonValueKind.String
+                        && el.TryGetProperty("style", out var sProp) && sProp.ValueKind == JsonValueKind.Object)
+                    {
+                        var kind = kProp.GetString()!;
+                        var id = el.TryGetProperty("key", out var keyProp) && keyProp.ValueKind == JsonValueKind.String
+                            ? keyProp.GetString()!
+                            : el.TryGetProperty("title", out var tProp) && tProp.ValueKind == JsonValueKind.String
+                                ? tProp.GetString()!
+                                : el.TryGetProperty("surfaceKind", out var skProp) && skProp.ValueKind == JsonValueKind.String
+                                    ? skProp.GetString()!
+                                    : "";
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            map[$"{kind}:{id}"] = sProp.GetRawText();
+                        }
+                    }
+
+                    foreach (var p in el.EnumerateObject())
+                    {
+                        Visit(p.Value);
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var item in el.EnumerateArray())
+                    {
+                        Visit(item);
+                    }
+                    break;
+            }
+        }
+    }
+
+    private static string ResolveAppsViewsDir()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "Intochat.OS.slnx")))
+        {
+            dir = Directory.GetParent(dir)?.FullName;
+        }
+
+        var root = dir ?? throw new InvalidOperationException("Repo root not found.");
+        var slnx = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Intochat.OS.slnx"));
+        var appsProjectRel = slnx.Descendants("Project")
+            .Select(p => p.Attribute("Path")?.Value)
+            .First(p => p is not null && p.EndsWith("/IntoChat.OS.Apps.csproj", StringComparison.Ordinal))!;
+        var appsProjectDir = Path.GetDirectoryName(Path.Combine(root, appsProjectRel.Replace('/', Path.DirectorySeparatorChar)))!;
+        return Path.Combine(appsProjectDir, "views");
+    }
+
     private sealed class SingleStorageBroker(string key, string label, IStorage storage) : ICapabilityBroker
     {
         public Task<TCapability> Resolve<TCapability>(BrainId brain, CancellationToken ct) where TCapability : class

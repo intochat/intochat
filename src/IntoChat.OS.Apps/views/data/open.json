@@ -60,7 +60,8 @@
           "action": "open:/work/q4-opportunities.csv",
           "selected": true,
           "badge": "ACTIVE",
-          "emit": null
+          "command": null,
+          "automationName": "ds-work-q4-opportunities-csv"
         },
         {
           "kind": "navItem",
@@ -70,7 +71,8 @@
           "action": "open:/work/customer-arr.csv",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "ds-work-customer-arr-csv"
         },
         {
           "kind": "navItem",
@@ -80,7 +82,8 @@
           "action": "open:postgres:opportunities",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "ds-postgres-opportunities"
         },
         {
           "kind": "navItem",
@@ -90,7 +93,8 @@
           "action": "open:postgres:customers",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "ds-postgres-customers"
         },
         {
           "kind": "divider",
@@ -104,7 +108,8 @@
           "action": "group-by:Stage:SUM",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "q-stage"
         },
         {
           "kind": "navItem",
@@ -114,7 +119,8 @@
           "action": "query:SELECT Opportunity, Account, Stage, Amount FROM /work/q4-opportunities.csv LIMIT 3",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "q-top3"
         },
         {
           "kind": "navItem",
@@ -124,7 +130,8 @@
           "action": "to-markdraw:/work/data-lineage.markdraw",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "q-markdraw"
         },
         {
           "kind": "collection",
@@ -197,7 +204,24 @@
               "tooltip": null,
               "visible": true,
               "automationName": "export-csv",
-              "style": "secondary",
+              "style": {
+                "tone": "secondary",
+                "typography": "label",
+                "elevation": "flat",
+                "motion": "snappy",
+                "paddingX": 10,
+                "paddingY": 5,
+                "radius": 8,
+                "hover": {
+                  "tone": "subtle"
+                },
+                "press": {
+                  "scale": 0.97
+                },
+                "focus": {
+                  "elevation": "subtle"
+                }
+              },
               "icon": "download",
               "small": true
             },
@@ -219,7 +243,25 @@
               "tooltip": null,
               "visible": true,
               "automationName": "diagram-in-markdraw",
-              "style": "primary",
+              "style": {
+                "tone": "accent",
+                "typography": "label",
+                "elevation": "subtle",
+                "motion": "snappy",
+                "paddingX": 10,
+                "paddingY": 5,
+                "radius": 8,
+                "hover": {
+                  "tone": "accentStrong",
+                  "elevation": "raised"
+                },
+                "press": {
+                  "scale": 0.97
+                },
+                "focus": {
+                  "elevation": "raised"
+                }
+              },
               "icon": "pen-tool",
               "small": true
             }
@@ -238,7 +280,8 @@
               "value": "€0",
               "delta": "Idle",
               "tone": 1,
-              "icon": "bar-chart-2"
+              "icon": "bar-chart-2",
+              "automationName": "Total"
             },
             {
               "kind": "statCard",
@@ -247,7 +290,8 @@
               "value": "€0",
               "delta": "Mean",
               "tone": 2,
-              "icon": "trending-up"
+              "icon": "trending-up",
+              "automationName": "Average"
             },
             {
               "kind": "statCard",
@@ -256,7 +300,8 @@
               "value": "€0",
               "delta": "Floor",
               "tone": 0,
-              "icon": "arrow-down"
+              "icon": "arrow-down",
+              "automationName": "Minimum"
             },
             {
               "kind": "statCard",
@@ -265,7 +310,8 @@
               "value": "€0",
               "delta": "Peak",
               "tone": 0,
-              "icon": "arrow-up"
+              "icon": "arrow-up",
+              "automationName": "Maximum"
             }
           ],
           "gap": 8
@@ -305,7 +351,24 @@
                       "tooltip": null,
                       "visible": true,
                       "automationName": "bar",
-                      "style": "secondary",
+                      "style": {
+                        "tone": "accentTint",
+                        "typography": "label",
+                        "elevation": "flat",
+                        "motion": "snappy",
+                        "paddingX": 12,
+                        "paddingY": 5,
+                        "radius": 999,
+                        "hover": {
+                          "tone": "accent"
+                        },
+                        "press": {
+                          "scale": 0.97
+                        },
+                        "focus": {
+                          "elevation": "subtle"
+                        }
+                      },
                       "icon": "bar-chart-2",
                       "small": true
                     },
@@ -326,7 +389,20 @@
                       "tooltip": null,
                       "visible": true,
                       "automationName": "line",
-                      "style": "secondary",
+                      "style": {
+                        "tone": "ghost",
+                        "typography": "label",
+                        "motion": "snappy",
+                        "paddingX": 12,
+                        "paddingY": 5,
+                        "radius": 999,
+                        "hover": {
+                          "tone": "subtle"
+                        },
+                        "press": {
+                          "scale": 0.97
+                        }
+                      },
                       "icon": "trending-up",
                       "small": true
                     },
@@ -347,7 +423,20 @@
                       "tooltip": null,
                       "visible": true,
                       "automationName": "pie",
-                      "style": "secondary",
+                      "style": {
+                        "tone": "ghost",
+                        "typography": "label",
+                        "motion": "snappy",
+                        "paddingX": 12,
+                        "paddingY": 5,
+                        "radius": 999,
+                        "hover": {
+                          "tone": "subtle"
+                        },
+                        "press": {
+                          "scale": 0.97
+                        }
+                      },
                       "icon": "pie-chart",
                       "small": true
                     }
@@ -361,7 +450,14 @@
             }
           ],
           "header": null,
-          "footer": null
+          "footer": null,
+          "style": {
+            "tone": "card",
+            "elevation": "subtle",
+            "paddingX": 16,
+            "paddingY": 16,
+            "radius": 14
+          }
         },
         {
           "kind": "dataTable",

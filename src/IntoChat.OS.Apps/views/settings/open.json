@@ -652,7 +652,24 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "pref-fluent-acrylic",
-                            "style": "primary",
+                            "style": {
+                              "tone": "accentTint",
+                              "typography": "label",
+                              "elevation": "flat",
+                              "motion": "snappy",
+                              "paddingX": 12,
+                              "paddingY": 5,
+                              "radius": 999,
+                              "hover": {
+                                "tone": "accent"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              },
+                              "focus": {
+                                "elevation": "subtle"
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -676,7 +693,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "pref-spatial-glass",
-                            "style": "secondary",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 12,
+                              "paddingY": 5,
+                              "radius": 999,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -700,7 +730,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "pref-cyber-synaptic",
-                            "style": "secondary",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 12,
+                              "paddingY": 5,
+                              "radius": 999,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -724,7 +767,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "pref-warm-paper",
-                            "style": "secondary",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 12,
+                              "paddingY": 5,
+                              "radius": 999,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -748,7 +804,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "pref-midnight",
-                            "style": "secondary",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 12,
+                              "paddingY": 5,
+                              "radius": 999,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           },
                           {
@@ -772,7 +841,20 @@
                             "tooltip": null,
                             "visible": true,
                             "automationName": "pref-nordic",
-                            "style": "secondary",
+                            "style": {
+                              "tone": "ghost",
+                              "typography": "label",
+                              "motion": "snappy",
+                              "paddingX": 12,
+                              "paddingY": 5,
+                              "radius": 999,
+                              "hover": {
+                                "tone": "subtle"
+                              },
+                              "press": {
+                                "scale": 0.97
+                              }
+                            },
                             "small": true
                           }
                         ],
@@ -867,7 +949,14 @@
                 "surfaceKind": "elevated",
                 "title": "Appearance & Regional Preferences",
                 "subtitle": "How IntoChat looks and formats dates for you",
-                "padding": 18
+                "padding": 18,
+                "style": {
+                  "tone": "elevated",
+                  "elevation": "raised",
+                  "paddingX": 18,
+                  "paddingY": 18,
+                  "radius": 18
+                }
               },
               {
                 "kind": "card",
@@ -891,7 +980,25 @@
                         "tooltip": null,
                         "visible": true,
                         "automationName": "intent:profile",
-                        "style": "primary",
+                        "style": {
+                          "tone": "accent",
+                          "typography": "label",
+                          "elevation": "subtle",
+                          "motion": "snappy",
+                          "paddingX": 10,
+                          "paddingY": 5,
+                          "radius": 8,
+                          "hover": {
+                            "tone": "accentStrong",
+                            "elevation": "raised"
+                          },
+                          "press": {
+                            "scale": 0.97
+                          },
+                          "focus": {
+                            "elevation": "raised"
+                          }
+                        },
                         "icon": "user",
                         "small": true
                       },
@@ -909,7 +1016,24 @@
                         "tooltip": null,
                         "visible": true,
                         "automationName": "intent:vault",
-                        "style": "secondary",
+                        "style": {
+                          "tone": "secondary",
+                          "typography": "label",
+                          "elevation": "flat",
+                          "motion": "snappy",
+                          "paddingX": 10,
+                          "paddingY": 5,
+                          "radius": 8,
+                          "hover": {
+                            "tone": "subtle"
+                          },
+                          "press": {
+                            "scale": 0.97
+                          },
+                          "focus": {
+                            "elevation": "subtle"
+                          }
+                        },
                         "icon": "key-round",
                         "small": true
                       },
@@ -927,7 +1051,24 @@
                         "tooltip": null,
                         "visible": true,
                         "automationName": "intent:install",
-                        "style": "secondary",
+                        "style": {
+                          "tone": "secondary",
+                          "typography": "label",
+                          "elevation": "flat",
+                          "motion": "snappy",
+                          "paddingX": 10,
+                          "paddingY": 5,
+                          "radius": 8,
+                          "hover": {
+                            "tone": "subtle"
+                          },
+                          "press": {
+                            "scale": 0.97
+                          },
+                          "focus": {
+                            "elevation": "subtle"
+                          }
+                        },
                         "icon": "package-plus",
                         "small": true
                       },
@@ -945,7 +1086,24 @@
                         "tooltip": null,
                         "visible": true,
                         "automationName": "intent:conflict",
-                        "style": "secondary",
+                        "style": {
+                          "tone": "secondary",
+                          "typography": "label",
+                          "elevation": "flat",
+                          "motion": "snappy",
+                          "paddingX": 10,
+                          "paddingY": 5,
+                          "radius": 8,
+                          "hover": {
+                            "tone": "subtle"
+                          },
+                          "press": {
+                            "scale": 0.97
+                          },
+                          "focus": {
+                            "elevation": "subtle"
+                          }
+                        },
                         "icon": "git-compare",
                         "small": true
                       }
@@ -955,7 +1113,14 @@
                   }
                 ],
                 "header": null,
-                "footer": null
+                "footer": null,
+                "style": {
+                  "tone": "card",
+                  "elevation": "subtle",
+                  "paddingX": 16,
+                  "paddingY": 16,
+                  "radius": 14
+                }
               }
             ],
             "gap": 12,
