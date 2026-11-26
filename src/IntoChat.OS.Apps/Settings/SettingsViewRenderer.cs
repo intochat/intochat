@@ -836,6 +836,18 @@ internal static class SettingsViewRenderer
 
         return Surface(SurfaceKind.Elevated, "AI", "Providers and default models for each AI role")[
             VStack(Space.Md)[
+                Card("Connected Client Compute", "Allow this paired device to advertise ICodeSandbox over its P-256 link for sovereign code execution. Defaults ON on Desktop and OFF on Mobile.")[
+                    VStack(Space.Sm)[
+                        HStack(Space.Sm)[
+                            new TagPill(ICodeSandbox.CapabilityId, "neutral", "cpu"),
+                            FlexSpacer(),
+                            StatusPill(
+                                state.AllowClientCodeSandbox ? StatusKind.Done : StatusKind.Idle,
+                                state.AllowClientCodeSandbox ? "Enabled · ICodeSandbox advertised" : "Disabled · Local/cloud fallback")
+                        ],
+                        VStack(Space.Sm, [.. SettingsControls.Toggles.Where(toggle => toggle.Section == "models").Select(toggle => SettingsControls.ToggleSwitch(children, state, toggle))])
+                    ]
+                ],
                 Card("Providers", "Local runtimes and cloud providers available to this brain")[
                     VStack(Space.Sm, [.. providerChildren])
                 ],

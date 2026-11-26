@@ -164,6 +164,9 @@ public sealed record SettingsAppState(
     [Id(54)]
     public string GitHubSynapseMode { get; init; } = string.Empty;
 
+    [Id(55)]
+    public bool AllowClientCodeSandbox { get; init; } = ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
+
     [JsonIgnore]
     public Rejected? LastRejection { get; init; }
 
@@ -608,6 +611,11 @@ public sealed record SettingsAppState(
         var cleanThemeMode = !string.IsNullOrWhiteSpace(user.ThemeMode) && SupportedThemeModes.Contains(user.ThemeMode.Trim().ToLowerInvariant(), StringComparer.Ordinal)
             ? user.ThemeMode.Trim().ToLowerInvariant()
             : ThemeMode;
+        var storedVariables = (user.Variables ?? []).Where(static v => !string.IsNullOrWhiteSpace(v.Key)).ToArray();
+        var allowClientCodeSandbox = ResolveStoredBool(
+            storedVariables,
+            ClientComputeConsentPolicy.SettingsVariableKey,
+            AllowClientCodeSandbox);
 
         return this with
         {
@@ -625,11 +633,18 @@ public sealed record SettingsAppState(
             TimeZone = string.IsNullOrWhiteSpace(user.TimeZone) ? TimeZone : user.TimeZone,
             DateFormat = string.IsNullOrWhiteSpace(user.DateFormat) ? DateFormat : user.DateFormat,
             ExportedArchiveJson = archiveJson ?? ExportedArchiveJson,
-            Variables = (user.Variables ?? []).Where(static v => !string.IsNullOrWhiteSpace(v.Key)).ToArray(),
+            Variables = storedVariables,
             DeployedUnits = deployedUnits ?? DeployedUnits ?? [],
             TeamRoster = teamRoster ?? TeamRoster,
+            AllowClientCodeSandbox = allowClientCodeSandbox,
             HasUnsavedChanges = false,
         };
+    }
+
+    private static bool ResolveStoredBool(IReadOnlyList<UserVariableEntry> variables, string key, bool fallback)
+    {
+        var raw = variables.FirstOrDefault(v => string.Equals(v.Key, key, StringComparison.Ordinal))?.Value;
+        return bool.TryParse(raw?.Trim(), out var parsed) ? parsed : fallback;
     }
 
     [IgnoreExplore]

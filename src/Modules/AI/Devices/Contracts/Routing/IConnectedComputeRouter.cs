@@ -1,11 +1,14 @@
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using DigitalBrain;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Modules.Devices;
 
 /// <summary>
-/// Consent policy governing whether an enrolled device automatically accepts Plane 1 sovereign local compute dispatches.
-/// Defaults to <see cref="AutoAll"/> per owner architectural direction.
+/// Consent policy governing whether an enrolled device accepts Plane 1 sovereign local compute dispatches.
+/// Defaults to <see cref="ExplicitToggle"/> (platform-aware Desktop ON / Mobile OFF); <see cref="AutoAll"/>
+/// remains supported for backward compatibility.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ComputeConsentMode>))]
 public enum ComputeConsentMode
@@ -18,6 +21,157 @@ public enum ComputeConsentMode
 
     [JsonStringEnumMemberName("disabled")]
     Disabled = 2,
+}
+
+/// <summary>Device OS family used to derive RFC-2 default consent for Connected Client Compute (<c>ICodeSandbox</c>).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ClientDevicePlatform>))]
+public enum ClientDevicePlatform
+{
+    [JsonStringEnumMemberName("unknown")]
+    Unknown = 0,
+
+    [JsonStringEnumMemberName("windows")]
+    Windows = 1,
+
+    [JsonStringEnumMemberName("macos")]
+    MacOS = 2,
+
+    [JsonStringEnumMemberName("linux")]
+    Linux = 3,
+
+    [JsonStringEnumMemberName("android")]
+    Android = 4,
+
+    [JsonStringEnumMemberName("ios")]
+    IOS = 5,
+}
+
+/// <summary>
+/// RFC-2 policy for Connected Client Compute (<see cref="ICodeSandbox"/>):
+/// defaults <c>AllowClientCodeSandbox</c> to <see langword="true"/> on Desktop (Windows, macOS, Linux)
+/// and <see langword="false"/> on Mobile (Android, iOS) or unknown platforms, and enforces consent on both
+/// client capability advertisement and server dispatch eligibility.
+/// </summary>
+public static class ClientComputeConsentPolicy
+{
+    /// <summary>Settings toggle child key for the Connected Client Compute device switch.</summary>
+    public const string SettingsToggleKey = "allow-client-code-sandbox";
+
+    /// <summary>Persisted user settings variable key backing the Connected Client Compute toggle.</summary>
+    public const string SettingsVariableKey = "settings.toggle." + SettingsToggleKey;
+
+    /// <summary>Canonical capability identifier advertised over the paired P-256 relay.</summary>
+    public const string CodeSandboxCapability = ICodeSandbox.CapabilityId;
+
+    public static ClientDevicePlatform DetectCurrentPlatform()
+    {
+        if (OperatingSystem.IsAndroid())
+        {
+            return ClientDevicePlatform.Android;
+        }
+
+        if (OperatingSystem.IsIOS())
+        {
+            return ClientDevicePlatform.IOS;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return ClientDevicePlatform.Windows;
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return ClientDevicePlatform.MacOS;
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return ClientDevicePlatform.Linux;
+        }
+
+        return ClassifyPlatform(RuntimeInformation.OSDescription);
+    }
+
+    public static ClientDevicePlatform ClassifyPlatform(string? osDescription)
+    {
+        if (string.IsNullOrWhiteSpace(osDescription))
+        {
+            return ClientDevicePlatform.Unknown;
+        }
+
+        // Mobile checks precede Linux/Darwin because Android descriptions contain "Linux"
+        // and iOS/iPadOS descriptions can contain "Darwin".
+        if (osDescription.Contains("android", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClientDevicePlatform.Android;
+        }
+
+        if (osDescription.Contains("ios", StringComparison.OrdinalIgnoreCase)
+            || osDescription.Contains("iphone", StringComparison.OrdinalIgnoreCase)
+            || osDescription.Contains("ipad", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClientDevicePlatform.IOS;
+        }
+
+        if (osDescription.Contains("windows", StringComparison.OrdinalIgnoreCase)
+            || osDescription.Contains("win32", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClientDevicePlatform.Windows;
+        }
+
+        if (osDescription.Contains("macos", StringComparison.OrdinalIgnoreCase)
+            || osDescription.Contains("mac os", StringComparison.OrdinalIgnoreCase)
+            || osDescription.Contains("darwin", StringComparison.OrdinalIgnoreCase)
+            || osDescription.Contains("os x", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClientDevicePlatform.MacOS;
+        }
+
+        if (osDescription.Contains("linux", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClientDevicePlatform.Linux;
+        }
+
+        return ClientDevicePlatform.Unknown;
+    }
+
+    public static bool DefaultAllowClientCodeSandbox(ClientDevicePlatform platform)
+        => platform is ClientDevicePlatform.Windows
+            or ClientDevicePlatform.MacOS
+            or ClientDevicePlatform.Linux;
+
+    public static bool DefaultAllowClientCodeSandbox(string? osDescription)
+        => DefaultAllowClientCodeSandbox(ClassifyPlatform(osDescription));
+
+    public static bool DefaultAllowClientCodeSandboxForCurrentPlatform()
+        => DefaultAllowClientCodeSandbox(DetectCurrentPlatform());
+
+    public static bool HasCodeSandboxCapability(string[]? advertisedCapabilities)
+        => advertisedCapabilities is { Length: > 0 }
+            && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), CodeSandboxCapability, StringComparison.Ordinal));
+
+    public static string[] CapabilitiesFor(bool advertiseCodeSandbox)
+        => advertiseCodeSandbox ? [CodeSandboxCapability] : [];
+
+    public static bool IsEligibleForCodeSandbox(
+        ComputeConsentMode consentMode,
+        bool allowClientCodeSandbox,
+        bool sandboxReady,
+        string[]? advertisedCapabilities)
+    {
+        if (!sandboxReady)
+        {
+            return false;
+        }
+
+        return consentMode switch
+        {
+            ComputeConsentMode.ExplicitToggle => allowClientCodeSandbox && HasCodeSandboxCapability(advertisedCapabilities),
+            ComputeConsentMode.AutoAll => advertisedCapabilities is null || HasCodeSandboxCapability(advertisedCapabilities),
+            _ => false,
+        };
+    }
 }
 
 /// <summary>Live reachability state of an enrolled compute node based on its compute heartbeat.</summary>
@@ -58,7 +212,9 @@ public sealed record ComputeCapabilityAdvertisement(
     [property: Id(5)] string OsDescription,
     [property: Id(6)] int MaxConcurrency,
     [property: Id(7)] DateTimeOffset HeartbeatAt,
-    [property: Id(8)] string? KeyThumbprint = null);
+    [property: Id(8)] string? KeyThumbprint = null,
+    [property: Id(9)] bool AllowClientCodeSandbox = false,
+    [property: Id(10)] string[]? AdvertisedCapabilities = null);
 
 /// <summary>Observed online/offline status and compute capability of an enrolled device belonging to a brain.</summary>
 [GenerateSerializer, Alias("devices.compute.node")]
@@ -71,15 +227,26 @@ public sealed record ConnectedComputeNode(
     [property: Id(5)] string SandboxRuntime,
     [property: Id(6)] ComputeNodeStatus Status,
     [property: Id(7)] DateTimeOffset LastHeartbeatAt,
-    [property: Id(8)] string? KeyThumbprint = null)
+    [property: Id(8)] string? KeyThumbprint = null,
+    [property: Id(9)] bool AllowClientCodeSandbox = false,
+    [property: Id(10)] string[]? AdvertisedCapabilities = null)
 {
+    /// <summary>True when this node explicitly advertises the <see cref="ICodeSandbox"/> capability.</summary>
+    public bool AdvertisesCodeSandbox =>
+        ClientComputeConsentPolicy.HasCodeSandboxCapability(AdvertisedCapabilities);
+
     /// <summary>
-    /// True only when the node is online, advertises local sandbox readiness, and uses <see cref="ComputeConsentMode.AutoAll"/>.
+    /// True only when the node is online, advertises local sandbox readiness, and satisfies RFC-2 consent enforcement
+    /// (<see cref="ComputeConsentMode.ExplicitToggle"/> with <see cref="AllowClientCodeSandbox"/> and
+    /// <see cref="ICodeSandbox"/> advertised, or backward-compatible <see cref="ComputeConsentMode.AutoAll"/>).
     /// </summary>
     public bool IsEligibleForSovereignCompute =>
         Status == ComputeNodeStatus.Online
-        && SandboxReady
-        && ConsentMode == ComputeConsentMode.AutoAll;
+        && ClientComputeConsentPolicy.IsEligibleForCodeSandbox(
+            ConsentMode,
+            AllowClientCodeSandbox,
+            SandboxReady,
+            AdvertisedCapabilities);
 }
 
 /// <summary>Routing decision produced by <see cref="IConnectedComputeRouter"/> for a brain's sandbox dispatch.</summary>
@@ -117,6 +284,24 @@ public sealed record ConnectedSandboxResponse(
     [property: Id(2)] string? UpdatedStateJson,
     [property: Id(3)] string? Error,
     [property: Id(4)] string? ExecutedByMachineId = null);
+
+/// <summary>
+/// Live runtime consent store for this device's explicit <c>AllowClientCodeSandbox</c> toggle (RFC-2).
+/// Falls back to platform-aware <see cref="ClientComputeConsentPolicy"/> defaults (Desktop: ON, Mobile: OFF)
+/// until explicitly toggled via Settings or <c>IDeviceLink</c>.
+/// </summary>
+public interface IClientCodeSandboxConsent
+{
+    event Action<bool>? Changed;
+
+    bool AllowClientCodeSandbox { get; }
+
+    bool HasExplicitOverride { get; }
+
+    bool Resolve(bool optionsDefault);
+
+    void Set(bool allow);
+}
 
 /// <summary>
 /// Transport abstraction for probing reachability and executing a scoped sandbox job on a connected client node.

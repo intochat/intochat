@@ -29,6 +29,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
@@ -122,6 +123,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Key = FriendsDefaults.KeyPart, Required = false)] private partial IFriends? Friends { get; }
     [Slot(Key = "approvals/index", Required = false)] private partial IApprovals? Approvals { get; }
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
+    [Slot(Key = "device-link", Required = false)] private partial IDeviceLink? DeviceLink { get; }
     [Slot(Required = false)] private partial SlotCollection<IConnectionInbound> ConnectionInbounds { get; }
     [Slot(Required = false)] private partial SlotCollection<IConnection> Connections { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
@@ -133,7 +135,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
     private MachineId? ThisMachine { get; }
 
-    public SettingsApp() : this(null, null, null, null, null, null) { }
+    public SettingsApp() : this(null, null, null, null, null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
     public SettingsApp(
@@ -142,7 +144,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         MachineId? thisMachine = null,
         IBrainObserver? observer = null,
         IOptions<WebModuleOptions>? webOptions = null,
-        IOptions<McpModuleOptions>? mcpOptions = null)
+        IOptions<McpModuleOptions>? mcpOptions = null,
+        IClientCodeSandboxConsent? clientComputeConsent = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
@@ -150,6 +153,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         Observer = observer;
         WebOptions = webOptions;
         McpOptions = mcpOptions;
+        ClientComputeConsent = clientComputeConsent;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -253,6 +257,25 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping toggle persistence in minimal test host.");
         }
 #pragma warning restore CA1031
+
+        if (string.Equals(toggle.Key, SettingsControls.AllowClientCodeSandbox, StringComparison.Ordinal))
+        {
+            ClientComputeConsent?.Set(toggled.IsOn);
+            try
+            {
+                if (DeviceLink is { } link)
+                {
+                    await link.SetAllowClientCodeSandbox(toggled.IsOn);
+                }
+            }
+#pragma warning disable CA1031 // Device link neuron is optional in minimal test hosts.
+            catch (Exception ex)
+            {
+                IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping IDeviceLink.SetAllowClientCodeSandbox in minimal test host.");
+            }
+#pragma warning restore CA1031
+        }
+
         await UpdateAsync(toggle.Set(State, toggled.IsOn));
     }
 
@@ -323,6 +346,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public IBrainObserver? Observer { get; set; }
     public IOptions<WebModuleOptions>? WebOptions { get; set; }
     public IOptions<McpModuleOptions>? McpOptions { get; set; }
+    public IClientCodeSandboxConsent? ClientComputeConsent { get; set; }
 
     private ILogger Log => GetLogger();
 
@@ -333,7 +357,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         new("apps", "Apps", "installed apps store link install permissions capabilities memory ino", "os://sheet/install", "layout-grid", "Capabilities & Data"),
         new("connections", "Connections", "postgres salesforce google drive github slack integrations webhook oauth reconnect", "os://window/settings?section=connections", "plug", "Capabilities & Data"),
         new("files", "Files", "storage drive local computer root desktop mode synced folders conflict naming", "os://sheet/conflict", "folder", "Capabilities & Data"),
-        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort default model web search searxng brave tavily mcp servers microsoft learn tools", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
+        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort default model web search searxng brave tavily mcp servers microsoft learn tools connected client compute code sandbox icodesandbox device toggle", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
         new("keys", "API keys", "personal api key secrets token encryption vault anthropic openai groq mistral google", "os://window/secure", "key-round", "Capabilities & Data"),
         new("variables", "Variables and secrets", "environment variables key value table sealed secret vault scope local brain system", "os://window/settings?section=variables", "braces", "Capabilities & Data"),
         new("billing", "Billing", "tokens consumption credits balance auto top-up monthly spend limit payment invoices compute", "os://window/settings?section=billing", "credit-card", "Organization & System"),

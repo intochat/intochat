@@ -151,6 +151,7 @@ public sealed record BrainSandboxDispatchRequest(string Brain, string MachineId,
 [JsonSerializable(typeof(BrainComputeNodesResponse))]
 [JsonSerializable(typeof(BrainSandboxDispatchRequest))]
 [JsonSerializable(typeof(ComputeConsentMode))]
+[JsonSerializable(typeof(ClientDevicePlatform))]
 [JsonSerializable(typeof(ComputeNodeStatus))]
 [JsonSerializable(typeof(ComputeExecutionTarget))]
 [JsonSerializable(typeof(ComputeCapabilityAdvertisement))]
