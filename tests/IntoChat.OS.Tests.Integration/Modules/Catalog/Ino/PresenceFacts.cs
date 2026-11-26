@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Integrations;
@@ -14,7 +15,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Host.Primitives;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
@@ -330,11 +330,11 @@ public sealed class PresenceFacts
         await using var runtime = await Started(fixture, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(client);
-            services.AddSingleton(sp => new OsNeuronSurface(
+            services.AddSingleton(sp => new NeuronSurface(
                 sp.GetRequiredService<INeuronProxies>(),
                 observer,
                 new NeuronTypeSearch(observer, [], null),
-                plain: sp));
+                callers: sp.GetService<ICallerAmbient>()));
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

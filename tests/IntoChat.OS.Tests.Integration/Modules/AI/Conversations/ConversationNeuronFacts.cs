@@ -14,7 +14,6 @@ using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Testing;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Host.Primitives;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -859,15 +858,15 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
             {
                 var compiled = new CompiledTypes([typeof(IAgentContext).Assembly]);
                 var observer = new StubBrainObserver(compiled.Entries);
-                services.AddSingleton(sp => new OsNeuronSurface(
+                services.AddSingleton(sp => new NeuronSurface(
                     sp.GetRequiredService<INeuronProxies>(),
                     observer,
                     new NeuronTypeSearch(observer, [], null),
-                    plain: sp));
+                    callers: sp.GetService<ICallerAmbient>()));
             }
             else
             {
-                services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+                services.AddSingleton(new NeuronSurface());
             }
             services.AddSingleton<IAiCredentials, NoProviders>();
             if (secret is not null)

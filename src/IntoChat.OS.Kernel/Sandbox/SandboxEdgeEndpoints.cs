@@ -1,9 +1,11 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
@@ -177,7 +179,7 @@ internal static class SandboxEdgeEndpoints
         {
             return new EdgeInvokeOutcome(StatusCodes.Status404NotFound, new EdgeInvokeResponse(null, error.Message));
         }
-        catch (Exception error) when (error is ArgumentException or JsonException or NotSupportedException)
+        catch (Exception error) when (error is ArgumentException or BindingException or JsonException or NotSupportedException)
         {
             return new EdgeInvokeOutcome(StatusCodes.Status422UnprocessableEntity, new EdgeInvokeResponse(null, error.Message));
         }
@@ -280,22 +282,23 @@ internal static class SandboxEdgeEndpoints
         if (!identity.AppKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return Task.FromResult<string?>(null); }
         var grants = SiloNeurons.Get<IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants>(services,
             new NeuronId(new BrainId(identity.BrainId), "client.grants", IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.DefaultKey));
-        return HoldToNeedsAsync(identity.AppKey, request.Contract, request.Method, grants);
+        return HoldToNeedsAsync(identity.AppKey, request.Contract, request.Method, grants, services.GetService<IContractAssemblySource>());
     }
 
     internal static async Task<string?> HoldToNeedsAsync(
         string appKey,
         string requestedContract,
         string method,
-        IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants grants)
+        IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants grants,
+        IContractAssemblySource? assemblies = null)
     {
         if (!appKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return null; }
         // The sandbox names a contract by its neuron alias or its type; needs are type names, so compare the resolved type.
-        var prefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
-        var contract = KernelInvocationSink.ContractOf(requestedContract)?.FullName
-            ?? DigitalBrain.Runtime.Http.Surface.LoadedContracts.CurrentName(requestedContract, prefixes);
+        var contract = LoadedContracts.TryFind(requestedContract, assemblies)?.FullName
+            ?? KernelInvocationSink.ContractOf(requestedContract)?.FullName
+            ?? LoadedContracts.CurrentName(requestedContract, assemblies);
         var allowed = (await grants.Allowed(appKey).ConfigureAwait(false))
-            .Select(need => DigitalBrain.Runtime.Http.Surface.LoadedContracts.CurrentName(need, prefixes))
+            .Select(need => LoadedContracts.CurrentName(need, assemblies))
             .Contains(contract, StringComparer.Ordinal);
         await grants.Record(appKey, $"{contract[(contract.LastIndexOf('.') + 1)..]}.{method}", allowed).ConfigureAwait(false);
         if (!allowed)
@@ -500,104 +503,34 @@ internal static class SandboxEdgeEndpoints
         IServiceProvider services,
         CancellationToken ct)
     {
-        var contract = KernelInvocationSink.ContractOf(request.Contract)
+        var assemblies = services.GetService<IContractAssemblySource>();
+        var contract = LoadedContracts.TryFind(request.Contract, assemblies)
+            ?? LoadedContracts.TryFindInterface(request.Contract, assemblies)
+            ?? KernelInvocationSink.ContractOf(request.Contract)
             ?? throw new NotSupportedException($"Contract '{request.Contract}' is not registered in the kernel.");
-        var neuronType = ResolveNeuronType(contract)
+        var neuronType = LoadedContracts.ResolveNeuronType(contract)
             ?? throw new NotSupportedException($"Contract '{request.Contract}' does not declare [DefaultNeuronType], a hosted [Neuron], or [NeuronAlias].");
 
         var slotKey = string.IsNullOrWhiteSpace(request.Slot) ? ResolveDefaultSlotKey(contract) : request.Slot.Trim();
         var neuronId = new NeuronId(new BrainId(identity.BrainId), neuronType, slotKey);
         var proxy = SiloNeurons.Get(services, contract, neuronId);
 
-        var method = FindInterfaceMethod(contract, request.Method)
-            ?? throw new NotSupportedException($"Method '{request.Contract}.{request.Method}' was not found.");
-
-        var parameters = method.GetParameters();
-        var invokeArgs = new object?[parameters.Length];
-        var jsonIdx = 0;
-
-        for (var i = 0; i < parameters.Length; i++)
-        {
-            var param = parameters[i];
-            if (param.ParameterType == typeof(CancellationToken))
-            {
-                invokeArgs[i] = ct;
-                continue;
-            }
-
-            if (jsonIdx < args.GetArrayLength())
-            {
-                invokeArgs[i] = args[jsonIdx].Deserialize(param.ParameterType, RuntimeProtocol.OptionsFor(param.ParameterType));
-            }
-            else if (param.HasDefaultValue)
-            {
-                invokeArgs[i] = param.DefaultValue;
-            }
-            else if (param.ParameterType.IsValueType)
-            {
-                invokeArgs[i] = Activator.CreateInstance(param.ParameterType);
-            }
-
-            jsonIdx++;
-        }
+        var arranged = NeuronBinder.Arrange(contract, request.Method, args);
+        var invokeArgs = NeuronBinder.DeserializeArguments(arranged, ct);
 
         object? rawResult;
         try
         {
-            rawResult = method.Invoke(proxy, invokeArgs);
+            rawResult = arranged.Method.Invoke(proxy, invokeArgs);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is { } inner)
         {
-            throw inner;
+            ExceptionDispatchInfo.Capture(inner).Throw();
+            throw;
         }
 
-        if (rawResult is Task task)
-        {
-            await task.WaitAsync(ct).ConfigureAwait(false);
-            if (!method.ReturnType.IsGenericType)
-            {
-                return null;
-            }
-
-            var value = task.GetType().GetProperty("Result", BindingFlags.Instance | BindingFlags.Public)?.GetValue(task);
-            return value is null ? null : JsonSerializer.Serialize(value, value.GetType(), RuntimeProtocol.OptionsFor(value.GetType()));
-        }
-
-        if (rawResult is ValueTask valueTask)
-        {
-            await valueTask.ConfigureAwait(false);
-            return null;
-        }
-
-        if (rawResult is not null
-            && rawResult.GetType() is { IsGenericType: true } vtType
-            && vtType.GetGenericTypeDefinition() == typeof(ValueTask<>))
-        {
-            var asTask = (Task)vtType.GetMethod("AsTask", BindingFlags.Instance | BindingFlags.Public)!.Invoke(rawResult, null)!;
-            await asTask.WaitAsync(ct).ConfigureAwait(false);
-            var value = asTask.GetType().GetProperty("Result", BindingFlags.Instance | BindingFlags.Public)?.GetValue(asTask);
-            return value is null ? null : JsonSerializer.Serialize(value, value.GetType(), RuntimeProtocol.OptionsFor(value.GetType()));
-        }
-
-        return rawResult is null ? null : JsonSerializer.Serialize(rawResult, rawResult.GetType(), RuntimeProtocol.OptionsFor(rawResult.GetType()));
-    }
-
-    private static MethodInfo? FindInterfaceMethod(Type contract, string methodName)
-    {
-        if (contract.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public) is { } direct)
-        {
-            return direct;
-        }
-
-        foreach (var parent in contract.GetInterfaces())
-        {
-            if (parent.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public) is { } inherited)
-            {
-                return inherited;
-            }
-        }
-
-        return null;
+        var value = await TaskBoxing.UnwrapAsync(rawResult, arranged.Method.ReturnType, ct).ConfigureAwait(false);
+        return value is null ? null : JsonSerializer.Serialize(value, value.GetType(), RuntimeProtocol.OptionsFor(value.GetType()));
     }
 
     private static string ResolveDefaultSlotKey(Type contract)
@@ -609,47 +542,6 @@ internal static class SandboxEdgeEndpoints
         }
 
         return "default";
-    }
-
-    private static string? ResolveNeuronType(Type contract)
-    {
-        if (contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type is { Length: > 0 } defaultType)
-        {
-            return defaultType;
-        }
-
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (assembly.IsDynamic)
-            {
-                continue;
-            }
-
-            Type[] types;
-            try
-            {
-                types = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException error)
-            {
-                types = [.. error.Types.OfType<Type>()];
-            }
-
-            foreach (var candidate in types)
-            {
-                if (candidate.IsAbstract || candidate.IsInterface || !contract.IsAssignableFrom(candidate))
-                {
-                    continue;
-                }
-
-                if (candidate.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type is { Length: > 0 } hostedType)
-                {
-                    return hostedType;
-                }
-            }
-        }
-
-        return contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias;
     }
 
     private static T? ReadArg<T>(JsonElement args, int index)

@@ -29,9 +29,13 @@ public static class BrainHosting
         var selected = modules.ToArray();
         // The host registers what became of every module it was given; a bare silo reports its modules Active.
         silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
+        silo.Services.TryAddSingleton<DigitalBrain.Runtime.Http.Surface.IContractAssemblySource>(provider => provider.GetRequiredService<ModuleInventory>());
         foreach (var module in selected) { module.BindOptions(silo.Services); }
         silo.Services.AddMachineId();
-        silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
+        silo.Services.TryAddSingleton(provider => new CompiledTypes(
+            provider.GetRequiredService<ModuleInventory>(),
+            provider.GetServices<IModuleTypeSource>(),
+            provider.GetServices<IntoChat.OS.Modules.Apps.CompiledAppsRegistration>().Select(registration => registration.Assembly)));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<IOperationHandler<WritePlan>, StorageWriteHandler>();
         DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(silo.Services, typeof(DigitalBrain.Confirmation.ConfirmationRequested).Assembly);

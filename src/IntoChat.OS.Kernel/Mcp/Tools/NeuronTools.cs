@@ -9,13 +9,12 @@ using ModelContextProtocol.Server;
 using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 [McpServerToolType]
-internal sealed class NeuronTools(OsNeuronSurface surface, McpCaller caller)
+internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
 {
     private const int MaxMappedErrorLength = 500;
     [McpServerTool(Name = NeuronSurfaceTools.ListName), Description(NeuronSurfaceTools.ListDescription)]

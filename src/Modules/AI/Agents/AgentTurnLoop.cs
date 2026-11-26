@@ -41,7 +41,6 @@ internal sealed class AgentTurnLoop(
     Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null,
     Func<string, CancellationToken, Task<IReadOnlyList<string>>>? readOpenApps = null)
 {
-    private static readonly string[] ContractAssemblyPrefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
         var telemetryConversation = plan.Conversation.StartsWith(plan.ScopeId + "/conversations/", StringComparison.Ordinal)
@@ -94,16 +93,16 @@ internal sealed class AgentTurnLoop(
             yield break;
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
-        var surface = services.GetService<OsNeuronSurface>();
+        var surface = services.GetService<NeuronSurface>();
         // B06: Callable tools come from the agent definition's declared contracts, scoped ToolSources, and installed components' operations; context entries never widen tools.
         string[] composed = surface is null
             ? []
-            : [.. plan.Contracts.Select(static name => LoadedContracts.CurrentName(name, ContractAssemblyPrefixes)).Distinct(StringComparer.Ordinal)];
+            : [.. plan.Contracts.Select(surface.CurrentName).Distinct(StringComparer.Ordinal)];
         var contractTools = new List<ContractTool>();
         var routableTools = new List<AIFunction>();
         var allTools = new List<AIFunction>();
         var activeTools = new List<AITool>();
-        OsNeuronSurface? restricted = null;
+        NeuronSurface? restricted = null;
         DigitalBrain.Access.EdgeAuthority? edge = null;
         IReadOnlyList<AIFunction> meta = [];
         if (composed.Length > 0 && surface is not null)
@@ -115,7 +114,7 @@ internal sealed class AgentTurnLoop(
                 restricted = await surface.Restrict(composed, ct);
                 edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
                 meta = AgentTools.Meta(edge, restricted, plan.Conversation);
-                Type[] contractTypes = [.. composed.Select(static name => LoadedContracts.Find(name, ContractAssemblyPrefixes))];
+                Type[] contractTypes = [.. composed.Select(surface.FindContract)];
                 contractTools.AddRange(AgentTools.For(edge, restricted, contractTypes, plan.Conversation));
                 routableTools.AddRange(contractTools);
                 if (plan.ToolSources is null)
@@ -452,7 +451,7 @@ internal sealed class AgentTurnLoop(
            && string.Equals(contractTool.Schema.Method, nameof(IWebSearch.Search), StringComparison.Ordinal);
 
     private static async Task<bool> IsNativeWebSearchEnabledAsync(
-        OsNeuronSurface restricted,
+        NeuronSurface restricted,
         DigitalBrain.Access.EdgeAuthority? edge,
         string conversation,
         CancellationToken ct)

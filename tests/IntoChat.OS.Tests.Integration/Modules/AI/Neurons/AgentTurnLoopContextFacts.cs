@@ -25,7 +25,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Host.Surface;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http.Surface;
 using OpenAI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
@@ -268,7 +269,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var client = Capturing(out var options);
         var compiled = new CompiledTypes([typeof(IFocus).Assembly]);
         var observer = new StubBrainObserver(compiled.Entries);
-        var surface = new OsNeuronSurface(null!, observer, new NeuronTypeSearch(observer, [], null));
+        var surface = new NeuronSurface(observer: observer, search: new NeuronTypeSearch(observer, [], null));
         await using var runtime = await Start(client, ct, surface: surface);
         using var person = runtime.As(Who.Person);
 
@@ -303,7 +304,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
 
         var compiled = new CompiledTypes([typeof(IFocus).Assembly, typeof(IntoChat.OS.Modules.AI.Memory.IMemory).Assembly]);
         var observer = new StubBrainObserver(compiled.Entries);
-        var surface = new OsNeuronSurface(null!, observer, new NeuronTypeSearch(observer, [], null));
+        var surface = new NeuronSurface(observer: observer, search: new NeuronTypeSearch(observer, [], null));
         await using var runtime = await Start(client, ct, surface: surface);
         using var person = runtime.As(Who.Person);
 
@@ -344,7 +345,11 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         await using var runtime = await webMcpFixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(client);
-            services.AddSingleton(sp => new OsNeuronSurface(null!, observer, new NeuronTypeSearch(observer, [], null), plain: sp));
+            services.AddSingleton(sp => new NeuronSurface(
+                sp.GetRequiredService<INeuronProxies>(),
+                observer,
+                new NeuronTypeSearch(observer, [], null),
+                callers: sp.GetService<ICallerAmbient>()));
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddOptions<AIOptions>();
             services.AddSingleton<ModelCatalog>();
@@ -402,7 +407,11 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         await using var runtime = await nativeFixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton(mode);
-            services.AddSingleton(sp => new OsNeuronSurface(null!, observer, new NeuronTypeSearch(observer, [], null), plain: sp));
+            services.AddSingleton(sp => new NeuronSurface(
+                sp.GetRequiredService<INeuronProxies>(),
+                observer,
+                new NeuronTypeSearch(observer, [], null),
+                callers: sp.GetService<ICallerAmbient>()));
             services.AddSingleton<IAiCredentials>(new FakeAnthropicCredentials());
             services.AddOptions<AIOptions>();
             services.Configure<AIOptions>(o => o.ModelProfiles["claude-native"] = new()
@@ -474,13 +483,13 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         StubChatClient client,
         CancellationToken ct,
         Action<AIOptions>? configure = null,
-        OsNeuronSurface? surface = null,
+        NeuronSurface? surface = null,
         Action<IServiceCollection>? configureServices = null)
         => await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(client);
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(surface ?? new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(surface ?? new NeuronSurface());
             // No provider is provisioned, so an unpinned turn runs on the host client, which is the stub.
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddOptions<AIOptions>();

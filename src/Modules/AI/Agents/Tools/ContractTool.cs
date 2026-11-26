@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain.Access;
 using DigitalBrain.Contracts;
-using IntoChat.OS.Host.Surface;
+using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Agents.Tools;
@@ -30,7 +30,7 @@ internal sealed class ContractTool : AIFunction
             (object?)await call(contract, key, method, arguments, ct).ConfigureAwait(false) ?? new { ok = true };
     }
 
-    internal ContractTool(ToolSchema schema, EdgeAuthority? edge, OsNeuronSurface surface, string conversation)
+    internal ContractTool(ToolSchema schema, EdgeAuthority? edge, NeuronSurface surface, string conversation)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(surface);

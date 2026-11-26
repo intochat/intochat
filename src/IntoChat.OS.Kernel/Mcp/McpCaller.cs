@@ -4,11 +4,11 @@ using System.Text.Json.Nodes;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Kernel;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 

@@ -10,8 +10,8 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Host.Brains;
 using IntoChat.OS.Host.Client;
 using IntoChat.OS.Host.Kernel;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Primitives;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Voice;
@@ -131,7 +131,7 @@ public sealed class ConversationChatClientFacts(AiFixture fixture) : IClassFixtu
         {
             services.AddIntoChatOSClient();
             services.AddSingleton<IChatClient>(client);
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(new NeuronSurface());
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();
