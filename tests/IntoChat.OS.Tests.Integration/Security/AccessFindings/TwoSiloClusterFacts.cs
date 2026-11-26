@@ -213,13 +213,14 @@ public sealed class TwoSiloClusterFacts
     }
 
     // Ungraceful kill recovery end-to-end: when a prior silo crashed or was SIGKILLed without writing Dead, its stale
-    // membership row (IAmAliveTime older than the staleness threshold) is marked Dead by SingleSiloGuard before BecomeActive
-    // so a new revision boots cleanly instead of being permanently bricked.
+    // membership row (non-advancing IAmAliveTime older than the staleness threshold AND unreachable TCP endpoint) is
+    // marked Dead by SingleSiloGuard before BecomeActive so a new revision boots cleanly instead of being bricked.
     [Fact]
     public async Task AJoiningSilo_ReapsStaleZombiePeerRow_AndStartsCleanly()
     {
         var sharedTable = new SharedInMemoryMembershipTable();
-        var zombieAddress = SiloAddress.New(IPAddress.Loopback, 11199, 1);
+        var closedPort = ReserveClosedLoopbackPort();
+        var zombieAddress = SiloAddress.New(IPAddress.Loopback, closedPort, 1);
         sharedTable.SeedRow(
             zombieAddress,
             SiloStatus.Active,
@@ -242,6 +243,55 @@ public sealed class TwoSiloClusterFacts
         {
             Assert.Empty(await SiloNeurons.Get<IFriends>(fresh.Services, FriendsDefaults.Id(fresh.Scope)).List());
         }
+    }
+
+    // Fail-closed TCP probe guard end-to-end: when a real live primary silo is partitioned from updating IAmAliveTime
+    // (stale and non-advancing across IAmAliveTablePublishTimeout), SingleSiloGuard refuses to mark it Dead because the
+    // bounded TCP probe to peer.SiloAddress.Endpoint succeeds, leaving the live primary serving uninterrupted.
+    [Fact]
+    public async Task AJoiningSilo_RefusesToReapStalePeerWithReachableTcpSocket()
+    {
+        var sharedTable = new SharedInMemoryMembershipTable();
+        await using var primary = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder => UseSharedMembership(builder, sharedTable));
+        var primaryAddress = primary.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+
+        // Simulate a membership DB write partition on the still-live primary: its IAmAliveTime is 5m old and frozen.
+        sharedTable.FreezeHeartbeat(primaryAddress, DateTime.UtcNow.AddMinutes(-5));
+
+        var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await using var joining = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+            {
+                UseSharedMembership(builder, sharedTable);
+                builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
+                builder.Services.Configure<Orleans.Configuration.ClusterMembershipOptions>(options =>
+                {
+                    options.IAmAliveTablePublishTimeout = TimeSpan.FromMilliseconds(50);
+                });
+            });
+        });
+
+        Assert.Contains(Chain(error), e => e is InvalidOperationException && e.Message.Contains("must be the only silo of its cluster", StringComparison.Ordinal));
+        Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(primaryAddress));
+        var otherRows = sharedTable.Statuses().Where(pair => !pair.Key.Equals(primaryAddress)).ToArray();
+        Assert.Single(otherRows);
+        Assert.Equal(SiloStatus.Dead, otherRows[0].Value);
+
+        var edge = primary.Services.GetRequiredService<EdgeAuthority>();
+        RequestContext.Clear();
+        using (edge.EnterKernel(new BrainId(primary.Scope)))
+        {
+            Assert.Empty(await SiloNeurons.Get<IFriends>(primary.Services, FriendsDefaults.Id(primary.Scope)).List());
+        }
+    }
+
+    private static int ReserveClosedLoopbackPort()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 
     // A silo alone in its cluster starts with the guard in place: the single-silo shape is unchanged.
@@ -286,8 +336,24 @@ public sealed class TwoSiloClusterFacts
     {
         private readonly Lock _gate = new();
         private readonly Dictionary<SiloAddress, (MembershipEntry Entry, string ETag)> _rows = [];
+        private readonly HashSet<SiloAddress> _frozenHeartbeats = [];
         private readonly List<(SiloAddress Excluded, TaskCompletionSource<SiloAddress> Waiter)> _waiters = [];
         private int _version = 1;
+
+        public void FreezeHeartbeat(SiloAddress address, DateTime staleTimestamp)
+        {
+            lock (_gate)
+            {
+                _frozenHeartbeats.Add(address);
+                if (_rows.TryGetValue(address, out var current))
+                {
+                    var updated = Clone(current.Entry);
+                    updated.IAmAliveTime = staleTimestamp;
+                    updated.StartTime = staleTimestamp;
+                    _rows[address] = (updated, current.ETag);
+                }
+            }
+        }
 
         public void SeedRow(SiloAddress address, SiloStatus status, DateTime startTime, DateTime iAmAliveTime)
         {
@@ -420,7 +486,7 @@ public sealed class TwoSiloClusterFacts
         {
             lock (_gate)
             {
-                if (_rows.TryGetValue(entry.SiloAddress, out var current))
+                if (!_frozenHeartbeats.Contains(entry.SiloAddress) && _rows.TryGetValue(entry.SiloAddress, out var current))
                 {
                     var updated = Clone(current.Entry);
                     updated.IAmAliveTime = entry.IAmAliveTime;

@@ -13,6 +13,15 @@ public sealed class SingleSiloGuardFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static IOptions<ClusterMembershipOptions> FastConfirmOptions => Options.Create(new ClusterMembershipOptions
+    {
+        IAmAliveTablePublishTimeout = TimeSpan.FromMilliseconds(30),
+        NumMissedTableIAmAliveLimit = 2,
+    });
+
+    private static readonly Func<IPEndPoint, CancellationToken, Task<bool>> UnreachableProbe = static (_, _) => Task.FromResult(false);
+    private static readonly Func<IPEndPoint, CancellationToken, Task<bool>> ReachableProbe = static (_, _) => Task.FromResult(true);
+
     private static SiloAddress NewSilo(int port, int generation)
         => SiloAddress.New(IPAddress.Loopback, port, generation);
 
@@ -168,6 +177,36 @@ public sealed class SingleSiloGuardFacts
             }));
     }
 
+    [Fact]
+    public void ResolveHeartbeatConfirmDelay_UsesPublishTimeoutOrDefault10s()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(10), SingleSiloGuard.ResolveHeartbeatConfirmDelay(null));
+        Assert.Equal(
+            TimeSpan.FromSeconds(10),
+            SingleSiloGuard.ResolveHeartbeatConfirmDelay(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10),
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(30),
+            SingleSiloGuard.ResolveHeartbeatConfirmDelay(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(30),
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(10),
+            SingleSiloGuard.ResolveHeartbeatConfirmDelay(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.Zero,
+            }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(10),
+            SingleSiloGuard.ResolveHeartbeatConfirmDelay(new ClusterMembershipOptions
+            {
+                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(-2),
+            }));
+    }
+
     [Theory]
     [InlineData(SiloStatus.Active)]
     [InlineData(SiloStatus.Joining)]
@@ -177,13 +216,14 @@ public sealed class SingleSiloGuardFacts
     public async Task StaleZombiePeer_IsMarkedDeadWithETagAndAllowsStartup(SiloStatus peerStatus)
     {
         var self = NewSilo(11111, 2);
-        var zombie = NewSilo(11111, 1);
+        var zombie = NewSilo(11112, 1);
         var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
         var staleTime = now.UtcDateTime.AddSeconds(-61);
         var clock = new FixedTimeProvider(now);
         var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
         table.AddRow(zombie, peerStatus, staleTime);
         var membership = new TableBackedMembershipService(table);
+        IPEndPoint? probedEndpoint = null;
 
         var guard = new SingleSiloGuard(
             membership,
@@ -192,15 +232,19 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             table,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            Options.Create(new ClusterMembershipOptions
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = (ep, _) =>
             {
-                IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10),
-                NumMissedTableIAmAliveLimit = 2,
-            }),
-            clock);
+                probedEndpoint = ep;
+                return Task.FromResult(false);
+            },
+        };
 
         await RunCheckStageAsync(guard, Ct);
 
+        Assert.Equal(zombie.Endpoint, probedEndpoint);
         Assert.Equal(SiloStatus.Dead, table.StatusOf(zombie));
         Assert.Equal(SiloStatus.Joining, table.StatusOf(self));
         Assert.Equal(staleTime, table.EntryOf(zombie).IAmAliveTime);
@@ -211,14 +255,93 @@ public sealed class SingleSiloGuardFacts
     }
 
     [Fact]
+    public async Task StalePeerWithReachableTcpEndpoint_RefusesFailClosedWithoutMarkingDead()
+    {
+        var self = NewSilo(11111, 2);
+        var partitionedLivePeer = NewSilo(11112, 1);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        // Heartbeat is 5 minutes stale and non-advancing, but the peer's TCP silo port is still listening.
+        table.AddRow(partitionedLivePeer, SiloStatus.Active, now.UtcDateTime.AddMinutes(-5));
+        var membership = new TableBackedMembershipService(table);
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = ReachableProbe,
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+
+        Assert.Contains(partitionedLivePeer.ToString(), error.Message, StringComparison.Ordinal);
+        Assert.Equal(SiloStatus.Active, table.StatusOf(partitionedLivePeer));
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
+        Assert.Equal(1, table.UpdateCalls); // Only self cleanup, never touched peer.
+    }
+
+    [Fact]
+    public async Task StalePeerAdvancingHeartbeatDuringConfirmWait_RefusesFailClosedWithoutMarkingDead()
+    {
+        var self = NewSilo(11111, 2);
+        var skewedLivePeer = NewSilo(11112, 1);
+        var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        // Simulate clock skew: peer timestamp looks 5m stale, but advances by 10s during the IAmAliveTablePublishTimeout wait.
+        table.AddRow(skewedLivePeer, SiloStatus.Active, now.UtcDateTime.AddMinutes(-5));
+        var peerReads = 0;
+        table.OnAfterRead = address =>
+        {
+            if (address.Equals(skewedLivePeer) && ++peerReads == 1)
+            {
+                table.AddRow(skewedLivePeer, SiloStatus.Active, now.UtcDateTime.AddMinutes(-5).AddSeconds(10));
+            }
+        };
+        var membership = new TableBackedMembershipService(table);
+        var probeCalled = false;
+
+        var guard = new SingleSiloGuard(
+            membership,
+            new FakeLocalSiloDetails(self, "self"),
+            Options.Create(new ClusterOptions { ClusterId = "intochat-test" }),
+            NullLogger<SingleSiloGuard>.Instance,
+            table,
+            Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = (_, _) =>
+            {
+                probeCalled = true;
+                return Task.FromResult(false);
+            },
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+
+        Assert.False(probeCalled);
+        Assert.Equal(SiloStatus.Active, table.StatusOf(skewedLivePeer));
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
+        Assert.Equal(1, table.UpdateCalls); // Only self cleanup.
+    }
+
+    [Fact]
     public async Task StaleZombiePeerWithDefaultIAmAliveTime_FallsBackToStartTime()
     {
         var self = NewSilo(11111, 2);
-        var zombie = NewSilo(11111, 1);
+        var zombie = NewSilo(11112, 1);
         var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
         var clock = new FixedTimeProvider(now);
 
-        // Default IAmAliveTime + stale StartTime -> reaped and allowed to start.
+        // Default IAmAliveTime + stale StartTime + failed TCP probe -> reaped and allowed to start.
         var staleTable = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
         staleTable.AddRow(zombie, SiloStatus.Active, startTime: now.UtcDateTime.AddSeconds(-90), iAmAliveTime: default);
         var staleMembership = new TableBackedMembershipService(staleTable);
@@ -229,7 +352,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             staleTable,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         await RunCheckStageAsync(staleGuard, Ct);
         Assert.Equal(SiloStatus.Dead, staleTable.StatusOf(zombie));
@@ -246,7 +373,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             freshTable,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(freshGuard, Ct));
         Assert.Equal(SiloStatus.Active, freshTable.StatusOf(zombie));
@@ -263,7 +394,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             uninitializedTable,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(uninitializedGuard, Ct));
         Assert.Equal(SiloStatus.Active, uninitializedTable.StatusOf(zombie));
@@ -274,7 +409,7 @@ public sealed class SingleSiloGuardFacts
     public async Task StalePeerETagContention_RetriesWhenStillStale_AndAbortsIfPeerBecomesFresh()
     {
         var self = NewSilo(11111, 2);
-        var peer = NewSilo(11111, 1);
+        var peer = NewSilo(11112, 1);
         var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
         var clock = new FixedTimeProvider(now);
 
@@ -298,7 +433,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             retryTable,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         await RunCheckStageAsync(retryGuard, Ct);
         Assert.Equal(SiloStatus.Dead, retryTable.StatusOf(peer));
@@ -325,7 +464,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             revivedTable,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(revivedGuard, Ct));
         Assert.Equal(SiloStatus.Active, revivedTable.StatusOf(peer));
@@ -336,7 +479,7 @@ public sealed class SingleSiloGuardFacts
     public async Task PeerBecomesStaleDuringGracePeriod_IsReapedWithoutRefusal()
     {
         var self = NewSilo(11111, 2);
-        var peer = NewSilo(11111, 1);
+        var peer = NewSilo(11112, 1);
         var start = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
         var clock = new FixedTimeProvider(start);
         var table = new FakeMembershipTable(self, SiloStatus.Joining, start.UtcDateTime);
@@ -357,7 +500,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             table,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.FromSeconds(5), PollInterval = TimeSpan.FromMilliseconds(20) }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         await RunCheckStageAsync(guard, Ct);
 
@@ -370,8 +517,8 @@ public sealed class SingleSiloGuardFacts
     public async Task MixedStaleAndLivePeers_ReapsOnlyStalePeerAndStillRefusesForLivePeer()
     {
         var self = NewSilo(11111, 3);
-        var zombie = NewSilo(11111, 1);
-        var live = NewSilo(11111, 2);
+        var zombie = NewSilo(11112, 1);
+        var live = NewSilo(11113, 2);
         var now = new DateTimeOffset(2026, 11, 26, 20, 0, 0, TimeSpan.Zero);
         var clock = new FixedTimeProvider(now);
         var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
@@ -386,7 +533,11 @@ public sealed class SingleSiloGuardFacts
             NullLogger<SingleSiloGuard>.Instance,
             table,
             Options.Create(new SingleSiloGuardOptions { GracePeriod = TimeSpan.Zero }),
-            timeProvider: clock);
+            FastConfirmOptions,
+            clock)
+        {
+            PeerEndpointProbe = UnreachableProbe,
+        };
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
 
@@ -617,6 +768,8 @@ public sealed class SingleSiloGuardFacts
 
         public Action<SiloAddress>? OnBeforeUpdate { get; set; }
 
+        public Action<SiloAddress>? OnAfterRead { get; set; }
+
         public void AddRow(SiloAddress address, SiloStatus status, DateTime iAmAliveTime)
             => AddRow(address, status, startTime: iAmAliveTime, iAmAliveTime: iAmAliveTime);
 
@@ -663,12 +816,12 @@ public sealed class SingleSiloGuardFacts
             }
 
             var tableVersion = new TableVersion(_version, $"v-{_version}");
-            if (_rows.TryGetValue(key, out var row))
-            {
-                return Task.FromResult(new MembershipTableData(Tuple.Create(row.Entry, row.ETag), tableVersion));
-            }
+            var result = _rows.TryGetValue(key, out var row)
+                ? new MembershipTableData(Tuple.Create(row.Entry, row.ETag), tableVersion)
+                : new MembershipTableData(tableVersion);
 
-            return Task.FromResult(new MembershipTableData(tableVersion));
+            OnAfterRead?.Invoke(key);
+            return Task.FromResult(result);
         }
 
         public Task<MembershipTableData> ReadAll()
