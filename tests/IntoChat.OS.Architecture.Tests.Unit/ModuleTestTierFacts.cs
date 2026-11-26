@@ -91,7 +91,7 @@ public sealed partial class ModuleTestTierFacts
     public void TheScanSeesNeuronModulesAndProviders()
     {
         Assert.Contains("IntoChat.OS.Modules.AI", NeuronModules());
-        Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Storage");
+        Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Infrastructure");
     }
 
     // Module and component assemblies in this repository whose static ModuleManifest provides at least one capability.

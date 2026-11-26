@@ -16,7 +16,12 @@ public sealed class NamespaceSchemeFacts
     {
         var assembly = type.Assembly.GetName().Name ?? "";
         var ns = type.Namespace ?? "";
-        if (assembly.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && type.IsPublic && !ns.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+        if (assembly.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+            && type.IsPublic
+            && !ns.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+            && !(assembly == "IntoChat.OS.Modules.Plugins"
+                && (ns == "IntoChat.Muncly" || ns.StartsWith("IntoChat.Muncly.", StringComparison.Ordinal)
+                    || ns == "IntoChat.Treg" || ns.StartsWith("IntoChat.Treg.", StringComparison.Ordinal))))
         {
             return true;
         }

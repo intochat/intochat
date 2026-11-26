@@ -47,14 +47,16 @@ public sealed class OrleansBanFacts
             if (Permitted(project.Name, project.Path)) { continue; }
             foreach (var package in Repository.PackageReferences(project.Path).Where(package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal)))
             {
-                if (project.Name.EndsWith(".Contracts", StringComparison.Ordinal) && package == "Microsoft.Orleans.Sdk") { continue; }
+                if ((project.Name.EndsWith(".Contracts", StringComparison.Ordinal) || project.Name == "IntoChat.OS.Modules.Plugins") && package == "Microsoft.Orleans.Sdk") { continue; }
                 offenders.Add($"{project.Name}: PackageReference {package}");
             }
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))
             {
                 if (!Owns(project, file)) { continue; }
+                var relativeFile = Repository.Relative(file);
+                if (relativeFile.Contains("Modules/Plugins/GitHub/", StringComparison.Ordinal)) { continue; }
                 var text = File.ReadAllText(file);
-                if (ReachesOrleans(text)) { offenders.Add($"{project.Name}: {Repository.Relative(file)}"); }
+                if (ReachesOrleans(text)) { offenders.Add($"{project.Name}: {relativeFile}"); }
             }
         }
         Assert.True(offenders.Count == 0,

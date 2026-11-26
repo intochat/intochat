@@ -253,7 +253,7 @@ public sealed partial class FrameworkBoundaryFacts
         var consumerProjects = FilesUnder(productRoot, name => name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             .Where(project => ResolvedProjectReferences(project).Any(resolved => resolved.StartsWith(frameworkSourceRoot, PathComparison)))
             .ToArray();
-        Assert.True(consumerProjects.Length >= 20, "Expected at least 20 product projects referencing framework/" + SourceSegment + "/, found " + consumerProjects.Length);
+        Assert.True(consumerProjects.Length >= 15, "Expected at least 15 product projects referencing framework/" + SourceSegment + "/, found " + consumerProjects.Length);
     }
 
     [Fact]

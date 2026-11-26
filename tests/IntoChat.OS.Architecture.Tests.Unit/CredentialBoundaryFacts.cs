@@ -88,15 +88,20 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Modules.Identity",
             "IntoChat.OS.Modules.Identity.Contracts",
             "IntoChat.OS.Modules.AI",
-            "IntoChat.OS.Modules.Web",
         };
         var offenders = new HashSet<string>(StringComparer.Ordinal);
         foreach (var assembly in ProductionArchitecture.Assemblies)
         {
-            if (allowed.Contains(assembly.GetName().Name!)) { continue; }
+            var assemblyName = assembly.GetName().Name!;
+            if (allowed.Contains(assemblyName)) { continue; }
             foreach (var t in assembly.GetTypes())
             {
                 if (t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) == true) { continue; }
+                if (assemblyName == "IntoChat.OS.Modules.Plugins"
+                    && (t.Namespace == "IntoChat.OS.Modules.Web" || t.Namespace?.StartsWith("IntoChat.OS.Modules.Web.", StringComparison.Ordinal) == true))
+                {
+                    continue;
+                }
                 var typeHasKeyField = t.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
                     .Any(f => f.FieldType == keys);
                 foreach (var m in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

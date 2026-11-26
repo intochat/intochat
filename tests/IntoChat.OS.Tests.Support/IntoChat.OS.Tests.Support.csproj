@@ -21,11 +21,8 @@
     <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../../src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../../src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../../src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
-    <ProjectReference Include="../../src/Modules/Diagnostics/IntoChat.OS.Modules.Diagnostics.csproj" />
-    <ProjectReference Include="../../src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
-    <ProjectReference Include="../../src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../src/Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
+    <ProjectReference Include="../../src/Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
-    <ProjectReference Include="../../src/Modules/Web/IntoChat.OS.Modules.Web.csproj" />
   </ItemGroup>
 </Project>

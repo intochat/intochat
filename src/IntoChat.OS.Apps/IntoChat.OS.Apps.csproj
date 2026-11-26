@@ -24,15 +24,11 @@
     <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
+    <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
     <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
     <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" />
-    <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
-    <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
-    <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" />
   </ItemGroup>
   <!-- Shipped unit sources: synapse units the OS deploys through the synapse studio, never compiled into this assembly. -->
   <ItemGroup>

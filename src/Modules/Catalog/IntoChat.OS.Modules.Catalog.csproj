@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>IntoChat.OS.Modules.Apps</RootNamespace>
@@ -13,6 +13,7 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
   </ItemGroup>
@@ -21,10 +22,8 @@
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
-    <ProjectReference Include="../Storage/IntoChat.OS.Modules.Storage.csproj" />
-    <ProjectReference Include="../ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
-    <ProjectReference Include="../Playwright/IntoChat.OS.Modules.Playwright.csproj" />
+    <ProjectReference Include="../Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
+    <ProjectReference Include="../Plugins/IntoChat.OS.Modules.Plugins.csproj" />
     <ProjectReference Include="../AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />
   </ItemGroup>

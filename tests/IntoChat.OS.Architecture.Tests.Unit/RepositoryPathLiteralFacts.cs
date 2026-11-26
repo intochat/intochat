@@ -49,7 +49,7 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Tests.E2E/Aspire/BootFacts.cs",
         "IntoChat.OS.Tests.Unit/Components/Aspire/ProcessCandidateHostFacts.cs",
         "IntoChat.OS.Tests.Integration/Components/Aspire/ProcessCandidateHostProcessFacts.cs",
-        "IntoChat.OS.Tests.Unit/Modules/GitHub/LocalCheckoutRegistrationFacts.cs",
+        "IntoChat.OS.Tests.Unit/Modules/Plugins/GitHub/LocalCheckoutRegistrationFacts.cs",
     ];
 
     [Fact]

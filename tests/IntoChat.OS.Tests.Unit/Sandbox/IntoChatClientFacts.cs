@@ -81,7 +81,7 @@ public sealed class IntoChatClientFacts
             .Select(path => Path.GetFileNameWithoutExtension(path)!)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        Assert.Contains("IntoChat.OS.Modules.Windows", modules);
+        Assert.Contains("IntoChat.OS.Modules.Infrastructure", modules);
         Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Contracts"));
 
         var wrong = modules.Where(name => AppLoadContext.IsAssemblyAllowed(name) != ShouldAdmit(name))
@@ -94,7 +94,7 @@ public sealed class IntoChatClientFacts
     }
 
     // Component assemblies (IntoChat.<Name>) are refused, as the Aspire contracts were when they sat
-    // inside IntoChat.OS.Modules.Azure. Admitting a component's contracts is an owner decision per component (OWED.md).
+    // inside IntoChat.OS.Modules.Infrastructure. Admitting a component's contracts is an owner decision per component (OWED.md).
     [Fact]
     public void AppLoadContextRefusesComponentAssemblies()
     {
@@ -108,7 +108,7 @@ public sealed class IntoChatClientFacts
         {
             Assert.False(AppLoadContext.IsAssemblyAllowed(name), $"{name} is admitted to the sandbox");
         }
-        Assert.False(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Azure"));
+        Assert.False(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Infrastructure"));
     }
 
     // The activation hook hands a caller the live neuron of any app activated in its async flow; sandboxed code must not reach it.
@@ -144,12 +144,12 @@ public sealed class IntoChatClientFacts
                 "IntoChat.OS.Kernel",
                 "IntoChat.OS.Modules.Identity",
                 "IntoChat.OS.Modules.Identity.Contracts",
-                "IntoChat.OS.Modules.Windows",
-                "IntoChat.OS.Modules.Google",
+                "IntoChat.OS.Modules.Infrastructure",
+                "IntoChat.OS.Modules.Plugins",
                 "IntoChat.OS.Modules.Roslyn",
                 "IntoChat.OS.Modules.Catalog",
                 "IntoChat.OS.Modules.Contracts",
-                "IntoChat.OS.Modules.Windows.Contracts.Extra",
+                "IntoChat.OS.Modules.Infrastructure.Contracts.Extra",
                 "IntoChat.OS.AppHost",
                 "DigitalBrain.Runtime.Orleans",
                 "DigitalBrain.Identity",

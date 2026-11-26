@@ -207,7 +207,7 @@ public sealed partial class ModelPolicyFacts
         var aiDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\AI", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/AI", StringComparison.OrdinalIgnoreCase));
         var appsDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase));
         var catalogDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Catalog", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Catalog", StringComparison.OrdinalIgnoreCase));
-        var authoringDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Authoring", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Authoring", StringComparison.OrdinalIgnoreCase));
+        var authoringDir = Path.Combine(catalogDir, "Authoring");
         var contractsDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Contracts", StringComparison.OrdinalIgnoreCase));
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
         var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
