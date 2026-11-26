@@ -61,6 +61,8 @@ WORKDIR /src
 ARG GITHUB_ACTOR=intochat
 
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
+COPY deploy/ ./deploy/
+COPY scripts/ ./scripts/
 COPY src/ ./src/
 COPY framework/ ./framework/
 
