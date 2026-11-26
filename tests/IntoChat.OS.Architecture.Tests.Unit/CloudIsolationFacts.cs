@@ -54,7 +54,7 @@ public sealed class CloudIsolationFacts
     public void NoSourceOrProjectFileReferencesCloud()
     {
         var offenders = ScanFiles()
-            .Where(relative => File.ReadAllText(Path.Combine(Repository.Root, relative)).Contains(CloudToken, StringComparison.Ordinal))
+            .Where(relative => SyntaxCache.ReadText(Path.Combine(Repository.Root, relative)).Contains(CloudToken, StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .ToArray();
 

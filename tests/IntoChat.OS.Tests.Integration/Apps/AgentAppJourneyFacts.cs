@@ -53,7 +53,8 @@ public sealed class AgentAppTestToolSourceNeuron : Neuron, IAgentAppTestToolSour
     }
 }
 
-public sealed class AgentAppJourneyFacts(InoSiloFixture fixture) : IClassFixture<InoSiloFixture>
+[Collection(nameof(InoSiloCollection))]
+public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
 {
     private static readonly TimeSpan Within = TimeSpan.FromSeconds(15);
 

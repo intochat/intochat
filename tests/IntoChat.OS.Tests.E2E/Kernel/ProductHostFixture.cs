@@ -36,6 +36,9 @@ using IntoChat.OS.Modules.Identity;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
+[CollectionDefinition(nameof(ProductHostCollection))]
+public sealed class ProductHostCollection : ICollectionFixture<ProductHostFixture>;
+
 public sealed class ProductHostFixture : IAsyncLifetime
 {
     private readonly FakeStorage _storage = new("Workspace Disk");

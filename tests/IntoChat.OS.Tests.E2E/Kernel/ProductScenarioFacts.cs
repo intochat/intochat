@@ -22,8 +22,8 @@ namespace IntoChat.OS.Kernel.Tests.E2E;
 /// Tier 4: Real-World Application Scenarios — 5 comprehensive multi-step end-to-end scenarios
 /// verifying developer, autonomous agent, media studio, and security runtime workflows on a real in-process silo.
 /// </summary>
+[Collection(nameof(ProductHostCollection))]
 public sealed class ProductScenarioFacts(ProductHostFixture fixture)
-    : IClassFixture<ProductHostFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

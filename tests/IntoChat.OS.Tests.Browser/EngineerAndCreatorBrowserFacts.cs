@@ -17,9 +17,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     public async Task Creator_flame_camera_hud_minimap_shell_collapse_and_geometry_work_live_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -133,9 +131,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     public async Task Engineer_unified_3d_studio_switches_flow_and_full_height_github_diff_with_candidate_promotion()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
+        await using var context = await host.NewBrowserContextAsync(StudioViewportWidth, StudioViewportHeight, ct);
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -364,15 +360,18 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
 
     private static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)
     {
-        for (var i = 0; i < 300; i++)
+        try
         {
-            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
-            if (visible.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+            await page.WaitForFunctionAsync(
+                "expected => (document.querySelector('flt-semantics-host')?.innerText ?? '').toLowerCase().includes(expected.toLowerCase())",
+                expectedSubstring,
+                new PageWaitForFunctionOptions { Timeout = 45_000 }).WaitAsync(ct);
+            return;
         }
+        catch (TimeoutException)
+        {
+        }
+
         var finalText = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
         Assert.Contains(expectedSubstring, finalText, StringComparison.OrdinalIgnoreCase);
     }

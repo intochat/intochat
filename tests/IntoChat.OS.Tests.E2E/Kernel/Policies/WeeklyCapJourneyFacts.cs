@@ -14,8 +14,8 @@ using Orleans.Runtime;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Policies;
 
+[Collection(nameof(ProductHostCollection))]
 public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
-    : IClassFixture<ProductHostFixture>
 {
     private const string WeeklyThreeHundredRow =
         """{"action":"charges.charge","measure":"Sum","window":"Week","limit":300,"condition":null}""";

@@ -21,7 +21,8 @@ public sealed class IAppSurfaceFacts
 
         var called = Repository.SourceFiles(Repository.SourceRoot, "*.cs", path => !path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
                 && !Repository.Relative(path).Split('/').Any(part => part.Contains(".Tests", StringComparison.Ordinal) || part is "tests" or "Testing"))
-            .SelectMany(path => CalledOnIApp(File.ReadAllText(path)))
+            .Where(path => SyntaxCache.ReadText(path).Contains("IApp", StringComparison.Ordinal))
+            .SelectMany(path => CalledOnIApp(SyntaxCache.Get(path).Root))
             .ToHashSet(StringComparer.Ordinal);
         Assert.NotEmpty(called);
 
@@ -49,8 +50,10 @@ public sealed class IAppSurfaceFacts
     }
 
     private static HashSet<string> CalledOnIApp(string source)
+        => CalledOnIApp(CSharpSyntaxTree.ParseText(source).GetRoot());
+
+    private static HashSet<string> CalledOnIApp(SyntaxNode root)
     {
-        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var node in root.DescendantNodes())
         {

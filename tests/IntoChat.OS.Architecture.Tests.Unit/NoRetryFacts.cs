@@ -20,7 +20,7 @@ public sealed partial class NoRetryFacts
         {
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs", path => !path.EndsWith("NoRetryFacts.cs", StringComparison.Ordinal)))
             {
-                var text = File.ReadAllText(file);
+                var text = SyntaxCache.ReadText(file);
                 if (Retried().IsMatch(text)) { problems.Add(Repository.Relative(file)); }
             }
         }
@@ -36,7 +36,13 @@ public sealed partial class NoRetryFacts
         {
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs", path => !path.EndsWith("NoRetryFacts.cs", StringComparison.Ordinal)))
             {
-                foreach (var line in FindSilentOsReturnLines(File.ReadAllText(file)))
+                var text = SyntaxCache.ReadText(file);
+                if (!text.Contains("OperatingSystem.Is", StringComparison.Ordinal)
+                    && !text.Contains("RuntimeInformation.IsOSPlatform", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                foreach (var line in FindSilentOsReturnLines(SyntaxCache.Get(file).Root))
                 {
                     offenders.Add($"{Repository.ProjectKey(file)}:{line}");
                 }
@@ -47,9 +53,11 @@ public sealed partial class NoRetryFacts
     }
 
     internal static IReadOnlyList<int> FindSilentOsReturnLines(string source)
+        => FindSilentOsReturnLines(CSharpSyntaxTree.ParseText(source).GetRoot());
+
+    private static IReadOnlyList<int> FindSilentOsReturnLines(SyntaxNode root)
     {
         var lines = new List<int>();
-        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
         foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
         {
             var isTest = method.AttributeLists.SelectMany(list => list.Attributes)

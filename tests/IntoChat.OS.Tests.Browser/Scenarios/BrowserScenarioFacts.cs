@@ -52,9 +52,7 @@ public sealed class BrowserScenarioFacts(WebShellHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var scenario = Scenarios.Single(item => item.Name == name);
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1600, Height = 1000 } });
+        await using var context = await host.NewBrowserContextAsync(1600, 1000, ct);
         await context.Tracing.StartAsync(new() { Screenshots = true, Snapshots = true, Title = name });
         var page = await context.NewPageAsync();
         // Message types only, never bodies: a page log can carry user data.

@@ -11,7 +11,7 @@ public sealed class ConfirmationRouteFacts
 
     private static readonly HashSet<string> Skipped = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".git", "bin", "obj", "build", ".dart_tool", "node_modules", "TestResults", ".codegraph",
+        ".git", "bin", "obj", "artifacts", "build", ".dart_tool", "node_modules", "TestResults", ".codegraph",
     };
 
     [Fact]
@@ -19,9 +19,13 @@ public sealed class ConfirmationRouteFacts
     {
         var offenders = Files(Repository.Root)
             .Where(file => !file.EndsWith(nameof(ConfirmationRouteFacts) + ".cs", StringComparison.Ordinal))
-            .SelectMany(file => DeletedNames
-                .Where(name => File.ReadAllText(file).Contains(name, StringComparison.Ordinal))
-                .Select(name => $"{Path.GetRelativePath(Repository.Root, file)}: {name}"))
+            .SelectMany(file =>
+            {
+                var text = SyntaxCache.ReadText(file);
+                return DeletedNames
+                    .Where(name => text.Contains(name, StringComparison.Ordinal))
+                    .Select(name => $"{Path.GetRelativePath(Repository.Root, file)}: {name}");
+            })
             .Order(StringComparer.Ordinal)
             .ToArray();
 

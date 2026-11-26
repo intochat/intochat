@@ -33,9 +33,10 @@ internal static class SourceTypes
     internal static readonly Lazy<Dictionary<string, string>> Constants = new(() =>
     {
         var constants = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var path in Files())
+        foreach (var src in SyntaxCache.GetAll(Files()))
         {
-            foreach (var field in CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetRoot().DescendantNodes().OfType<FieldDeclarationSyntax>()
+            if (!src.Text.Contains("const ", StringComparison.Ordinal)) { continue; }
+            foreach (var field in src.Root.DescendantNodes().OfType<FieldDeclarationSyntax>()
                 .Where(field => field.Modifiers.Any(SyntaxKind.ConstKeyword)))
             {
                 var owner = field.Parent as BaseTypeDeclarationSyntax;
@@ -94,11 +95,11 @@ internal static class SourceTypes
     private static Declared[] Scan()
     {
         var byName = new Dictionary<string, Declared>(StringComparer.Ordinal);
-        foreach (var path in Files())
+        foreach (var src in SyntaxCache.GetAll(Files()))
         {
-            var key = Repository.ProjectKey(path);
+            var key = Repository.ProjectKey(src.FullPath);
             var project = key[..key.IndexOf('/', StringComparison.Ordinal)];
-            foreach (var node in CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetRoot().DescendantNodes().OfType<TypeDeclarationSyntax>()
+            foreach (var node in src.Root.DescendantNodes().OfType<TypeDeclarationSyntax>()
                 .Where(node => node is ClassDeclarationSyntax or InterfaceDeclarationSyntax or RecordDeclarationSyntax))
             {
                 var ns = string.Join('.', node.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().Reverse().Select(declaration => declaration.Name.ToString()));

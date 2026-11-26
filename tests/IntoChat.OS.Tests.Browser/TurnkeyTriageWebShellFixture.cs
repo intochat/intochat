@@ -32,6 +32,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Playwright;
 using Orleans.Hosting;
 using Orleans.Runtime;
 using Yarp.ReverseProxy.Transforms;
@@ -39,12 +40,15 @@ using ModuleConfiguration = DigitalBrain.Modules.Configuration.ModuleConfigurati
 
 namespace IntoChat.OS.Tests.Browser;
 
+[CollectionDefinition(nameof(TurnkeyTriageWebShellCollection))]
+public sealed class TurnkeyTriageWebShellCollection : ICollectionFixture<TurnkeyTriageWebShellFixture>;
+
 /// <summary>
 /// Shared in-process OS Kernel + released Flutter web bundle fixture with a deterministic local Octokit handler
 /// so 1440x900 Chromium browser journeys can verify live signed GitHub webhooks, Person-gated triage draft buttons
 /// (<c>tasks:approve-issue-draft:*</c> &amp; <c>tasks:escalate-issue:*</c>), and Octokit comment/label writes without external network calls.
 /// </summary>
-public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
+public sealed class TurnkeyTriageWebShellFixture(WarmBrowserFixture browser) : IAsyncLifetime
 {
     private static readonly string[] DisabledModules =
     [
@@ -68,10 +72,20 @@ public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
     private WebApplication? _origin;
     private string _kernelOrigin = string.Empty;
     private string _presence = string.Empty;
+    private int _brainCounter;
 
     public string Origin { get; private set; } = string.Empty;
 
     public string Scope { get; } = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
+
+    public string NewBrain(string prefix = "triage")
+        => $"{prefix}{Interlocked.Increment(ref _brainCounter)}";
+
+    public Task<IBrowserContext> NewBrowserContextAsync(BrowserNewContextOptions? options = null, CancellationToken ct = default)
+        => browser.NewContextAsync(options, ct);
+
+    public Task<IBrowserContext> NewBrowserContextAsync(int width, int height, CancellationToken ct = default)
+        => browser.NewContextAsync(width, height, ct);
 
     public IServiceProvider Services => (_kernelApp ?? throw new InvalidOperationException("Kernel host is not started.")).Services;
 

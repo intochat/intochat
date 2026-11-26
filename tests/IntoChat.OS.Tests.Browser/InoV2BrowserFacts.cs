@@ -137,15 +137,9 @@ public sealed class InoV2BrowserFacts(WebShellHost host)
         await useCase.ClickAsync(new() { Force = true }).WaitAsync(ct);
     }
 
-    private static async Task<BrowserHarness> OpenBrowserAsync(CancellationToken ct)
+    private async Task<BrowserHarness> OpenBrowserAsync(CancellationToken ct)
     {
-        var playwright = await Playwright.CreateAsync().WaitAsync(ct);
-        var browser = await playwright.Chromium
-            .LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable))
-            .WaitAsync(ct);
-        var context = await browser
-            .NewContextAsync(new() { ViewportSize = new() { Width = 1440, Height = 960 } })
-            .WaitAsync(ct);
+        var context = await host.NewBrowserContextAsync(1440, 960, ct);
         var page = await context.NewPageAsync().WaitAsync(ct);
 
         var httpErrors = new List<string>();
@@ -157,12 +151,10 @@ public sealed class InoV2BrowserFacts(WebShellHost host)
             }
         };
 
-        return new BrowserHarness(playwright, browser, context, page, httpErrors);
+        return new BrowserHarness(context, page, httpErrors);
     }
 
     private sealed class BrowserHarness(
-        IPlaywright playwright,
-        IBrowser browser,
         IBrowserContext context,
         IPage page,
         List<string> httpErrors) : IAsyncDisposable
@@ -173,8 +165,6 @@ public sealed class InoV2BrowserFacts(WebShellHost host)
         public async ValueTask DisposeAsync()
         {
             await context.CloseAsync().ConfigureAwait(false);
-            await browser.CloseAsync().ConfigureAwait(false);
-            playwright.Dispose();
         }
     }
 }

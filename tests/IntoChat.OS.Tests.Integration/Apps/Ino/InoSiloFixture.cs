@@ -176,6 +176,9 @@ internal sealed class ControllableLocalRuntime(IChatClient chatModel) : ILocalRu
     public IChatClient Chat(ModelId id) => chatModel;
 }
 
+[CollectionDefinition(nameof(InoSiloCollection))]
+public sealed class InoSiloCollection : ICollectionFixture<InoSiloFixture>;
+
 public sealed class InoSiloFixture : IAsyncLifetime
 {
     private readonly FakeStorage _storage = new("Workspace Disk");

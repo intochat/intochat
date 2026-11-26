@@ -1,13 +1,13 @@
 using System.Net;
 using System.Net.Sockets;
+using IntoChat.OS.Tests.Browser.Scenarios;
 using Microsoft.Extensions.Options;
-using PlaywrightSdk = Microsoft.Playwright;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser;
 
 // A deployment app page (loopback, declared in AppOrigins) loads directly and accepts Evaluate;
 // everything else keeps the public-only research browser rules.
-public sealed class AppPageFacts
+public sealed class AppPageFacts(WarmBrowserFixture sharedBrowser)
 {
     private const string Page = "<!doctype html><title>App</title><script>window.app = { answer: async (n) => ({ doubled: n * 2 }) };</script>";
 
@@ -16,7 +16,7 @@ public sealed class AppPageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var app = await AppServer.StartAsync(ct);
-        await using var browser = await DebuggableBrowser.LaunchAsync(ct);
+        await using var browser = await sharedBrowser.OpenDebuggablePageAsync(ct);
         await using var owner = new BrowserSessionOwner(Provider(app.Origin));
         await owner.Attach(new(browser.Port, browser.SessionId), ct);
 
@@ -29,7 +29,7 @@ public sealed class AppPageFacts
     public async Task EvaluateIsRefusedOffTheAppOrigins()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var browser = await DebuggableBrowser.LaunchAsync(ct);
+        await using var browser = await sharedBrowser.OpenDebuggablePageAsync(ct);
         await using var owner = new BrowserSessionOwner(Provider("http://127.0.0.1:1"));
         await owner.Attach(new(browser.Port, browser.SessionId), ct);
 
@@ -41,7 +41,7 @@ public sealed class AppPageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var app = await AppServer.StartAsync(ct);
-        await using var browser = await DebuggableBrowser.LaunchAsync(ct);
+        await using var browser = await sharedBrowser.OpenDebuggablePageAsync(ct);
         await using var owner = new BrowserSessionOwner(Provider("http://127.0.0.1:1"));
         await owner.Attach(new(browser.Port, browser.SessionId), ct);
 
@@ -99,28 +99,6 @@ public sealed class AppPageFacts
             _listener.Close();
             await _serving;
             _stop.Dispose();
-        }
-    }
-
-    private sealed class DebuggableBrowser(PlaywrightSdk.IPlaywright driver, PlaywrightSdk.IBrowser browser, int port, string sessionId) : IAsyncDisposable
-    {
-        public int Port => port;
-        public string SessionId => sessionId;
-
-        public static async Task<DebuggableBrowser> LaunchAsync(CancellationToken ct)
-        {
-            var (port, sessionId) = (FreePort(), Guid.NewGuid().ToString("N"));
-            var driver = await PlaywrightSdk.Playwright.CreateAsync().WaitAsync(ct);
-            var browser = await driver.Chromium.LaunchAsync(new() { Args = [$"--remote-debugging-port={port}"] }).WaitAsync(ct);
-            var page = await browser.NewPageAsync().WaitAsync(ct);
-            await page.GotoAsync($"about:blank#intochat-os-{sessionId}").WaitAsync(ct);
-            return new(driver, browser, port, sessionId);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await browser.DisposeAsync();
-            driver.Dispose();
         }
     }
 }

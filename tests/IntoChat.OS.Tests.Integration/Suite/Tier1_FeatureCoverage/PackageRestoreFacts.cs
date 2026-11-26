@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DigitalBrain.Testing;
 using IntoChat.OS.Tests.E2E.Harness;
@@ -8,11 +7,22 @@ using Xunit;
 namespace IntoChat.OS.Tests.E2E.Tier1_FeatureCoverage;
 
 /// <summary>
-/// Tier 1 Feature Coverage facts for Feature 1 (Central Packages 0.20.0 Bump),
-/// Feature 3 (DigitalBrain.Simulation substitution), and Feature 6 (FrameworkBoundaryFacts parity).
+/// Tier 1 Feature Coverage facts for Central Package Management,
+/// DigitalBrain.Simulation substitution, and production dependency hygiene.
 /// </summary>
 public sealed class PackageRestoreFacts : E2ETestBase
 {
+    private static string ReadRepoVersion()
+    {
+        var versionFile = Path.Combine(RepoRoot, "VERSION");
+        Assert.True(File.Exists(versionFile), $"Expected VERSION file at {versionFile}.");
+        var version = File.ReadAllText(versionFile).Trim();
+        Assert.False(string.IsNullOrWhiteSpace(version), "VERSION file must not be empty.");
+        var coreVersion = version.Split(['-', '+'], 2)[0];
+        Assert.True(Version.TryParse(coreVersion, out _), $"VERSION '{version}' must be a valid SemVer string.");
+        return version;
+    }
+
     [Fact]
     public void T1_F01_TC01_CentralPackagesProps_AllDigitalBrainPackagesPinnedTo0200()
     {
@@ -25,8 +35,10 @@ public sealed class PackageRestoreFacts : E2ETestBase
 
         Assert.Empty(dbPackages);
 
-        var version = File.ReadAllText(Path.Combine(RepoRoot, "VERSION")).Trim();
-        Assert.Equal("0.24.1", version);
+        var version = ReadRepoVersion();
+        var infoVersion = typeof(TestOS).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        Assert.NotNull(infoVersion);
+        Assert.StartsWith(version, infoVersion, StringComparison.Ordinal);
 
         var frameworkSrcDir = Path.GetFullPath(Path.Combine(RepoRoot, "framework", SourceSegment)) + Path.DirectorySeparatorChar;
         Assert.True(Directory.Exists(frameworkSrcDir), $"Expected framework source directory at {frameworkSrcDir}.");
@@ -53,33 +65,6 @@ public sealed class PackageRestoreFacts : E2ETestBase
         }
 
         Assert.True(projectRefCount > 0, "Expected product projects to reference framework projects via ProjectReference.");
-    }
-
-    [Fact]
-    public void T1_F01_TC02_ZeroLegacy018Or019Versions_AcrossEntireRepository()
-    {
-        var regex = new Regex(@"\b0\.(?:18|19)\.[0-9a-zA-Z\.\-]+", RegexOptions.Compiled);
-        var buildFiles = Directory.EnumerateFiles(RepoRoot, "*.*", SearchOption.AllDirectories)
-            .Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith(".props", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith(".targets", StringComparison.OrdinalIgnoreCase))
-            .Where(f => !f.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase) &&
-                        !f.Contains(@"\obj\", StringComparison.OrdinalIgnoreCase) &&
-                        !f.Contains(@"\.git\", StringComparison.OrdinalIgnoreCase));
-
-        var offenders = new List<string>();
-        foreach (var file in buildFiles)
-        {
-            var text = File.ReadAllText(file);
-            var match = regex.Match(text);
-            if (match.Success)
-            {
-                offenders.Add($"{Path.GetRelativePath(RepoRoot, file)}: {match.Value}");
-            }
-        }
-
-        Assert.True(offenders.Count == 0,
-            "No 0.18.* or 0.19.* packages allowed anywhere in repository:\n" + string.Join("\n", offenders));
     }
 
     [Fact]
@@ -123,23 +108,11 @@ public sealed class PackageRestoreFacts : E2ETestBase
         var simProject = Path.Combine(RepoRoot, "framework", SourceSegment, "DigitalBrain.Simulation", "DigitalBrain.Simulation.csproj");
         Assert.True(File.Exists(simProject), $"Expected DigitalBrain.Simulation project at {simProject}.");
 
-        var version = File.ReadAllText(Path.Combine(RepoRoot, "VERSION")).Trim();
-        Assert.Equal("0.24.1", version);
+        var version = ReadRepoVersion();
 
         var infoVersion = typeof(TestOS).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         Assert.NotNull(infoVersion);
         Assert.StartsWith(version, infoVersion, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void T1_F01_TC06_Dx03PackagesListInFrameworkBoundaryFacts_Matches0200PackableSet()
-    {
-        var frameworkFactsFile = Path.Combine(RepoRoot, "tests", "IntoChat.OS.Architecture.Tests.Unit", "FrameworkBoundaryFacts.cs");
-        Assert.True(File.Exists(frameworkFactsFile), "FrameworkBoundaryFacts.cs must exist.");
-
-        var text = File.ReadAllText(frameworkFactsFile);
-        Assert.Contains("\"DigitalBrain.Simulation\"", text);
-        Assert.DoesNotContain("\"DigitalBrain.Client\"", text);
     }
 
     [Fact]

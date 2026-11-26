@@ -91,21 +91,36 @@ internal static class Repository
         => Projects.Values.Where(project => projects is null || projects(project))
             .SelectMany(project => SourceFiles(project.Directory, pattern, predicate).Where(path => Owns(project, path)));
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Directory, string Pattern), string[]> SourceFilesCache = new();
+    private static readonly Project[] ProjectsByDescendingDirectoryLength = Projects.Values
+        .OrderByDescending(project => project.Directory.Length)
+        .ToArray();
+
     private static bool Owns(Project project, string path)
     {
         var full = System.IO.Path.GetFullPath(path);
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var owner = Projects.Values
-            .Where(candidate => full.StartsWith(candidate.Directory + System.IO.Path.DirectorySeparatorChar, comparison))
-            .MaxBy(candidate => candidate.Directory.Length);
-        return owner?.Name == project.Name;
+        foreach (var candidate in ProjectsByDescendingDirectoryLength)
+        {
+            if (full.StartsWith(candidate.Directory + System.IO.Path.DirectorySeparatorChar, comparison))
+            {
+                return candidate.Name == project.Name;
+            }
+        }
+        return false;
     }
 
     internal static IEnumerable<string> SourceFiles(string directory, string pattern, Func<string, bool>? predicate = null)
-        => (Directory.Exists(directory) ? Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories) : [])
-            // Relative to the root: a worktree checkout itself lives under .claude/worktrees, and only nested ones are skipped.
-            .Where(path => !System.IO.Path.GetRelativePath(Root, path).Split(System.IO.Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin" or ".claude"))
-            .Where(path => predicate is null || predicate(path));
+    {
+        var normalizedDir = System.IO.Path.GetFullPath(directory);
+        var key = (OperatingSystem.IsWindows() ? normalizedDir.ToLowerInvariant() : normalizedDir, pattern);
+        var files = SourceFilesCache.GetOrAdd(key, _ =>
+            (Directory.Exists(normalizedDir) ? Directory.EnumerateFiles(normalizedDir, pattern, SearchOption.AllDirectories) : [])
+                // Relative to the root: a worktree checkout itself lives under .claude/worktrees, and only nested ones are skipped.
+                .Where(path => !System.IO.Path.GetRelativePath(Root, path).Split(System.IO.Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin" or ".claude"))
+                .ToArray());
+        return predicate is null ? files : files.Where(predicate);
+    }
 
     internal static IEnumerable<Project> TestProjects()
         => Projects.Values.Where(project => project.Name.EndsWith(".Tests", StringComparison.Ordinal) || project.Name.Contains(".Tests.", StringComparison.Ordinal));
@@ -129,10 +144,20 @@ internal static class Repository
     internal static string ProjectKey(string path)
     {
         var full = System.IO.Path.GetFullPath(path);
-        var owner = Projects.Values
-            .Where(project => full.StartsWith(project.Directory + System.IO.Path.DirectorySeparatorChar, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-            .MaxBy(project => project.Directory.Length)
-            ?? throw new InvalidOperationException($"{Relative(path)} belongs to no project in {SolutionFile}.");
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        Project? owner = null;
+        foreach (var project in ProjectsByDescendingDirectoryLength)
+        {
+            if (full.StartsWith(project.Directory + System.IO.Path.DirectorySeparatorChar, comparison))
+            {
+                owner = project;
+                break;
+            }
+        }
+        if (owner is null)
+        {
+            throw new InvalidOperationException($"{Relative(path)} belongs to no project in {SolutionFile}.");
+        }
         return owner.Name + "/" + System.IO.Path.GetRelativePath(owner.Directory, full).Replace('\\', '/');
     }
 
