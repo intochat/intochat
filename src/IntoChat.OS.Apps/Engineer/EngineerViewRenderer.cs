@@ -72,6 +72,7 @@ internal static class EngineerViewRenderer
                 return (Node)btn
                     .Key(EngineerApp.CandidateSelectKey(c.InstanceIndex))
                     .Small()
+                    .Style(OsMixStyles.FilterPill(isSelected))
                     .Guard(state.ValidCandidateSelection(c.InstanceIndex))
                     .Sends(new EngineerSelectCandidate(c.InstanceIndex));
             })
@@ -87,11 +88,13 @@ internal static class EngineerViewRenderer
             {
                 Small = true,
                 Icon = "activity",
+                Style = OsMixStyles.LinkAction(),
             },
             new Button("engineer:open-orleans", "Orleans ↗", Intent: AppSignals.OpenApp("orleans", "EngineerFlow"))
             {
                 Small = true,
                 Icon = "cpu",
+                Style = OsMixStyles.LinkAction(),
             },
             GhostButton("New Run", Icons.Plus)
                 .Key("engineer:new-run")
@@ -100,6 +103,7 @@ internal static class EngineerViewRenderer
             PrimaryButton("Ratify Plan", Icons.Check)
                 .Key("engineer:approve-plan")
                 .Small()
+                .Style(s => s.Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
                 .Guard(state.PlanReadyToApprove())
                 .Sends(new EngineerApprovePlan()),
             Button("Run Verify", "play")
@@ -110,6 +114,7 @@ internal static class EngineerViewRenderer
             PrimaryButton("Ship PR", "git-pull-request")
                 .Key("engineer:approve-pr")
                 .Small()
+                .Style(s => s.Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
                 .Guard(state.ReadyForPrApproval())
                 .Sends(new EngineerApprovePr()),
         ];
@@ -150,22 +155,27 @@ internal static class EngineerViewRenderer
                 (state.InstanceCount == 1 ? PrimaryButton("1x") : GhostButton("1x"))
                     .Key("engineer:instances:1")
                     .Small()
+                    .Style(OsMixStyles.FilterPill(state.InstanceCount == 1))
                     .Sends(new EngineerSetInstances(1, state.BackendMode)),
                 (state.InstanceCount == 2 ? PrimaryButton("2x") : GhostButton("2x"))
                     .Key("engineer:instances:2")
                     .Small()
+                    .Style(OsMixStyles.FilterPill(state.InstanceCount == 2))
                     .Sends(new EngineerSetInstances(2, state.BackendMode)),
                 (state.InstanceCount == 3 ? PrimaryButton("3x") : GhostButton("3x"))
                     .Key("engineer:instances:3")
                     .Small()
+                    .Style(OsMixStyles.FilterPill(state.InstanceCount == 3))
                     .Sends(new EngineerSetInstances(3, state.BackendMode)),
                 (state.BackendMode == "LocalGit" ? PrimaryButton("Local") : GhostButton("Local"))
                     .Key("engineer:backend:local")
                     .Small()
+                    .Style(OsMixStyles.FilterPill(state.BackendMode == "LocalGit"))
                     .Sends(new EngineerSetInstances(state.InstanceCount, "LocalGit")),
                 (state.BackendMode == "ContainerVolume" ? PrimaryButton("Cloud") : GhostButton("Cloud"))
                     .Key("engineer:backend:volume")
                     .Small()
+                    .Style(OsMixStyles.FilterPill(state.BackendMode == "ContainerVolume"))
                     .Sends(new EngineerSetInstances(state.InstanceCount, "ContainerVolume"))
             ],
             children?.Tree(EngineerApp.WorktreesKey, WorktreesOf(state)),
@@ -418,6 +428,7 @@ internal static class EngineerViewRenderer
                 PrimaryButton("Approve & Open Draft PR", "git-pull-request")
                     .Key("engineer:pr:approve")
                     .Small()
+                    .Style(s => s.Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
                     .Guard(state.ReadyForPrApproval())
                     .Sends(new EngineerApprovePr()),
                 DangerButton("Clean Worktrees", "trash")
@@ -431,6 +442,7 @@ internal static class EngineerViewRenderer
                 {
                     Small = true,
                     Icon = "settings",
+                    Style = OsMixStyles.LinkAction(),
                 },
                 new Button(
                     "engineer:ask-ino",
@@ -444,6 +456,14 @@ internal static class EngineerViewRenderer
                 {
                     Small = true,
                     Icon = Icons.Sparkles,
+                    Style = Mix.Style()
+                        .Tone(UiTone.AccentTint)
+                        .Typography(UiTypography.Label)
+                        .Padding(x: 10, y: 5)
+                        .Radius(999)
+                        .Motion(UiMotion.Snappy)
+                        .OnHover(s => s.Tone(UiTone.Accent))
+                        .OnPress(s => s.Scale(0.97)),
                 }
             ],
             .. livePrNodes,

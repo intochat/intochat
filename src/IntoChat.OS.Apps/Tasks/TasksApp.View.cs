@@ -196,18 +196,22 @@ public sealed partial class TasksApp
             (isAllFilter ? PrimaryButton("All") : GhostButton("All"))
                 .Key("tasks:filter:all")
                 .Small()
+                .Style(OsMixStyles.FilterPill(isAllFilter))
                 .Sends(new TasksFilter()),
             (isRunningFilter ? PrimaryButton("Active") : GhostButton("Active"))
                 .Key("tasks:filter:running")
                 .Small()
+                .Style(OsMixStyles.FilterPill(isRunningFilter))
                 .Sends(new TasksToggleStatusFilter("Running")),
             (isWaitingFilter ? PrimaryButton("Review") : GhostButton("Review"))
                 .Key("tasks:filter:waiting")
                 .Small()
+                .Style(OsMixStyles.FilterPill(isWaitingFilter))
                 .Sends(new TasksToggleStatusFilter("Waiting")),
             (isInoOwner ? PrimaryButton("Owner: ino") : GhostButton("Owner: ino"))
                 .Key("tasks:filter:ino")
                 .Small()
+                .Style(OsMixStyles.FilterPill(isInoOwner))
                 .Sends(new TasksToggleOwnerFilter("ino")),
             pendingGates > 0
                 ? StatusPill(StatusKind.NeedsYou, string.Create(CultureInfo.InvariantCulture, $"{pendingGates} Gate(s)"))
@@ -216,6 +220,7 @@ public sealed partial class TasksApp
             PrimaryButton("New Task", Icons.Plus)
                 .Key("tasks:add")
                 .Small()
+                .Style(s => s.Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
                 .Guard(state.BoardHasCapacity())
                 .Sends(new TasksAddTask()),
             new Button("tasks:open-engineer", "Engineer ↗", Intent: AppSignals.OpenApp("engineer", state.SelectedFlowId))
@@ -223,12 +228,14 @@ public sealed partial class TasksApp
                 Small = true,
                 Icon = Icons.Sparkles,
                 AutomationName = "Open Engineer",
+                Style = OsMixStyles.LinkAction(),
             },
             new Button("tasks:open-creator", "Creator ↗", Intent: AppSignals.OpenApp("creator", state.SelectedFlowId))
             {
                 Small = true,
                 Icon = "git-branch",
                 AutomationName = "Open Creator",
+                Style = OsMixStyles.LinkAction(),
             },
         ];
 
@@ -365,6 +372,7 @@ public sealed partial class TasksApp
                 new Button("inspector:open-trace", "Open trace", Intent: OpenTrace(matchingFlow.TraceId))
                 {
                     Small = true,
+                    Style = OsMixStyles.LinkAction(),
                     Icon = "activity",
                     AutomationName = "Open trace",
                 },
@@ -514,7 +522,7 @@ public sealed partial class TasksApp
                     Intent: studioIntent)
                 {
                     Small = true,
-                    Style = "ghost",
+                    Style = OsMixStyles.LinkAction(),
                     Icon = "external-link",
                     AutomationName = "Open in Engineer Studio",
                 }
@@ -531,7 +539,7 @@ public sealed partial class TasksApp
                 Intent: BuildEngineerIssueIntent(link.Repository, link.IssueNumber, link.FlowId))
             {
                 Small = true,
-                Style = "ghost",
+                Style = OsMixStyles.LinkAction(),
                 Icon = "external-link",
                 AutomationName = "Open in Engineer Studio",
             }
@@ -591,7 +599,8 @@ public sealed partial class TasksApp
                     CapabilityLabel: visual.Label));
             }
 
-            sections.Add(Surface(SurfaceKind.Elevated, "Pending Confirmations", string.Create(CultureInfo.InvariantCulture, $"{gateCards.Count} item(s)"))[
+            sections.Add(Surface(SurfaceKind.Elevated, "Pending Confirmations", string.Create(CultureInfo.InvariantCulture, $"{gateCards.Count} item(s)"))
+                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
                 VStack(Space.Sm, [.. gateCards])
             ]);
         }
@@ -609,7 +618,8 @@ public sealed partial class TasksApp
             sections.Add(Surface(
                 SurfaceKind.Elevated,
                 "Pending GitHub Issue Triage Drafts",
-                string.Create(CultureInfo.InvariantCulture, $"{issueDrafts.Length} draft(s)"))[
+                string.Create(CultureInfo.InvariantCulture, $"{issueDrafts.Length} draft(s)"))
+                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
                 VStack(Space.Sm, [.. draftNodes])
             ]);
         }
@@ -639,7 +649,7 @@ public sealed partial class TasksApp
 
                 List<Node?> flowActions =
                 [
-                    new Button("open-trace-details", "Open trace", Intent: OpenTrace(matchingFlow.TraceId)) { Small = true, Icon = "activity", AutomationName = "Open trace" },
+                    new Button("open-trace-details", "Open trace", Intent: OpenTrace(matchingFlow.TraceId)) { Small = true, Style = OsMixStyles.LinkAction(), Icon = "activity", AutomationName = "Open trace" },
                 ];
 
                 if (matchingFlow.Type == BuildInner.Flow)
@@ -659,10 +669,11 @@ public sealed partial class TasksApp
 
             if (state.Source is { Length: > 0 } src)
             {
-                detailNodes.Add(Card("Deployed / Staged Unit Source", src));
+                detailNodes.Add(Card("Deployed / Staged Unit Source", src).Style(OsMixStyles.Card()));
             }
 
-            sections.Add(Surface(SurfaceKind.Elevated, $"Task Details · {selected.Title}", $"ID: {selected.Id}")[
+            sections.Add(Surface(SurfaceKind.Elevated, $"Task Details · {selected.Title}", $"ID: {selected.Id}")
+                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
                 VStack(Space.Sm, [.. detailNodes])
             ]);
         }
@@ -703,7 +714,8 @@ public sealed partial class TasksApp
         var bars = TasksWorkspaceState.Bars(flows, now);
         if (bars.Length == 0)
         {
-            return Surface(SurfaceKind.Subtle, "Dependency & Flow Timeline", "No live brain flows with timeline spans yet")[
+            return Surface(SurfaceKind.Subtle, "Dependency & Flow Timeline", "No live brain flows with timeline spans yet")
+                .Style(OsMixStyles.Surface(SurfaceKind.Subtle))[
                 MutedText(approvals.Length == 0
                     ? "Start a plan or build flow to inspect its projected timeline and dependency lags."
                     : string.Create(CultureInfo.InvariantCulture, $"{approvals.Length} pending approval(s) in the brain inbox."))
@@ -734,7 +746,8 @@ public sealed partial class TasksApp
             }
         }
 
-        return Surface(SurfaceKind.Elevated, "Flow Dependency Timeline", string.Create(CultureInfo.InvariantCulture, $"{bars.Length} projected span(s)"))[
+        return Surface(SurfaceKind.Elevated, "Flow Dependency Timeline", string.Create(CultureInfo.InvariantCulture, $"{bars.Length} projected span(s)"))
+            .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Sm, [.. charts])
         ];
     }
@@ -783,7 +796,7 @@ public sealed partial class TasksApp
 
         List<Node?> actions =
         [
-            new Button("open-trace", "Open trace", Intent: OpenTrace(flow.TraceId)) { Small = true, Icon = "activity", AutomationName = "Open trace" },
+            new Button("open-trace", "Open trace", Intent: OpenTrace(flow.TraceId)) { Small = true, Style = OsMixStyles.LinkAction(), Icon = "activity", AutomationName = "Open trace" },
         ];
 
         if (flow.Status is not (FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled))

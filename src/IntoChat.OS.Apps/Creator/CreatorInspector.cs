@@ -86,7 +86,12 @@ public static class CreatorInspector
                             .Key("preview-unit-live")
                             .Small()
                             .Sends(new CreatorSelect("mode:live")),
-                        new Button("open-unit-window", $"Open {alias}", Intent: AppSignals.OpenApp(alias)) { Small = true, Icon = "external-link" },
+                        new Button("open-unit-window", $"Open {alias}", Intent: AppSignals.OpenApp(alias))
+                        {
+                            Small = true,
+                            Icon = "external-link",
+                            Style = OsMixStyles.LinkAction(),
+                        },
                         Button("Share as App-Post", "share-2")
                             .Key("share-unit")
                             .Small()
@@ -101,6 +106,7 @@ public static class CreatorInspector
                     {
                         Small = true,
                         Icon = "tasks",
+                        Style = OsMixStyles.LinkAction(),
                     };
                 }
             }
@@ -119,7 +125,12 @@ public static class CreatorInspector
                             .Key("preview-compiled-app")
                             .Small()
                             .Sends(new CreatorSelect("mode:live")),
-                        new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app)) { Small = true, Icon = "external-link" }
+                        new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app))
+                        {
+                            Small = true,
+                            Icon = "external-link",
+                            Style = OsMixStyles.LinkAction(),
+                        }
                     ];
                 }
             }
@@ -166,12 +177,14 @@ public static class CreatorInspector
         if (orderedFiles.Length > 1)
         {
             yield return HStack(Space.Xs, [.. orderedFiles.Select(file =>
-                (Node)(string.Equals(file, selectedFile, StringComparison.Ordinal)
-                    ? PrimaryButton(file)
-                    : GhostButton(file))
+            {
+                var isSelected = string.Equals(file, selectedFile, StringComparison.Ordinal);
+                return (Node)(isSelected ? PrimaryButton(file) : GhostButton(file))
                     .Key($"source-file:{file}")
                     .Small()
-                    .Sends(new CreatorSelect($"file:{file}")))]);
+                    .Style(OsMixStyles.FilterPill(isSelected))
+                    .Sends(new CreatorSelect($"file:{file}"));
+            })]);
         }
 
         if (selectedFile is not null && inspection.FileText(selectedFile) is { } content)
@@ -233,6 +246,7 @@ public static class CreatorInspector
             {
                 Small = true,
                 Icon = "tasks",
+                Style = OsMixStyles.LinkAction(),
             };
         }
     }

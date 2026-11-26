@@ -56,6 +56,14 @@ public static class GithubIssueTriagerUnit
             new Badge($"{state.OpenCount} open", Tone: "neutral"),
             new Badge($"{state.P0Count} P0 / crash", Tone: state.P0Count > 0 ? "error" : "accent"),
         ]) { Gap = 8 },
-        new Button("reset-alerts", "Acknowledge P0", new Command(".", "triage.reset")),
+        new Button("reset-alerts", "Acknowledge P0", new Command(".", "triage.reset"))
+        {
+            Style = Mix.Style()
+                .Tone(state.P0Count > 0 ? UiTone.Danger : UiTone.Secondary)
+                .Padding(14, 8)
+                .Radius(10)
+                .Motion(UiMotion.Snappy)
+                .OnPress(static s => s.Scale(0.98)),
+        },
     ]) { Gap = 8 });
 }

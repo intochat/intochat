@@ -56,6 +56,14 @@ public static class XWatchUnit
         new Heading("Musk X Watch", Subtitle: watch.Latest.Length == 0 ? "No mentions recorded yet." : watch.Latest),
         new Badge($"{watch.Unseen} unseen", Tone: watch.Unseen > 10 ? "red" : watch.Unseen > 0 ? "accent" : "neutral"),
         new Text(watch.Latest),
-        new Button("mark-seen", "Mark seen", new Command(".", "x.seen")),
+        new Button("mark-seen", "Mark seen", new Command(".", "x.seen"))
+        {
+            Style = Mix.Style()
+                .Tone(watch.Unseen > 0 ? UiTone.Accent : UiTone.Secondary)
+                .Padding(14, 8)
+                .Radius(10)
+                .Motion(UiMotion.Snappy)
+                .OnPress(static s => s.Scale(0.98)),
+        },
     ]) { Gap = 8 });
 }

@@ -50,7 +50,15 @@ public static class WorkNotesOrganizerUnit
     [
         new Heading("Workspace Markdown Organizer", Subtitle: string.IsNullOrEmpty(state.LatestNote) ? "No notes indexed yet." : $"Latest: {state.LatestNote}"),
         new Badge($"{state.NoteCount} markdown note(s)", Tone: state.NoteCount > 0 ? "accent" : "neutral"),
-        new Button("reset-notes", "Reset Index", new Command(".", "notes.reset")),
+        new Button("reset-notes", "Reset Index", new Command(".", "notes.reset"))
+        {
+            Style = Mix.Style()
+                .Tone(UiTone.Secondary)
+                .Padding(14, 8)
+                .Radius(10)
+                .Motion(UiMotion.Snappy)
+                .OnPress(static s => s.Scale(0.98)),
+        },
     ]) { Gap = 8 });
 
     private static string? Read(JsonElement payload, string name)

@@ -59,6 +59,14 @@ public static class WebWatchUnit
     [
         new Heading("Web watch", Subtitle: watch.Latest.Length == 0 ? "No items polled yet." : watch.Latest),
         new Badge($"{watch.Unseen} unseen", Tone: watch.Unseen > 10 ? "error" : "accent"),
-        new Button("mark-seen", "Mark seen", new Command(".", "watch.seen")),
+        new Button("mark-seen", "Mark seen", new Command(".", "watch.seen"))
+        {
+            Style = Mix.Style()
+                .Tone(watch.Unseen > 0 ? UiTone.Accent : UiTone.Secondary)
+                .Padding(14, 8)
+                .Radius(10)
+                .Motion(UiMotion.Snappy)
+                .OnPress(static s => s.Scale(0.98)),
+        },
     ]) { Gap = 12 });
 }

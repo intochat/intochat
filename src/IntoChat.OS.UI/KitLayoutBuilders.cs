@@ -94,6 +94,7 @@ public sealed class CardBuilder : KitNode
     private IReadOnlyList<Node> _children;
     private Node? _header;
     private Node? _footer;
+    private UiStyle? _style;
 
     internal CardBuilder(string title, string body, IReadOnlyList<Node?> children)
     {
@@ -125,7 +126,31 @@ public sealed class CardBuilder : KitNode
         return this;
     }
 
-    public override Node ToNode() => new Card(_title, _body, _children, _header, _footer);
+    /// <summary>Applies an explicit <see cref="Mix.Style()"/> token block to this card.</summary>
+    public CardBuilder Style(UiStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _style = style;
+        return this;
+    }
+
+    /// <summary>Applies an explicit <see cref="UiStyleBuilder"/> to this card.</summary>
+    public CardBuilder Style(UiStyleBuilder style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _style = style.Build();
+        return this;
+    }
+
+    /// <summary>Refines this card's default <see cref="Mix.Style()"/> preset fluently.</summary>
+    public CardBuilder Style(Func<UiStyleBuilder, UiStyleBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _style = configure(OsMixStyles.Card()).Build();
+        return this;
+    }
+
+    public override Node ToNode() => new Card(_title, _body, _children, _header, _footer) { Style = _style };
 }
 
 /// <summary>Fluent materiality surface builder (<c>acrylic</c>, <c>elevated</c>, <c>recessed</c>, <c>subtle</c>).</summary>
@@ -136,6 +161,7 @@ public sealed class SurfaceBuilder : KitNode
     private string? _subtitle;
     private double _padding;
     private IReadOnlyList<Node> _children;
+    private UiStyle? _style;
 
     internal SurfaceBuilder(string kind, string? title, string? subtitle, double padding, IReadOnlyList<Node?> children)
     {
@@ -168,7 +194,31 @@ public sealed class SurfaceBuilder : KitNode
         return this;
     }
 
-    public override Node ToNode() => new Surface(_children, _kind, _title, _subtitle, _padding);
+    /// <summary>Applies an explicit <see cref="Mix.Style()"/> token block to this surface.</summary>
+    public SurfaceBuilder Style(UiStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _style = style;
+        return this;
+    }
+
+    /// <summary>Applies an explicit <see cref="UiStyleBuilder"/> to this surface.</summary>
+    public SurfaceBuilder Style(UiStyleBuilder style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        _style = style.Build();
+        return this;
+    }
+
+    /// <summary>Refines this surface's default <see cref="Mix.Style()"/> preset fluently.</summary>
+    public SurfaceBuilder Style(Func<UiStyleBuilder, UiStyleBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _style = configure(OsMixStyles.Surface(_kind, _padding)).Build();
+        return this;
+    }
+
+    public override Node ToNode() => new Surface(_children, _kind, _title, _subtitle, _padding) { Style = _style };
 }
 
 /// <summary>Fluent text builder supporting semantic tones, monospace, tabular figures, and explicit font size.</summary>

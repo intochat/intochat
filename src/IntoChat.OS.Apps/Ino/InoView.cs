@@ -283,11 +283,21 @@ public static partial class InoView
             }),
         ]);
 
-        return Surface(SurfaceKind.Acrylic)[
+        return Surface(SurfaceKind.Acrylic)
+            .Style(Mix.Style()
+                .Tone(UiTone.Elevated)
+                .Elevation(UiElevation.Subtle)
+                .Padding(16)
+                .Radius(18))[
             VStack(Space.Xs)[
                 HStack(Space.Xs)[
                     Heading($"Chats ({items.Length})", 3),
-                    PrimaryButton("+ New", Icons.Plus).Small().Key(NewKey).Sends(new InoNew()).ToNode()
+                    PrimaryButton("+ New", Icons.Plus)
+                        .Small()
+                        .Style(OsMixStyles.PrimaryButton(small: true).Motion(UiMotion.Spring))
+                        .Key(NewKey)
+                        .Sends(new InoNew())
+                        .ToNode()
                 ],
                 VStack(Space.Xs, navs),
                 collection
@@ -382,6 +392,7 @@ public static partial class InoView
                 hasDraft
                     ? PrimaryButton("Send Prompt", Icons.Sparkles)
                         .Small()
+                        .Style(OsMixStyles.PrimaryButton(small: true).Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
                         .Key(SendDraftKey)
                         .Disabled(!canSend)
                         .Sends(new InoSend(Message: s.DraftPrompt))
@@ -394,7 +405,12 @@ public static partial class InoView
                     .ToNode(),
             ];
 
-            nodes.Add(Surface(SurfaceKind.Acrylic)[
+            nodes.Add(Surface(SurfaceKind.Acrylic)
+                .Style(Mix.Style()
+                    .Tone(UiTone.AccentTint)
+                    .Elevation(UiElevation.Subtle)
+                    .Padding(16)
+                    .Radius(16))[
                 VStack(Space.Xs)[
                     HStack(Space.Xs, [.. headerItems]),
                     hasDraft ? Text(SanitizePersonVisibleText(s.DraftPrompt!)).ToNode() : null
@@ -590,13 +606,18 @@ public static partial class InoView
                 ? $"Local Ollama model {local} was detected on this machine, or paste a provider API key below."
                 : "Start local Ollama or paste an OpenAI, Anthropic, Google, or OpenRouter API key below.";
         Node? useLocal = preferredLocal is { Length: > 0 } preferred
-            ? PrimaryButton($"Use local model ({preferred})", "cpu").Key(UseLocalKey).Sends(new InoUseLocalModel(Model: preferred)).ToNode()
+            ? PrimaryButton($"Use local model ({preferred})", "cpu")
+                .Style(OsMixStyles.HeroCta())
+                .Key(UseLocalKey)
+                .Sends(new InoUseLocalModel(Model: preferred))
+                .ToNode()
             : null;
 
         return
         [
             new ChoiceCardNode("model-setup-choice", "Choose a model source", options),
-            Card("Connect a model", subtitle)[
+            Card("Connect a model", subtitle)
+                .Style(OsMixStyles.Card(elevated: true))[
                 useLocal,
                 SecretField(ProviderCredentialField, "Paste API key and press Enter to save").Key(ProviderCredentialKey).Sends(new InoSaveProvider())
             ],
@@ -648,7 +669,8 @@ public static partial class InoView
                 break;
 
             case "applet" or "unit":
-                yield return Card(card.Title, card.Summary)[
+                yield return Card(card.Title, card.Summary)
+                    .Style(OsMixStyles.Card())[
                     HStack(Space.Sm)[
                         StatusPill(string.Equals(card.Status, "failed", StringComparison.OrdinalIgnoreCase) ? StatusKind.Error : StatusKind.Done, card.Status),
                         MutedText(StripNeuronUri(card.SourceNeuronUri)).Mono()
@@ -711,7 +733,7 @@ public static partial class InoView
             case "node":
                 if (!string.IsNullOrWhiteSpace(card.Node) && InoNodeCard.TryRead(card.Node, out var parsedNode, out _))
                 {
-                    yield return Card(card.Title, card.Summary)[parsedNode];
+                    yield return Card(card.Title, card.Summary).Style(OsMixStyles.Card())[parsedNode];
                 }
                 break;
 
@@ -734,7 +756,7 @@ public static partial class InoView
                     "Markdraw · Diagram & Canvas Studio", card.Title,
                     [new RecordFieldNode("Status", card.Status), new RecordFieldNode("Workspace File", activeDoc), new RecordFieldNode("Elements", $"{elements.Length} item(s) · rev {rev}")],
                     Subtitle: card.Summary, LinkLabel: "Open Markdraw Studio",
-                    Open: Button("Open Markdraw Studio").Small().Key("open-markdraw").EmitsOrIntent(AppSignals.OpenApp("markdraw", activeDoc)));
+                    Open: Button("Open Markdraw Studio").Small().Style(OsMixStyles.LinkAction()).Key("open-markdraw").EmitsOrIntent(AppSignals.OpenApp("markdraw", activeDoc)));
                 yield return MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
                     $"{card.Id}-canvas-rev-{rev}", card.Title, activeDoc, format, content, rev, card.Summary, elements,
                     [activeDoc, "/work/architecture.markdraw", "/work/pipeline-flow.markdraw"], exportPath, 460);
@@ -754,7 +776,7 @@ public static partial class InoView
                     ],
                     Subtitle: card.Summary,
                     LinkLabel: "Open Engineer Workbench",
-                    Open: Button("Open Engineer Workbench").Small().Key("open-engineer").EmitsOrIntent(AppSignals.OpenApp("engineer", card.Id)));
+                    Open: Button("Open Engineer Workbench").Small().Style(OsMixStyles.LinkAction()).Key("open-engineer").EmitsOrIntent(AppSignals.OpenApp("engineer", card.Id)));
                 break;
 
             default:
@@ -764,7 +786,7 @@ public static partial class InoView
                         $"{studio.Title} · {studio.Subtitle}", card.Title,
                         [new RecordFieldNode("Status", card.Status), new RecordFieldNode("Studio", StripNeuronUri(card.SourceNeuronUri)), new RecordFieldNode("Scope", StripNeuronUri(card.EffectiveScopeUri))],
                         Subtitle: card.Summary, LinkLabel: $"Open {studio.Title} Studio",
-                        Open: Button($"Open {studio.Title} Studio").Small().Key($"open-{studio.Id}").EmitsOrIntent(AppSignals.OpenApp(studio.Id)));
+                        Open: Button($"Open {studio.Title} Studio").Small().Style(OsMixStyles.LinkAction()).Key($"open-{studio.Id}").EmitsOrIntent(AppSignals.OpenApp(studio.Id)));
                     yield return WebBrowser(studio.Id is "photocraft" or "filmcraft" ? studio.DefaultWebUrl.TrimEnd('/') : studio.StaticWebPath, card.Title, $"{card.Id}-studio", 420, "wasm-ui");
                 }
                 else
@@ -773,7 +795,7 @@ public static partial class InoView
                         card.Kind, card.Title,
                         [new RecordFieldNode("Status", card.Status), new RecordFieldNode("Source", StripNeuronUri(card.SourceNeuronUri)), new RecordFieldNode("Scope", StripNeuronUri(card.EffectiveScopeUri))],
                         Subtitle: card.Summary, LinkLabel: card.Kind == "file" ? "Open in Files" : "Open",
-                        Open: card.Kind == "file" ? Button("Open in Files").Small().Key("open-files").EmitsOrIntent(AppSignals.OpenApp("files")) : null);
+                        Open: card.Kind == "file" ? Button("Open in Files").Small().Style(OsMixStyles.LinkAction()).Key("open-files").EmitsOrIntent(AppSignals.OpenApp("files")) : null);
                 }
                 break;
         }

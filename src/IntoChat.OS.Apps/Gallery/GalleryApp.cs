@@ -265,7 +265,10 @@ public sealed class GalleryApp : AggregateScreen<GalleryState>
     private Node Chart(string key) => new Column(
     [
         Child<ILiveChartControl, LiveChartProps>(key, new LiveChartProps("Live points")),
-        new Button("append", "Append point", Sends(new GalleryAppend()), Tone: ButtonTone.Accent, AutomationName: "Append point"),
+        new Button("append", "Append point", Sends(new GalleryAppend()), Tone: ButtonTone.Accent, AutomationName: "Append point")
+        {
+            Style = OsMixStyles.PrimaryButton(),
+        },
     ]);
 
     private static IEnumerable<Node> EventLog(GalleryState state)
