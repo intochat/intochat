@@ -26,7 +26,7 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.Empty(dbPackages);
 
         var version = File.ReadAllText(Path.Combine(RepoRoot, "VERSION")).Trim();
-        Assert.Equal("0.24.0", version);
+        Assert.Equal("0.24.1", version);
 
         var frameworkSrcDir = Path.GetFullPath(Path.Combine(RepoRoot, "framework", SourceSegment)) + Path.DirectorySeparatorChar;
         Assert.True(Directory.Exists(frameworkSrcDir), $"Expected framework source directory at {frameworkSrcDir}.");
@@ -124,7 +124,7 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.True(File.Exists(simProject), $"Expected DigitalBrain.Simulation project at {simProject}.");
 
         var version = File.ReadAllText(Path.Combine(RepoRoot, "VERSION")).Trim();
-        Assert.Equal("0.24.0", version);
+        Assert.Equal("0.24.1", version);
 
         var infoVersion = typeof(TestOS).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         Assert.NotNull(infoVersion);

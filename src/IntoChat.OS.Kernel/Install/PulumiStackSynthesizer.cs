@@ -21,15 +21,19 @@ public static partial class PulumiStackSynthesizer
     public static PulumiStackPlan Synthesize(
         InstallConfig config,
         IEnumerable<OsModule> modules,
-        IReadOnlyDictionary<string, string>? providedSecrets = null)
+        IReadOnlyDictionary<string, string>? providedSecrets = null,
+        IReadOnlySet<string>? existingVaultSecrets = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(modules);
 
         var validated = config.Validated();
-        var moduleList = modules.ToArray();
+        var moduleList = ResolveModules(modules);
         var manifests = ManifestEnvironment.ManifestsOf(moduleList);
         var (settingVariables, manifestSecrets) = ManifestEnvironment.Render(validated, manifests);
+
+        var foundationSpecs = InstallPlan.Foundation(validated);
+        var foundationSecretNames = foundationSpecs.OfType<SecretSpec>().Select(s => s.Name).ToHashSet(StringComparer.Ordinal);
 
         var variables = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var (k, v) in settingVariables)
@@ -68,7 +72,11 @@ public static partial class PulumiStackSynthesizer
             var hasProvidedValue = providedSecrets is not null
                 && providedSecrets.TryGetValue(integrationSecret.VaultSecret, out secretValue)
                 && !string.IsNullOrEmpty(secretValue);
-            if (providedSecrets is not null && providedSecrets.Count > 0 && !hasProvidedValue)
+            var isFoundationSecret = foundationSecretNames.Contains(integrationSecret.VaultSecret);
+            var isExistingVaultSecret = existingVaultSecrets is not null
+                && existingVaultSecrets.Contains(integrationSecret.VaultSecret);
+            if (providedSecrets is not null && providedSecrets.Count > 0
+                && !hasProvidedValue && !isFoundationSecret && !isExistingVaultSecret)
             {
                 continue;
             }
@@ -115,8 +123,6 @@ public static partial class PulumiStackSynthesizer
             }
         }
 
-        var foundationSpecs = InstallPlan.Foundation(validated);
-        var foundationSecretNames = foundationSpecs.OfType<SecretSpec>().Select(s => s.Name).ToHashSet(StringComparer.Ordinal);
         secretSpecs.RemoveAll(s => foundationSecretNames.Contains(s.Name));
 
         // Populate generated or provided values on foundation SecretSpecs (master-key, postgres-admin-password, db-connection)
@@ -222,6 +228,12 @@ public static partial class PulumiStackSynthesizer
             ["resources"] = resources,
         };
     }
+
+    // The synthesized stack always includes the OS Container App (config.OsImage), which hosts OperatingSystemModules.Modules.
+    // External hosts may pass only their own control-plane modules; merging OperatingSystemModules.Modules
+    // guarantees OS manifest and integration secrets are never dropped from ContainerApp configuration.secrets on update.
+    internal static OsModule[] ResolveModules(IEnumerable<OsModule> modules)
+        => [.. modules.Concat(OperatingSystemModules.Modules).DistinctBy(static m => m.Type)];
 
     public static string LogicalResourceName(ResourceSpec spec)
     {

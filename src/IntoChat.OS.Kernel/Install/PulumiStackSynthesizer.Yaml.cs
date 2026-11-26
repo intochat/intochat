@@ -407,7 +407,7 @@ public static partial class PulumiStackSynthesizer
         if (app.Secrets.Length > 0)
         {
             sb.AppendLine("        secrets:");
-            foreach (var secret in app.Secrets.OrderBy(s => s.Name, StringComparer.Ordinal))
+            foreach (var secret in app.Secrets.DistinctBy(s => s.Name, StringComparer.Ordinal).OrderBy(s => s.Name, StringComparer.Ordinal))
             {
                 sb.AppendLine($"          - name: \"{secret.Name}\"");
                 sb.AppendLine($"            keyVaultUrl: \"https://{secret.Vault}.vault.azure.net/secrets/{secret.VaultSecret}\"");
@@ -431,7 +431,7 @@ public static partial class PulumiStackSynthesizer
             sb.AppendLine($"              - name: \"{name}\"");
             sb.AppendLine($"                value: {YamlQuote(resolved)}");
         }
-        foreach (var secret in app.Secrets.OrderBy(s => s.Variable, StringComparer.Ordinal))
+        foreach (var secret in app.Secrets.DistinctBy(s => s.Variable, StringComparer.Ordinal).OrderBy(s => s.Variable, StringComparer.Ordinal))
         {
             sb.AppendLine($"              - name: \"{secret.Variable}\"");
             sb.AppendLine($"                secretRef: \"{secret.Name}\"");
@@ -484,6 +484,39 @@ public static partial class PulumiStackSynthesizer
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(template.ReplaceLineEndings("\n"))));
     }
 
+    // POSIX /bin/sh retry helper for Azure CLI calls: retries transient ARM errors (including 503 HTML responses)
+    // up to 5 times with linear backoff, treats RevisionAlreadyInRequestedState as idempotent success,
+    // and fails fast on ResourceNotFound/ResourceGroupNotFound so first-install existence checks do not stall.
+    private static void AppendAzRetryHelper(StringBuilder sb)
+    {
+        sb.AppendLine("        az_retry() {");
+        sb.AppendLine("          _az_attempt=1");
+        sb.AppendLine("          while [ \"$_az_attempt\" -le 5 ]; do");
+        sb.AppendLine("            _az_err_file=$(mktemp)");
+        sb.AppendLine("            _az_rc=0");
+        sb.AppendLine("            _az_out=$(\"$@\" 2>\"$_az_err_file\") || _az_rc=$?");
+        sb.AppendLine("            if [ \"$_az_rc\" -eq 0 ]; then");
+        sb.AppendLine("              rm -f \"$_az_err_file\"");
+        sb.AppendLine("              printf '%s\\n' \"$_az_out\"");
+        sb.AppendLine("              return 0");
+        sb.AppendLine("            fi");
+        sb.AppendLine("            _az_err=$(cat \"$_az_err_file\")");
+        sb.AppendLine("            rm -f \"$_az_err_file\"");
+        sb.AppendLine("            case \"$_az_err\" in");
+        sb.AppendLine("              *RevisionAlreadyInRequestedState*) return 0 ;;");
+        sb.AppendLine("              *ResourceNotFound*|*ResourceGroupNotFound*) printf '%s\\n' \"$_az_err\" >&2; return \"$_az_rc\" ;;");
+        sb.AppendLine("            esac");
+        sb.AppendLine("            if [ \"$_az_attempt\" -eq 5 ]; then");
+        sb.AppendLine("              printf '%s\\n' \"$_az_err\" >&2");
+        sb.AppendLine("              return \"$_az_rc\"");
+        sb.AppendLine("            fi");
+        sb.AppendLine("            sleep $((_az_attempt * 2))");
+        sb.AppendLine("            _az_attempt=$((_az_attempt + 1))");
+        sb.AppendLine("          done");
+        sb.AppendLine("          return 1");
+        sb.AppendLine("        }");
+    }
+
     // Stop-then-start for an app that must run one silo (ContainerAppSpec.StopBeforeUpdate). Pulumi replaces this command
     // whenever the app's template changes, and the app depends on it, so the running revision is deactivated and its
     // replicas gone before the update creates the new revision; the start command after the app makes sure a revision runs
@@ -499,12 +532,15 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"      triggers: [\"{trigger}\"]");
         sb.AppendLine("      create: |");
         sb.AppendLine($"        app=\"{app.Name}\"; group=\"{c.GroupName}\"");
-        sb.AppendLine("        if az containerapp show -n \"$app\" -g \"$group\" >/dev/null 2>&1; then");
-        sb.AppendLine("          for revision in $(az containerapp revision list -n \"$app\" -g \"$group\" --query \"[?properties.active].name\" -o tsv); do");
-        sb.AppendLine("            az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$revision\" >/dev/null");
+        AppendAzRetryHelper(sb);
+        sb.AppendLine("        if az_retry az containerapp show -n \"$app\" -g \"$group\" --query name -o tsv >/dev/null 2>&1; then");
+        sb.AppendLine("          for revision in $(az_retry az containerapp revision list -n \"$app\" -g \"$group\" --query \"[?properties.active].name\" -o tsv); do");
+        sb.AppendLine("            if [ -n \"$revision\" ]; then");
+        sb.AppendLine("              az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$revision\" >/dev/null");
+        sb.AppendLine("            fi");
         sb.AppendLine("          done");
         sb.AppendLine("          i=0");
-        sb.AppendLine($"          while [ $i -lt {waits} ] && [ -n \"$(az containerapp revision list -n \"$app\" -g \"$group\" --query \"[?properties.replicas > `0`].name\" -o tsv)\" ]; do");
+        sb.AppendLine($"          while [ $i -lt {waits} ] && [ -n \"$(az_retry az containerapp revision list -n \"$app\" -g \"$group\" --query '[?properties.replicas > `0`].name' -o tsv)\" ]; do");
         sb.AppendLine("            sleep 5; i=$((i+1))");
         sb.AppendLine("          done");
         sb.AppendLine("        fi");
@@ -525,20 +561,25 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"      triggers: [\"{trigger}\"]");
         sb.AppendLine("      create: |");
         sb.AppendLine($"        app=\"{app.Name}\"; group=\"{c.GroupName}\"");
-        sb.AppendLine("        if az containerapp show -n \"$app\" -g \"$group\" >/dev/null 2>&1; then");
-        sb.AppendLine("          latest=$(az containerapp show -n \"$app\" -g \"$group\" --query properties.latestRevisionName -o tsv)");
-        sb.AppendLine("          if [ \"$(az containerapp revision show -n \"$app\" -g \"$group\" --revision \"$latest\" --query properties.active -o tsv)\" != \"true\" ]; then");
-        sb.AppendLine("            az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\" >/dev/null");
+        AppendAzRetryHelper(sb);
+        sb.AppendLine("        if az_retry az containerapp show -n \"$app\" -g \"$group\" --query name -o tsv >/dev/null 2>&1; then");
+        sb.AppendLine("          latest=$(az_retry az containerapp show -n \"$app\" -g \"$group\" --query properties.latestRevisionName -o tsv)");
+        sb.AppendLine("          if [ -z \"$latest\" ]; then");
+        sb.AppendLine("            echo \"Failed to resolve latestRevisionName for $app in $group.\" >&2");
+        sb.AppendLine("            exit 1");
+        sb.AppendLine("          fi");
+        sb.AppendLine("          if [ \"$(az_retry az containerapp revision show -n \"$app\" -g \"$group\" --revision \"$latest\" --query properties.active -o tsv)\" != \"true\" ]; then");
+        sb.AppendLine("            az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\" >/dev/null");
         sb.AppendLine("          fi");
         sb.AppendLine("          i=0");
-        sb.AppendLine("          while [ $i -lt 120 ] && [ \"$(az containerapp show -n \"$app\" -g \"$group\" --query properties.latestReadyRevisionName -o tsv)\" != \"$latest\" ]; do");
+        sb.AppendLine("          while [ $i -lt 120 ] && [ \"$(az_retry az containerapp show -n \"$app\" -g \"$group\" --query properties.latestReadyRevisionName -o tsv)\" != \"$latest\" ]; do");
         sb.AppendLine("            sleep 5; i=$((i+1))");
         sb.AppendLine("          done");
-        sb.AppendLine("          ready=$(az containerapp show -n \"$app\" -g \"$group\" --query properties.latestReadyRevisionName -o tsv)");
+        sb.AppendLine("          ready=$(az_retry az containerapp show -n \"$app\" -g \"$group\" --query properties.latestReadyRevisionName -o tsv)");
         sb.AppendLine("          if [ \"$ready\" != \"$latest\" ]; then");
         sb.AppendLine("            if [ -n \"$ready\" ]; then");
-        sb.AppendLine("              az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$latest\" >/dev/null");
-        sb.AppendLine("              az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\" >/dev/null");
+        sb.AppendLine("              az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$latest\" >/dev/null");
+        sb.AppendLine("              az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\" >/dev/null");
         sb.AppendLine("            fi");
         sb.AppendLine("            echo \"Revision $latest of $app did not become ready; $ready runs again.\" >&2");
         sb.AppendLine("            exit 1");

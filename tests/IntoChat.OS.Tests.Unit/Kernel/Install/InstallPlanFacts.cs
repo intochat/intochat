@@ -239,6 +239,165 @@ public sealed class InstallPlanFacts
             var optionsBlock = yaml[header..app];
             Assert.Contains("    options:\n", optionsBlock, StringComparison.Ordinal);
             Assert.Contains("      ignoreChanges:\n        - configuration.ingress.customDomains\n", optionsBlock, StringComparison.Ordinal);
+            Assert.DoesNotContain("- configuration.secrets", optionsBlock, StringComparison.Ordinal);
+            Assert.DoesNotContain("- configuration\n", optionsBlock, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void EveryContainerAppEnvSecretRefIsDeclaredInConfigurationSecrets()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true) with
+        {
+            Postgres = new PostgresConfig { Enabled = true, Databases = ["intochat"] },
+        };
+
+        var providedSecrets = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["postgres-admin-password"] = "test-pg-pass",
+            ["openrouter-apikey"] = "sk-or-test",
+        };
+        var existingVaultSecrets = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "openai-apikey",
+        };
+
+        var yaml = PulumiStackSynthesizer.Synthesize(
+            config,
+            OperatingSystemModules.Modules,
+            providedSecrets,
+            existingVaultSecrets).PulumiYaml;
+
+        foreach (var name in new[] { config.OsName, config.CloudName, config.SandboxName })
+        {
+            var block = ResourceBlock(yaml, $"container-app-{name}");
+            var declaredSecrets = System.Text.RegularExpressions.Regex
+                .Matches(block, @"^\s{10}- name: ""([^""]+)""", System.Text.RegularExpressions.RegexOptions.Multiline)
+                .Select(m => m.Groups[1].Value)
+                .ToList();
+            var referencedSecrets = System.Text.RegularExpressions.Regex
+                .Matches(block, @"^\s{16}secretRef: ""([^""]+)""", System.Text.RegularExpressions.RegexOptions.Multiline)
+                .Select(m => m.Groups[1].Value)
+                .ToList();
+
+            Assert.NotEmpty(referencedSecrets);
+            Assert.Equal(declaredSecrets.Count, declaredSecrets.Distinct(StringComparer.Ordinal).Count());
+            var declaredSet = declaredSecrets.ToHashSet(StringComparer.Ordinal);
+            var missing = referencedSecrets.Where(r => !declaredSet.Contains(r)).Distinct(StringComparer.Ordinal).ToArray();
+            Assert.True(missing.Length == 0, $"ContainerApp '{name}' references undeclared secrets: {string.Join(", ", missing)}");
+        }
+    }
+
+    // Mirrors an external cloud host invoking `pulumi` with only its control-plane modules (no OS modules) and a partial
+    // OS_DEPLOY_SECRETS_JSON: the OS ContainerApp must still declare all OS manifest secrets, foundation-generated
+    // postgres-connectionstring, and existing Key Vault integration secrets so Azure never drops secrets referenced
+    // by active or rollback revisions (ContainerAppSecretNotFound).
+    [Fact]
+    public void SynthesizeWithSubsetModulesPreservesAllOperatingSystemSecrets()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true) with
+        {
+            Postgres = new PostgresConfig { Enabled = true, Databases = ["intochat"] },
+        };
+
+        var providedSecrets = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["postgres-admin-password"] = "generated-admin-pass",
+        };
+        var existingVaultSecrets = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "openrouter-apikey",
+        };
+
+        var plan = PulumiStackSynthesizer.Synthesize(config, [], providedSecrets, existingVaultSecrets);
+        var osBlock = ResourceBlock(plan.PulumiYaml, $"container-app-{config.OsName}");
+        var declaredSecrets = System.Text.RegularExpressions.Regex
+            .Matches(osBlock, @"^\s{10}- name: ""([^""]+)""", System.Text.RegularExpressions.RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var referencedSecrets = System.Text.RegularExpressions.Regex
+            .Matches(osBlock, @"^\s{16}secretRef: ""([^""]+)""", System.Text.RegularExpressions.RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        string[] expectedOsSecrets =
+        [
+            "openrouter-apikey",
+            "postgres-connectionstring",
+            "clickhouse-connection-string",
+            "github-client-secret",
+            "github-private-key-pem",
+            "github-webhook-secret",
+            "google-auth-client-id",
+            "google-auth-client-secret",
+            "postgres-admin-connection",
+            "postgres-connection-string",
+            "salesforce-consumer-key",
+            "salesforce-consumer-secret",
+        ];
+
+        foreach (var secretName in expectedOsSecrets)
+        {
+            Assert.Contains(secretName, declaredSecrets);
+            Assert.Contains(secretName, referencedSecrets);
+        }
+
+        // Existing Key Vault secret without a provided value must stay external (no Key Vault overwrite resource).
+        Assert.DoesNotContain("secretName: \"openrouter-apikey\"", plan.PulumiYaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ThePulumiStack_StopAndStartCommandsRetryTransientAzErrorsAndGuardRevisions()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+        var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
+
+        foreach (var name in new[] { config.OsName, config.CloudName })
+        {
+            var stopBlock = ResourceBlock(yaml, $"container-app-{name}-stop");
+            Assert.Contains("az_retry()", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("-le 5", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("sleep $((_az_attempt * 2))", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("*RevisionAlreadyInRequestedState*", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("*ResourceNotFound*|*ResourceGroupNotFound*", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("if [ -n \"$revision\" ]; then", stopBlock, StringComparison.Ordinal);
+            // Single-quoted JMESPath so /bin/sh never executes `0` as command substitution.
+            Assert.Contains("--query '[?properties.replicas > `0`].name'", stopBlock, StringComparison.Ordinal);
+            Assert.DoesNotContain("--query \"[?properties.replicas > `0`].name\"", stopBlock, StringComparison.Ordinal);
+
+            var startBlock = ResourceBlock(yaml, $"container-app-{name}-start");
+            Assert.Contains("az_retry()", startBlock, StringComparison.Ordinal);
+            Assert.Contains("-le 5", startBlock, StringComparison.Ordinal);
+            Assert.Contains("sleep $((_az_attempt * 2))", startBlock, StringComparison.Ordinal);
+            Assert.Contains("*RevisionAlreadyInRequestedState*", startBlock, StringComparison.Ordinal);
+            Assert.Contains("*ResourceNotFound*|*ResourceGroupNotFound*", startBlock, StringComparison.Ordinal);
+            Assert.Contains("if [ -z \"$latest\" ]; then", startBlock, StringComparison.Ordinal);
+            Assert.Contains("if [ -n \"$ready\" ]; then", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp show -n \"$app\" -g \"$group\" --query properties.latestRevisionName -o tsv", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp revision show -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
+            Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", startBlock, StringComparison.Ordinal);
+        }
+    }
+
+    private static string ResourceBlock(string yaml, string logicalName)
+    {
+        var start = yaml.IndexOf("\n  " + logicalName + ":\n", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Resource '{logicalName}' not found in synthesized Pulumi YAML.");
+        var next = System.Text.RegularExpressions.Regex.Match(yaml[(start + 1)..], @"\n  \S|\n\S");
+        return next.Success ? yaml[start..(start + 1 + next.Index)] : yaml[start..];
     }
 }
