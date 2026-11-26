@@ -533,6 +533,7 @@ final class CardNode extends Node {
     required this.children,
     required this.header,
     required this.footer,
+    required this.style,
   });
 
   @override
@@ -543,6 +544,7 @@ final class CardNode extends Node {
   final List<Node> children;
   final Node? header;
   final Node? footer;
+  final Object? style;
 
   factory CardNode.fromJson(Map<String, dynamic> json) => CardNode(
     title: _string(json['title']),
@@ -552,6 +554,7 @@ final class CardNode extends Node {
     ],
     header: json['header'] is Map ? Node.fromJson(_map(json['header'])) : null,
     footer: json['footer'] is Map ? Node.fromJson(_map(json['footer'])) : null,
+    style: json['style'],
   );
 }
 
@@ -1480,6 +1483,7 @@ final class IconButtonNode extends Node {
     required this.enabled,
     required this.visible,
     required this.automationName,
+    required this.style,
   });
 
   @override
@@ -1493,6 +1497,7 @@ final class IconButtonNode extends Node {
   final bool enabled;
   final bool visible;
   final String automationName;
+  final Object? style;
 
   factory IconButtonNode.fromJson(Map<String, dynamic> json) => IconButtonNode(
     key: _string(json['key']),
@@ -1507,6 +1512,7 @@ final class IconButtonNode extends Node {
     enabled: _bool(json['enabled'], true),
     visible: _bool(json['visible'], true),
     automationName: _string(json['automationName']),
+    style: json['style'],
   );
 }
 
@@ -2530,6 +2536,7 @@ final class SurfaceNode extends Node {
     required this.title,
     required this.subtitle,
     required this.padding,
+    required this.style,
   });
 
   @override
@@ -2540,6 +2547,7 @@ final class SurfaceNode extends Node {
   final String? title;
   final String? subtitle;
   final double padding;
+  final Object? style;
 
   factory SurfaceNode.fromJson(Map<String, dynamic> json) => SurfaceNode(
     children: [
@@ -2549,6 +2557,7 @@ final class SurfaceNode extends Node {
     title: _stringOrNull(json['title']),
     subtitle: _stringOrNull(json['subtitle']),
     padding: _double(json['padding'], 18.0),
+    style: json['style'],
   );
 }
 

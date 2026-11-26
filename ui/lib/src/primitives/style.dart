@@ -120,6 +120,9 @@ final class UiStyleData {
   final UiStyleStateOverride? press;
   final UiStyleStateOverride? focus;
 
+  bool get hasCustomTone => tone != 'default';
+  bool get hasCustomElevation => elevation != 'flat';
+
   factory UiStyleData.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const UiStyleData();
     final rawTone =

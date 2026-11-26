@@ -266,4 +266,57 @@ public sealed class MixStyleFacts
         Assert.Throws<ArgumentException>(() => Mix.Style().Motion(""));
         Assert.Throws<ArgumentException>(() => Mix.Style().OnHover(s => s.Tone(" ")));
     }
+
+    [Fact]
+    public void SurfaceCardAndIconButtonOmitStyleWhenUnsetAndRoundTripMixStyle()
+    {
+        var options = RuntimeProtocol.OptionsFor(typeof(View));
+
+        var plainSurface = new Surface([new Text("Body")]);
+        var plainCard = new Card("Title", "Body", []);
+        var plainIcon = new IconButton("refresh", "refresh-cw", "Refresh", new Command(".", "refresh"));
+
+        Assert.False(JsonSerializer.SerializeToElement<Node>(plainSurface, options).TryGetProperty("style", out _));
+        Assert.False(JsonSerializer.SerializeToElement<Node>(plainCard, options).TryGetProperty("style", out _));
+        Assert.False(JsonSerializer.SerializeToElement<Node>(plainIcon, options).TryGetProperty("style", out _));
+
+        UiStyle surfaceStyle = Mix.Style()
+            .Tone(UiTone.Elevated)
+            .Elevation(UiElevation.Raised)
+            .Padding(20, 16)
+            .Radius(18);
+        UiStyle cardStyle = Mix.Style()
+            .Tone(UiTone.Card)
+            .Elevation(UiElevation.Subtle)
+            .Padding(16)
+            .Radius(14);
+        UiStyle iconStyle = Mix.Style()
+            .Tone(UiTone.Ghost)
+            .Radius(10)
+            .Motion(UiMotion.Snappy)
+            .OnHover(s => s.Tone(UiTone.Subtle))
+            .OnPress(s => s.Scale(0.94));
+
+        var styledSurface = plainSurface with { Style = surfaceStyle };
+        var styledCard = plainCard with { Style = cardStyle };
+        var styledIcon = plainIcon with { Style = iconStyle };
+
+        var surfaceWire = JsonSerializer.SerializeToElement<Node>(styledSurface, options);
+        var cardWire = JsonSerializer.SerializeToElement<Node>(styledCard, options);
+        var iconWire = JsonSerializer.SerializeToElement<Node>(styledIcon, options);
+
+        Assert.Equal("elevated", surfaceWire.GetProperty("style").GetProperty("tone").GetString());
+        Assert.Equal(18, surfaceWire.GetProperty("style").GetProperty("radius").GetDouble());
+        Assert.Equal("card", cardWire.GetProperty("style").GetProperty("tone").GetString());
+        Assert.Equal(14, cardWire.GetProperty("style").GetProperty("radius").GetDouble());
+        Assert.Equal("ghost", iconWire.GetProperty("style").GetProperty("tone").GetString());
+        Assert.Equal("subtle", iconWire.GetProperty("style").GetProperty("hover").GetProperty("tone").GetString());
+
+        Assert.Equal(styledSurface, JsonSerializer.Deserialize<Node>(surfaceWire.GetRawText(), options));
+        Assert.Equal(styledCard, JsonSerializer.Deserialize<Node>(cardWire.GetRawText(), options));
+        Assert.Equal(styledIcon, JsonSerializer.Deserialize<Node>(iconWire.GetRawText(), options));
+        Assert.NotEqual(plainSurface, styledSurface);
+        Assert.NotEqual(plainCard, styledCard);
+        Assert.NotEqual(plainIcon, styledIcon);
+    }
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
@@ -156,12 +157,33 @@ public sealed record Card(
     Node? Header = null,
     Node? Footer = null) : Node
 {
-    /// <inheritdoc />
-    public bool Equals(Card? other) => other is not null && Title == other.Title && Body == other.Body && Children.SequenceEqual(other.Children)
-        && Equals(Header, other.Header) && Equals(Footer, other.Footer);
+    private readonly UiStyle? _style;
+
+    /// <summary>Optional visual style authored via <see cref="Mix.Style()"/>.</summary>
+    [JsonIgnore]
+    public UiStyle? Style
+    {
+        get => _style;
+        init => _style = value;
+    }
+
+    /// <summary>Wire representation of <see cref="Style"/>; omitted when unset.</summary>
+    [JsonPropertyName("style")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? StyleWire
+    {
+        get => _style?.ToWireJsonElement();
+        init => _style = value is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined }
+            ? UiStyle.FromWireJsonElement(value)
+            : null;
+    }
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Title, Body, Children.Count, Header, Footer);
+    public bool Equals(Card? other) => other is not null && Title == other.Title && Body == other.Body && Children.SequenceEqual(other.Children)
+        && Equals(Header, other.Header) && Equals(Footer, other.Footer) && Equals(_style, other._style);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Title, Body, Children.Count, Header, Footer, _style);
 }
 
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../primitives/style.dart';
 import '../primitives/surface.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
@@ -202,7 +203,15 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // Standard material surfaces (`recessed`, `elevated`, `acrylic`, `subtle`)
-    final (color, borderColor, shadows, blurSigma) = switch (variant.kind) {
+    final structuredStyle = node.style is Map
+        ? UiStyleData.fromWire(node.style)
+        : null;
+    final (
+      baseColor,
+      borderColor,
+      baseShadows,
+      blurSigma,
+    ) = switch (variant.kind) {
       SurfaceVariantKind.recessed => (
         c.recessed,
         c.hairline,
@@ -228,6 +237,29 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
         0.0,
       ),
     };
+    final color = structuredStyle != null && structuredStyle.hasCustomTone
+        ? UiStyleMapper.resolveToneBackground(c, structuredStyle.tone)
+        : baseColor;
+    final shadows =
+        structuredStyle != null && structuredStyle.hasCustomElevation
+        ? UiStyleMapper.elevationShadows(c, structuredStyle.elevation)
+        : baseShadows;
+    final fallbackPad = node.padding.clamp(0.0, 128.0);
+    final effectivePadding =
+        structuredStyle != null &&
+            (structuredStyle.paddingX != null ||
+                structuredStyle.paddingY != null)
+        ? EdgeInsets.symmetric(
+            horizontal: (structuredStyle.paddingX ?? fallbackPad).clamp(
+              0.0,
+              128.0,
+            ),
+            vertical: (structuredStyle.paddingY ?? fallbackPad).clamp(
+              0.0,
+              128.0,
+            ),
+          )
+        : EdgeInsets.all(fallbackPad);
     final singleFill =
         node.children.length == 1 && NodeRenderer.fills(node.children.single);
     final renderedChildren = renderAll(node.children, ctx);
@@ -239,11 +271,12 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
             constraints.maxHeight.isFinite &&
             constraints.maxHeight >= 180;
         return UiMixSurface(
-          padding: EdgeInsets.all(node.padding.clamp(0, 128)),
+          padding: effectivePadding,
           color: color,
           borderColor: borderColor,
           shadows: shadows,
           blurSigma: blurSigma,
+          style: structuredStyle,
           child: Column(
             mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
