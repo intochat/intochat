@@ -373,9 +373,12 @@ public sealed class InstallPlanFacts
             Assert.Contains("*RevisionAlreadyInRequestedState*", stopBlock, StringComparison.Ordinal);
             Assert.Contains("*ResourceNotFound*|*ResourceGroupNotFound*", stopBlock, StringComparison.Ordinal);
             Assert.Contains("if [ -n \"$revision\" ]; then", stopBlock, StringComparison.Ordinal);
-            // Single-quoted JMESPath so /bin/sh never executes `0` as command substitution.
-            Assert.Contains("--query '[?properties.replicas > `0`].name'", stopBlock, StringComparison.Ordinal);
+            // Single-quoted JMESPath so /bin/sh never executes `0` as command substitution, with --all so inactive draining revisions are included.
+            Assert.Contains("az containerapp revision list --all -n \"$app\" -g \"$group\" --query '[?properties.replicas > `0`].name' -o tsv", stopBlock, StringComparison.Ordinal);
             Assert.DoesNotContain("--query \"[?properties.replicas > `0`].name\"", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("az containerapp replica list -n \"$app\" -g \"$group\" --revision \"$_rev\" --query '[].name' -o tsv", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("Timed out waiting for replicas of $app in $group to stop", stopBlock, StringComparison.Ordinal);
+            Assert.Contains("return 1 2>/dev/null || exit 1", stopBlock, StringComparison.Ordinal);
 
             var startBlock = ResourceBlock(yaml, $"container-app-{name}-start");
             Assert.Contains("az_retry()", startBlock, StringComparison.Ordinal);
@@ -390,6 +393,50 @@ public sealed class InstallPlanFacts
             Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$latest\"", startBlock, StringComparison.Ordinal);
             Assert.Contains("az_retry az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", startBlock, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ThePulumiStack_EmitsContainerAppProbesAndTerminationGracePeriod()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+        var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
+
+        foreach (var name in new[] { config.OsName, config.CloudName, config.SandboxName })
+        {
+            var block = ResourceBlock(yaml, $"container-app-{name}");
+            Assert.Contains("        terminationGracePeriodSeconds: 60\n", block, StringComparison.Ordinal);
+            Assert.Contains(
+                """
+                            probes:
+                              - type: Liveness
+                                httpGet:
+                                  path: "/alive"
+                                  port: 8080
+                                  scheme: HTTP
+                                periodSeconds: 10
+                                failureThreshold: 3
+                              - type: Readiness
+                                httpGet:
+                                  path: "/ready"
+                                  port: 8080
+                                  scheme: HTTP
+                                periodSeconds: 10
+                                failureThreshold: 3
+                              - type: Startup
+                                httpGet:
+                                  path: "/health"
+                                  port: 8080
+                                  scheme: HTTP
+                                periodSeconds: 10
+                                failureThreshold: 30
+                """.ReplaceLineEndings("\n"),
+                block,
+                StringComparison.Ordinal);
         }
     }
 

@@ -51,6 +51,28 @@ public sealed class HealthProbeFacts
             IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownTimeout(null, deactivation));
     }
 
+    [Fact]
+    public void SingleSiloMembershipTimeoutsAreTunedForProductionAndDevelopment()
+    {
+        var prod = new Orleans.Configuration.ClusterMembershipOptions();
+        IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ConfigureSingleSiloMembership(prod, isDevelopment: false);
+        Assert.Equal(TimeSpan.FromSeconds(10), prod.IAmAliveTablePublishTimeout);
+        Assert.Equal(2, prod.NumMissedTableIAmAliveLimit);
+        Assert.Equal(TimeSpan.FromSeconds(15), prod.TableRefreshTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(2), prod.MaxJoinAttemptTime);
+        Assert.Equal(TimeSpan.FromMinutes(5), prod.DefunctSiloCleanupPeriod);
+        Assert.Equal(TimeSpan.FromHours(1), prod.DefunctSiloExpiration);
+
+        var dev = new Orleans.Configuration.ClusterMembershipOptions();
+        IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ConfigureSingleSiloMembership(dev, isDevelopment: true);
+        Assert.Equal(TimeSpan.FromSeconds(10), dev.IAmAliveTablePublishTimeout);
+        Assert.Equal(2, dev.NumMissedTableIAmAliveLimit);
+        Assert.Equal(TimeSpan.FromSeconds(15), dev.TableRefreshTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(2), dev.MaxJoinAttemptTime);
+        Assert.Equal(TimeSpan.FromMinutes(1), dev.DefunctSiloCleanupPeriod);
+        Assert.Equal(TimeSpan.FromMinutes(5), dev.DefunctSiloExpiration);
+    }
+
     private static HealthCheckRegistration Registration(string name, params string[] tags)
         => new(name, _ => new Healthy(), HealthStatus.Unhealthy, tags);
 
