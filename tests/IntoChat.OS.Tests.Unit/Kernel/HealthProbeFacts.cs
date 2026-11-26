@@ -54,6 +54,8 @@ public sealed class HealthProbeFacts
     [Fact]
     public void SingleSiloMembershipTimeoutsAreTunedForProductionAndDevelopment()
     {
+        var defaults = new Orleans.Configuration.ClusterMembershipOptions();
+
         var prod = new Orleans.Configuration.ClusterMembershipOptions();
         IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ConfigureSingleSiloMembership(prod, isDevelopment: false);
         Assert.Equal(TimeSpan.FromSeconds(10), prod.IAmAliveTablePublishTimeout);
@@ -62,6 +64,8 @@ public sealed class HealthProbeFacts
         Assert.Equal(TimeSpan.FromMinutes(2), prod.MaxJoinAttemptTime);
         Assert.Equal(TimeSpan.FromMinutes(5), prod.DefunctSiloCleanupPeriod);
         Assert.Equal(TimeSpan.FromHours(1), prod.DefunctSiloExpiration);
+        Assert.Equal(defaults.ProbeTimeout, prod.ProbeTimeout);
+        Assert.Equal(defaults.NumMissedProbesLimit, prod.NumMissedProbesLimit);
 
         var dev = new Orleans.Configuration.ClusterMembershipOptions();
         IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ConfigureSingleSiloMembership(dev, isDevelopment: true);
@@ -71,6 +75,8 @@ public sealed class HealthProbeFacts
         Assert.Equal(TimeSpan.FromMinutes(2), dev.MaxJoinAttemptTime);
         Assert.Equal(TimeSpan.FromMinutes(1), dev.DefunctSiloCleanupPeriod);
         Assert.Equal(TimeSpan.FromMinutes(5), dev.DefunctSiloExpiration);
+        Assert.Equal(defaults.ProbeTimeout, dev.ProbeTimeout);
+        Assert.Equal(defaults.NumMissedProbesLimit, dev.NumMissedProbesLimit);
     }
 
     private static HealthCheckRegistration Registration(string name, params string[] tags)

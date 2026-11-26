@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity.Grants;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans;
@@ -85,11 +86,7 @@ public sealed class TwoSiloClusterFacts
             await using var b = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
             {
                 Join(builder, primary);
-                builder.Services.Configure<SingleSiloGuardOptions>(options =>
-                {
-                    options.GracePeriod = TimeSpan.FromMilliseconds(200);
-                    options.PollInterval = TimeSpan.FromMilliseconds(50);
-                });
+                builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
             });
         });
 
@@ -116,12 +113,119 @@ public sealed class TwoSiloClusterFacts
         }
     }
 
+    // Rollout handover: a second silo that starts while the prior silo is still shutting down waits in SingleSiloGuard
+    // until the prior silo transitions through ShuttingDown/Stopping to Dead, then becomes active and serves cleanly.
+    [Fact]
+    public async Task AJoiningSilo_WaitsWithinGracePeriod_AndStartsCleanlyOncePriorSiloBecomesDead()
+    {
+        var sharedTable = new SharedInMemoryMembershipTable();
+        var a = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder => UseSharedMembership(builder, sharedTable));
+        var aAddress = a.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+
+        Task<Gate20EdgeApprovalWallFacts.EdgeKernelHarness>? bStart = null;
+        try
+        {
+            var peerJoining = sharedTable.WaitForNewSiloAsync(excluding: aAddress, Ct);
+            bStart = Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+            {
+                UseSharedMembership(builder, sharedTable);
+                builder.Services.Configure<SingleSiloGuardOptions>(options =>
+                {
+                    options.GracePeriod = TimeSpan.FromSeconds(30);
+                    options.PollInterval = TimeSpan.FromMilliseconds(50);
+                });
+            });
+
+            // Wait until silo B has written its Joining row and reached SingleSiloGuard while silo A is still Active.
+            var bAddress = await peerJoining;
+            Assert.False(bStart.IsCompleted, "Silo B must wait in SingleSiloGuard while silo A is still non-Dead.");
+            Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(aAddress));
+            Assert.Equal(SiloStatus.Joining, sharedTable.StatusOf(bAddress));
+
+            // Gracefully stop silo A (Active -> ShuttingDown -> Stopping -> Dead).
+            await a.DisposeAsync();
+            a = null;
+
+            await using var b = await bStart;
+            bStart = null;
+
+            Assert.Equal(SiloStatus.Dead, sharedTable.StatusOf(aAddress));
+            Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(bAddress));
+            var edge = b.Services.GetRequiredService<EdgeAuthority>();
+            RequestContext.Clear();
+            using (edge.EnterKernel(new BrainId(b.Scope)))
+            {
+                Assert.Empty(await SiloNeurons.Get<IFriends>(b.Services, FriendsDefaults.Id(b.Scope)).List());
+            }
+        }
+        finally
+        {
+            if (a is not null) { await a.DisposeAsync(); }
+            if (bStart is not null)
+            {
+                try { await (await bStart).DisposeAsync(); }
+                catch { }
+            }
+        }
+    }
+
+    // Self-cleanup end-to-end: after silo B is refused while silo A runs, B marks its own row Dead (leaving A untouched).
+    // Once A stops cleanly, silo C starts immediately with zero grace period — proving B never stranded a Joining row.
+    [Fact]
+    public async Task ARefusedSilo_MarksItselfDead_SoASubsequentSiloStartsCleanlyAfterPrimaryStops()
+    {
+        var sharedTable = new SharedInMemoryMembershipTable();
+        var a = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder => UseSharedMembership(builder, sharedTable));
+        var aAddress = a.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+
+        try
+        {
+            var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
+            {
+                await using var b = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+                {
+                    UseSharedMembership(builder, sharedTable);
+                    builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
+                });
+            });
+
+            Assert.Contains(Chain(error), e => e is InvalidOperationException && e.Message.Contains("must be the only silo of its cluster", StringComparison.Ordinal));
+            Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(aAddress));
+            var refusedRows = sharedTable.Statuses().Where(pair => !pair.Key.Equals(aAddress)).ToArray();
+            Assert.Single(refusedRows);
+            Assert.Equal(SiloStatus.Dead, refusedRows[0].Value);
+        }
+        finally
+        {
+            await a.DisposeAsync();
+        }
+
+        Assert.Equal(SiloStatus.Dead, sharedTable.StatusOf(aAddress));
+
+        // No ForgetTheRefusedSilo, no 5-minute MaxJoinAttemptTime wait: silo C starts immediately with GracePeriod = 0.
+        await using var c = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+        {
+            UseSharedMembership(builder, sharedTable);
+            builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
+        });
+        var cAddress = c.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+        Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(cAddress));
+    }
+
     // A silo alone in its cluster starts with the guard in place: the single-silo shape is unchanged.
     [Fact]
     public async Task ASiloAlone_StartsWithTheGuard()
     {
         await using var a = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
         Assert.Contains(a.Services.GetServices<ILifecycleParticipant<ISiloLifecycle>>(), participant => participant is SingleSiloGuard);
+    }
+
+    private static void UseSharedMembership(WebApplicationBuilder builder, SharedInMemoryMembershipTable table)
+    {
+        builder.Services.Replace(ServiceDescriptor.Singleton<IMembershipTable>(table));
+        // The harness disposes a host whose start failed without stopping it; its silo connection still receives membership
+        // gossip and would log into a disposed Windows event log, which ends the test process.
+        builder.Logging.ClearProviders();
     }
 
     internal static void Join(WebApplicationBuilder builder, IPEndPoint primary)
@@ -142,5 +246,164 @@ public sealed class TwoSiloClusterFacts
             if (current is AggregateException aggregate) { foreach (var inner in aggregate.InnerExceptions) { pending.Push(inner); } }
             else if (current.InnerException is { } inner) { pending.Push(inner); }
         }
+    }
+
+    // Externalized in-process Orleans IMembershipTable shared by real loopback silos so stopping silo A does not tear
+    // down the membership table itself (matching Azure Table / Postgres persistence in production).
+    private sealed class SharedInMemoryMembershipTable : IMembershipTable
+    {
+        private readonly Lock _gate = new();
+        private readonly Dictionary<SiloAddress, (MembershipEntry Entry, string ETag)> _rows = [];
+        private readonly List<(SiloAddress Excluded, TaskCompletionSource<SiloAddress> Waiter)> _waiters = [];
+        private int _version = 1;
+
+        public Task<SiloAddress> WaitForNewSiloAsync(SiloAddress excluding, CancellationToken ct)
+        {
+            lock (_gate)
+            {
+                foreach (var address in _rows.Keys)
+                {
+                    if (!address.Equals(excluding))
+                    {
+                        return Task.FromResult(address);
+                    }
+                }
+
+                var waiter = new TaskCompletionSource<SiloAddress>(TaskCreationOptions.RunContinuationsAsynchronously);
+                ct.Register(() => waiter.TrySetCanceled(ct));
+                _waiters.Add((excluding, waiter));
+                return waiter.Task;
+            }
+        }
+
+        public SiloStatus StatusOf(SiloAddress address)
+        {
+            lock (_gate)
+            {
+                return _rows[address].Entry.Status;
+            }
+        }
+
+        public KeyValuePair<SiloAddress, SiloStatus>[] Statuses()
+        {
+            lock (_gate)
+            {
+                return [.. _rows.Select(pair => new KeyValuePair<SiloAddress, SiloStatus>(pair.Key, pair.Value.Entry.Status))];
+            }
+        }
+
+        public Task InitializeMembershipTable(bool tryInitTableVersion) => Task.CompletedTask;
+
+        public Task DeleteMembershipTableEntries(string clusterId)
+        {
+            lock (_gate)
+            {
+                _rows.Clear();
+                _version++;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task CleanupDefunctSiloEntries(DateTimeOffset beforeDate) => Task.CompletedTask;
+
+        public Task<MembershipTableData> ReadRow(SiloAddress key)
+        {
+            lock (_gate)
+            {
+                var tv = new TableVersion(_version, _version.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (_rows.TryGetValue(key, out var row))
+                {
+                    return Task.FromResult(new MembershipTableData(Tuple.Create(Clone(row.Entry), row.ETag), tv));
+                }
+
+                return Task.FromResult(new MembershipTableData(tv));
+            }
+        }
+
+        public Task<MembershipTableData> ReadAll()
+        {
+            lock (_gate)
+            {
+                var tv = new TableVersion(_version, _version.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                var members = _rows.Values.Select(row => Tuple.Create(Clone(row.Entry), row.ETag)).ToList();
+                return Task.FromResult(new MembershipTableData(members, tv));
+            }
+        }
+
+        public Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
+        {
+            lock (_gate)
+            {
+                if (_rows.ContainsKey(entry.SiloAddress) || tableVersion.Version != _version + 1)
+                {
+                    return Task.FromResult(false);
+                }
+
+                _version = tableVersion.Version;
+                _rows[entry.SiloAddress] = (Clone(entry), _version.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                NotifyWaitersLocked(entry.SiloAddress);
+                return Task.FromResult(true);
+            }
+        }
+
+        public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
+        {
+            lock (_gate)
+            {
+                if (!_rows.TryGetValue(entry.SiloAddress, out var current)
+                    || !string.Equals(current.ETag, etag, StringComparison.Ordinal)
+                    || tableVersion.Version != _version + 1)
+                {
+                    return Task.FromResult(false);
+                }
+
+                _version = tableVersion.Version;
+                _rows[entry.SiloAddress] = (Clone(entry), _version.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                return Task.FromResult(true);
+            }
+        }
+
+        public Task UpdateIAmAlive(MembershipEntry entry)
+        {
+            lock (_gate)
+            {
+                if (_rows.TryGetValue(entry.SiloAddress, out var current))
+                {
+                    var updated = Clone(current.Entry);
+                    updated.IAmAliveTime = entry.IAmAliveTime;
+                    _rows[entry.SiloAddress] = (updated, current.ETag);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private void NotifyWaitersLocked(SiloAddress inserted)
+        {
+            for (var i = _waiters.Count - 1; i >= 0; i--)
+            {
+                if (!_waiters[i].Excluded.Equals(inserted))
+                {
+                    _waiters[i].Waiter.TrySetResult(inserted);
+                    _waiters.RemoveAt(i);
+                }
+            }
+        }
+
+        private static MembershipEntry Clone(MembershipEntry source) => new()
+        {
+            SiloAddress = source.SiloAddress,
+            Status = source.Status,
+            SuspectTimes = source.SuspectTimes is { } suspects ? [.. suspects] : [],
+            ProxyPort = source.ProxyPort,
+            HostName = source.HostName,
+            SiloName = source.SiloName,
+            RoleName = source.RoleName,
+            UpdateZone = source.UpdateZone,
+            FaultZone = source.FaultZone,
+            StartTime = source.StartTime,
+            IAmAliveTime = source.IAmAliveTime,
+        };
     }
 }
