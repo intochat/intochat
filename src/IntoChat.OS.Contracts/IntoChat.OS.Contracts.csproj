@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>IntoChat.OS.Contracts</PackageId>
+    <Description>Shared wire contracts, signals, and records of the IntoChat OS core modules (AI, Catalog, Shell, Roslyn).</Description>
+    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="../Modules/AI/Models/models.json" />
+    <ProjectReference Include="../Modules/AI/Generators/IntoChat.OS.Modules.AI.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="IntoChat.OS.Modules.AI.Contracts" />
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="IntoChat.OS.Modules.Catalog.Contracts" />
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="IntoChat.OS.Modules.Shell.Contracts" />
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="IntoChat.OS.Modules.Roslyn.Contracts" />
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="IntoChat.OS.Modules.Mcp.Contracts" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Browser" />
+    <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Support" />
+  </ItemGroup>
+</Project>

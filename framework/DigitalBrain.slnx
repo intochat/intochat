@@ -1,25 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/DigitalBrain/DigitalBrain.csproj" />
+    <Project Path="src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <Project Path="src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
-    <Project Path="src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <Project Path="src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <Project Path="src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
     <Project Path="src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />
     <Project Path="src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
-    <Project Path="src/DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
-    <Project Path="src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
-    <Project Path="src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
-    <Project Path="src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
   </Folder>
   <Folder Name="/examples/">
     <Project Path="examples/Calculator/Calculator.csproj" />
@@ -29,25 +20,11 @@
   <Folder Name="/tests/">
     <Project Path="tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Architecture.Tests.Unit/DigitalBrain.Architecture.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Analyzers.Tests.Unit/DigitalBrain.Analyzers.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Runtime.Orleans.Tests.Unit/DigitalBrain.Runtime.Orleans.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Runtime.Orleans.Tests.Integration/DigitalBrain.Runtime.Orleans.Tests.Integration.csproj" />
     <Project Path="tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration.csproj" />
     <Project Path="tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Storage.Tests.Unit/DigitalBrain.Capabilities.Storage.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Secrets.Tests.Unit/DigitalBrain.Capabilities.Secrets.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Identity.Tests.Unit/DigitalBrain.Capabilities.Identity.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Compute.Tests.Unit/DigitalBrain.Capabilities.Compute.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Connections.Tests.Unit/DigitalBrain.Capabilities.Connections.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Http.Tests.Unit/DigitalBrain.Capabilities.Http.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Capabilities.Tools.Tests.Unit/DigitalBrain.Capabilities.Tools.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Identity.Local.Tests.Unit/DigitalBrain.Identity.Local.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Runtime.Http.Tests.Unit/DigitalBrain.Runtime.Http.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Runtime.Http.Tests.Integration/DigitalBrain.Runtime.Http.Tests.Integration.csproj" />
-    <Project Path="tests/DigitalBrain.Runtime.Synapses.Tests.Unit/DigitalBrain.Runtime.Synapses.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj" />
-    <Project Path="tests/DigitalBrain.Templates.Tests.Unit/DigitalBrain.Templates.Tests.Unit.csproj" />
-    <Project Path="tests/DigitalBrain.Graph.Tests.Unit/DigitalBrain.Graph.Tests.Unit.csproj" />
   </Folder>
 </Solution>

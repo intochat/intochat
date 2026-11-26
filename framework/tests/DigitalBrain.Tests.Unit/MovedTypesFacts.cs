@@ -51,9 +51,11 @@ public sealed class MovedTypesFacts
     public void PersistedTypesStayOutOfTheCore()
     {
         // State, Trace and BrainAffinePlacement reach storage or the journal under an alias; moving them would orphan stored data.
+        // DigitalBrain.Capabilities.Compute.Trace is an unrelated compute telemetry record folded into DigitalBrain in Wave C3.
+        var nonCapabilityCore = Core.Where(t => !(t.Namespace?.StartsWith("DigitalBrain.Capabilities.", StringComparison.Ordinal) ?? false)).ToArray();
         foreach (var name in new[] { "State", "Trace", "BrainAffinePlacement" })
         {
-            Assert.DoesNotContain(Core, t => t.Name == name);
+            Assert.DoesNotContain(nonCapabilityCore, t => t.Name == name);
         }
 
         var persisted = Load().Where(e => e.Persisted).ToArray();
@@ -62,7 +64,7 @@ public sealed class MovedTypesFacts
         {
             Assert.False(string.IsNullOrEmpty(entry.Alias), $"{entry.Old} is persisted but the inventory names no alias");
             var simple = entry.Old[(entry.Old.LastIndexOf('.') + 1)..];
-            Assert.DoesNotContain(Core, t => t.Name == simple);
+            Assert.DoesNotContain(nonCapabilityCore, t => t.Name == simple);
         }
     }
 }

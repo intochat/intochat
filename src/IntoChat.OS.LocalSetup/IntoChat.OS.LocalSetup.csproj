@@ -6,7 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
   </ItemGroup>
   <ItemGroup>

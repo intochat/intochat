@@ -81,8 +81,8 @@ public sealed class IntoChatClientFacts
             .Select(path => Path.GetFileNameWithoutExtension(path)!)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        Assert.Contains("IntoChat.OS.Modules.Windows", modules);
-        Assert.Contains("IntoChat.OS.Modules.AI.Contracts", modules);
+        Assert.Contains("IntoChat.OS.Modules.Infrastructure", modules);
+        Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Contracts"));
 
         var wrong = modules.Where(name => AppLoadContext.IsAssemblyAllowed(name) != ShouldAdmit(name))
             .Select(name => $"{name}: {(AppLoadContext.IsAssemblyAllowed(name) ? "admitted" : "refused")}")
@@ -93,8 +93,8 @@ public sealed class IntoChatClientFacts
             => name.EndsWith(".Contracts", StringComparison.Ordinal) && !name.StartsWith("IntoChat.OS.Modules.Identity", StringComparison.Ordinal);
     }
 
-    // Component assemblies (IntoChat.<Name>, IntoChat.<Name>.Contracts) are refused, as the Aspire contracts were when they sat
-    // inside IntoChat.OS.Modules.Azure. Admitting a component's contracts is an owner decision per component (OWED.md).
+    // Component assemblies (IntoChat.<Name>) are refused, as the Aspire contracts were when they sat
+    // inside IntoChat.OS.Modules.Infrastructure. Admitting a component's contracts is an owner decision per component (OWED.md).
     [Fact]
     public void AppLoadContextRefusesComponentAssemblies()
     {
@@ -102,13 +102,13 @@ public sealed class IntoChatClientFacts
             .Select(path => Path.GetFileNameWithoutExtension(path)!)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        Assert.Equal(["IntoChat.Aspire", "IntoChat.Aspire.Contracts"], components);
+        Assert.Equal(["IntoChat.Aspire"], components);
 
         foreach (var name in components)
         {
             Assert.False(AppLoadContext.IsAssemblyAllowed(name), $"{name} is admitted to the sandbox");
         }
-        Assert.False(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Azure"));
+        Assert.False(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Infrastructure"));
     }
 
     // The activation hook hands a caller the live neuron of any app activated in its async flow; sandboxed code must not reach it.
@@ -126,6 +126,7 @@ public sealed class IntoChatClientFacts
             Assert.Same(typeof(ISandboxBrain).Assembly, osAssembly);
 
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Contracts"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.UI"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.AI.Contracts"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Catalog.Contracts"));
@@ -143,12 +144,12 @@ public sealed class IntoChatClientFacts
                 "IntoChat.OS.Kernel",
                 "IntoChat.OS.Modules.Identity",
                 "IntoChat.OS.Modules.Identity.Contracts",
-                "IntoChat.OS.Modules.Windows",
-                "IntoChat.OS.Modules.Google",
+                "IntoChat.OS.Modules.Infrastructure",
+                "IntoChat.OS.Modules.Plugins",
                 "IntoChat.OS.Modules.Roslyn",
                 "IntoChat.OS.Modules.Catalog",
                 "IntoChat.OS.Modules.Contracts",
-                "IntoChat.OS.Modules.Windows.Contracts.Extra",
+                "IntoChat.OS.Modules.Infrastructure.Contracts.Extra",
                 "IntoChat.OS.AppHost",
                 "DigitalBrain.Runtime.Orleans",
                 "DigitalBrain.Identity",

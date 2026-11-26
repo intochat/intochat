@@ -32,6 +32,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | --- | --- |
 | `CandidateModel` | no |
 
-Contracts: assembly `IntoChat.Aspire.Contracts` (`IAspireFeed`, `IAspire`, `ICandidate`, `ICandidates`, `IDeployment`).
+Contracts: assembly `IntoChat.Aspire` (`IAspireFeed`, `IAspire`, `ICandidate`, `ICandidates`, `IDeployment`).
 Hosting: runs in process.
 <!-- END GENERATED -->

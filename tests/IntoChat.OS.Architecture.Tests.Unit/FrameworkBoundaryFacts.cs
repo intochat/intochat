@@ -20,24 +20,14 @@ public sealed partial class FrameworkBoundaryFacts
     [
         "DigitalBrain",
         "DigitalBrain.Analyzers",
-        "DigitalBrain.Capabilities.Compute",
-        "DigitalBrain.Capabilities.Connections",
-        "DigitalBrain.Capabilities.Http",
-        "DigitalBrain.Capabilities.Identity",
-        "DigitalBrain.Capabilities.Secrets",
-        "DigitalBrain.Capabilities.Storage",
-        "DigitalBrain.Capabilities.Tools",
-        "DigitalBrain.Simulation",
-        "DigitalBrain.Graph",
         "DigitalBrain.Identity.Local",
         "DigitalBrain.Runtime.Http",
         "DigitalBrain.Runtime.Orleans",
         "DigitalBrain.Runtime.Orleans.Azure",
-        "DigitalBrain.Runtime.Synapses",
+        "DigitalBrain.Simulation",
         "DigitalBrain.Templates",
         "DigitalBrain.Testing",
         "DigitalBrain.Testing.Silo",
-        "DigitalBrain.UI",
     ];
 
     private static readonly string[] SkippedDirectories = ["bin", "obj", "artifacts", "node_modules", ".git", ".claude", ".dart_tool", "build", ".vs", ".idea"];
@@ -253,7 +243,7 @@ public sealed partial class FrameworkBoundaryFacts
         var consumerProjects = FilesUnder(productRoot, name => name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             .Where(project => ResolvedProjectReferences(project).Any(resolved => resolved.StartsWith(frameworkSourceRoot, PathComparison)))
             .ToArray();
-        Assert.True(consumerProjects.Length >= 20, "Expected at least 20 product projects referencing framework/" + SourceSegment + "/, found " + consumerProjects.Length);
+        Assert.True(consumerProjects.Length >= 15, "Expected at least 15 product projects referencing framework/" + SourceSegment + "/, found " + consumerProjects.Length);
     }
 
     [Fact]

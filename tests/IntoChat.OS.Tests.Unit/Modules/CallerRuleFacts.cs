@@ -32,11 +32,10 @@ public sealed class CallerRuleFacts
         new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "c1", "Stop", () => []),
         new("IntoChat.OS.Modules.Catalog", "IntoChat.OS.Modules.Apps.FriendsNeuron", "friends", "default", "List", () => []),
         new("IntoChat.OS.Modules.Catalog", "IntoChat.OS.Modules.Apps.FriendsNeuron", "friends", "default", "IsFriend", () => [new AccountId("bob")]),
-        new("IntoChat.OS.Modules.Postgres", "IntoChat.OS.Modules.Postgres.Tables.TableNeuron", "postgres.table", "ada/app/notes", "Define", () => [new TableDefinition([new TableColumn("id", "text")], ["id"])]),
-        new("IntoChat.OS.Modules.Postgres", "IntoChat.OS.Modules.Postgres.Tables.TableNeuron", "postgres.table", "ada/app/notes", "Retire", () => ["ada/app/notes"]),
+        new("IntoChat.OS.Modules.Infrastructure", "IntoChat.OS.Modules.Postgres.Tables.TableNeuron", "postgres.table", "ada/app/notes", "Define", () => [new TableDefinition([new TableColumn("id", "text")], ["id"])]),
+        new("IntoChat.OS.Modules.Infrastructure", "IntoChat.OS.Modules.Postgres.Tables.TableNeuron", "postgres.table", "ada/app/notes", "Retire", () => ["ada/app/notes"]),
         new("IntoChat.OS.Modules.Shell", "IntoChat.OS.Modules.Flutter.Viewport.ViewportNeuron", "viewport", "apps/notes/main", "Set", () => [null, 0L]),
         new("IntoChat.OS.Modules.Catalog", "IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron", "approvals", "default", "Pending", () => [CancellationToken.None]),
-        new("IntoChat.OS.Modules.Circles", "IntoChat.OS.Modules.Circles.LegacyCircleIndexNeuron", "circles.factory", "default", "Circles", () => []),
     ];
 
     public static TheoryData<Site> All => [.. Sites];

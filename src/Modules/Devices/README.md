@@ -21,6 +21,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Devices.Contracts` (`IConnectedComputeRouter`, `IConnectedComputeTransport`, `IDeviceChatRoute`, `IDeviceEnrollmentRedeemer`, `IDeviceEnrollment`, `IDeviceInstallReports`, `IDeviceLink`, `IDevice`, `ILocalRuntime`, `ILocalSandboxExecutor`, `INonceCache`, `IVoiceActivityDetector`, `IVoiceActivity`).
+Contracts: assembly `IntoChat.OS.Modules.Devices` (`IConnectedComputeRouter`, `IConnectedComputeTransport`, `IDeviceChatRoute`, `IDeviceEnrollmentRedeemer`, `IDeviceEnrollment`, `IDeviceInstallReports`, `IDeviceLink`, `IDevice`, `ILocalRuntime`, `ILocalSandboxExecutor`, `INonceCache`, `IVoiceActivityDetector`, `IVoiceActivity`).
 Hosting: runs in process.
 <!-- END GENERATED -->

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
@@ -6,16 +7,10 @@
     <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="Contracts/**" />
-    <EmbeddedResource Remove="Contracts/**" />
-    <None Remove="Contracts/**" />
-  </ItemGroup>
-  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
-    <ProjectReference Include="../AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />

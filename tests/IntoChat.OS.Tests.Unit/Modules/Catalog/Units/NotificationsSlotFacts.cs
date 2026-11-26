@@ -18,7 +18,7 @@ public sealed class NotificationsSlotFacts
     [Fact]
     public void NotificationsSlotContractLivesInCatalogContractsAndTheOldAssemblyForwardsIt()
     {
-        Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", typeof(INotifications).Assembly.GetName().Name);
+        Assert.Equal("IntoChat.OS.Contracts", typeof(INotifications).Assembly.GetName().Name);
 
         var forwarded = typeof(AppsModule).Assembly.GetType(typeof(INotifications).FullName!, throwOnError: false);
         Assert.Same(typeof(INotifications), forwarded);

@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
@@ -9,8 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../../framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <ProjectReference Include="../../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
     <ProjectReference Include="../../../IntoChat.OS/IntoChat.OS.csproj" />
     <!-- ShippedGrants builds the assistant's app key with AppRef (owner decision 2026-11-20: OS primitives live in the host layer). -->
     <ProjectReference Include="../../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />

@@ -36,9 +36,9 @@ public sealed class GoogleSplitFacts
         var auth = typeof(GoogleAuthModule).Assembly.GetName().Name;
         var gmail = typeof(GmailModule).Assembly.GetName().Name;
         var drive = typeof(DriveModule).Assembly.GetName().Name;
-        Assert.Equal("IntoChat.OS.Modules.Google", auth);
-        Assert.Equal("IntoChat.OS.Modules.Google", gmail);
-        Assert.Equal("IntoChat.OS.Modules.Google", drive);
+        Assert.Equal("IntoChat.OS.Modules.Plugins", auth);
+        Assert.Equal("IntoChat.OS.Modules.Plugins", gmail);
+        Assert.Equal("IntoChat.OS.Modules.Plugins", drive);
     }
 
     [Fact]

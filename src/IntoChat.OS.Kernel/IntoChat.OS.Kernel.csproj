@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <DefaultItemExcludes>$(DefaultItemExcludes);.intochat-os/**;**/.last_build_id</DefaultItemExcludes>
@@ -20,15 +21,11 @@
     <PackageReference Include="Aspire.Azure.Data.Tables" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
     <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore.Web" />
@@ -49,32 +46,15 @@
     <ProjectReference Include="../Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../Modules/Runs/IntoChat.OS.Modules.Runs.csproj" />
-    <ProjectReference Include="../Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
-    <ProjectReference Include="../Modules/Diagnostics/IntoChat.OS.Modules.Diagnostics.csproj" />
-    <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
+    <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
+    <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
     <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" />
-    <ProjectReference Include="../Components/Muncly/IntoChat.Muncly.csproj" />
     <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
-    <ProjectReference Include="../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
     <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
-    <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
-    <ProjectReference Include="../Modules/Google/IntoChat.OS.Modules.Google.csproj" />
-    <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
-    <ProjectReference Include="../Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
-    <ProjectReference Include="../Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
-    <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
     <ProjectReference Include="../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" Condition="'$(IntoChatOSAot)' != 'true'" />
-    <ProjectReference Include="../Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
-    <ProjectReference Include="../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
-    <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
-    <ProjectReference Include="../Modules/Time/IntoChat.OS.Modules.Time.csproj" />
     <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
-    <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" />
-    <ProjectReference Include="../Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
@@ -82,13 +62,9 @@
     <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
   </ItemGroup>
-  <Target Name="IncludeKernelDepsJsonInPublish"
-          DependsOnTargets="GenerateBuildDependencyFile"
-          BeforeTargets="GetCopyToPublishDirectoryItems">
+  <Target Name="IncludeKernelDepsJsonInPublish" DependsOnTargets="GenerateBuildDependencyFile" BeforeTargets="GetCopyToPublishDirectoryItems">
     <ItemGroup Condition="Exists('$(ProjectDepsFilePath)')">
-      <AllPublishItemsFullPathWithTargetPath Include="$(ProjectDepsFilePath)"
-                                             TargetPath="$(ProjectDepsFileName)"
-                                             CopyToPublishDirectory="PreserveNewest" />
+      <AllPublishItemsFullPathWithTargetPath Include="$(ProjectDepsFilePath)" TargetPath="$(ProjectDepsFileName)" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
   <ItemGroup>

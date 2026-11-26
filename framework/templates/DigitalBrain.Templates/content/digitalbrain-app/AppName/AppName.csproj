@@ -7,7 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="DigitalBrain" />
-    <PackageReference Include="DigitalBrain.UI" />
     <!-- The spec comment: the analyzers read it to check the operations (DB0027). -->
     <AdditionalFiles Include="*.spec.md" />
   </ItemGroup>

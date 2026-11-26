@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
@@ -10,29 +11,22 @@
     <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
-    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Modules/Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
+    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
-    <ProjectReference Include="../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
+    <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
     <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
-    <ProjectReference Include="../Modules/UI/Contracts/IntoChat.OS.Modules.UI.Contracts.csproj" />
-    <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
-    <ProjectReference Include="../Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" />
-    <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
-    <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" />
+    <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" />
   </ItemGroup>
   <!-- Shipped unit sources: synapse units the OS deploys through the synapse studio, never compiled into this assembly. -->
   <ItemGroup>

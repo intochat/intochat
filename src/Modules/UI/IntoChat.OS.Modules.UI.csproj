@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
@@ -8,17 +9,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="Contracts/**" />
-    <EmbeddedResource Remove="Contracts/**" />
-    <None Remove="Contracts/**" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="Contracts/IntoChat.OS.Modules.UI.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
   </ItemGroup>
 </Project>

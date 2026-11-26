@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>External tool connectors and app plugins: MCP, Playwright, Web, GitHub, Google, Salesforce, ArtCraft, Muncly, and Treg.</Description>
+    <NoWarn>$(NoWarn);DB0033;CA1812</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="MimeKit" />
+    <PackageReference Include="ModelContextProtocol.Core" />
+    <PackageReference Include="Octokit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
+    <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+  </ItemGroup>
+</Project>

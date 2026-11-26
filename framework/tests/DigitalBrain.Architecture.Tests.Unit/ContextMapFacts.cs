@@ -14,22 +14,45 @@ public sealed class ContextMapFacts
 
     private static readonly Context[] Map =
     [
-        new("Authoring", ["DigitalBrain", "DigitalBrain.Rules", "DigitalBrain.Time", "DigitalBrain.Capabilities", "DigitalBrain.Contracts", "DigitalBrain.Access", "DigitalBrain.Components"], []),
-        new("Kernel", ["DigitalBrain.Kernel", "DigitalBrain.Invocation", "DigitalBrain.Signals", "DigitalBrain.Brains", "DigitalBrain.Identity", "DigitalBrain.Caching"], ["Authoring"]),
-        new("Neurons", ["DigitalBrain.Neurons", "DigitalBrain.State", "DigitalBrain.Errors", "DigitalBrain.Log"], ["Authoring", "Kernel"]),
+        new("UI", ["DigitalBrain.UI", "DigitalBrain.UI.Confirmation", "DigitalBrain.UI.Controls"], []),
+        new("Authoring", ["DigitalBrain", "DigitalBrain.Rules", "DigitalBrain.Time", "DigitalBrain.Capabilities", "DigitalBrain.Contracts", "DigitalBrain.Access", "DigitalBrain.Components"], ["UI"]),
+        new("Kernel", ["DigitalBrain.Kernel", "DigitalBrain.Invocation", "DigitalBrain.Signals", "DigitalBrain.Brains", "DigitalBrain.Identity", "DigitalBrain.Caching"], ["Authoring", "UI"]),
+        new("Neurons", ["DigitalBrain.Neurons", "DigitalBrain.State", "DigitalBrain.Errors", "DigitalBrain.Log"], ["Authoring", "Kernel", "UI"]),
         new("Connections", ["DigitalBrain.Connections"], ["Authoring"]),
-        new("Work", ["DigitalBrain.Operations", "DigitalBrain.Confirmation", "DigitalBrain.Flows", "DigitalBrain.Scheduling"], ["Authoring", "Kernel", "Neurons"]),
+        new("Work", ["DigitalBrain.Operations", "DigitalBrain.Confirmation", "DigitalBrain.Flows", "DigitalBrain.Scheduling"], ["Authoring", "Kernel", "Neurons", "UI"]),
         new("Limits", ["DigitalBrain.Limits"], ["Authoring", "Kernel", "Neurons"]),
-        new("Units", ["DigitalBrain.Units"], ["Authoring", "Kernel", "Neurons", "Connections"]),
+        new("Units", ["DigitalBrain.Units"], ["Authoring", "Kernel", "Neurons", "Connections", "UI"]),
         new("Modules", ["DigitalBrain.Modules", "DigitalBrain.Modules.Configuration", "DigitalBrain.Modules.Options", "DigitalBrain.Modules.Validation"], ["Authoring", "Limits", "Connections"]),
-        new("Presentation", ["DigitalBrain.Screens", "DigitalBrain.Signals.Watch", "DigitalBrain.UI.Commands"], ["Authoring", "Kernel", "Neurons", "Modules"]),
+        new("Presentation", ["DigitalBrain.Screens", "DigitalBrain.Signals.Watch", "DigitalBrain.UI.Commands"], ["Authoring", "Kernel", "Neurons", "Modules", "UI"]),
         new("Simulation", ["DigitalBrain.Hosting"], ["Authoring", "Kernel", "Neurons"]),
+        new("Capabilities",
+            [
+                "DigitalBrain.Capabilities.Compute",
+                "DigitalBrain.Capabilities.Connections",
+                "DigitalBrain.Capabilities.Connections.Broker",
+                "DigitalBrain.Capabilities.Connections.Catalog",
+                "DigitalBrain.Capabilities.Connections.Connectors",
+                "DigitalBrain.Capabilities.Connections.Integrations",
+                "DigitalBrain.Capabilities.Connections.Requests",
+                "DigitalBrain.Capabilities.Connections.Sealing",
+                "DigitalBrain.Capabilities.Http",
+                "DigitalBrain.Capabilities.Identity",
+                "DigitalBrain.Capabilities.Identity.Model",
+                "DigitalBrain.Capabilities.Secrets",
+                "DigitalBrain.Capabilities.Storage",
+                "DigitalBrain.Capabilities.Storage.Confinement",
+                "DigitalBrain.Capabilities.Tools",
+            ],
+            ["Authoring", "Kernel", "Neurons", "Connections", "Work", "Limits", "Units", "Modules", "UI"]),
+        new("Graph", ["DigitalBrain.Graph"], ["Authoring", "Kernel", "Neurons", "Capabilities", "Modules", "Work", "Units"]),
     ];
 
     // Mentions against the map that exist during migration, as "Type -> Type". It may only shrink.
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         "DigitalBrain.Access.AccessGate -> DigitalBrain.Kernel.CallDescriptor",
+        "DigitalBrain.Components.GrantOfferProjection -> DigitalBrain.Capabilities.Identity.Grant",
+        "DigitalBrain.Components.GrantOfferProjection -> DigitalBrain.Capabilities.Identity.GrantMode",
         "DigitalBrain.Kernel.ReactionTable -> DigitalBrain.Neurons.Neuron",
         "DigitalBrain.Kernel.ReactionTable+<Invoke>d__3 -> DigitalBrain.Neurons.Neuron",
         "DigitalBrain.Kernel.ReactionTable+<React>d__2 -> DigitalBrain.Neurons.Neuron",

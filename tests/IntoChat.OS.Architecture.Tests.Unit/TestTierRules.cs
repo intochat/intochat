@@ -64,7 +64,7 @@ public sealed partial class TestTierRules
     {
         string[] owners =
         [
-            "IntoChat.OS.Modules.Playwright",
+            "IntoChat.OS.Modules.Plugins",
             "IntoChat.OS.Modules.AI",
             "IntoChat.OS.Modules.Shell",
         ];

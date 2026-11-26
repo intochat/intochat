@@ -5,12 +5,9 @@
     <Description>Local single-owner identity, secrets vault, connections, file master-key custody and the machine id for DigitalBrain hosts. No Orleans.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="DigitalBrain.Identity.Local.Tests.Unit" />
+    <InternalsVisibleTo Include="DigitalBrain.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
   </ItemGroup>
 </Project>

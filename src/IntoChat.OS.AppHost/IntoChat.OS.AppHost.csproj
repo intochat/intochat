@@ -23,18 +23,12 @@
     <ProjectReference Include="../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Components/Aspire/Hosting/**/*.cs" LinkBase="Hosting/Components/Aspire" />

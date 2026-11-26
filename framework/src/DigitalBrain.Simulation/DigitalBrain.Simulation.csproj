@@ -3,24 +3,25 @@
     <IsPackable>true</IsPackable>
     <RootNamespace>DigitalBrain.Testing</RootNamespace>
     <PackageId>DigitalBrain.Simulation</PackageId>
-    <Description>The deterministic simulator: DigitalBrain neurons on an in-memory journal and a clock that moves only when told. No test framework.</Description>
+    <Description>Deterministic simulator (TestOS) and Roslyn synapse compiler/collectible loader. No test framework, no Orleans.</Description>
+    <DefineConstants Condition="'$(IntoChatOSAot)' == 'true'">$(DefineConstants);INTOCHAT_OS_AOT</DefineConstants>
   </PropertyGroup>
-
+  <ItemGroup>
+    <AssemblyMetadata Include="DigitalBrain.ReplacesAssembly" Value="DigitalBrain.Runtime.Synapses" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../DigitalBrain.UI/DigitalBrain.UI.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
-    <ProjectReference Include="../DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
-    <ProjectReference Include="../DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
-
-
+    <!-- DigitalBrain.Analyzers packs analyzer-only (no lib/), so it is no package dependency: its dll ships in this package's lib/. -->
+    <ProjectReference Include="../DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" ReferenceOutputAssembly="true" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <None Include="$(OutDir)DigitalBrain.Analyzers.dll" Pack="true" PackagePath="lib/$(TargetFramework)/" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Testing" />
     <InternalsVisibleTo Include="DigitalBrain.Testing.Silo" />
-    <InternalsVisibleTo Include="DigitalBrain.Testing.Tests.Unit" />
+    <InternalsVisibleTo Include="DigitalBrain.Tests.Unit" />
     <InternalsVisibleTo Include="DigitalBrain.Framework.Tests.E2E" />
     <InternalsVisibleTo Include="DigitalBrain.Architecture.Tests.Unit" />
   </ItemGroup>

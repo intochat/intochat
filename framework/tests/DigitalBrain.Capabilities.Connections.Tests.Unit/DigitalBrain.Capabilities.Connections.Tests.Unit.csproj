@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
-    <ProjectReference Include="../../src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="fixtures/**" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-</Project>

@@ -73,7 +73,7 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup Condition="!$(MSBuildProjectName.StartsWith('DigitalBrain.Analyzers')) And !$(MSBuildProjectName.Contains('.Tests')) And '$(MSBuildProjectName)' != 'IntoChat.OS.Desktop' And '$(MSBuildProjectName)' != 'DigitalBrain.UI' And '$(MSBuildProjectName)' != 'DigitalBrain'">
+  <ItemGroup Condition="!$(MSBuildProjectName.StartsWith('DigitalBrain.Analyzers')) And !$(MSBuildProjectName.Contains('.Tests')) And '$(MSBuildProjectName)' != 'IntoChat.OS.Desktop' And '$(MSBuildProjectName)' != 'DigitalBrain'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 

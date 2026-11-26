@@ -110,7 +110,10 @@ public sealed class ModuleManifestFacts
     [Fact]
     public void Core_has_no_type_named_after_retired_nouns()
     {
-        var names = typeof(Signal).Assembly.GetTypes().Select(type => type.FullName!).ToList();
+        var names = typeof(Signal).Assembly.GetTypes()
+            .Where(type => !(type.Namespace?.StartsWith("DigitalBrain.Capabilities.Connections", StringComparison.Ordinal) ?? false))
+            .Select(type => type.FullName!)
+            .ToList();
         Assert.DoesNotContain(names, name => name.Contains("Connector", StringComparison.OrdinalIgnoreCase));
     }
 }

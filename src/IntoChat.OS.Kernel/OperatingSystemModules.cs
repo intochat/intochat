@@ -25,32 +25,15 @@ public static class OperatingSystemModules
     [
         .. KernelOwnedAssemblies,
         typeof(IntoChat.OS.Modules.AI.AIModule).Assembly,
-        typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly,
-        typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly,
-        typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly,
-        typeof(IntoChat.OS.Modules.ArtCraft.ArtCraftModule).Assembly,
-        typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
         typeof(IntoChat.Aspire.AspireModule).Assembly,
-        typeof(IntoChat.Muncly.MunclyModule).Assembly,
         typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly,
-        typeof(IntoChat.OS.Modules.Circles.CirclesModule).Assembly,
-        typeof(IntoChat.OS.Modules.ClickHouse.ClickHouseModule).Assembly,
         typeof(IntoChat.OS.Modules.Devices.DevicesModule).Assembly,
-        typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule).Assembly,
-        typeof(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule).Assembly,
+        typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
         typeof(IntoChat.OS.Modules.Mcp.McpModule).Assembly,
-        typeof(IntoChat.OS.Modules.Notifications.NotificationsModule).Assembly,
-        typeof(IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightModule).Assembly,
-        typeof(IntoChat.OS.Modules.Postgres.PostgresModule).Assembly,
 #if !INTOCHAT_OS_AOT
         typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule).Assembly,
 #endif
-        typeof(IntoChat.OS.Modules.Salesforce.SalesforceModule).Assembly,
         typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly,
-        typeof(IntoChat.OS.Modules.LocalDisk.LocalDiskModule).Assembly,
-        typeof(IntoChat.OS.Modules.Time.TimeModule).Assembly,
-        typeof(IntoChat.OS.Modules.Web.WebModule).Assembly,
-        typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule).Assembly,
     ];
 
     public static IReadOnlyList<OsModule> Modules { get; } = Discover(typeof(OperatingSystemModules).Assembly);
@@ -179,14 +162,10 @@ public static class OperatingSystemModules
         "IntoChat.OS.Modules.AI",
         "IntoChat.OS.Modules.Catalog",
         "IntoChat.OS.Modules.Devices",
-        "IntoChat.OS.Modules.GitHub",
-        "IntoChat.OS.Modules.Google",
         "IntoChat.OS.Modules.Identity",
-        "IntoChat.OS.Modules.Mcp",
-        "IntoChat.OS.Modules.Postgres",
+        "IntoChat.OS.Modules.Infrastructure",
+        "IntoChat.OS.Modules.Plugins",
         "IntoChat.OS.Modules.Roslyn",
-        "IntoChat.OS.Modules.Storage",
-        "IntoChat.OS.Modules.Windows",
     };
 
     // Composes the given modules (the portable composition by default) and the OS apps.

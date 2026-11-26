@@ -23,9 +23,13 @@ public sealed class UiVerticalSliceFacts
     [Fact]
     public void TheUiContractsAssemblyHoldsOnlyControlContracts()
     {
-        Assert.Equal("IntoChat.OS.Modules.UI.Contracts", ContractsAssembly.GetName().Name);
-        var problems = ContractsAssembly.GetExportedTypes()
-            .Where(type => !type.IsInterface || PropsOfContract(type) is null
+        Assert.Equal("IntoChat.OS.Modules.UI", ContractsAssembly.GetName().Name);
+        var controlContracts = ContractsAssembly.GetExportedTypes()
+            .Where(type => type.IsInterface && type.Namespace == typeof(ICheckBoxControl).Namespace)
+            .ToArray();
+        Assert.NotEmpty(controlContracts);
+        var problems = controlContracts
+            .Where(type => PropsOfContract(type) is null
                 || type.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type.StartsWith("control.", StringComparison.Ordinal) != true)
             .Select(type => type.FullName)
             .ToArray();
@@ -37,7 +41,9 @@ public sealed class UiVerticalSliceFacts
     {
         var neurons = ControlNeurons();
         Assert.NotEmpty(neurons);
-        var contracts = ContractsAssembly.GetExportedTypes().Where(type => type.IsInterface).ToArray();
+        var contracts = ContractsAssembly.GetExportedTypes()
+            .Where(type => type.IsInterface && type.Namespace == typeof(ICheckBoxControl).Namespace)
+            .ToArray();
         var problems = new List<string>();
         foreach (var neuron in neurons)
         {

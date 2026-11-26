@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>The identity module: accounts, brains, grants, sessions, the vault, connections and integrations (identity@1 and secrets@1).</Description>
@@ -16,12 +17,10 @@
   <ItemGroup>
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Storage.Blobs" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <PackageReference Include="Microsoft.Orleans.Reminders" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Server" />
@@ -30,8 +29,5 @@
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Identity.Tests.Unit" />
   </ItemGroup>
 </Project>

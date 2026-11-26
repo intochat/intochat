@@ -10,17 +10,13 @@ WORKDIR /src
 
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
 COPY src/IntoChat.OS/ ./src/IntoChat.OS/
+COPY src/IntoChat.OS.Contracts/ ./src/IntoChat.OS.Contracts/
 COPY src/IntoChat.OS.Host/ ./src/IntoChat.OS.Host/
 COPY src/IntoChat.OS.UI/ ./src/IntoChat.OS.UI/
-COPY src/IntoChat.OS.Host/ ./src/IntoChat.OS.Host/
-COPY src/Modules/Roslyn/ ./src/Modules/Roslyn/
 COPY src/IntoChat.OS.Sandbox/ ./src/IntoChat.OS.Sandbox/
-COPY src/Modules/AI/Contracts/ ./src/Modules/AI/Contracts/
 COPY src/Modules/AI/Generators/ ./src/Modules/AI/Generators/
 COPY src/Modules/AI/Models/models.json ./src/Modules/AI/Models/models.json
-COPY src/Modules/Catalog/Contracts/ ./src/Modules/Catalog/Contracts/
 COPY src/Modules/Identity/Contracts/ ./src/Modules/Identity/Contracts/
-COPY src/Modules/Shell/Contracts/ ./src/Modules/Shell/Contracts/
 COPY framework/src/ ./framework/src/
 
 ARG NUGET_TOKEN=""

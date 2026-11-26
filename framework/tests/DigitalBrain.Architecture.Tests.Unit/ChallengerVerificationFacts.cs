@@ -9,19 +9,9 @@ public sealed class ChallengerVerificationFacts
     private static readonly string[] Shipped =
     [
         "DigitalBrain",
-        "DigitalBrain.UI",
         "DigitalBrain.Simulation",
         "DigitalBrain.Testing",
-        "DigitalBrain.Identity.Local",
         "DigitalBrain.Runtime.Http",
-        "DigitalBrain.Runtime.Synapses",
-        "DigitalBrain.Capabilities.Compute",
-        "DigitalBrain.Capabilities.Connections",
-        "DigitalBrain.Capabilities.Http",
-        "DigitalBrain.Capabilities.Identity",
-        "DigitalBrain.Capabilities.Secrets",
-        "DigitalBrain.Capabilities.Storage",
-        "DigitalBrain.Capabilities.Tools",
     ];
 
     [Fact]

@@ -350,19 +350,9 @@ public sealed class NeuronOperations(IServiceProvider services, BrainId brain, s
             }
         }
 
-        var computeTraceContextType = Type.GetType("DigitalBrain.Capabilities.Compute.TraceContext, DigitalBrain.Capabilities.Compute");
-        if (computeTraceContextType is not null)
+        if (DigitalBrain.Capabilities.Compute.TraceContext.Current?.TraceId is { Length: > 0 } currentTraceId)
         {
-            var currentProp = computeTraceContextType.GetProperty("Current", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            var currentTrace = currentProp?.GetValue(null);
-            if (currentTrace is not null)
-            {
-                var traceIdProp = currentTrace.GetType().GetProperty("TraceId");
-                if (traceIdProp?.GetValue(currentTrace) is string id && !string.IsNullOrEmpty(id))
-                {
-                    return id;
-                }
-            }
+            return currentTraceId;
         }
 
         return System.Diagnostics.Activity.Current?.TraceId.ToHexString();

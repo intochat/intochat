@@ -9,7 +9,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     private static readonly string Catalog = SolutionPaths.Directory("IntoChat.OS.Modules.Catalog");
     private static readonly string Aspire = SolutionPaths.Directory("IntoChat.Aspire");
     private static readonly string AppHost = SolutionPaths.Directory("IntoChat.OS.AppHost");
-    private static readonly string Web = SolutionPaths.Directory("IntoChat.OS.Modules.Web");
+    private static readonly string Devices = SolutionPaths.Directory("IntoChat.OS.Modules.Devices");
     private static readonly string Ui = SolutionPaths.Directory("IntoChat.OS.UI");
 
     private readonly string _worktree;
@@ -87,8 +87,8 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     [Fact]
     public void AChangeToAModuleStillPlansAListOfItsModule()
         => Assert.Equal(
-            [new EngineerVerificationCall("module.web", "neurons_list", "ok")],
-            EngineerLiveVerifier.DeriveVerificationPlan([$"{Web}/WebModule.cs"]).McpCalls);
+            [new EngineerVerificationCall("module.devices", "neurons_list", "ok")],
+            EngineerLiveVerifier.DeriveVerificationPlan([$"{Devices}/DevicesModule.cs"]).McpCalls);
 
     [Fact]
     public void AChangeToTheUiKitIsAUiChange()

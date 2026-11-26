@@ -14,9 +14,7 @@ public sealed partial class HttpBoundaryFacts
 
     public static readonly TheoryData<string> AspNetFreeProjects = new()
     {
-        "DigitalBrain", "DigitalBrain.UI", "DigitalBrain.Simulation", "DigitalBrain.Testing", "DigitalBrain.Analyzers",
-        "DigitalBrain.Capabilities.Storage", "DigitalBrain.Capabilities.Secrets", "DigitalBrain.Capabilities.Identity",
-        "DigitalBrain.Capabilities.Compute", "DigitalBrain.Capabilities.Connections", "DigitalBrain.Capabilities.Http", "DigitalBrain.Capabilities.Tools", "DigitalBrain.Identity.Local",
+        "DigitalBrain", "DigitalBrain.Simulation", "DigitalBrain.Testing", "DigitalBrain.Analyzers",
     };
 
     [GeneratedRegex(@"^\s*using\s+(static\s+)?Microsoft\.AspNetCore(\.|;)", RegexOptions.Multiline)]
@@ -41,11 +39,7 @@ public sealed partial class HttpBoundaryFacts
     {
         Assembly[] assemblies =
         [
-            typeof(Signal).Assembly, typeof(DigitalBrain.UI.View).Assembly, typeof(DigitalBrain.Testing.TestOS).Assembly, typeof(DigitalBrain.Testing.SiloHost).Assembly,
-            typeof(DigitalBrain.Capabilities.Storage.IStorage).Assembly, typeof(DigitalBrain.Capabilities.Secrets.ISecrets).Assembly,
-            typeof(DigitalBrain.Capabilities.Identity.IIdentity).Assembly, typeof(DigitalBrain.Capabilities.Compute.ICostMeter).Assembly,
-            typeof(DigitalBrain.Capabilities.Connections.IConnection).Assembly, typeof(DigitalBrain.Capabilities.Http.IHttpRead).Assembly,
-            typeof(DigitalBrain.Capabilities.Tools.ITool).Assembly, typeof(DigitalBrain.Identity.Local.LocalIdentityHosting).Assembly,
+            typeof(Signal).Assembly, typeof(DigitalBrain.Testing.TestOS).Assembly, typeof(DigitalBrain.Testing.SiloHost).Assembly,
         ];
         foreach (var assembly in assemblies)
         {
@@ -68,7 +62,7 @@ public sealed partial class HttpBoundaryFacts
     public void Runtime_http_references_the_aspnet_framework_and_identity_contract_only()
     {
         var project = Repository.ProjectNamed(HttpProject);
-        Assert.Equal(["DigitalBrain.Capabilities.Identity", "DigitalBrain.Capabilities.Storage"], Repository.ProjectReferences(project.Path));
+        Assert.Equal(["DigitalBrain"], Repository.ProjectReferences(project.Path));
         Assert.Empty(Repository.PackageReferences(project.Path));
         Assert.Equal(["Microsoft.AspNetCore.App"], FrameworkReferences(project.Path));
         var restored = Repository.AssetsFile(project);

@@ -11,14 +11,13 @@ public sealed class LegacyPureTypeFacts
         Assert.Null(typeof(DigitalBrain.Contracts.NeuronAliasAttribute).GetMethod("Of"));
     }
 
-    // R10: DigitalBrain.csproj references DigitalBrain.UI and DigitalBrain.Analyzers (analyzer-only).
+    // R10: DigitalBrain.csproj references only DigitalBrain.Analyzers (analyzer-only).
     [Fact]
     public void Core_references_only_the_analyzer_project_as_analyzer()
     {
         var references = CoreReferences(LoadCore());
-        Assert.Equal(2, references.Count);
-        Assert.Contains(references, r => IsAnalyzerOnly(r));
-        Assert.Contains(references, r => Path.GetFileName((r.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/')) == "DigitalBrain.UI.csproj");
+        var only = Assert.Single(references);
+        Assert.True(IsAnalyzerOnly(only));
     }
 
     [Theory]
@@ -28,7 +27,7 @@ public sealed class LegacyPureTypeFacts
     public void Any_other_reference_is_rejected(string reference)
     {
         var csproj = XDocument.Parse($"<Project><ItemGroup>{reference}</ItemGroup></Project>");
-        Assert.False(CoreReferences(csproj).Any(IsAnalyzerOnly) && CoreReferences(csproj).Count == 2);
+        Assert.False(CoreReferences(csproj).Any(IsAnalyzerOnly) && CoreReferences(csproj).Count == 1);
     }
 
     private static List<XElement> CoreReferences(XDocument csproj) => csproj.Descendants("ProjectReference").ToList();

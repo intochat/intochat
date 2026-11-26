@@ -502,8 +502,8 @@ public sealed class HouseRules22Facts
             {
                 offenders.Add($"{DisplayPath(src)}:{line}");
             }
-            // The settings contract lives in the Catalog contracts folder, whichever project scanned it first.
-            if (!(src.FileName == "IUserSettings.cs" && src.FullPath.Split(Path.DirectorySeparatorChar).Contains("Contracts", StringComparer.Ordinal)))
+            // The settings contract lives in IntoChat.OS.Contracts (formerly Catalog/Contracts).
+            if (!(src.FileName == "IUserSettings.cs" && (src.ProjectName == "IntoChat.OS.Contracts" || src.FullPath.Split(Path.DirectorySeparatorChar).Contains("Contracts", StringComparer.Ordinal))))
             {
                 foreach (var line in FindSettingsKeyInterpolations(src.Root))
                 {
@@ -720,7 +720,7 @@ public sealed class HouseRules22Facts
             ("IntoChat.OS.Modules.Roslyn", "CodeGraphService.cs"),
             ("IntoChat.OS.Modules.Shell", "ViewportNeuron.cs"),
             ("IntoChat.OS.Modules.Shell", "WorkspaceNeuron.cs"),
-            ("IntoChat.OS.Modules.Windows", "WindowsStorageWrites.cs"),
+            ("IntoChat.OS.Modules.Infrastructure", "WindowsStorageWrites.cs"),
         };
         var offenders = new List<string>();
         foreach (var src in ProductionSources.Value)
@@ -1189,6 +1189,11 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",
+            // Former component public types folded into IntoChat.OS.Modules.Plugins
+            "IntoChat.Muncly.Screens.MunclyApp",
+            "IntoChat.Muncly.Screens.MunclyAppState",
+            "IntoChat.Treg.SkillImport",
+            "IntoChat.Treg.TregPreset",
         };
 
         var contractsDeclaredNames = new HashSet<string>(StringComparer.Ordinal);
@@ -1708,17 +1713,12 @@ public sealed class HouseRules22Facts
     private static readonly HashSet<string> PrivilegedSiloNeuronModules = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI",
-        "IntoChat.OS.Modules.Authoring",
         "IntoChat.OS.Modules.Catalog",
         "IntoChat.OS.Modules.Devices",
-        "IntoChat.OS.Modules.GitHub",
-        "IntoChat.OS.Modules.Google",
         "IntoChat.OS.Modules.Identity",
-        "IntoChat.OS.Modules.Mcp",
-        "IntoChat.OS.Modules.Postgres",
+        "IntoChat.OS.Modules.Infrastructure",
+        "IntoChat.OS.Modules.Plugins",
         "IntoChat.OS.Modules.Roslyn",
-        "IntoChat.OS.Modules.Storage",
-        "IntoChat.OS.Modules.Windows",
     };
 
     [Fact]

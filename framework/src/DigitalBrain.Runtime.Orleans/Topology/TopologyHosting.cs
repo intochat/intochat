@@ -165,7 +165,11 @@ public static class TopologyHosting
 
     /// <summary>The declarations (privileged grants, secrets) of every module composed through <see cref="UseModuleTopology"/>.</summary>
     internal static ModuleDeclarations ComposedDeclarations(IServiceProvider services)
-        => new([.. services.GetServices<ModuleAssemblies>().SelectMany(assemblies => assemblies.Modules).Distinct().Select(ModuleManifest.Of)]);
+        => new([.. ComposedModules(services).Select(ModuleManifest.Of)]);
+
+    /// <summary>The distinct module types composed through <see cref="UseModuleTopology"/>.</summary>
+    internal static Type[] ComposedModules(IServiceProvider services)
+        => [.. services.GetServices<ModuleAssemblies>().SelectMany(assemblies => assemblies.Modules).Distinct()];
 
     private sealed record ModuleAssemblies(System.Reflection.Assembly[] Assemblies, Type[] Modules);
 

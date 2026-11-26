@@ -60,11 +60,16 @@ internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuron
     /// <exception cref="InvalidOperationException">Two classes claim one type name, or a <c>[Neuron]</c> class is an app.</exception>
     /// <exception cref="SynapseShapeException">A state alias is declared twice, or a synapse function has an unsupported shape.</exception>
     public NeuronTypeRegistry(IEnumerable<Assembly> assemblies)
-        : this(Listed(assemblies).SelectMany(Loadable).Concat([typeof(InstallsNeuron), typeof(OffersNeuron), typeof(SourcesNeuron), typeof(PoliciesNeuron), typeof(DigitalBrain.Scheduling.TimeNeuron), typeof(DigitalBrain.Operations.OperationNeuron), typeof(DigitalBrain.Confirmation.ConfirmationsNeuron), typeof(UnitDeployment), typeof(AsksNeuron), typeof(AskBatchNeuron)]))
+        : this(assemblies, [])
+    {
+    }
+
+    internal NeuronTypeRegistry(IEnumerable<Assembly> assemblies, IEnumerable<Type> selectedModules)
+        : this(SelectedLoadable(Listed(assemblies), selectedModules).Concat([typeof(InstallsNeuron), typeof(OffersNeuron), typeof(SourcesNeuron), typeof(PoliciesNeuron), typeof(DigitalBrain.Scheduling.TimeNeuron), typeof(DigitalBrain.Operations.OperationNeuron), typeof(DigitalBrain.Confirmation.ConfirmationsNeuron), typeof(UnitDeployment), typeof(AsksNeuron), typeof(AskBatchNeuron)]))
     {
         var listed = Listed(assemblies);
         Catalog = SynapseCatalog.Scan(listed);
-        Actions = ScanActions(listed);
+        Actions = ScanActions(listed, selectedModules);
         foreach (var (alias, record) in Catalog.States)
         {
             var neuronClass = typeof(UnitNeuron<>).MakeGenericType(record);
@@ -160,19 +165,116 @@ internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuron
         catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
     }
 
-    private static IReadOnlyList<ActionDescriptor> ScanActions(IEnumerable<Assembly> assemblies)
+    private static IEnumerable<Type> SelectedLoadable(IEnumerable<Assembly> assemblies, IEnumerable<Type> selectedModules)
     {
-        var actions = new Dictionary<string, ActionDescriptor>(StringComparer.Ordinal);
-        foreach (var type in assemblies.SelectMany(Loadable).Where(t => t is { IsAbstract: false, IsClass: true } && typeof(DigitalBrain.Modules.Module).IsAssignableFrom(t) && t.IsDefined(typeof(ModuleAttribute), false)))
+        var selectedByAssembly = selectedModules
+            .Distinct()
+            .GroupBy(static m => m.Assembly)
+            .ToDictionary(static g => g.Key, static g => g.ToHashSet());
+
+        foreach (var assembly in assemblies)
         {
-            try
+            var types = Loadable(assembly).ToArray();
+            if (!selectedByAssembly.TryGetValue(assembly, out var selectedInAssembly))
             {
-                foreach (var action in ModuleManifest.Of(type).Actions)
+                foreach (var t in types) { yield return t; }
+                continue;
+            }
+
+            var declaredModules = types
+                .Where(static t => t is { IsClass: true, IsAbstract: false }
+                    && typeof(DigitalBrain.Modules.Module).IsAssignableFrom(t)
+                    && t.IsDefined(typeof(ModuleAttribute), inherit: false))
+                .ToArray();
+
+            if (!HasDisjointNamespaces(declaredModules))
+            {
+                foreach (var t in types) { yield return t; }
+                continue;
+            }
+
+            foreach (var t in types)
+            {
+                var owners = OwningModules(t, declaredModules);
+                if (owners.Count > 0 && !owners.Any(selectedInAssembly.Contains)) { continue; }
+                yield return t;
+            }
+        }
+    }
+
+    private static bool HasDisjointNamespaces(Type[] declaredModules)
+    {
+        var namespaces = declaredModules
+            .Select(static m => m.Namespace)
+            .Where(static ns => !string.IsNullOrEmpty(ns))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (namespaces.Length <= 1) { return false; }
+        for (var i = 0; i < namespaces.Length; i++)
+        {
+            var a = namespaces[i]!;
+            for (var j = 0; j < namespaces.Length; j++)
+            {
+                if (i == j) { continue; }
+                var b = namespaces[j]!;
+                if (b.Length > a.Length && b[a.Length] == '.' && b.StartsWith(a, StringComparison.Ordinal))
                 {
-                    _ = actions.TryAdd(action.Name, action);
+                    return false;
                 }
             }
-            catch (Exception error) when (error is InvalidOperationException or InvalidDataException) { _ = error; }
+        }
+        return true;
+    }
+
+    private static List<Type> OwningModules(Type type, Type[] declaredModules)
+    {
+        if (declaredModules.Length <= 1 || string.IsNullOrEmpty(type.Namespace)) { return []; }
+        var ns = type.Namespace;
+        var bestLength = -1;
+        var best = new List<Type>();
+        foreach (var module in declaredModules)
+        {
+            var modNs = module.Namespace;
+            if (string.IsNullOrEmpty(modNs)) { continue; }
+            var matches = string.Equals(ns, modNs, StringComparison.Ordinal)
+                || (ns.Length > modNs.Length && ns[modNs.Length] == '.' && ns.StartsWith(modNs, StringComparison.Ordinal));
+            if (!matches) { continue; }
+            if (modNs.Length > bestLength)
+            {
+                bestLength = modNs.Length;
+                best.Clear();
+                best.Add(module);
+            }
+            else if (modNs.Length == bestLength)
+            {
+                best.Add(module);
+            }
+        }
+        return best;
+    }
+
+    private static IReadOnlyList<ActionDescriptor> ScanActions(IEnumerable<Assembly> assemblies, IEnumerable<Type> selectedModules)
+    {
+        var selectedByAssembly = selectedModules
+            .Distinct()
+            .GroupBy(static m => m.Assembly)
+            .ToDictionary(static g => g.Key, static g => g.ToHashSet());
+        var actions = new Dictionary<string, ActionDescriptor>(StringComparer.Ordinal);
+        foreach (var assembly in assemblies)
+        {
+            var hasSelection = selectedByAssembly.TryGetValue(assembly, out var selectedInAssembly);
+            foreach (var type in Loadable(assembly).Where(t => t is { IsAbstract: false, IsClass: true } && typeof(DigitalBrain.Modules.Module).IsAssignableFrom(t) && t.IsDefined(typeof(ModuleAttribute), false)))
+            {
+                if (hasSelection && !selectedInAssembly!.Contains(type)) { continue; }
+                try
+                {
+                    foreach (var action in ModuleManifest.Of(type).Actions)
+                    {
+                        _ = actions.TryAdd(action.Name, action);
+                    }
+                }
+                catch (Exception error) when (error is InvalidOperationException or InvalidDataException) { _ = error; }
+            }
         }
         return [.. actions.Values];
     }

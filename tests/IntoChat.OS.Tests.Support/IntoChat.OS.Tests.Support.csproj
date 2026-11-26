@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
@@ -10,7 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../../src/Components/Aspire/IntoChat.Aspire.csproj" />
@@ -19,13 +19,10 @@
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../../src/Modules/Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../../src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../../src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
-    <ProjectReference Include="../../src/Modules/Diagnostics/IntoChat.OS.Modules.Diagnostics.csproj" />
-    <ProjectReference Include="../../src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
-    <ProjectReference Include="../../src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
-    <ProjectReference Include="../../src/Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
-    <ProjectReference Include="../../src/Modules/Web/IntoChat.OS.Modules.Web.csproj" />
+    <ProjectReference Include="../../src/Modules/Plugins/IntoChat.OS.Modules.Plugins.csproj" />
+    <ProjectReference Include="../../src/Modules/Infrastructure/IntoChat.OS.Modules.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Contracts/IntoChat.OS.Contracts.csproj" />
   </ItemGroup>
 </Project>
