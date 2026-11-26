@@ -179,13 +179,14 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("check-runs", job, StringComparison.Ordinal);
         Assert.Contains("does not match VERSION", job, StringComparison.Ordinal);
 
-        // .NET from global.json; Flutter pinned to the version ci tests the shell with; Microsoft.WinAppCLI installed for MSIX packing and az-sign.
+        // .NET from global.json; Flutter pinned to the version ci tests the shell with; Microsoft WinApp CLI installed via official action for MSIX packing and az-sign.
         Assert.Contains("global-json-file: global.json", job, StringComparison.Ordinal);
         var flutterVersion = Regex.Match(Job(Workflow("ci.yml"), "flutter"), @"flutter-version:\s*'(?<v>[^']+)'");
         Assert.True(flutterVersion.Success, "ci flutter job must pin flutter-version");
         Assert.Contains($"flutter-version: '{flutterVersion.Groups["v"].Value}'", job, StringComparison.Ordinal);
         Assert.Contains("flutter pub get --enforce-lockfile", job, StringComparison.Ordinal);
-        Assert.Contains("Microsoft.WinAppCLI", job, StringComparison.Ordinal);
+        Assert.Contains("microsoft/setup-WinAppCli@v0.3", job, StringComparison.Ordinal);
+        Assert.Contains("winapp --version", job, StringComparison.Ordinal);
         Assert.Contains("id-token: write", job, StringComparison.Ordinal);
 
         // Conditional Azure Artifact Signing login and repo variable pass-through.
@@ -446,6 +447,8 @@ public sealed partial class CiWorkflowFacts
         var job = Job(ci, "package-dry-run");
 
         Assert.Matches(@"(?m)^\s*runs-on:\s*windows-2025\s*$", job);
+        Assert.Contains("microsoft/setup-WinAppCli@v0.3", job, StringComparison.Ordinal);
+        Assert.Contains("winapp --version", job, StringComparison.Ordinal);
         Assert.Contains(PackagingDryRunCommand, job, StringComparison.Ordinal);
         Assert.Contains("package-dry-run", Needs(Job(ci, "ci")));
         Assert.Contains("needs.package-dry-run.result", Job(ci, "ci"), StringComparison.Ordinal);

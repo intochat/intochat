@@ -229,22 +229,12 @@ jobs:
         run: flutter pub get --enforce-lockfile
 
       - name: Install Microsoft WinApp CLI
+        uses: microsoft/setup-WinAppCli@v0.3
+
+      - name: Verify Microsoft WinApp CLI
         shell: pwsh
         run: |
-          winget install --id Microsoft.WinAppCLI --exact --source winget --accept-package-agreements --accept-source-agreements
-          $candidates = @(
-            (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'),
-            (Join-Path $env:ProgramFiles 'WinGet\Links')
-          )
-          $winappDir = $candidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'winapp.exe') } | Select-Object -First 1
-          if (-not $winappDir) {
-            $found = Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages') -Filter 'winapp.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($found) { $winappDir = $found.DirectoryName }
-          }
-          if ($winappDir) {
-            Add-Content -Path $env:GITHUB_PATH -Value $winappDir
-            $env:PATH = "$winappDir;$env:PATH"
-          }
+          $PSNativeCommandUseErrorActionPreference = $true
           winapp --version
 
       - name: Log in to Azure for Artifact Signing

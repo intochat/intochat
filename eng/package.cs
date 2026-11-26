@@ -587,13 +587,13 @@ internal static class ReleasePackageScript
         if (options.HasAzureArtifactSigning && winappPath is null)
         {
             throw new InvalidOperationException(
-                "winapp.exe not found on PATH; Microsoft.WinAppCLI is required for Azure Artifact Signing (winapp az-sign).");
+                "winapp.exe not found on PATH; Microsoft.WinAppCli is required for Azure Artifact Signing (winapp az-sign).");
         }
 
         if (!options.SkipMsix && OperatingSystem.IsWindows() && winappPath is null)
         {
             throw new InvalidOperationException(
-                "winapp.exe not found on PATH. Install Microsoft.WinAppCLI (winget install --id Microsoft.WinAppCLI --exact --source winget) or pass --skip-msix.");
+                "winapp.exe not found on PATH. Install Microsoft.WinAppCli (winget install --id Microsoft.WinAppCli --exact --source winget) or pass --skip-msix.");
         }
 
         string? azSignMetadataPath = null;
