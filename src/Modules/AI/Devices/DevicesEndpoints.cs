@@ -225,51 +225,17 @@ internal static class DevicesEndpoints
             return;
         }
 
-        DeviceEnrollLinkRequest? request;
-        try
+        var (server, code, validationError) = await ReadAndValidateEnrollRequestAsync(http).ConfigureAwait(false);
+        if (validationError is not null || server is null)
         {
-            request = await JsonSerializer.DeserializeAsync(
-                http.Request.Body,
-                DevicesHttpJson.Default.DeviceEnrollLinkRequest,
-                http.RequestAborted).ConfigureAwait(false);
-        }
-        catch (JsonException)
-        {
-            await WriteErrorAsync(http, StatusCodes.Status400BadRequest, "Request body must be valid JSON.").ConfigureAwait(false);
+            await WriteErrorAsync(http, StatusCodes.Status400BadRequest, validationError ?? "Invalid enrollment payload.").ConfigureAwait(false);
             return;
-        }
-
-        if (request is null)
-        {
-            await WriteErrorAsync(http, StatusCodes.Status400BadRequest, "Enrollment payload is required.").ConfigureAwait(false);
-            return;
-        }
-
-        Uri? server;
-        Code code;
-        string? validationError;
-        if (!string.IsNullOrWhiteSpace(request.Uri))
-        {
-            if (!Link.DeviceEnrollUri.TryParse(request.Uri, out server, out code, out validationError))
-            {
-                await WriteErrorAsync(http, StatusCodes.Status400BadRequest, validationError ?? "Invalid enrollment URI.").ConfigureAwait(false);
-                return;
-            }
-        }
-        else
-        {
-            if (!Link.DeviceEnrollUri.TryParseServer(request.Server, out server, out validationError)
-                || !Link.DeviceEnrollUri.ValidateCode(request.Code, out code, out validationError))
-            {
-                await WriteErrorAsync(http, StatusCodes.Status400BadRequest, validationError ?? "Invalid server or pairing code.").ConfigureAwait(false);
-                return;
-            }
         }
 
         try
         {
             var link = SiloNeurons.Get<Link.IDeviceLink>(http.RequestServices, Link.IDeviceLink.Key(BrainScope.CurrentId()));
-            var status = await link.Join(server!, code).ConfigureAwait(false);
+            var status = await link.Join(server, code).ConfigureAwait(false);
             http.Response.ContentType = "application/json; charset=utf-8";
             await JsonSerializer.SerializeAsync(
                 http.Response.Body,

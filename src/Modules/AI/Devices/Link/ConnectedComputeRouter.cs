@@ -85,11 +85,11 @@ internal sealed class RelayConnectedComputeTransport(
             return null;
         }
 
-        var timeoutMs = Math.Clamp(options?.CurrentValue.Compute.AvailabilityTimeoutMs ?? 400, 50, 500);
+        var executionTimeout = TimeSpan.FromSeconds(Math.Clamp(request.TimeoutSeconds, 5, 270) + 10);
         var dispatch = new BrainResourceDispatchRequest(brainId.Value, node.MachineId, request);
         return hasDeviceLink
-            ? await cloud.DispatchBrainResourceAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false)
-            : await serviceRelay!.DispatchBrainResourceAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false);
+            ? await cloud.DispatchBrainResourceAsync(dispatch, executionTimeout, ct).ConfigureAwait(false)
+            : await serviceRelay!.DispatchBrainResourceAsync(dispatch, executionTimeout, ct).ConfigureAwait(false);
     }
 }
 

@@ -431,12 +431,85 @@ public sealed class Slice3PairingAndModeBFacts
                 await inbox.Resolve(pending.PlanId!, approve: true);
             }
 
-            // Second call with approvedPlanId executes on PC and returns structured stdout/exit code
+            // Negative checks BEFORE valid execution: mismatched command, rootLabel, or unknown planId must be denied
+            var wrongCmd = await remotePc.RunConsoleCommandAsync("whoami", rootLabel: "Projects", approvedPlanId: pending.PlanId, cancellationToken: Ct);
+            Assert.Equal("denied", wrongCmd.Status);
+            Assert.Empty(executedCommands);
+
+            var wrongRoot = await remotePc.RunConsoleCommandAsync("dotnet --version", rootLabel: "OtherRoot", approvedPlanId: pending.PlanId, cancellationToken: Ct);
+            Assert.Equal("denied", wrongRoot.Status);
+            Assert.Empty(executedCommands);
+
+            var unknownPlan = await remotePc.RunConsoleCommandAsync("dotnet --version", rootLabel: "Projects", approvedPlanId: "pc-console-forged1234", cancellationToken: Ct);
+            Assert.Equal("denied", unknownPlan.Status);
+            Assert.Empty(executedCommands);
+
+            // Second call with matching command + rootLabel + approvedPlanId executes on PC once
             var executed = await remotePc.RunConsoleCommandAsync("dotnet --version", rootLabel: "Projects", approvedPlanId: pending.PlanId, cancellationToken: Ct);
             Assert.Equal("completed", executed.Status);
             Assert.Equal(0, executed.ExitCode);
             Assert.Equal("ran: dotnet --version", executed.StandardOutput);
             Assert.Single(executedCommands);
+
+            // Replay of the same approvedPlanId must be denied fail-closed (strict single-use)
+            var replayed = await remotePc.RunConsoleCommandAsync("dotnet --version", rootLabel: "Projects", approvedPlanId: pending.PlanId, cancellationToken: Ct);
+            Assert.Equal("denied", replayed.Status);
+            Assert.Single(executedCommands);
+
+            // Direct LocalPcResourceExecutor security checks: forged token, mismatched command/machine, replay, and cross-cluster BrainId -> local "owner" root lookup
+            var forgedResp = await executor.ExecuteAsync(
+                new PcResourceRequest(
+                    JobId: "job-forged",
+                    BrainId: "cloud-tenant-99",
+                    Capability: ClientComputeConsentPolicy.ConsoleCapability,
+                    Operation: "run",
+                    PayloadJson: JsonSerializer.Serialize(new ConsoleResourcePayload("dotnet --version", "Projects", null, "plan-forged"), DeviceWireJson.Default.ConsoleResourcePayload),
+                    ApprovalToken: "person-approved:cloud-tenant-99:plan-forged"),
+                Ct);
+            Assert.False(forgedResp.Ok);
+            Assert.Contains("person-approval-required", forgedResp.Error, StringComparison.OrdinalIgnoreCase);
+
+            var wrongMachineProof = LocalPcResourceExecutor.CreateApprovalProof("plan-wrong-machine", "cloud-tenant-99", "other-pc", "dotnet --version", "Projects");
+            var wrongMachineResp = await executor.ExecuteAsync(
+                new PcResourceRequest(
+                    JobId: "job-wrong-machine",
+                    BrainId: "cloud-tenant-99",
+                    Capability: ClientComputeConsentPolicy.ConsoleCapability,
+                    Operation: "run",
+                    PayloadJson: JsonSerializer.Serialize(new ConsoleResourcePayload("dotnet --version", "Projects", null, "plan-wrong-machine"), DeviceWireJson.Default.ConsoleResourcePayload),
+                    ApprovalToken: wrongMachineProof),
+                Ct);
+            Assert.False(wrongMachineResp.Ok);
+            Assert.Contains("person-approval-required", wrongMachineResp.Error, StringComparison.OrdinalIgnoreCase);
+
+            var validCrossClusterProof = LocalPcResourceExecutor.CreateApprovalProof("plan-cross-cluster", "cloud-tenant-99", machine.Value, "echo hi", "Projects");
+            var validCrossClusterReq = new PcResourceRequest(
+                JobId: "job-cross-cluster",
+                BrainId: "cloud-tenant-99",
+                Capability: ClientComputeConsentPolicy.ConsoleCapability,
+                Operation: "run",
+                PayloadJson: JsonSerializer.Serialize(new ConsoleResourcePayload("echo hi", "Projects", null, "plan-cross-cluster"), DeviceWireJson.Default.ConsoleResourcePayload),
+                ApprovalToken: validCrossClusterProof);
+            var crossClusterExec = await executor.ExecuteAsync(validCrossClusterReq, Ct);
+            Assert.True(crossClusterExec.Ok, crossClusterExec.Error);
+            Assert.Equal(IntoChatOSNames.DefaultOwnerBrainId, rootProvider.LastQueriedBrainId);
+
+            // Replaying the exact same valid cryptographic proof + planId directly against LocalPcResourceExecutor must fail closed
+            var directReplay = await executor.ExecuteAsync(validCrossClusterReq with { JobId = "job-cross-cluster-replay" }, Ct);
+            Assert.False(directReplay.Ok);
+            Assert.Contains("person-approval-replay", directReplay.Error, StringComparison.OrdinalIgnoreCase);
+
+            // Cross-cluster folder read also queries local owner roots, not remote cloud brain id
+            var crossClusterFolder = await executor.ExecuteAsync(
+                new PcResourceRequest(
+                    JobId: "job-cross-folder",
+                    BrainId: "cloud-tenant-99",
+                    Capability: ClientComputeConsentPolicy.WindowsFolderGatewayCapability,
+                    Operation: "read-text",
+                    PayloadJson: JsonSerializer.Serialize(new FolderResourcePayload("Projects", "hello.txt"), DeviceWireJson.Default.FolderResourcePayload)),
+                Ct);
+            Assert.True(crossClusterFolder.Ok, crossClusterFolder.Error);
+            Assert.Equal(IntoChatOSNames.DefaultOwnerBrainId, rootProvider.LastQueriedBrainId);
 
             // Live revocation of local PC consent fails closed even when Cloud dispatches
             consent.SetAllowWindowsFolderGateway(false);
@@ -575,8 +648,13 @@ public sealed class Slice3PairingAndModeBFacts
 
     private sealed class StaticRootProvider(string[] roots) : IConsentedFolderRootProvider
     {
+        public string? LastQueriedBrainId { get; private set; }
+
         public Task<string[]> GetConsentedRootsAsync(string brainId, CancellationToken cancellationToken = default)
-            => Task.FromResult(roots);
+        {
+            LastQueriedBrainId = brainId;
+            return Task.FromResult(string.Equals(brainId, IntoChatOSNames.DefaultOwnerBrainId, StringComparison.Ordinal) ? roots : []);
+        }
     }
 
     [Neuron("devices.link")]

@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Identity.Local.Machine;
@@ -24,6 +27,10 @@ internal sealed class LocalPcResourceExecutor(
 {
     private const int MaxOutputChars = 20_000;
     private const int MaxTimeoutSeconds = 270;
+    private const long MaxReadBytes = 2 * 1024 * 1024;
+    private const string ApprovalProofPrefix = "person-approved-v2:";
+
+    private readonly ConcurrentDictionary<string, byte> _spentApprovalPlanIds = new(StringComparer.Ordinal);
 
     public async Task<string[]> GetConsentedFolderLabelsAsync(CancellationToken ct = default)
     {
@@ -80,8 +87,8 @@ internal sealed class LocalPcResourceExecutor(
             return Deny("Invalid folder payload JSON.");
         }
 
-        var brainId = string.IsNullOrWhiteSpace(request.BrainId) ? IntoChatOSNames.DefaultOwnerBrainId : request.BrainId.Trim();
-        var roots = await rootProvider.GetConsentedRootsAsync(brainId, ct).ConfigureAwait(false);
+        // Always resolve local PC consented roots under the local owner brain (remote request.BrainId may be a cloud brain id).
+        var roots = await rootProvider.GetConsentedRootsAsync(IntoChatOSNames.DefaultOwnerBrainId, ct).ConfigureAwait(false);
         var rootMap = BuildRootMap(roots);
         if (rootMap.Count == 0)
         {
@@ -150,22 +157,30 @@ internal sealed class LocalPcResourceExecutor(
         }
 
         if (payload is null
+            || string.IsNullOrWhiteSpace(payload.Command)
             || string.IsNullOrWhiteSpace(payload.ApprovalPlanId)
             || string.IsNullOrWhiteSpace(request.ApprovalToken)
-            || !IsValidApprovalProof(payload.ApprovalPlanId, request.BrainId, request.ApprovalToken))
+            || !IsValidApprovalProof(
+                payload.ApprovalPlanId,
+                request.BrainId,
+                thisMachine.Value,
+                payload.Command,
+                payload.RootLabel,
+                request.ApprovalToken))
         {
             return Deny("person-approval-required: valid [PersonOnly] approval proof is required before running shell commands.");
         }
 
-        if (string.IsNullOrWhiteSpace(payload.Command))
+        var spentKey = payload.ApprovalPlanId.Trim();
+        if (!_spentApprovalPlanIds.TryAdd(spentKey, 0))
         {
-            return Deny("Command is required.");
+            return Deny("person-approval-replay: this [PersonOnly] approval plan has already been used.");
         }
 
-        var brainId = string.IsNullOrWhiteSpace(request.BrainId) ? IntoChatOSNames.DefaultOwnerBrainId : request.BrainId.Trim();
+        // Always resolve local PC consented working directory roots under the local owner brain.
         var roots = rootProvider is null
             ? []
-            : await rootProvider.GetConsentedRootsAsync(brainId, ct).ConfigureAwait(false);
+            : await rootProvider.GetConsentedRootsAsync(IntoChatOSNames.DefaultOwnerBrainId, ct).ConfigureAwait(false);
         var rootMap = BuildRootMap(roots);
         if (rootMap.Count == 0)
         {
@@ -189,6 +204,8 @@ internal sealed class LocalPcResourceExecutor(
                 var allowedRoots = rootMap.Values.ToArray();
                 workingDir = PathConfinement.Resolve(allowedRoots, string.IsNullOrWhiteSpace(payload.WorkingDirectory) ? allowedRoots[0] : payload.WorkingDirectory);
             }
+
+            PathConfinement.RequireNoLinks(workingDir);
         }
         catch (Exception error) when (error is ConfinementDenied or UnauthorizedAccessException or IOException or ArgumentException)
         {
@@ -252,15 +269,47 @@ internal sealed class LocalPcResourceExecutor(
             return Deny("File was not found inside the consented root.");
         }
 
+        var info = new FileInfo(fullPath);
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+        {
+            return Deny("Symlinks and junctions are not permitted.");
+        }
+
+        if (info.Length > MaxReadBytes)
+        {
+            return Deny($"File exceeds maximum readable size ({MaxReadBytes / (1024 * 1024)} MiB).");
+        }
+
         var text = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
         return OkFolder(new FolderResourceResult(TextContent: text));
     }
 
     private async Task<PcResourceResponse> WriteTextAsync(string fullPath, string content, CancellationToken ct)
     {
+        if (File.Exists(fullPath) || Directory.Exists(fullPath))
+        {
+            var attrs = File.GetAttributes(fullPath);
+            if (attrs.HasFlag(FileAttributes.ReparsePoint))
+            {
+                return Deny("Symlinks and junctions are not permitted.");
+            }
+        }
+
         var parent = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(parent))
         {
+            // Verify every existing ancestor before creating any missing subdirectories.
+            var probe = parent;
+            while (!string.IsNullOrEmpty(probe) && !Directory.Exists(probe))
+            {
+                probe = Path.GetDirectoryName(probe);
+            }
+
+            if (!string.IsNullOrEmpty(probe))
+            {
+                PathConfinement.RequireNoLinks(probe);
+            }
+
             Directory.CreateDirectory(parent);
             PathConfinement.RequireNoLinks(parent);
         }
@@ -436,11 +485,64 @@ internal sealed class LocalPcResourceExecutor(
         return map;
     }
 
-    internal static string CreateApprovalProof(string planId, string brainId)
-        => $"person-approved:{brainId.Trim()}:{planId.Trim()}";
+    internal static string CreateApprovalProof(
+        string planId,
+        string brainId,
+        string machineId,
+        string command,
+        string? rootLabel = null)
+    {
+        var normalizedPlanId = planId.Trim();
+        var digest = ComputeApprovalDigest(normalizedPlanId, brainId, machineId, command, rootLabel);
+        return $"{ApprovalProofPrefix}{normalizedPlanId}:{digest}";
+    }
 
-    internal static bool IsValidApprovalProof(string planId, string brainId, string proof)
-        => string.Equals(proof.Trim(), CreateApprovalProof(planId, string.IsNullOrWhiteSpace(brainId) ? IntoChatOSNames.DefaultOwnerBrainId : brainId), StringComparison.Ordinal);
+    internal static bool IsValidApprovalProof(
+        string planId,
+        string brainId,
+        string machineId,
+        string command,
+        string? rootLabel,
+        string proof)
+    {
+        if (string.IsNullOrWhiteSpace(planId)
+            || string.IsNullOrWhiteSpace(machineId)
+            || string.IsNullOrWhiteSpace(command)
+            || string.IsNullOrWhiteSpace(proof))
+        {
+            return false;
+        }
+
+        var expected = CreateApprovalProof(
+            planId,
+            string.IsNullOrWhiteSpace(brainId) ? IntoChatOSNames.DefaultOwnerBrainId : brainId,
+            machineId,
+            command,
+            rootLabel);
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        var actualBytes = Encoding.UTF8.GetBytes(proof.Trim());
+        return expectedBytes.Length == actualBytes.Length
+            && CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes);
+    }
+
+    private static string ComputeApprovalDigest(
+        string planId,
+        string brainId,
+        string machineId,
+        string command,
+        string? rootLabel)
+    {
+        var canonical = string.Join(
+            '\0',
+            "pc.console.person-only.v2",
+            brainId.Trim(),
+            machineId.Trim(),
+            planId.Trim(),
+            command.Trim(),
+            (rootLabel ?? string.Empty).Trim().ToLowerInvariant());
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+        return Convert.ToHexStringLower(hash);
+    }
 
     private static async Task<(int ExitCode, string StdOut, string StdErr)> RunCmdExeAsync(
         string command,
@@ -448,9 +550,9 @@ internal sealed class LocalPcResourceExecutor(
         int timeoutSeconds,
         CancellationToken ct)
     {
+        PathConfinement.RequireNoLinks(workingDirectory);
         var fileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh";
-        var arguments = OperatingSystem.IsWindows() ? "/c " + command : "-c \"" + command.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
-        var start = new ProcessStartInfo(fileName, arguments)
+        var start = new ProcessStartInfo(fileName)
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
@@ -458,6 +560,18 @@ internal sealed class LocalPcResourceExecutor(
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        if (OperatingSystem.IsWindows())
+        {
+            start.ArgumentList.Add("/d");
+            start.ArgumentList.Add("/c");
+            start.ArgumentList.Add(command);
+        }
+        else
+        {
+            start.ArgumentList.Add("-c");
+            start.ArgumentList.Add(command);
+        }
+
         ChildEnvironmentPolicy.Scrub(start);
 
         using var process = Process.Start(start) ?? throw new InvalidOperationException($"{fileName} did not start.");
@@ -477,6 +591,16 @@ internal sealed class LocalPcResourceExecutor(
             {
                 OsConsoleLog.For<LocalPcResourceExecutor>().LogSwallowed(killEx, "terminating timed-out shell process");
             }
+
+            try
+            {
+                await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
+            }
+            catch (Exception drainEx) when (drainEx is OperationCanceledException or IOException or ObjectDisposedException)
+            {
+                OsConsoleLog.For<LocalPcResourceExecutor>().LogSwallowed(drainEx, "draining timed-out shell output streams");
+            }
+
             if (ct.IsCancellationRequested)
             {
                 throw;

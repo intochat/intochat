@@ -5,13 +5,31 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Devices.Link;
 
+[GenerateSerializer, Alias("devices.pc-resource.pending-console-plan")]
+internal sealed record PendingConsolePlan(
+    [property: Id(0)] string PlanId,
+    [property: Id(1)] string MachineId,
+    [property: Id(2)] string Command,
+    [property: Id(3)] string? RootLabel,
+    [property: Id(4)] bool Consumed,
+    [property: Id(5)] DateTimeOffset CreatedAtUtc);
+
+[GenerateSerializer, Alias("devices.pc-resource.state")]
+internal sealed record RemotePcResourceState(
+    [property: Id(0)] PendingConsolePlan[] PendingPlans)
+{
+    public RemotePcResourceState() : this([]) { }
+}
+
 /// <summary>
 /// Cloud-brain proxy neuron (<c>devices.pc-resource</c>) exposing Mode B connected Windows PC resources
 /// (consented folders and <c>[PersonOnly]</c>-gated confined shell) to cloud agents and orchestration flows.
 /// </summary>
 [Neuron("devices.pc-resource")]
-internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron, IRemotePcResource
+internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron<RemotePcResourceState>, IRemotePcResource
 {
+    private const int MaxStoredPlans = 64;
+
     private IConnectedComputeRouter Router => services.GetRequiredService<IConnectedComputeRouter>();
 
     private IConfirmationRequests Confirmations() => Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
@@ -128,24 +146,41 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
                 Error: "No online connected PC with [PersonOnly] IConsole consent is available.");
         }
 
+        var normalizedCommand = command.Trim();
+        var normalizedRootLabel = string.IsNullOrWhiteSpace(rootLabel) ? null : rootLabel.Trim();
+
         // Durable [PersonOnly] human approval gate BEFORE dispatching any shell command to the PC.
         if (string.IsNullOrWhiteSpace(approvedPlanId))
         {
             var planId = $"pc-console-{Guid.NewGuid():N}"[..24];
+            var subject = BuildApprovalSubject(target.MachineId, normalizedCommand, normalizedRootLabel);
             await Confirmations().Request(new ConfirmationPlan(
                 Id: planId,
                 Action: ConfirmationAction.Other,
                 Destructive: true,
                 Title: $"Run shell command on {target.DeviceName}?",
-                Body: $"Command: {command.Trim()}" + (string.IsNullOrWhiteSpace(rootLabel) ? "" : $" (folder: {rootLabel.Trim()})"),
+                Body: $"Command: {normalizedCommand}" + (normalizedRootLabel is null ? "" : $" (folder: {normalizedRootLabel})"),
                 ApproveLabel: "Approve & run",
                 DenyLabel: "Deny",
                 TargetLabel: target.DeviceName)
             {
                 RequiresPerson = true,
                 Kind = "pc.console.person-only",
-                Subject = $"{target.MachineId}:{command.Trim()}",
+                Subject = subject,
             }).ConfigureAwait(true);
+
+            var existing = State.PendingPlans ?? [];
+            var retained = existing.Length >= MaxStoredPlans
+                ? existing[^(MaxStoredPlans - 1)..]
+                : existing;
+            var created = new PendingConsolePlan(
+                PlanId: planId,
+                MachineId: target.MachineId,
+                Command: normalizedCommand,
+                RootLabel: normalizedRootLabel,
+                Consumed: false,
+                CreatedAtUtc: Context.Time.GetUtcNow());
+            await Store(State with { PendingPlans = [.. retained, created] }).ConfigureAwait(true);
 
             return new RemotePcShellOutcome(
                 Status: "approval_required",
@@ -153,31 +188,77 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
                 ExecutedByMachineId: target.MachineId);
         }
 
-        var outcome = await Confirmations().Outcome(approvedPlanId.Trim()).ConfigureAwait(true);
+        var planIdTrimmed = approvedPlanId.Trim();
+        var plans = State.PendingPlans ?? [];
+        var planIndex = Array.FindIndex(plans, p => string.Equals(p.PlanId, planIdTrimmed, StringComparison.Ordinal));
+        if (planIndex < 0)
+        {
+            return new RemotePcShellOutcome(
+                Status: "denied",
+                PlanId: planIdTrimmed,
+                Error: "Approval plan was not issued by this brain for a PC console command.",
+                ExecutedByMachineId: target.MachineId);
+        }
+
+        var plan = plans[planIndex];
+        if (plan.Consumed)
+        {
+            return new RemotePcShellOutcome(
+                Status: "denied",
+                PlanId: planIdTrimmed,
+                Error: "Approval plan has already been consumed; request a fresh [PersonOnly] approval.",
+                ExecutedByMachineId: target.MachineId);
+        }
+
+        if (!string.Equals(plan.MachineId, target.MachineId, StringComparison.Ordinal)
+            || !string.Equals(plan.Command, normalizedCommand, StringComparison.Ordinal)
+            || !string.Equals(plan.RootLabel, normalizedRootLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return new RemotePcShellOutcome(
+                Status: "denied",
+                PlanId: planIdTrimmed,
+                Error: "Approval plan does not match the requested machine, command, or folder root.",
+                ExecutedByMachineId: target.MachineId);
+        }
+
+        var outcome = await Confirmations().Outcome(planIdTrimmed).ConfigureAwait(true);
         if (outcome is null)
         {
             return new RemotePcShellOutcome(
                 Status: "approval_required",
-                PlanId: approvedPlanId.Trim(),
+                PlanId: planIdTrimmed,
                 Error: "Waiting for [PersonOnly] approval.",
                 ExecutedByMachineId: target.MachineId);
         }
 
         if (outcome.Outcome != ConfirmationOutcome.Approved)
         {
+            var updatedDenied = (PendingConsolePlan[])plans.Clone();
+            updatedDenied[planIndex] = plan with { Consumed = true };
+            await Store(State with { PendingPlans = updatedDenied }).ConfigureAwait(true);
+
             return new RemotePcShellOutcome(
                 Status: "denied",
-                PlanId: approvedPlanId.Trim(),
+                PlanId: planIdTrimmed,
                 Error: "The person denied running this shell command on the PC.",
                 ExecutedByMachineId: target.MachineId);
         }
 
-        var planIdTrimmed = approvedPlanId.Trim();
-        var proof = LocalPcResourceExecutor.CreateApprovalProof(planIdTrimmed, Id.Brain.Value);
+        // Strict single-use: mark consumed and persist BEFORE dispatching to the PC.
+        var updatedConsumed = (PendingConsolePlan[])plans.Clone();
+        updatedConsumed[planIndex] = plan with { Consumed = true };
+        await Store(State with { PendingPlans = updatedConsumed }).ConfigureAwait(true);
+
+        var proof = LocalPcResourceExecutor.CreateApprovalProof(
+            planIdTrimmed,
+            Id.Brain.Value,
+            target.MachineId,
+            normalizedCommand,
+            normalizedRootLabel);
         var payloadJson = JsonSerializer.Serialize(
             new ConsoleResourcePayload(
-                Command: command.Trim(),
-                RootLabel: rootLabel,
+                Command: normalizedCommand,
+                RootLabel: normalizedRootLabel,
                 ApprovalPlanId: planIdTrimmed),
             DeviceWireJson.Default.ConsoleResourcePayload);
 
@@ -264,6 +345,11 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
         return JsonSerializer.Deserialize(response.ResultJson, DeviceWireJson.Default.FolderResourceResult)
             ?? new FolderResourceResult();
     }
+
+    private static string BuildApprovalSubject(string machineId, string command, string? rootLabel)
+        => string.IsNullOrWhiteSpace(rootLabel)
+            ? $"{machineId}:{command}"
+            : $"{machineId}:{rootLabel}:{command}";
 
     private static string NewJobId() => "res-" + Guid.NewGuid().ToString("N")[..12];
 }
