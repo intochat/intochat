@@ -50,7 +50,8 @@ public sealed record Said(
     DateTimeOffset At,
     string Text,
     ModelId? Model = null,
-    EntryId? Replaces = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    EntryId? Replaces = null,
+    Visibility Visible = Visibility.Everyone) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Called(
     EntryId Id,

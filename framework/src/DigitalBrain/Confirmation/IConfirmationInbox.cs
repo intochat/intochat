@@ -17,6 +17,9 @@ public interface IConfirmationInbox
 
     /// <summary>Resolves a confirmation plan by id.</summary>
     Task Resolve(string planId, bool approve);
+
+    /// <summary>Resolves a multi-option person-only confirmation plan by selecting an option index.</summary>
+    Task ResolveOption(string planId, int optionIndex);
 }
 
 /// <summary>Pending confirmation inbox state snapshot.</summary>

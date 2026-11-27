@@ -1513,7 +1513,7 @@ public sealed class InoAppFacts
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
 
-        public Task Post(string text, string id)
+        public Task Post(string text, string id, Visibility visibility = Visibility.Everyone)
         {
             if (FailPosts > 0) { FailPosts--; throw new InvalidOperationException("Post failed."); }
             Posts.Add((text, id));
@@ -1659,7 +1659,7 @@ public sealed class InoAppFacts
             return Task.CompletedTask;
         }
 
-        public Task Post(string text, string id) => Task.CompletedTask;
+        public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
 
         public Task<ConversationView> Read(long? sinceRevision = null)
             => Task.FromResult(GetOrEmpty(ConvIdValue));

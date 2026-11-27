@@ -20,6 +20,8 @@ public sealed record ConfirmationRequested(string PlanId, ConfirmationPlan Plan,
 /// <param name="Reason">Why it was not approved.</param>
 /// <param name="Skipped">True when the policy approved without asking.</param>
 /// <param name="At">When it ended.</param>
+/// <param name="SelectedOptionIndex">The zero-based option index chosen for a multi-option ask, if any.</param>
+/// <param name="SelectedOption">The option text chosen for a multi-option ask, if any.</param>
 [Signal("confirmation.resolved")]
 public sealed record ConfirmationResolved(
     string PlanId,
@@ -31,4 +33,6 @@ public sealed record ConfirmationResolved(
     ConfirmationOutcome Outcome,
     ConfirmationDenyReason Reason,
     bool Skipped,
-    DateTimeOffset At) : Signal;
+    DateTimeOffset At,
+    int? SelectedOptionIndex = null,
+    string? SelectedOption = null) : Signal;

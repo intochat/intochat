@@ -178,6 +178,7 @@ public sealed class ConfirmationAndBrowserRoutesFacts
         public List<(string Key, string PlanId, bool Approve)> Resolved { get; } = [];
         public Task<ConfirmationInbox> Read() => Task.FromResult(new ConfirmationInbox(0, []));
         public Task Resolve(string planId, bool approve) { Resolved.Add((Key, planId, approve)); return Task.CompletedTask; }
+        public Task ResolveOption(string planId, int optionIndex) { Resolved.Add((Key, planId, true)); return Task.CompletedTask; }
     }
 
     private sealed class RecordingBrowser : IWebBrowserConnector

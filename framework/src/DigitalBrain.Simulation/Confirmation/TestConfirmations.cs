@@ -39,7 +39,12 @@ public sealed class TestConfirmations : IConfirmationRequests, IConfirmationInbo
         {
             if (publisher.Type != ConfirmationsNeuron.NeuronType) { return Task.CompletedTask; }
             lock (_gate) { SyncFromJournals(); }
-            _waiters.Complete(signal.PlanId, new ConfirmationResult(signal.PlanId, signal.Outcome, signal.Reason, signal.Skipped));
+            _waiters.Complete(signal.PlanId, new ConfirmationResult(signal.PlanId, signal.Outcome, signal.Reason, signal.Skipped)
+            {
+                Approver = signal.Approver,
+                SelectedOptionIndex = signal.SelectedOptionIndex,
+                SelectedOption = signal.SelectedOption,
+            });
             return Task.CompletedTask;
         });
     }
@@ -102,6 +107,32 @@ public sealed class TestConfirmations : IConfirmationRequests, IConfirmationInbo
 
     /// <summary>Denies <paramref name="planId"/> as <see cref="Current"/>.</summary>
     public Task Deny(string planId) => Resolve(planId, approve: false, Current);
+
+    /// <summary>Selects option <paramref name="optionIndex"/> for a multi-option ask as <see cref="Current"/>.</summary>
+    public Task ChooseOption(string planId, int optionIndex) => ResolveOption(planId, optionIndex, Current);
+
+    /// <summary>Answers a multi-option plan <paramref name="planId"/> as <paramref name="approver"/>.</summary>
+    public async Task ResolveOption(string planId, int optionIndex, ConfirmationPrincipal approver)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(planId);
+        ArgumentNullException.ThrowIfNull(approver);
+
+        BrainId? known = null;
+        lock (_gate)
+        {
+            SyncFromJournals();
+            if (_osPlanBrains.TryGetValue(planId, out var brain)) { known = brain; }
+        }
+        if (known is { } targetBrain)
+        {
+            await ResolveOptionInBrain(targetBrain, planId, optionIndex, approver).ConfigureAwait(false);
+            return;
+        }
+        foreach (var brain in _os.AllBrains)
+        {
+            await ResolveOptionInBrain(brain, planId, optionIndex, approver).ConfigureAwait(false);
+        }
+    }
 
     /// <summary>Approves or denies a rendered confirmation as <see cref="Current"/>, as the OS inbox surface does from the node's resolution.</summary>
     /// <exception cref="InvalidOperationException">The card has no resolution: its viewer cannot resolve it.</exception>
@@ -204,6 +235,8 @@ public sealed class TestConfirmations : IConfirmationRequests, IConfirmationInbo
 
     Task IConfirmationInbox.Resolve(string planId, bool approve) => Resolve(planId, approve, Current);
 
+    Task IConfirmationInbox.ResolveOption(string planId, int optionIndex) => ResolveOption(planId, optionIndex, Current);
+
     private void SyncFromJournals()
     {
         foreach (var brain in _os.AllBrains)
@@ -240,6 +273,12 @@ public sealed class TestConfirmations : IConfirmationRequests, IConfirmationInbo
         await _os.Get<IConfirmationInbox>(IConfirmationRequests.Of(brain)).Resolve(planId, approve).ConfigureAwait(false);
     }
 
+    private async Task ResolveOptionInBrain(BrainId brain, string planId, int optionIndex, ConfirmationPrincipal approver)
+    {
+        using var _ = _os.Edge.Enter(CallerFor(approver, brain));
+        await _os.Get<IConfirmationInbox>(IConfirmationRequests.Of(brain)).ResolveOption(planId, optionIndex).ConfigureAwait(false);
+    }
+
     private Caller CallerFor(ConfirmationPrincipal principal, BrainId brain) => principal.Kind switch
     {
         PrincipalKind.Person => _os.Edge.Person(principal.Id, principal.Id, brain),
@@ -271,6 +310,16 @@ public sealed class TestConfirmations : IConfirmationRequests, IConfirmationInbo
             var awaited = new AwaitedConfirmations(req, inbox, Policy, owner._waiters);
             using var scope = EnsureAppCallerIfUnstamped();
             await awaited.Resolve(planId, approve, ct).ConfigureAwait(false);
+        }
+
+        public async Task ResolveOption(string planId, int optionIndex, CancellationToken ct = default)
+        {
+            var target = IConfirmationRequests.Of(callerNeuron.Brain);
+            var req = os.Proxy<IConfirmationRequests>(callerNeuron, target);
+            var inbox = os.Proxy<IConfirmationInbox>(callerNeuron, target);
+            var awaited = new AwaitedConfirmations(req, inbox, Policy, owner._waiters);
+            using var scope = EnsureAppCallerIfUnstamped();
+            await awaited.ResolveOption(planId, optionIndex, ct).ConfigureAwait(false);
         }
 
         private IDisposable? EnsureAppCallerIfUnstamped()

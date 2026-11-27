@@ -74,6 +74,7 @@ public sealed class TasksAppFacts
     public void DomainRules_RefuseEmptyTitleInvalidStageMissingTaskAndCompletedAdvance()
     {
         var initial = new TasksWorkspaceState();
+        Assert.Empty(initial.Tasks);
 
         var emptyTitle = initial.AddTask("   ");
         Assert.True(emptyTitle.IsRefused);
@@ -87,16 +88,43 @@ public sealed class TasksAppFacts
         Assert.True(missingTask.IsRefused);
         Assert.Contains("task_not_found", missingTask.Rejection!.Rules);
 
-        var completedSelected = initial.SelectTaskOrFlow("task-1");
+        var withDone = initial.AddTask("Completed work", stage: "done").Next!;
+        var completedSelected = withDone.SelectTaskOrFlow(withDone.Tasks[0].Id);
         var advanceDone = completedSelected.AdvanceSelectedStage();
         Assert.True(advanceDone.IsRefused);
         Assert.Contains("cannot_advance_task", advanceDone.Rejection!.Rules);
 
-        var afterClear = initial.ClearDoneTasks();
+        var afterClear = withDone.ClearDoneTasks();
         Assert.True(afterClear.IsAccepted);
         var clearAgain = afterClear.Next!.ClearDoneTasks();
         Assert.True(clearAgain.IsRefused);
         Assert.Contains("no_completed_tasks", clearAgain.Rejection!.Rules);
+    }
+
+    [Fact]
+    public async Task TasksApp_StartsEmptyWithNoFakeSeedTasks_HasNo24ItemCap_AndHydratesFromITasks()
+    {
+        var state = new TasksWorkspaceState();
+        Assert.Empty(state.Tasks);
+        for (var i = 1; i <= 30; i++)
+        {
+            var added = state.AddTask($"Task {i}");
+            Assert.True(added.IsAccepted);
+            state = added.Next!;
+        }
+        Assert.Equal(30, state.Tasks.Length);
+
+        await using var os = FakeOs();
+        os.Register<IntoChat.OS.Modules.Apps.Tasks.TasksNeuron>();
+        var store = os.Get<IntoChat.OS.Modules.Apps.Tasks.ITasks>(IntoChat.OS.Modules.Apps.Tasks.ITasks.Key(LocalBrain.Value));
+        using (os.Edge.Enter(os.Edge.Person("local", "local", LocalBrain)))
+        {
+            await store.Create("Durable task from ITasks", "Backed by TasksNeuron", ct: TestContext.Current.CancellationToken);
+        }
+
+        var tasks = await os.Install<TasksApp>();
+        Assert.Contains(tasks.App.State.Tasks, t => t.Title == "Durable task from ITasks");
+        Assert.DoesNotContain(tasks.App.State.Tasks, t => t.Title.Contains("Reboot Tasks onto AggregateScreen", StringComparison.Ordinal));
     }
 
     // ── Control children (control.kanban, control.stepper, control.tabStrip, control.queryTable) ──
@@ -108,11 +136,15 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        Assert.Empty(tasks.App.State.Tasks);
+
+        await tasks.Request("add-task", new TasksAddTask());
+        var addedId = tasks.App.State.SelectedTaskId!;
 
         var board = PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey);
         Assert.Equal(["backlog", "in-progress", "review", "done"], board.Columns.Select(c => c.Id));
         Assert.Equal(["Backlog", "In Progress", "Review", "Done"], board.Columns.Select(c => c.Title));
-        Assert.Contains(board.Cards, c => c.Id == "task-3" && c.ColumnId == "backlog");
+        Assert.Contains(board.Cards, c => c.Id == addedId && c.ColumnId == "backlog");
         Assert.Equal(tasks.App.State.Tasks.Length, board.Cards.Count);
         Assert.DoesNotContain(Nodes(tasks.App.Render()).OfType<NeuronRef>(), n => n.Kind.StartsWith("ui.", StringComparison.Ordinal));
     }
@@ -122,16 +154,18 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        await tasks.Request("add-task", new TasksAddTask());
+        var taskId = tasks.App.State.SelectedTaskId!;
 
-        await Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "in-progress"));
-        await Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "review"));
-        await Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "done"));
+        await Send(tasks, TasksApp.KanbanKey, new MoveCard(taskId, "in-progress"));
+        await Send(tasks, TasksApp.KanbanKey, new MoveCard(taskId, "review"));
+        await Send(tasks, TasksApp.KanbanKey, new MoveCard(taskId, "done"));
 
-        Assert.Equal("task-3", tasks.App.State.SelectedTaskId);
+        Assert.Equal(taskId, tasks.App.State.SelectedTaskId);
         Assert.Equal("done", tasks.App.State.SelectedTask?.Stage);
         var view = tasks.App.Render();
-        Assert.Equal("done", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).Cards.Single(c => c.Id == "task-3").ColumnId);
-        Assert.Equal("task-3", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).SelectedCardId);
+        Assert.Equal("done", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).Cards.Single(c => c.Id == taskId).ColumnId);
+        Assert.Equal(taskId, PropsOf<KanbanProps>(view, TasksApp.KanbanKey).SelectedCardId);
         Assert.Equal("done", PropsOf<StepperProps>(view, TasksApp.StepperKey).ActiveStepId);
     }
 
@@ -140,11 +174,13 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        await tasks.Request("add-task", new TasksAddTask());
+        var taskId = tasks.App.State.SelectedTaskId!;
 
-        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.KanbanKey, new MoveCard("task-3", "nowhere")));
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.KanbanKey, new MoveCard(taskId, "nowhere")));
         await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.KanbanKey, new MoveCard("no-such-task", "done")));
 
-        Assert.Equal("backlog", tasks.App.State.Tasks.Single(t => t.Id == "task-3").Stage);
+        Assert.Equal("backlog", tasks.App.State.Tasks.Single(t => t.Id == taskId).Stage);
     }
 
     [Fact]
@@ -152,11 +188,14 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        await tasks.Request("add-task", new TasksAddTask());
+        var firstId = tasks.App.State.SelectedTaskId!;
+        await tasks.Request("add-task", new TasksAddTask());
 
-        await Send(tasks, TasksApp.KanbanKey, new Select("task-2"));
+        await Send(tasks, TasksApp.KanbanKey, new Select(firstId));
 
-        Assert.Equal("task-2", tasks.App.State.SelectedTaskId);
-        Assert.Equal("task-2", PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey).SelectedCardId);
+        Assert.Equal(firstId, tasks.App.State.SelectedTaskId);
+        Assert.Equal(firstId, PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey).SelectedCardId);
     }
 
     [Fact]
@@ -164,7 +203,9 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
-        await tasks.Request("select", new TasksSelect("task-3"));
+        await tasks.Request("add-task", new TasksAddTask());
+        var taskId = tasks.App.State.SelectedTaskId!;
+        await tasks.Request("select", new TasksSelect(taskId));
 
         var stepper = PropsOf<StepperProps>(tasks.App.Render(), TasksApp.StepperKey);
         Assert.Equal(["backlog", "in-progress", "review", "done"], stepper.Steps.Select(s => s.Id));
@@ -178,7 +219,7 @@ public sealed class TasksAppFacts
         Assert.Equal("review", PropsOf<StepperProps>(view, TasksApp.StepperKey).ActiveStepId);
         Assert.Equal([StepperStatus.Done, StepperStatus.Done, StepperStatus.Active, StepperStatus.Pending],
             PropsOf<StepperProps>(view, TasksApp.StepperKey).Steps.Select(s => s.Status));
-        Assert.Equal("review", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).Cards.Single(c => c.Id == "task-3").ColumnId);
+        Assert.Equal("review", PropsOf<KanbanProps>(view, TasksApp.KanbanKey).Cards.Single(c => c.Id == taskId).ColumnId);
         await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.StepperKey, new Select("shipped")));
     }
 
@@ -187,6 +228,7 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        await tasks.Request("add-task", new TasksAddTask());
         Assert.Equal("board", PropsOf<TabStripProps>(tasks.App.Render(), TasksApp.TabsKey).SelectedId);
         Assert.Equal(["board", "table", "approvals"], PropsOf<TabStripProps>(tasks.App.Render(), TasksApp.TabsKey).Items.Select(i => i.Id));
 
@@ -210,16 +252,19 @@ public sealed class TasksAppFacts
     {
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
+        await tasks.Request("add-task", new TasksAddTask());
+        var firstId = tasks.App.State.SelectedTaskId!;
+        await tasks.Request("add-task", new TasksAddTask());
         await tasks.Request("view", new TasksView("table"));
 
         var table = PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey);
         Assert.Equal(["id", "title", "stage", "owner", "tag"], table.Columns.Select(c => c.Id));
         Assert.Equal(tasks.App.State.Tasks.Select(t => t.Id), table.Rows!.Select(r => r.Id));
 
-        await Send(tasks, TasksApp.TableKey, new SelectRow("task-3"));
+        await Send(tasks, TasksApp.TableKey, new SelectRow(firstId));
 
-        Assert.Equal("task-3", tasks.App.State.SelectedTaskId);
-        Assert.Equal("task-3", PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey).SelectedRowId);
+        Assert.Equal(firstId, tasks.App.State.SelectedTaskId);
+        Assert.Equal(firstId, PropsOf<QueryTableProps>(tasks.App.Render(), TasksApp.TableKey).SelectedRowId);
         await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(tasks, TasksApp.TableKey, new SelectRow("no-such-task")));
     }
 

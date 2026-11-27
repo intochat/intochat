@@ -101,6 +101,12 @@ public sealed class ScreenDirectoryNeuronFacts
                 DateTimeOffset.UtcNow.AddHours(1)))]));
 
         public Task Resolve(string planId, bool approved)
+            => ResolveCore(planId, approved);
+
+        public Task ResolveOption(string planId, int optionIndex)
+            => ResolveCore(planId, true);
+
+        private Task ResolveCore(string planId, bool approved)
         {
             Resolved.Add((planId, approved));
             _pending.Remove(planId);

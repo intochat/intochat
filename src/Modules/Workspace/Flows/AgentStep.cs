@@ -45,6 +45,12 @@ public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> w
 
     private IConversation Conversation => Context.Get<IConversation>(ConversationNeuronId);
 
+    /// <summary>
+    /// Builds the <see cref="AgentDefinition"/> seated for <paramref name="step"/>.
+    /// Override to equip a flow worker with a least-privilege <see cref="AgentDefinition.Contracts"/> subset.
+    /// </summary>
+    protected virtual AgentDefinition BuildAgentDefinition(string step, T inner) => FlowAgent;
+
     protected abstract Task<StepResult<T>> RunStep(string step, T inner, CancellationToken ct);
 
     protected sealed override Task<StepResult<T>> Run(string step, T inner, CancellationToken ct)
@@ -62,7 +68,7 @@ public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> w
     protected async Task<StepResult<T>> Ask(string step, T inner, string prompt)
     {
         var conversation = Conversation;
-        await conversation.Seat(SeatId, FlowAgent);
+        await conversation.Seat(SeatId, BuildAgentDefinition(step, inner));
         var before = await conversation.Read();
 
         inner.AgentStep = step;

@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
 using IntoChat.OS.Host.Primitives;
@@ -10,17 +11,21 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Ino;
 
-public sealed record FakeConversationState(ConversationView? View)
+public sealed record RecordedPost(string Text, string Id, Visibility Visibility);
+
+public sealed record FakeConversationState(ConversationView? View, RecordedPost[] Posts)
 {
-    public FakeConversationState() : this((ConversationView?)null) { }
+    public FakeConversationState() : this(null, []) { }
 }
 
 public interface IFakeConversation : IConversation
 {
     Task Seed(ConversationView view);
+    Task<RecordedPost[]> Posted();
 }
 
 // Stands in for the conversation neuron: Read answers the seeded view and publishes ConversationChanged.
@@ -33,6 +38,8 @@ public sealed class FakeConversation : DigitalBrain.Neurons.Neuron<FakeConversat
     public Task Seed(ConversationView view)
         => Save(State with { View = view }, new ConversationChanged(view.Id, view.Revision));
 
+    public Task<RecordedPost[]> Posted() => Task.FromResult(State.Posts);
+
     public Task<ConversationView> Read(long? sinceRevision = null)
         => Task.FromResult(State.View ?? new ConversationView(ConvId, 0, [], [], null, [], false, []));
 
@@ -40,7 +47,8 @@ public sealed class FakeConversation : DigitalBrain.Neurons.Neuron<FakeConversat
     public Task Say(string text, ModelId? model = null) => throw new NotSupportedException();
     public Task Stop() => Task.CompletedTask;
     public Task Regenerate(EntryId reply) => throw new NotSupportedException();
-    public Task Post(string text, string id) => Task.CompletedTask;
+    public Task Post(string text, string id, Visibility visibility = Visibility.Everyone)
+        => Save(State with { Posts = [.. State.Posts, new RecordedPost(text, id, visibility)] }, new ConversationChanged(ConvId, State.Posts.Length + 1));
     public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     public Task Invite(AccountId friend) => throw new NotSupportedException();
 }
@@ -106,7 +114,9 @@ public sealed record FlowDonePumpState(int Sent)
 
 public interface IFlowDonePump
 {
+    Task Completed(string flowId, string detail);
     Task Failed(string flowId, string detail);
+    Task Waiting(string flowId, string step);
 }
 
 [DigitalBrain.Neurons.Neuron(Alias)]
@@ -114,7 +124,20 @@ public sealed class FlowDonePump : DigitalBrain.Neurons.Neuron<FlowDonePumpState
 {
     public const string Alias = "test.presence-flow-pump";
 
+    public Task Completed(string flowId, string detail) => Save(State with { Sent = State.Sent + 1 }, new FlowDone(flowId, FlowOutcome.Completed, detail));
     public Task Failed(string flowId, string detail) => Save(State with { Sent = State.Sent + 1 }, new FlowDone(flowId, FlowOutcome.Failed, detail));
+    public Task Waiting(string flowId, string step) => Save(State with { Sent = State.Sent + 1 }, new FlowWaiting(flowId, step, WaitReason.Approval, "plan-1"));
+}
+
+file sealed class StubSecretRedactor(string secret, bool throwOnRedact = false) : ISecretRedactor
+{
+    public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken)
+    {
+        if (throwOnRedact) { throw new InvalidOperationException("redactor unavailable"); }
+        return ValueTask.FromResult(text?.Replace(secret, "[REDACTED]", StringComparison.Ordinal));
+    }
+
+    public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(secret.Length);
 }
 
 // The presence fold on TestOS, where the clock and activations are the facts' to drive.
@@ -220,5 +243,90 @@ public sealed class PresenceFoldFacts
         os.Clock.Advance(TimeSpan.FromSeconds(1.5));
 
         Assert.Equal(PresenceState.Idle, (await Settled(os)).State);
+    }
+
+    [Fact]
+    public async Task OnFlowDone_PostsSecretRedactedOwnerVisibleReceiptOnCompletedAndFailed()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
+        var provider = new ServiceCollection().AddSingleton<ISecretRedactor>(new StubSecretRedactor("sk-live-secret-123")).BuildServiceProvider();
+        var os = TestOS.Local(o => o.Services = provider);
+        await using var _ = os;
+        os.Register<PresenceNeuron>()
+            .Register<SessionListNeuron>()
+            .Register<InoConversationsNeuron>()
+            .Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
+            .Register<FakeConversation>()
+            .Register<FakeAgentContext>()
+            .Register<FakeFlows>()
+            .Register<FlowDonePump>();
+        await os.Get<ISessionList>(new NeuronId(Brain, Sessions.Type, ISessionList.DefaultKey)).Open(ConvId);
+        await Settled(os);
+
+        const string completedFlowId = "local/flow.task-worker/c1";
+        const string failedFlowId = "local/flow.task-worker/f2";
+        await os.Get<IFakeFlows>(IFlows.Key(Brain.Value)).Seed(new FlowView(completedFlowId, TaskWorkerFlow.Alias, "Nightly Audit", "person", "t1", FlowStatus.Running, ["execute"], [],
+            "execute", null, null, null, 0.5, [], [], null, os.Clock.GetUtcNow(), null, null, "assistant", LegacyAgent));
+        await os.Get<IFakeFlows>(IFlows.Key(Brain.Value)).Seed(new FlowView(failedFlowId, TaskWorkerFlow.Alias, "Deploy Job", "person", "t2", FlowStatus.Running, ["execute"], [],
+            "execute", null, null, null, 0.5, [], [], null, os.Clock.GetUtcNow(), null, null, "assistant", LegacyAgent));
+        await os.Idle();
+
+        var pump = os.Get<IFlowDonePump>(new NeuronId(Brain, FlowDonePump.Alias, "pump"));
+        await pump.Completed(completedFlowId, "Finished with token sk-live-secret-123");
+        await pump.Failed(failedFlowId, "Auth failed for sk-live-secret-123");
+        await os.Idle();
+
+        var posts = await ConversationOf(os).Posted();
+        Assert.Equal(2, posts.Length);
+
+        var completedPost = Assert.Single(posts, p => p.Id == $"flow-done/{completedFlowId}");
+        Assert.Equal(Visibility.Owner, completedPost.Visibility);
+        Assert.Contains("Nightly Audit", completedPost.Text, StringComparison.Ordinal);
+        Assert.Contains("Completed", completedPost.Text, StringComparison.Ordinal);
+        Assert.Contains("[REDACTED]", completedPost.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("sk-live-secret-123", completedPost.Text, StringComparison.Ordinal);
+
+        var failedPost = Assert.Single(posts, p => p.Id == $"flow-done/{failedFlowId}");
+        Assert.Equal(Visibility.Owner, failedPost.Visibility);
+        Assert.Contains("Deploy Job", failedPost.Text, StringComparison.Ordinal);
+        Assert.Contains("Failed", failedPost.Text, StringComparison.Ordinal);
+        Assert.Contains("[REDACTED]", failedPost.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("sk-live-secret-123", failedPost.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnFlowDone_FailsClosedWhenSecretRedactorThrowsAndPostsPauseReceiptOnFlowWaiting()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
+        var provider = new ServiceCollection().AddSingleton<ISecretRedactor>(new StubSecretRedactor("top-secret-token", throwOnRedact: true)).BuildServiceProvider();
+        var os = TestOS.Local(o => o.Services = provider);
+        await using var _ = os;
+        os.Register<PresenceNeuron>()
+            .Register<SessionListNeuron>()
+            .Register<InoConversationsNeuron>()
+            .Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
+            .Register<FakeConversation>()
+            .Register<FakeAgentContext>()
+            .Register<FakeFlows>()
+            .Register<FlowDonePump>();
+        await os.Get<ISessionList>(new NeuronId(Brain, Sessions.Type, ISessionList.DefaultKey)).Open(ConvId);
+        await Settled(os);
+
+        const string flowId = "local/flow.task-worker/w3";
+        await os.Get<IFakeFlows>(IFlows.Key(Brain.Value)).Seed(new FlowView(flowId, TaskWorkerFlow.Alias, "Release Prep", "person", "t3", FlowStatus.Running, ["execute", "ask"], [],
+            "ask", null, null, null, 0.5, [], [], null, os.Clock.GetUtcNow(), null, null, "assistant", LegacyAgent));
+        await os.Idle();
+
+        var pump = os.Get<IFlowDonePump>(new NeuronId(Brain, FlowDonePump.Alias, "pump"));
+        await pump.Waiting(flowId, "ask");
+        await pump.Completed(flowId, "Leaked top-secret-token");
+        await os.Idle();
+
+        var posts = await ConversationOf(os).Posted();
+        Assert.Equal(2, posts.Length);
+        Assert.All(posts, p => Assert.Equal(Visibility.Owner, p.Visibility));
+        Assert.All(posts, p => Assert.DoesNotContain("top-secret-token", p.Text, StringComparison.Ordinal));
+        Assert.Contains(posts, p => p.Id == $"flow-wait/{flowId}/ask" && p.Text.Contains("Needs your decision", StringComparison.Ordinal));
+        Assert.Contains(posts, p => p.Id == $"flow-done/{flowId}" && p.Text.Contains("[details redacted]", StringComparison.Ordinal));
     }
 }
