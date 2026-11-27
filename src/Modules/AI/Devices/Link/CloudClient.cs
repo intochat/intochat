@@ -207,6 +207,30 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<bool> StreamSandboxAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        ArgumentNullException.ThrowIfNull(ndjsonContent);
+
+        var secrets = await EnsureFreshSecretsAsync(ct).ConfigureAwait(false);
+        var url = Combine(secrets.Server, DeviceRoutes.SandboxStreamFor(jobId));
+        using var request = BuildSignedRequest(HttpMethod.Post, url, secrets, ndjsonContent);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            await credentials.Revoke(ct).ConfigureAwait(false);
+            throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
+        }
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
     internal async Task<HttpResponseMessage> SendSignedAsync(
         HttpMethod method,
         string route,

@@ -415,6 +415,18 @@ public interface ILocalSandboxExecutor
 }
 
 /// <summary>
+/// Optional streaming extension for <see cref="ILocalSandboxExecutor"/> implementations that emit
+/// incremental <see cref="SandboxStreamChunk"/> progress, stdout, and stderr frames over NDJSON
+/// (<c>POST /circle/v1/compute/sandbox/{jobId}/stream</c>).
+/// </summary>
+public interface IStreamingLocalSandboxExecutor : ILocalSandboxExecutor
+{
+    IAsyncEnumerable<SandboxStreamChunk> ExecuteStreamingAsync(
+        ConnectedSandboxRequest request,
+        CancellationToken ct = default);
+}
+
+/// <summary>
 /// Tracks connected client compute capability advertisements/heartbeats and routes Plane 1 sandbox execution
 /// to an owner's online <see cref="ComputeConsentMode.AutoAll"/> local client with &lt;500 ms unavailability detection
 /// and transparent fallback to Cloud Sandbox or local in-process UnitHost.
