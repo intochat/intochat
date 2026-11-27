@@ -31,10 +31,11 @@ public sealed record InstallConfig
     public string StorageFormat { get; init; } = "v1";
     // Optional explicit names. Empty means the derived <prefix>-<env>-<kind>.
     public string ResourceGroup { get; init; } = "";
-    // Keys: os, identity, storage, vault, environment, logs, registry, postgres.
+    // Keys: os, identity, storage, vault, environment, logs, registry, postgres, foundry.
     public Dictionary<string, string> Names { get; init; } = [];
     public RegistryConfig Registry { get; init; } = new();
     public PostgresConfig Postgres { get; init; } = new();
+    public FoundryConfig Foundry { get; init; } = new();
     // Object id of the principal running the install (the gh-intochat-platform OIDC app). It is granted Key Vault
     // Secrets Officer on the vault so the installer can read and write secret values on the data plane.
     public string InstallerPrincipalId { get; init; } = "";
@@ -184,6 +185,8 @@ public sealed record InstallConfig
 
     public string PostgresName => Named("postgres", ResourceNames.Postgres(Prefix, Env));
 
+    public string FoundryName => Named("foundry", ResourceNames.Foundry(Prefix, Env));
+
     // The login server of the registry: the config's registryServer when given, else <registry name>.azurecr.io when one is created.
     public string LoginServer => RegistryServer.Length > 0 ? RegistryServer : Registry.Enabled ? RegistryName + ".azurecr.io" : "";
 
@@ -235,6 +238,20 @@ public sealed record InstallConfig
         {
             throw new InvalidOperationException("The postgres config needs a positive storageGb and an adminLogin.");
         }
+        if (Foundry.Enabled)
+        {
+            if (string.IsNullOrWhiteSpace(Foundry.Sku))
+            {
+                throw new InvalidOperationException("The foundry config needs a non-empty sku.");
+            }
+            foreach (var deployment in Foundry.Deployments)
+            {
+                if (string.IsNullOrWhiteSpace(deployment.Name) || string.IsNullOrWhiteSpace(deployment.ModelName) || deployment.Capacity <= 0)
+                {
+                    throw new InvalidOperationException("Each foundry deployment needs a name, modelName, and positive capacity.");
+                }
+            }
+        }
         return this with
         {
             ClusterId = ClusterId.Length > 0 ? ClusterId : "intochat-" + Env,
@@ -252,7 +269,7 @@ public sealed record RegistryConfig
 }
 
 // postgres: { "enabled": true, "sku": "Standard_B1ms", "tier": "Burstable", "storageGb": 32, "adminLogin": "dbadmin", "databases": ["intochat"] }.
-// Disabled by default. The first database is written to the Key Vault secret db-connection.
+// Disabled by default. The first database is written to the canonical IntegrationSchema Key Vault secret postgres-connectionstring.
 public sealed record PostgresConfig
 {
     public bool Enabled { get; init; }
@@ -261,4 +278,23 @@ public sealed record PostgresConfig
     public int StorageGb { get; init; } = 32;
     public string AdminLogin { get; init; } = "dbadmin";
     public string[] Databases { get; init; } = [];
+}
+
+// foundry: { "enabled": true, "sku": "S0", "deployments": [ { "name": "DeepSeek-V3.2", "modelName": "DeepSeek-V3.2", "modelFormat": "DeepSeek" } ] }.
+// Disabled by default. When enabled, provisions a shared Azure AI Foundry (AIServices) resource with RBAC to the foundation Managed Identity.
+public sealed record FoundryConfig
+{
+    public bool Enabled { get; init; }
+    public string Sku { get; init; } = "S0";
+    public FoundryDeploymentConfig[] Deployments { get; init; } = [];
+}
+
+public sealed record FoundryDeploymentConfig
+{
+    public string Name { get; init; } = "";
+    public string ModelName { get; init; } = "";
+    public string ModelFormat { get; init; } = "OpenAI";
+    public string ModelVersion { get; init; } = "";
+    public string SkuName { get; init; } = "GlobalStandard";
+    public int Capacity { get; init; } = 10;
 }

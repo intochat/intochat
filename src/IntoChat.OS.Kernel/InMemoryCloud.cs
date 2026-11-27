@@ -3,7 +3,7 @@ using IntoChat.OS.Modules.Microsoft.Azure;
 
 namespace IntoChat.OS.Kernel;
 
-// In-memory IAzureArm driver for testing and local verification of InstallPlan, ManifestEnvironment and ModuleDeployment<T>
+// In-memory IAzureArm driver for testing and local verification of InstallPlan and ManifestEnvironment
 // without contacting Azure Resource Manager or starting Docker containers.
 public sealed class InMemoryCloud(bool autoSeedVaultSecrets = false) : IAzureArm
 {

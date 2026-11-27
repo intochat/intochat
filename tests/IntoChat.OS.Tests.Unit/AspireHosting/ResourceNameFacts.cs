@@ -29,7 +29,7 @@ public sealed class ResourceNameFacts
         string[] expected =
         [
             "intochat",
-            "ai", "aspire", "devices", "github", "mcp", "orleans", "sandbox", "web",
+            "ai", "aspire", "devices", "mcp", "orleans", "sandbox", "web",
             "ai-ollama", "ai-ollama-openwebui", "web-searxng", "sandbox-worker",
             "os", "os-gateway", "os-rebuilder",
             "Modules-intochat-os-master-key", "Modules-searxng-secret",
@@ -187,8 +187,8 @@ public sealed class ResourceNameFacts
         });
         var os = builder.AddIntoChatOS("Modules")
             .WithAI(ai => ai.Web(w => w.SearXng()))
-            .WithGitHub()
-            .WithSandbox();
+            .WithModule<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule>()
+            .WithInfrastructure(infra => infra.Sandbox(ResourceBacking.LocalProcess));
         os.AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
         return os;
     }

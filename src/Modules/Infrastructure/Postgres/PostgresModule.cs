@@ -17,7 +17,7 @@ public sealed class PostgresModule : DigitalBrain.Modules.Module
         Requires: [],
         Needs: [DigitalBrain.Modules.Need.State("postgres")],
         Settings: [DigitalBrain.Modules.Setting.Of<PostgresModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId("postgres")))],
-        Secrets: [DigitalBrain.Modules.Secret.Named("connection-string"), DigitalBrain.Modules.Secret.Named("admin-connection")]);
+        Secrets: []);
 
     public static bool RequiresContainer => true;
 

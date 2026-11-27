@@ -5,7 +5,7 @@ namespace IntoChat.OS.Kernel;
 
 /// <summary>
 /// Local Aspire/Docker <see cref="IAzureArm"/> provisioning driver. Translates the same <see cref="InstallPlan"/>,
-/// <see cref="ManifestEnvironment"/>, and <see cref="ModuleDeployment{T}"/> specifications used by Azure Cloud
+/// <see cref="ManifestEnvironment"/> specifications used by Azure Cloud
 /// and <see cref="InMemoryCloud"/> into local Docker container specs, local endpoints, and resolved host environment variables.
 /// </summary>
 public sealed class AspireCloud(string localHost = "localhost", bool autoSeedVaultSecrets = true) : IAzureArm

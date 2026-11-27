@@ -36,7 +36,6 @@ public sealed class DeploymentChainFacts
     [Theory]
     [InlineData("postgres")]
     [InlineData("clickhouse")]
-    [InlineData("github")]
     [InlineData("playwright")]
     [InlineData("artcraft")]
     [InlineData("sandbox")]
@@ -46,12 +45,12 @@ public sealed class DeploymentChainFacts
     {
         var os = Os("cloud", ($"IntoChatOS:Modules:{id}:Enabled", "false"))
             .WithAI(Chain)
-            .WithPostgres("intochat_os")
-            .WithClickHouse()
-            .WithGitHub()
-            .WithPlaywright()
-            .WithArtCraft()
-            .WithSandbox();
+            .WithInfrastructure(infra => infra
+                .Postgres(ResourceBacking.LocalContainer)
+                .ClickHouse(ResourceBacking.LocalContainer)
+                .Playwright(ResourceBacking.LocalContainer)
+                .ArtCraft(ResourceBacking.LocalContainer)
+                .Sandbox(ResourceBacking.LocalProcess));
         Assert.DoesNotContain(id, os.Modules);
         Assert.DoesNotContain(os.ApplicationBuilder.Resources, r => r.Name.Contains(id, StringComparison.OrdinalIgnoreCase) && r is ContainerResource);
     }
@@ -74,13 +73,54 @@ public sealed class DeploymentChainFacts
 
     [Fact]
     public void LocalDefaultsLeaveContainerModulesOut()
-        => Assert.Empty(Os("local").WithPostgres("intochat_os").WithClickHouse().WithArtCraft().WithPlaywright().ApplicationBuilder.Resources.OfType<ContainerResource>());
+        => Assert.Empty(Os("local")
+            .WithInfrastructure(infra => infra
+                .Postgres(ResourceBacking.LocalContainer)
+                .ClickHouse(ResourceBacking.LocalContainer)
+                .ArtCraft(ResourceBacking.LocalContainer)
+                .Playwright(ResourceBacking.LocalContainer))
+            .ApplicationBuilder.Resources.OfType<ContainerResource>());
 
     [Fact]
-    public void PostgresGetsItsDatabaseName()
-        => Assert.Equal("intochat_os", Os("cloud").WithPostgres("intochat_os").Settings["IntoChatOS:Modules:postgres:Options:hosting:databaseName"]);
+    public void PostgresDerivesDeterministicBrainDatabaseNameByDefault()
+    {
+        var os = Os("cloud").WithInfrastructure(infra => infra.Postgres(ResourceBacking.LocalContainer));
+        var dbName = os.Settings["IntoChatOS:Modules:postgres:Options:hosting:databaseName"];
+        Assert.Equal(InfrastructureBackingBuilder.DerivePostgresDatabaseName(os.ServiceId), dbName);
+        Assert.StartsWith("brain_", dbName, StringComparison.Ordinal);
+    }
 
     [Fact]
-    public void CallingAMemberTwiceThrows()
-        => Assert.Throws<InvalidOperationException>(() => Os("cloud").WithGitHub().WithGitHub());
+    public void ResourceBackingOffProvisionsNothing()
+    {
+        var os = Os("cloud").WithInfrastructure(infra => infra
+            .Postgres(ResourceBacking.Off)
+            .ClickHouse(ResourceBacking.Off)
+            .ArtCraft(ResourceBacking.Off)
+            .Sandbox(ResourceBacking.Off));
+        Assert.DoesNotContain("postgres", os.Modules);
+        Assert.DoesNotContain("clickhouse", os.Modules);
+        Assert.DoesNotContain("artcraft", os.Modules);
+        Assert.DoesNotContain("sandbox", os.Modules);
+    }
+
+    [Fact]
+    public void ResourceBackingCloudBindsExternalParameterWithoutLocalPostgresContainer()
+    {
+        var os = Os("cloud").WithInfrastructure(infra => infra.Postgres(ResourceBacking.Cloud));
+        Assert.Contains("postgres", os.Modules);
+        Assert.DoesNotContain(os.ApplicationBuilder.Resources, static r => r is PostgresServerResource);
+        Assert.Contains(os.ApplicationBuilder.Resources, static r => r is ParameterResource && r.Name.Contains("postgres-connection", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LegacyObsoleteShimsRemainCompatibleForExternalHosts()
+    {
+#pragma warning disable CS0618
+        var os = Os("cloud").WithPostgres("intochat_os").WithGitHub();
+        Assert.Equal("intochat_os", os.Settings["IntoChatOS:Modules:postgres:Options:hosting:databaseName"]);
+        Assert.Contains("github", os.Modules);
+        Assert.Throws<InvalidOperationException>(() => Os("cloud").WithGitHub().WithGitHub());
+#pragma warning restore CS0618
+    }
 }

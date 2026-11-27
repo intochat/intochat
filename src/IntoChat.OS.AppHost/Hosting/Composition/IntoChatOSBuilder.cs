@@ -106,6 +106,15 @@ public sealed class IntoChatOSBuilder
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
     internal IReadOnlyDictionary<string, string?> Settings => _settings;
+
+    internal void SetDefaultSetting(string key, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(ApplicationBuilder.Configuration[key]) && !_settings.ContainsKey(key))
+        {
+            _settings[key] = value;
+        }
+    }
     public IntoChat.OS.Modules.Identity.Contracts.Accounts.IdentityHostOptions? Identity { get; private set; }
     public IntoChatOSBuilder WithHttpIdentity()
     {

@@ -39,20 +39,47 @@ public sealed class InstallPlanFacts
     }
 
     [Fact]
-    public void PostgresSpecsIncludeBothDbConnectionAndPostgresConnectionString()
+    public void PostgresSpecsEmitCanonicalIntegrationSchemaSecretsOnly()
     {
         var config = InstallConfig.Parse(ConfigJson);
         var specs = InstallPlan.Build(config);
 
         var secretSpecs = specs.OfType<SecretSpec>().ToList();
 
-        var primaryDbConnection = Assert.Single(secretSpecs, s => s.Name == "db-connection");
         var primaryPgConnection = Assert.Single(secretSpecs, s => s.Name == "postgres-connectionstring");
-        Assert.Equal(primaryDbConnection.Value, primaryPgConnection.Value);
+        Assert.Contains("Database=intochat", primaryPgConnection.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(secretSpecs, s => s.Name == "db-connection");
 
-        var secondaryDbConnection = Assert.Single(secretSpecs, s => s.Name == "db-connection-secondary");
         var secondaryPgConnection = Assert.Single(secretSpecs, s => s.Name == "postgres-connectionstring-secondary");
-        Assert.Equal(secondaryDbConnection.Value, secondaryPgConnection.Value);
+        Assert.Contains("Database=secondary", secondaryPgConnection.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(secretSpecs, s => s.Name == "db-connection-secondary");
+    }
+
+    [Fact]
+    public void LegacyVaultPostgresSecretNamesFallbackToCanonicalIntegrationVariable()
+    {
+        var config = InstallConfig.Parse("""
+            {
+              "subscription": "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+              "location": "polandcentral",
+              "prefix": "intochat",
+              "env": "test",
+              "osImage": "acrintochattest.azurecr.io/os:latest",
+              "registryServer": "acrintochattest.azurecr.io",
+              "postgres": { "enabled": false }
+            }
+            """);
+
+        var existingVaultSecrets = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "db-connection",
+        };
+
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules, existingVaultSecrets: existingVaultSecrets);
+
+        var pgSecret = Assert.Single(plan.Secrets, s => s.Variable == ManifestEnvironment.IntegrationSecretVariable("postgres", "ConnectionString"));
+        Assert.Equal("db-connection", pgSecret.VaultSecret);
+        Assert.Contains("keyVaultUrl: \"https://intochat-test-kv.vault.azure.net/secrets/db-connection\"", plan.PulumiYaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,7 +108,7 @@ public sealed class InstallPlanFacts
         var providedSecrets = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["openai-apikey"] = "sk-test-openai-key",
-            ["postgres-connection-string"] = "Host=intochat-test-pg.postgres.database.azure.com;Database=intochat",
+            ["postgres-connectionstring"] = "Host=intochat-test-pg.postgres.database.azure.com;Database=intochat",
         };
 
         var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules, providedSecrets);
@@ -92,7 +119,8 @@ public sealed class InstallPlanFacts
 
         // Key Vault secrets and Container App bindings synthesized from ModuleManifests and IntegrationSchemas
         Assert.Contains(plan.Secrets, s => s.VaultSecret == "openai-apikey");
-        Assert.Contains(plan.Secrets, s => s.VaultSecret == "postgres-connection-string");
+        Assert.Contains(plan.Secrets, s => s.VaultSecret == "postgres-connectionstring");
+        Assert.DoesNotContain(plan.Secrets, s => s.VaultSecret == "postgres-connection-string");
         Assert.Contains("keyVaultUrl: \"https://intochat-test-kv.vault.azure.net/secrets/openai-apikey\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("secretName: \"openai-apikey\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("containerAppName: \"intochat-test-os\"", plan.PulumiYaml, StringComparison.Ordinal);
@@ -338,8 +366,6 @@ public sealed class InstallPlanFacts
             "github-webhook-secret",
             "google-auth-client-id",
             "google-auth-client-secret",
-            "postgres-admin-connection",
-            "postgres-connection-string",
             "salesforce-consumer-key",
             "salesforce-consumer-secret",
         ];
@@ -349,6 +375,9 @@ public sealed class InstallPlanFacts
             Assert.Contains(secretName, declaredSecrets);
             Assert.Contains(secretName, referencedSecrets);
         }
+        Assert.DoesNotContain("postgres-connection-string", declaredSecrets);
+        Assert.DoesNotContain("postgres-admin-connection", declaredSecrets);
+        Assert.DoesNotContain("db-connection", declaredSecrets);
 
         // Existing Key Vault secret without a provided value must stay external (no Key Vault overwrite resource).
         Assert.DoesNotContain("secretName: \"openrouter-apikey\"", plan.PulumiYaml, StringComparison.Ordinal);
@@ -669,6 +698,90 @@ public sealed class InstallPlanFacts
         var azRetry = await File.ReadAllTextAsync(Path.Combine(workspace.Path, "scripts", "az-retry.sh"), TestContext.Current.CancellationToken);
         Assert.Contains("${_deactivated_revs}", azRetry, StringComparison.Ordinal);
         Assert.DoesNotContain("$${_deactivated_revs}", azRetry, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FoundryDisabledEmitsNoFoundryResourcesRolesOrEndpointVariable()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2");
+
+        Assert.False(config.Foundry.Enabled);
+        var specs = InstallPlan.Build(config);
+        Assert.DoesNotContain(specs, static s => s is FoundrySpec or FoundryDeploymentSpec);
+        Assert.DoesNotContain(specs.OfType<RoleGrantSpec>(), static g =>
+            g.RoleDefinitionId is InstallPlan.CognitiveServicesOpenAIUser or InstallPlan.CognitiveServicesUser);
+
+        var osApp = specs.OfType<ContainerAppSpec>().Single(s => s.Name == config.OsName);
+        Assert.DoesNotContain(InstallPlan.FoundryEndpointVariable, osApp.Variables.Keys);
+
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules);
+        Assert.DoesNotContain("azure-native:cognitiveservices:Account", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("azure-native:cognitiveservices:Deployment", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.DoesNotContain(InstallPlan.FoundryEndpointVariable, plan.PulumiYaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FoundryEnabledSynthesizesAccountDeploymentsRbacAndEndpointVariable()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2") with
+        {
+            Foundry = new FoundryConfig
+            {
+                Enabled = true,
+                Sku = "S0",
+                Deployments =
+                [
+                    new FoundryDeploymentConfig { Name = "DeepSeek-V3.2", ModelName = "DeepSeek-V3.2", ModelFormat = "DeepSeek", SkuName = "GlobalStandard", Capacity = 10 },
+                    new FoundryDeploymentConfig { Name = "gpt-realtime", ModelName = "gpt-realtime", ModelFormat = "OpenAI", SkuName = "GlobalStandard", Capacity = 5 },
+                    new FoundryDeploymentConfig { Name = "gpt-4o-transcribe", ModelName = "gpt-4o-transcribe", ModelFormat = "OpenAI", SkuName = "GlobalStandard", Capacity = 5 },
+                    new FoundryDeploymentConfig { Name = "gpt-4o-mini-tts", ModelName = "gpt-4o-mini-tts", ModelFormat = "OpenAI", SkuName = "GlobalStandard", Capacity = 5 },
+                    new FoundryDeploymentConfig { Name = "text-embedding-3-small", ModelName = "text-embedding-3-small", ModelFormat = "OpenAI", SkuName = "GlobalStandard", Capacity = 20 },
+                ],
+            },
+        };
+
+        var specs = InstallPlan.Build(config);
+        var foundry = Assert.Single(specs.OfType<FoundrySpec>());
+        Assert.Equal("intochat-test-foundry", foundry.Name);
+        Assert.Equal("S0", foundry.Sku);
+
+        var deployments = specs.OfType<FoundryDeploymentSpec>().ToArray();
+        Assert.Equal(5, deployments.Length);
+        Assert.Contains(deployments, static d => d.Name == "DeepSeek-V3.2" && d.ModelFormat == "DeepSeek");
+        Assert.Contains(deployments, static d => d.Name == "gpt-realtime" && d.ModelFormat == "OpenAI");
+        Assert.Contains(deployments, static d => d.Name == "text-embedding-3-small");
+
+        var grants = specs.OfType<RoleGrantSpec>().ToArray();
+        Assert.Contains(grants, g => g.RoleDefinitionId == InstallPlan.CognitiveServicesOpenAIUser
+            && g.Principal == config.IdentityName
+            && g.Scope.EndsWith("/Microsoft.CognitiveServices/accounts/intochat-test-foundry", StringComparison.Ordinal));
+        Assert.Contains(grants, g => g.RoleDefinitionId == InstallPlan.CognitiveServicesUser
+            && g.Principal == config.IdentityName
+            && g.Scope.EndsWith("/Microsoft.CognitiveServices/accounts/intochat-test-foundry", StringComparison.Ordinal));
+
+        var osApp = specs.OfType<ContainerAppSpec>().Single(s => s.Name == config.OsName);
+        Assert.Equal("https://intochat-test-foundry.services.ai.azure.com/", osApp.Variables[InstallPlan.FoundryEndpointVariable]);
+
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules);
+        Assert.Contains("type: azure-native:cognitiveservices:Account", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("kind: AIServices", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("customSubDomainName: \"intochat-test-foundry\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("type: azure-native:cognitiveservices:Deployment", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("deploymentName: \"DeepSeek-V3.2\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("deploymentName: \"gpt-realtime\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("deploymentName: \"text-embedding-3-small\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains(InstallPlan.CognitiveServicesOpenAIUser, plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains(InstallPlan.CognitiveServicesUser, plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains(InstallPlan.FoundryEndpointVariable, plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("https://intochat-test-foundry.services.ai.azure.com/", plan.PulumiYaml, StringComparison.Ordinal);
+
+        var importJson = PulumiStackSynthesizer.ExportImportEntries(plan).ToJsonString();
+        Assert.Contains("azure-native:cognitiveservices:Account", importJson, StringComparison.Ordinal);
+        Assert.Contains("azure-native:cognitiveservices:Deployment", importJson, StringComparison.Ordinal);
     }
 
     private static string ResourceBlock(string yaml, string logicalName)

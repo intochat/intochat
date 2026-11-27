@@ -158,7 +158,7 @@ public static class IntoChatOSHostingExtensions
             projection.Apply(builder);
         }
 
-        if (brain.Profile is null || brain.Profile.UsesDevice)
+        if (brain.Profile is null || (brain.Profile.UsesDevice && brain.Modules.Contains("devices", StringComparer.OrdinalIgnoreCase)))
         {
             builder.WithInstallModelCommand(brain);
         }

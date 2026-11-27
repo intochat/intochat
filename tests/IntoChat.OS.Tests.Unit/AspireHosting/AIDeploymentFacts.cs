@@ -98,4 +98,76 @@ public sealed class AIDeploymentFacts
         Assert.Equal(IntoChatOSNames.LocalOllamaEndpoint, configured.Ollama.Endpoint);
         Assert.Equal("gemma4:e2b", configured.Roles.Device[ModelRole.Chat]);
     }
+
+    [Fact]
+    public void LocalTopologyWithCloudOnlyResolvesCloudRolesWithoutDeviceDefaultsOrSearXng()
+    {
+        var deployment = new AIDeployment()
+            .Cloud(c => c.Roles(r => r
+                .Chat(KnownModels.DeepSeekV41Flash)
+                .Think(KnownModels.Gpt56Luna)
+                .Embed(KnownModels.TextEmbedding3Small)
+                .Speak(KnownModels.Gpt4oMiniTts)
+                .Talk(KnownModels.GptRealtime)))
+            .Web(w => w.Brave());
+
+        var plan = deployment.Resolve(Profile("local"), Config());
+
+        Assert.Null(plan.Devices);
+        Assert.Empty(plan.Ai.Roles.Device);
+        Assert.Equal(KnownModels.DeepSeekV41Flash.Id.Value, plan.Ai.Roles.Cloud[ModelRole.Chat]);
+        Assert.Equal(KnownModels.Gpt56Luna.Id.Value, plan.Ai.Roles.Cloud[ModelRole.Think]);
+        Assert.Equal(KnownModels.TextEmbedding3Small.Id.Value, plan.Ai.Roles.Cloud[ModelRole.Embed]);
+        Assert.Equal(KnownModels.Gpt4oMiniTts.Id.Value, plan.Ai.Roles.Cloud[ModelRole.Speak]);
+        Assert.Equal(KnownModels.GptRealtime.Id.Value, plan.Ai.Roles.Cloud[ModelRole.Talk]);
+        Assert.Equal(SearchProvider.Brave, plan.Web!.Provider);
+        Assert.Null(plan.Web.SearxngUrl);
+
+        // RoleMaps.For must NOT pre-fill Device defaults when only Cloud roles are configured.
+        var roleMap = RoleMaps.For(plan.Ai);
+        Assert.Empty(roleMap.Device);
+        Assert.Equal(KnownModels.DeepSeekV41Flash.Id, roleMap.Cloud[ModelRole.Chat]);
+
+        // RoleMaps.Deployment / Candidates / Explicit must resolve Cloud roles even under Topology=local.
+        Assert.Equal([KnownModels.DeepSeekV41Flash.Id], RoleMaps.Deployment(roleMap, IntoChatOSNames.TopologyLocal, ModelRole.Chat).ToArray());
+        Assert.Equal([KnownModels.GptRealtime.Id], RoleMaps.Candidates(roleMap, IntoChatOSNames.TopologyLocal, ModelRole.Talk).ToArray());
+        Assert.Equal(KnownModels.DeepSeekV41Flash.Id, RoleMaps.Explicit(plan.Ai, IntoChatOSNames.TopologyLocal, ModelRole.Chat));
+    }
+
+    [Fact]
+    public void LocalTopologyWithCloudOnlyAndSearXngPlusCloudOnlyBraveSelectsBrave()
+    {
+        var deployment = new AIDeployment()
+            .Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash)))
+            .Web(w => w.SearXng().MicrosoftLearn().Brave(cloudOnly: true));
+
+        var plan = deployment.Resolve(Profile("local"), Config());
+
+        Assert.Null(plan.Devices);
+        Assert.Equal(SearchProvider.Brave, plan.Web!.Provider);
+        Assert.Null(plan.Web.SearxngUrl);
+        Assert.True(plan.Mcp!.Servers["microsoft-learn"].Enabled);
+    }
+
+    [Fact]
+    public void LocalTopologyWithCloudOnlySuppressesLocalDeviceRuntimesInAppHost()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
+        {
+            Args = ["--IntoChatOS:Topology=local", "--IntoChatOS:Shell:Enabled=false", "--IntoChatOS:Ollama:AutoContainer=false"],
+            DisableDashboard = true,
+        });
+
+        var os = builder.AddIntoChatOS("Modules")
+            .WithAI(ai => ai
+                .Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash).Embed(KnownModels.TextEmbedding3Small)))
+                .Web(w => w.Brave()));
+
+        Assert.DoesNotContain("devices", os.Modules);
+        Assert.Equal("false", os.Settings["IntoChatOS:Modules:devices:Options:Ollama:Enabled"]);
+        Assert.Equal("false", os.Settings["IntoChatOS:Modules:devices:Options:FoundryLocal:Enabled"]);
+        Assert.Equal("false", os.Settings["IntoChatOS:Modules:devices:Options:SherpaOnnx:Enabled"]);
+        Assert.DoesNotContain(os.ApplicationBuilder.Resources, static r => r.Name.Contains("ollama", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(os.ApplicationBuilder.Resources, static r => r.Name.Contains("searxng", StringComparison.OrdinalIgnoreCase));
+    }
 }

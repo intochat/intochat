@@ -35,6 +35,14 @@ public static class ManifestEnvironment
     public static string IntegrationSecretName(string integrationId, string field)
         => new([.. $"{integrationId}-{field}".ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-')]);
 
+    // Legacy Key Vault secret names that older deployments may hold for a canonical IntegrationSchema secret.
+    internal static string[] LegacySecretFallbacks(string vaultSecretName) => vaultSecretName switch
+    {
+        InstallPlan.PostgresConnectionSecret => [InstallPlan.DbConnectionSecret, InstallPlan.LegacyPostgresConnectionSecret],
+        "postgres-adminconnection" => ["postgres-admin-connection"],
+        _ => [],
+    };
+
     // The variable the container app carries an integration secret under (IntoChatOS__Integrations__{id}__{field}).
     public static string IntegrationSecretVariable(string integrationId, string field)
         => ConfigurationKeyGrammar.EnvironmentName(IntegrationSchema.Key(integrationId, field));

@@ -38,17 +38,23 @@ public static class ManifestHostingProjector
     {
         var config = brain.GetModuleConfiguration(moduleId);
 
-        switch (moduleId)
+        foreach (var need in manifest.Needs)
         {
-            case "postgres":
-                ProjectPostgres(brain, config);
-                break;
-            case "clickhouse":
-                ProjectClickHouse(brain, config);
-                break;
-            default:
-                ProjectGenericNeeds(brain, moduleId, manifest);
-                break;
+            switch (need.Kind)
+            {
+                case DigitalBrain.Modules.NeedKind.State when string.Equals(need.Name, "postgres", StringComparison.OrdinalIgnoreCase):
+                    ProjectPostgres(brain, config);
+                    break;
+                case DigitalBrain.Modules.NeedKind.State when string.Equals(need.Name, "clickhouse", StringComparison.OrdinalIgnoreCase):
+                    ProjectClickHouse(brain, config);
+                    break;
+                case DigitalBrain.Modules.NeedKind.Sandbox when need.Image is { Length: > 0 } image && need.Name is { Length: > 0 } name:
+                    var moduleNode = brain.GetOrAddModuleNode(moduleId);
+                    var container = brain.ApplicationBuilder.AddContainer(brain.ResourceName(name), image)
+                        .WithParentRelationship(moduleNode);
+                    brain.RequireHealthyBeforeStart(container.Resource);
+                    break;
+            }
         }
     }
 
@@ -116,20 +122,6 @@ public static class ManifestHostingProjector
         brain.AddProjection(new ClickHouseProjection(database));
     }
 
-    private static void ProjectGenericNeeds(IntoChatOSBuilder brain, string moduleId, DigitalBrain.Modules.ModuleManifest manifest)
-    {
-        var moduleNode = brain.GetOrAddModuleNode(moduleId);
-        foreach (var need in manifest.Needs)
-        {
-            if (need.Kind == DigitalBrain.Modules.NeedKind.Sandbox && need.Image is { Length: > 0 } image && need.Name is { Length: > 0 } name)
-            {
-                var container = brain.ApplicationBuilder.AddContainer(brain.ResourceName(name), image)
-                    .WithParentRelationship(moduleNode);
-                brain.RequireHealthyBeforeStart(container.Resource);
-            }
-        }
-    }
-
     private sealed class PostgresProjection(IResourceBuilder<PostgresServerResource> server, IResourceBuilder<PostgresDatabaseResource> database)
         : IntoChatOSModuleProjection
     {
@@ -137,21 +129,17 @@ public static class ManifestHostingProjector
         {
             ArgumentNullException.ThrowIfNull(builder);
             var connectionStringKey = ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"));
-            var manifestSecretKey = ModuleConfiguration.EnvironmentName(ModuleConfiguration.ModuleSection("postgres") + ":Secrets:connection-string");
 
             builder.WithEnvironment(connectionStringKey, database.Resource.ConnectionStringExpression)
-                .WithEnvironment(manifestSecretKey, database.Resource.ConnectionStringExpression)
                 .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain")
                 .WithAnnotation(new WaitAnnotation(database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
 
             var serverResource = server.Resource;
             var adminKey = ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"));
-            var manifestAdminKey = ModuleConfiguration.EnvironmentName(ModuleConfiguration.ModuleSection("postgres") + ":Secrets:admin-connection");
 
             builder.WithEnvironment(context =>
             {
                 context.EnvironmentVariables[adminKey] = serverResource.ConnectionStringExpression;
-                context.EnvironmentVariables[manifestAdminKey] = serverResource.ConnectionStringExpression;
             });
         }
     }
@@ -163,10 +151,8 @@ public static class ManifestHostingProjector
         {
             ArgumentNullException.ThrowIfNull(builder);
             var connectionStringKey = ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"));
-            var manifestSecretKey = ModuleConfiguration.EnvironmentName(ModuleConfiguration.ModuleSection("postgres") + ":Secrets:connection-string");
 
-            builder.WithEnvironment(connectionStringKey, connection)
-                .WithEnvironment(manifestSecretKey, connection);
+            builder.WithEnvironment(connectionStringKey, connection);
         }
     }
 

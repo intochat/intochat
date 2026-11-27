@@ -68,6 +68,7 @@ public static partial class PulumiStackSynthesizer
             {
                 continue;
             }
+            var resolvedRef = integrationSecret;
             string? secretValue = null;
             var hasProvidedValue = providedSecrets is not null
                 && providedSecrets.TryGetValue(integrationSecret.VaultSecret, out secretValue)
@@ -75,17 +76,39 @@ public static partial class PulumiStackSynthesizer
             var isFoundationSecret = foundationSecretNames.Contains(integrationSecret.VaultSecret);
             var isExistingVaultSecret = existingVaultSecrets is not null
                 && existingVaultSecrets.Contains(integrationSecret.VaultSecret);
+
+            // Backward-compatible fallback for existing Azure Key Vaults or secret files using legacy names
+            // (e.g. db-connection / postgres-connection-string -> canonical postgres-connectionstring).
+            if (!hasProvidedValue && !isFoundationSecret && !isExistingVaultSecret)
+            {
+                foreach (var legacyName in ManifestEnvironment.LegacySecretFallbacks(integrationSecret.VaultSecret))
+                {
+                    if (providedSecrets is not null && providedSecrets.TryGetValue(legacyName, out var legacyValue) && !string.IsNullOrEmpty(legacyValue))
+                    {
+                        secretValue = legacyValue;
+                        hasProvidedValue = true;
+                        break;
+                    }
+                    if (existingVaultSecrets is not null && existingVaultSecrets.Contains(legacyName))
+                    {
+                        resolvedRef = integrationSecret with { VaultSecret = legacyName };
+                        isExistingVaultSecret = true;
+                        break;
+                    }
+                }
+            }
+
             if (providedSecrets is not null && providedSecrets.Count > 0
                 && !hasProvidedValue && !isFoundationSecret && !isExistingVaultSecret)
             {
                 continue;
             }
-            secrets.Add(integrationSecret);
-            if (!secretSpecs.Any(s => string.Equals(s.Name, integrationSecret.VaultSecret, StringComparison.Ordinal)))
+            secrets.Add(resolvedRef);
+            if (!secretSpecs.Any(s => string.Equals(s.Name, resolvedRef.VaultSecret, StringComparison.Ordinal)))
             {
                 secretSpecs.Add(new SecretSpec
                 {
-                    Name = integrationSecret.VaultSecret,
+                    Name = resolvedRef.VaultSecret,
                     ResourceGroup = validated.GroupName,
                     Location = validated.Location,
                     Env = validated.Env,
@@ -269,6 +292,8 @@ public static partial class PulumiStackSynthesizer
         KeyVaultSpec => "azure-native:keyvault:Vault",
         PostgresSpec => "azure-native:dbforpostgresql:Server",
         PostgresDatabaseSpec => "azure-native:dbforpostgresql:Database",
+        FoundrySpec => "azure-native:cognitiveservices:Account",
+        FoundryDeploymentSpec => "azure-native:cognitiveservices:Deployment",
         ManagedEnvironmentSpec => "azure-native:app:ManagedEnvironment",
         ContainerAppSpec => "azure-native:app:ContainerApp",
         _ => null,

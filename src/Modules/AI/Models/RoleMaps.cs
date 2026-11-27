@@ -9,7 +9,11 @@ internal static class RoleMaps
     {
         ArgumentNullException.ThrowIfNull(options);
         var configured = options.Roles.ToRoleMap();
-        var device = KnownModels.Defaults.Device.ToBuilder();
+        var cloudOnlyConfigured = configured.Device.IsEmpty && !configured.Cloud.IsEmpty;
+
+        var device = cloudOnlyConfigured
+            ? ImmutableDictionary.CreateBuilder<ModelRole, ModelId>()
+            : KnownModels.Defaults.Device.ToBuilder();
         foreach (var (role, id) in configured.Device)
         {
             device[role] = id;
@@ -22,6 +26,15 @@ internal static class RoleMaps
         }
 
         return new RoleMap(device.ToImmutable(), cloud.ToImmutable());
+    }
+
+    internal static RoleMap DefaultsFor(AIOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var configured = options.Roles.ToRoleMap();
+        return configured.Device.IsEmpty && !configured.Cloud.IsEmpty
+            ? new RoleMap(ImmutableDictionary<ModelRole, ModelId>.Empty, KnownModels.Defaults.Cloud)
+            : KnownModels.Defaults;
     }
 
     internal static IEnumerable<ModelId> Deployment(RoleMap map, string? topology, ModelRole role)
@@ -40,7 +53,14 @@ internal static class RoleMaps
                 break;
 
             default:
-                if (map.Device.TryGetValue(role, out var deviceOnly)) { yield return deviceOnly; }
+                if (map.Device.TryGetValue(role, out var deviceOnly))
+                {
+                    yield return deviceOnly;
+                }
+                else if (map.Device.IsEmpty && map.Cloud.TryGetValue(role, out var cloudFallback))
+                {
+                    yield return cloudFallback;
+                }
                 break;
         }
     }

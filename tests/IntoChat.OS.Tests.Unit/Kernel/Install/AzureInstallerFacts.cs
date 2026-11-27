@@ -346,7 +346,7 @@ public sealed class AzureInstallerFacts
             Assert.Contains("secretRef: \"openrouter-apikey\"", yaml, StringComparison.Ordinal);
             Assert.Contains("- name: \"postgres-connectionstring\"", yaml, StringComparison.Ordinal);
             Assert.Contains("secretRef: \"postgres-connectionstring\"", yaml, StringComparison.Ordinal);
-            Assert.Contains("- name: \"postgres-connection-string\"", yaml, StringComparison.Ordinal);
+            Assert.DoesNotContain("- name: \"postgres-connection-string\"", yaml, StringComparison.Ordinal);
             Assert.DoesNotContain("secretName: \"openrouter-apikey\"", yaml, StringComparison.Ordinal);
         }
         finally
