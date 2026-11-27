@@ -286,7 +286,8 @@ public sealed class BrainTransportSecurityFacts
             aliceKeys.ExportPublicKeys(),
             request,
             messageId: "msg-missing-ts",
-            sentAtUtc: FixedNow) with { SentAtUtc = null };
+            sentAtUtc: FixedNow) with
+        { SentAtUtc = null };
         await Assert.ThrowsAsync<CryptographicException>(() => receiver.DeliverAsync(missingTimestampEnvelope, ct));
 
         Assert.Equal(0, invokeCount);
