@@ -5,15 +5,22 @@ using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Catalog;
+using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
-// One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
-// access once; installation tokens minted from the App key (or a sealed Fine-Grained PAT) do the ongoing work.
+// One repository connection, keyed {brain}/connection/github/{id}. Supports three auth modes:
+// Fine-Grained PAT ("pat"), user OAuth token ("user-oauth" when no GitHub App is registered),
+// and GitHub App installation tokens ("app").
 [DigitalBrain.Neurons.Neuron("github", State = "github")]
 internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepositoryState>, IRepository, IGitHubInbound
 {
@@ -22,13 +29,23 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
     internal const int MaxIssues = 256;
     internal const int MaxDraftPreviews = 64;
     internal const int MaxProcessedCommentReceipts = 256;
+    internal const string WebhookSecretName = "webhook";
+    private const string ValueSecretName = "value";
+    internal const string PollTimerName = "github.poll";
+    internal const string GitHubMcpUrl = "https://api.githubcopilot.com/mcp/";
+    internal const string GitHubMcpTitle = "GitHub MCP";
+    internal const string GitHubMcpConnectionKey = "connection/mcp/github";
     private static readonly TimeSpan DraftPreviewLifetime = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(60);
     private const string RevokedDetail = "GitHub revoked access to the repository. Reconnect GitHub.";
 
     private readonly IGitHubRepositorySource _source;
     private readonly IGitHubUserAccess _access;
     private readonly IGitHubInstallationVerifier _verifier;
     private readonly GitHubAppRegistration _registration;
+    private string? _pendingWebhookSecret;
+    private string? _issuesETag;
+    private string? _pullRequestsETag;
 
     public GitHubRepositoryNeuron(IGitHubRepositorySource source, IGitHubUserAccess access, IGitHubInstallationVerifier verifier,
         GitHubAppRegistration registration)
@@ -39,12 +56,60 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
         _registration = registration;
     }
 
-    private string NormalizedAuthKind => string.Equals(Snapshot.AuthKind, "pat", StringComparison.OrdinalIgnoreCase) ? "pat" : "app";
+    private string NormalizedAuthKind => Snapshot.AuthKind?.ToLowerInvariant() switch
+    {
+        "pat" => "pat",
+        "user-oauth" => "user-oauth",
+        _ => "app",
+    };
     private bool IsPatAuth => NormalizedAuthKind == "pat";
+    private bool IsDirectAuth => NormalizedAuthKind is "pat" or "user-oauth";
     private GitHubRepository Repository => new(FullKey, Snapshot.AppId, Snapshot.InstallationId, Snapshot.RepositoryId, Snapshot.Owner, Snapshot.Name, NormalizedAuthKind);
     [DigitalBrain.Slot(Key = "default")]
     private partial DigitalBrain.Limits.IPolicies Policies { get; }
     private string RepositoryFact => $"{Snapshot.Owner}/{Snapshot.Name}";
+
+    private TimeSpan ConfiguredPollInterval
+        => (ServiceProvider?.GetService(typeof(IOptions<GitHubModuleOptions>)) as IOptions<GitHubModuleOptions>)?.Value.PollInterval
+            ?? DefaultPollInterval;
+
+    protected override Task Activated(CancellationToken cancellationToken)
+    {
+        if (Snapshot.Status == ConnectionStatus.Connected)
+        {
+            StartPollTimer();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken)
+    {
+        StopPollTimer();
+        return base.OnDeactivate(cause, cancellationToken);
+    }
+
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
+    {
+        if (string.Equals(name, PollTimerName, StringComparison.Ordinal))
+        {
+            await PollOnceAsync(cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        await base.OnReminder(name, cancellationToken).ConfigureAwait(true);
+    }
+
+    private void StartPollTimer()
+    {
+        var interval = ConfiguredPollInterval;
+        if (Snapshot.Status == ConnectionStatus.Connected && interval > TimeSpan.Zero)
+        {
+            Context.Timers.Start(PollTimerName, interval, interval);
+        }
+    }
+
+    private void StopPollTimer() => Context.Timers.Stop(PollTimerName);
 
     // The installation/repository index is a plain neuron in the system brain (06-06d); negative ids index PAT repositories.
     private IGitHubRepositoryIndex? Index(long installationOrNegRepoId)
@@ -69,10 +134,15 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
 
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
+        _pendingWebhookSecret = null;
+
         if (IsPersonalAccessTokenGrant(grant))
         {
-            var patTarget = grant.Target ?? TryExtractTargetFromResponse(grant.Response) ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
-            var patResolved = (await _access.ResolvePersonalAccessTokenAsync(grant.AccessToken, patTarget, CancellationToken.None)) with { Key = FullKey };
+            var patTarget = grant.Target
+                ?? TryExtractTargetFromResponse(grant.Response)
+                ?? ExistingOrDerivedTarget()
+                ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
+            var patResolved = (await _access.ResolvePersonalAccessTokenAsync(grant.AccessToken, patTarget, CancellationToken.None)) with { Key = FullKey, AuthKind = "pat" };
             using (GitHubCredentialScope.UsePersonalAccessToken(FullKey, grant.AccessToken))
             {
                 await _verifier.VerifyAsync(patResolved, CancellationToken.None);
@@ -93,13 +163,49 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
                 Account = patAccount,
             };
             await SaveQuietly(patNext);
+            _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
             // ConnectionNeuron seals accepted.AccessToken into State.Secrets["access"]; plaintext never touches GitHubRepositoryState.
             return grant with { RefreshToken = null };
         }
 
-        var appId = await _registration.ReadAppIdAsync(CancellationToken.None) ?? throw new GitHubUnavailableException("GitHub App integration is unavailable.");
+        var appId = IsUserOAuthGrant(grant)
+            ? null
+            : await _registration.ReadAppIdAsync(CancellationToken.None);
+
+        if (appId is null)
+        {
+            var userTarget = grant.Target
+                ?? TryExtractTargetFromResponse(grant.Response)
+                ?? ExistingOrDerivedTarget()
+                ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
+            var userResolved = (await _access.ResolvePersonalAccessTokenAsync(grant.AccessToken, userTarget, CancellationToken.None)) with { Key = FullKey, AuthKind = "user-oauth" };
+            using (GitHubCredentialScope.UsePersonalAccessToken(FullKey, grant.AccessToken))
+            {
+                await _verifier.VerifyAsync(userResolved, CancellationToken.None);
+            }
+
+            await RemoveStaleIndexEntriesAsync(nextInstallationId: 0, nextRepositoryId: userResolved.RepositoryId);
+            var userAccount = $"{userResolved.Owner}/{userResolved.Name}";
+            var userNext = (Snapshot.RepositoryId != userResolved.RepositoryId
+                ? Snapshot with { PullRequests = [], Issues = [], DraftPreviews = [], ProcessedCommentReceipts = [], LastWebhookAt = null }
+                : Snapshot) with
+            {
+                AuthKind = "user-oauth",
+                AppId = 0,
+                InstallationId = 0,
+                RepositoryId = userResolved.RepositoryId,
+                Owner = userResolved.Owner,
+                Name = userResolved.Name,
+                Account = userAccount,
+            };
+            await SaveQuietly(userNext);
+            _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
+            // User OAuth token (gho_/ghu_) is sealed into State.Secrets["access"] and used directly as Bearer token.
+            return grant with { RefreshToken = null };
+        }
+
         var target = grant.Target ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
-        var resolved = (await _access.ResolveAsync(grant.AccessToken, appId, target, CancellationToken.None)) with { Key = FullKey, AuthKind = "app" };
+        var resolved = (await _access.ResolveAsync(grant.AccessToken, appId.Value, target, CancellationToken.None)) with { Key = FullKey, AuthKind = "app" };
         await _verifier.VerifyAsync(resolved, CancellationToken.None);
         await RemoveStaleIndexEntriesAsync(resolved.InstallationId, resolved.RepositoryId);
         var account = $"{resolved.Owner}/{resolved.Name}";
@@ -116,6 +222,7 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
             Account = account,
         };
         await SaveQuietly(next);
+        _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
         // The user token proved access once; installation tokens do the ongoing work.
         return grant with { AccessToken = "installation", RefreshToken = null, ExpiresAt = null };
     }
@@ -145,6 +252,28 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
 
     protected override async Task OnConnectedAsync()
     {
+        try
+        {
+            if (string.Equals(Snapshot.AuthMethodId, "pat", StringComparison.OrdinalIgnoreCase)
+                && Snapshot.Secrets.ContainsKey(ValueSecretName))
+            {
+                await FinalizeDirectPatConnectAsync().ConfigureAwait(true);
+            }
+            else if (!string.IsNullOrWhiteSpace(_pendingWebhookSecret))
+            {
+                var sealedWebhook = await SealSecretAsync(WebhookSecretName, _pendingWebhookSecret).ConfigureAwait(true);
+                var updatedSecrets = new Dictionary<string, SealedSecret>(Snapshot.Secrets, StringComparer.Ordinal)
+                {
+                    [WebhookSecretName] = sealedWebhook,
+                };
+                await SaveQuietly(Snapshot with { Secrets = updatedSecrets }).ConfigureAwait(true);
+            }
+        }
+        finally
+        {
+            _pendingWebhookSecret = null;
+        }
+
         var edge = ServiceProvider?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
         using (edge?.Enter(edge.Module("github", new BrainId("system"))))
         {
@@ -152,36 +281,50 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
             {
                 await instIndex.Add(FullKey);
             }
-            if (IsPatAuth && Snapshot.RepositoryId > 0 && Index(-Snapshot.RepositoryId) is { } repoIndex)
+            if (IsDirectAuth && Snapshot.RepositoryId > 0 && Index(-Snapshot.RepositoryId) is { } repoIndex)
             {
                 await repoIndex.Add(FullKey);
             }
+        }
+
+        StartPollTimer();
+
+        if (IsDirectAuth)
+        {
+            await SyncGitHubMcpAsync().ConfigureAwait(true);
         }
     }
 
     protected override async Task OnDisconnectedAsync()
     {
+        StopPollTimer();
+        _issuesETag = null;
+        _pullRequestsETag = null;
         _verifier.Forget(FullKey);
-        if (Snapshot.InstallationId == 0 && Snapshot.RepositoryId == 0) { return; }
-        var edge = ServiceProvider?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
-        using (edge?.Enter(edge.Module("github", new BrainId("system"))))
+        if (Snapshot.InstallationId > 0 || Snapshot.RepositoryId > 0)
         {
-            if (Snapshot.InstallationId > 0 && Index(Snapshot.InstallationId) is { } instIndex)
+            var edge = ServiceProvider?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+            using (edge?.Enter(edge.Module("github", new BrainId("system"))))
             {
-                await instIndex.Remove(FullKey);
-            }
-            if (Snapshot.RepositoryId > 0 && Index(-Snapshot.RepositoryId) is { } repoIndex)
-            {
-                await repoIndex.Remove(FullKey);
+                if (Snapshot.InstallationId > 0 && Index(Snapshot.InstallationId) is { } instIndex)
+                {
+                    await instIndex.Remove(FullKey);
+                }
+                if (Snapshot.RepositoryId > 0 && Index(-Snapshot.RepositoryId) is { } repoIndex)
+                {
+                    await repoIndex.Remove(FullKey);
+                }
             }
         }
+
+        await DisconnectGitHubMcpIfLastAsync().ConfigureAwait(true);
     }
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
     {
         try
         {
-            using var scope = IsPatAuth ? GitHubCredentialScope.UsePersonalAccessToken(FullKey, credential.Value) : null;
+            using var scope = IsDirectAuth ? GitHubCredentialScope.UsePersonalAccessToken(FullKey, credential.Value) : null;
             await _verifier.VerifyAsync(Repository, ct);
             return ConnectionProbeResult.Connected();
         }
@@ -207,6 +350,21 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
         return Task.FromResult(Snapshot.Status == ConnectionStatus.Connected ? Repository : null);
     }
 
+    [global::Orleans.Concurrency.ReadOnly]
+    public async Task<bool> VerifyWebhookSignature(ReadOnlyMemory<byte> body, string signature)
+    {
+        RequireOwnBrain();
+        if (Snapshot.Status != ConnectionStatus.Connected
+            || string.IsNullOrWhiteSpace(signature)
+            || !Snapshot.Secrets.TryGetValue(WebhookSecretName, out var sealedSecret))
+        {
+            return false;
+        }
+
+        var secret = await OpenSecretAsync(sealedSecret).ConfigureAwait(true);
+        return secret is { Length: >= 16 } && GitHubWebhookIngress.ValidateSignature(body.Span, signature, secret);
+    }
+
     // Webhook deliveries arrive unstamped once the ingress verified their signature; the neuron acts
     // only on a delivery whose routing hints name its own installation and repository.
     public async Task<bool> AcceptRepositoryEvent(RepositoryEvent receipt, CancellationToken cancellationToken = default)
@@ -215,10 +373,10 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
         ArgumentException.ThrowIfNullOrWhiteSpace(receipt.DeliveryId);
         RequireOwnBrain();
         if (Snapshot.Status != ConnectionStatus.Connected) { return false; }
-        if ((!IsPatAuth && receipt.Installation != Snapshot.InstallationId)
+        if ((!IsDirectAuth && receipt.Installation != Snapshot.InstallationId)
             || receipt.Repository is { } repository && repository != Snapshot.RepositoryId
-            || (IsPatAuth && receipt.Repository is null && receipt.Event != "ping")
-            || (!IsPatAuth && receipt.App is { } app && app != Snapshot.AppId))
+            || (IsDirectAuth && receipt.Repository is null && receipt.Event != "ping")
+            || (!IsDirectAuth && receipt.App is { } app && app != Snapshot.AppId))
         { throw new UnauthorizedAccessException($"The delivery does not address connection github/{Key.Connection}."); }
         if (Snapshot.ProcessedDeliveries.Contains(receipt.DeliveryId, StringComparer.Ordinal)) { return false; }
 
@@ -493,6 +651,29 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
         return posted;
     }
 
+    public async Task<IssueCreated> CreateIssue(CreateIssueRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Title);
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireAvailable();
+
+        var facts = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Repository"] = RepositoryFact,
+            ["Title"] = request.Title.Trim(),
+        };
+
+        return await ExecuteWithAuthAsync((repository, outerCt) =>
+            Policies.Guard(
+                "github.issue.create",
+                1m,
+                facts,
+                ct => _source.CreateIssueAsync(repository, request, ct),
+                outerCt),
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task PushBranch(PushBranchRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -581,8 +762,135 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
     // Connected, and a probe that finds access restored brings its webhooks back with it.
     private Task RevokeAsync(string reason)
     {
+        StopPollTimer();
         _verifier.Forget(FullKey);
         return MarkFailing(reason);
+    }
+
+    internal async Task PollOnceAsync(CancellationToken cancellationToken)
+    {
+        if (Snapshot.Status != ConnectionStatus.Connected || Snapshot.RepositoryId <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await PollIssuesOnceAsync(cancellationToken).ConfigureAwait(true);
+            await PollPullRequestsOnceAsync(cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            GetLogger().LogWarning(error, "GitHub conditional poll failed for {ConnectionKey}.", FullKey);
+        }
+    }
+
+    private async Task PollIssuesOnceAsync(CancellationToken cancellationToken)
+    {
+        var result = await ExecuteWithAuthAsync(
+            (repo, ct) => _source.ListOpenIssuesConditionalAsync(repo, _issuesETag, ct),
+            cancellationToken).ConfigureAwait(true);
+        if (result.NotModified)
+        {
+            if (!string.IsNullOrWhiteSpace(result.ETag))
+            {
+                _issuesETag = result.ETag;
+            }
+            return;
+        }
+
+        _issuesETag = result.ETag;
+        var observedIssues = Snapshot.Issues.ToDictionary(static item => item.Number);
+        var signals = new List<IssueChanged>();
+        var changed = false;
+
+        foreach (var rawIssue in result.Items)
+        {
+            if (rawIssue.RepositoryId != Snapshot.RepositoryId || rawIssue.Number <= 0)
+            {
+                continue;
+            }
+
+            var fencedBody = IssueRead.FenceUntrustedBody(Snapshot.Owner, Snapshot.Name, Snapshot.RepositoryId, rawIssue);
+            var fencedIssue = rawIssue with { Body = fencedBody };
+            var previous = observedIssues.GetValueOrDefault(fencedIssue.Number);
+            if (previous is null && observedIssues.Count >= MaxIssues)
+            {
+                var evictionCandidate = observedIssues.Values.Where(static item => !item.IsOpen).OrderBy(static item => item.ObservedAt).FirstOrDefault()
+                    ?? observedIssues.Values.OrderBy(static item => item.ObservedAt).First();
+                observedIssues.Remove(evictionCandidate.Number);
+            }
+
+            if (previous is null || !string.Equals(previous.Revision, fencedIssue.Revision, StringComparison.Ordinal))
+            {
+                var action = previous is null ? "opened" : "edited";
+                observedIssues[fencedIssue.Number] = fencedIssue;
+                changed = true;
+                signals.Add(new IssueChanged(
+                    fencedIssue.Number,
+                    action,
+                    fencedIssue.Revision,
+                    string.Create(CultureInfo.InvariantCulture, $"github:{Snapshot.RepositoryId}:issue:{fencedIssue.Number}")));
+            }
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        await SaveQuietly(Snapshot with
+        {
+            Issues = observedIssues.Values.OrderBy(static item => item.Number).ToArray(),
+        }).ConfigureAwait(true);
+
+        foreach (var signal in signals)
+        {
+            await PublishAsync(signal).ConfigureAwait(true);
+        }
+    }
+
+    private async Task PollPullRequestsOnceAsync(CancellationToken cancellationToken)
+    {
+        var result = await ExecuteWithAuthAsync(
+            (repo, ct) => _source.ListOpenPullRequestsConditionalAsync(repo, _pullRequestsETag, ct),
+            cancellationToken).ConfigureAwait(true);
+        if (result.NotModified)
+        {
+            if (!string.IsNullOrWhiteSpace(result.ETag))
+            {
+                _pullRequestsETag = result.ETag;
+            }
+            return;
+        }
+
+        _pullRequestsETag = result.ETag;
+        var observed = Snapshot.PullRequests.ToDictionary(static item => item.Number);
+        var facts = new List<PullRequestChanged>();
+
+        foreach (var snapshot in result.Items)
+        {
+            if (Apply(observed, snapshot, facts, trigger: null) is { } reason)
+            {
+                await MarkFailing(reason).ConfigureAwait(true);
+                return;
+            }
+        }
+
+        if (facts.Count == 0 && observed.Count == Snapshot.PullRequests.Length)
+        {
+            return;
+        }
+
+        await SaveQuietly(Snapshot with
+        {
+            PullRequests = observed.Values.OrderBy(static item => item.Number).ToArray(),
+        }).ConfigureAwait(true);
+
+        foreach (var fact in facts)
+        {
+            await PublishAsync(fact).ConfigureAwait(true);
+        }
     }
 
     private async Task ApplyAsync(int? number, RepositoryEvent? trigger, string[] deliveries, DateTimeOffset? webhookAt, CancellationToken cancellationToken)
@@ -769,7 +1077,7 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
     private Task<T> ExecuteWithAuthAsync<T>(Func<GitHubRepository, CancellationToken, Task<T>> action, CancellationToken ct)
     {
         var repository = Repository;
-        if (!repository.IsPersonalAccessToken)
+        if (!repository.IsDirectToken)
         {
             return action(repository, ct);
         }
@@ -787,6 +1095,277 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
             await action(repo, token).ConfigureAwait(true);
             return true;
         }, ct);
+
+    private async Task FinalizeDirectPatConnectAsync()
+    {
+        try
+        {
+            await UseCredentialAsync<bool>(async (credential, _) =>
+            {
+                var (token, target, webhookSecret) = ParseDirectConnectPayload(credential.Value);
+                var effectiveTarget = target
+                    ?? ExistingOrDerivedTarget()
+                    ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
+
+                var resolved = (await _access.ResolvePersonalAccessTokenAsync(token, effectiveTarget, CancellationToken.None).ConfigureAwait(true))
+                    with
+                { Key = FullKey, AuthKind = "pat" };
+                using (GitHubCredentialScope.UsePersonalAccessToken(FullKey, token))
+                {
+                    await _verifier.VerifyAsync(resolved, CancellationToken.None).ConfigureAwait(true);
+                }
+
+                await RemoveStaleIndexEntriesAsync(nextInstallationId: 0, nextRepositoryId: resolved.RepositoryId).ConfigureAwait(true);
+                var sealedToken = await SealSecretAsync(ValueSecretName, token).ConfigureAwait(true);
+                var updatedSecrets = new Dictionary<string, SealedSecret>(Snapshot.Secrets, StringComparer.Ordinal)
+                {
+                    [ValueSecretName] = sealedToken,
+                };
+                if (!string.IsNullOrWhiteSpace(webhookSecret))
+                {
+                    updatedSecrets[WebhookSecretName] = await SealSecretAsync(WebhookSecretName, webhookSecret).ConfigureAwait(true);
+                }
+
+                var account = $"{resolved.Owner}/{resolved.Name}";
+                var next = (Snapshot.RepositoryId != resolved.RepositoryId
+                    ? Snapshot with { PullRequests = [], Issues = [], DraftPreviews = [], ProcessedCommentReceipts = [], LastWebhookAt = null }
+                    : Snapshot) with
+                {
+                    AuthKind = "pat",
+                    AppId = 0,
+                    InstallationId = 0,
+                    RepositoryId = resolved.RepositoryId,
+                    Owner = resolved.Owner,
+                    Name = resolved.Name,
+                    Account = account,
+                    Secrets = updatedSecrets,
+                };
+                await SaveQuietly(next).ConfigureAwait(true);
+                return true;
+            }, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // Roll back cleanly so a failed direct PAT connect never leaves Status=Connected
+            // or raw unparsed JSON/pipe payload sealed in State.Secrets["value"].
+            await SaveQuietly(Snapshot with
+            {
+                Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal),
+            }).ConfigureAwait(true);
+            await MarkFailing(error.Message).ConfigureAwait(true);
+            throw;
+        }
+    }
+
+    private async Task SyncGitHubMcpAsync()
+    {
+        try
+        {
+            await UseCredentialAsync<bool>(async (credential, _) =>
+            {
+                if (!IsGitHubUserOrPatToken(credential.Value))
+                {
+                    return false;
+                }
+
+                var payload = JsonSerializer.Serialize(
+                    new GitHubMcpConnectPayload(GitHubMcpUrl, GitHubMcpTitle, credential.Value),
+                    GitHubAotJsonContext.Default.GitHubMcpConnectPayload);
+                var mcpId = new NeuronId(Id.Brain, "mcp", GitHubMcpConnectionKey);
+                await Get<IConnection>(mcpId).Connect("bearer-token", payload).ConfigureAwait(true);
+                return true;
+            }, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            GetLogger().LogWarning(error, "Best-effort sync of GitHub remote MCP connection failed for {ConnectionKey}.", FullKey);
+        }
+    }
+
+    private async Task DisconnectGitHubMcpIfLastAsync()
+    {
+        try
+        {
+            var hasOtherConnectedGitHub = false;
+            try
+            {
+                var catalog = await Context.Get<IConnectionCatalog>(IConnectionCatalog.Id(Key.Brain)).Read().ConfigureAwait(true);
+                hasOtherConnectedGitHub = catalog.Rows.Any(row =>
+                    string.Equals(row.ConnectorId, GitHubModule.ManifestName, StringComparison.Ordinal)
+                    && !string.Equals(row.ConnectionId, Key.Connection, StringComparison.Ordinal)
+                    && row.Status == ConnectionStatus.Connected);
+            }
+            catch (Exception catalogError) when (catalogError is not OperationCanceledException)
+            {
+                GetLogger().LogDebug(catalogError, "Connection catalog unavailable when checking remaining GitHub connections for {ConnectionKey}.", FullKey);
+            }
+
+            if (hasOtherConnectedGitHub)
+            {
+                return;
+            }
+
+            var mcpId = new NeuronId(Id.Brain, "mcp", GitHubMcpConnectionKey);
+            await Get<IConnection>(mcpId).Disconnect().ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            GetLogger().LogDebug(error, "Best-effort disconnect of GitHub remote MCP connection skipped for {ConnectionKey}.", FullKey);
+        }
+    }
+
+    private async Task<SealedSecret> SealSecretAsync(string name, string plaintext)
+    {
+        var brainSealer = ServiceProvider?.GetService(typeof(IBrainSecretSealer)) as IBrainSecretSealer;
+        if (brainSealer is not null && Snapshot.Secrets.Values.Any(BrainSeal.IsBrainSealed))
+        {
+            return await brainSealer.Seal(Key.Brain, name, plaintext).ConfigureAwait(true);
+        }
+
+        var sealer = ServiceProvider?.GetService(typeof(ISecretSealer)) as ISecretSealer
+            ?? throw new InvalidOperationException("No ISecretSealer service is registered.");
+        return sealer.Seal(name, plaintext);
+    }
+
+    private async Task<string> OpenSecretAsync(SealedSecret secret)
+    {
+        var brainSealer = ServiceProvider?.GetService(typeof(IBrainSecretSealer)) as IBrainSecretSealer;
+        if (BrainSeal.IsBrainSealed(secret) && brainSealer is not null)
+        {
+            return await brainSealer.Open(Key.Brain, secret).ConfigureAwait(true);
+        }
+
+        var sealer = ServiceProvider?.GetService(typeof(ISecretSealer)) as ISecretSealer
+            ?? throw new InvalidOperationException("No ISecretSealer service is registered.");
+        return sealer.Open(secret);
+    }
+
+    private string? ExistingOrDerivedTarget()
+    {
+        if (!string.IsNullOrWhiteSpace(Snapshot.Owner) && !string.IsNullOrWhiteSpace(Snapshot.Name))
+        {
+            return $"{Snapshot.Owner}/{Snapshot.Name}";
+        }
+
+        var decoded = Uri.UnescapeDataString(Key.Connection);
+        return decoded.Contains('/', StringComparison.Ordinal) ? decoded : null;
+    }
+
+    internal static (string Token, string? Target, string? WebhookSecret) ParseDirectConnectPayload(string rawValue)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rawValue);
+        var trimmed = rawValue.Trim();
+
+        if (trimmed.StartsWith('{'))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(trimmed);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    var token = TryReadJsonString(doc.RootElement, "token", "access_token", "accessToken", "pat");
+                    if (string.IsNullOrWhiteSpace(token))
+                    {
+                        throw new GitHubUnavailableException("Provide a non-empty GitHub personal access token.");
+                    }
+
+                    var target = TryReadJsonString(doc.RootElement, "repo", "repository", "target");
+                    var webhookSecret = TryReadJsonString(doc.RootElement, "webhookSecret", "webhook_secret");
+                    return (token.Trim(), target?.Trim(), string.IsNullOrWhiteSpace(webhookSecret) ? null : webhookSecret.Trim());
+                }
+            }
+            catch (JsonException)
+            {
+                throw new GitHubUnavailableException("Invalid JSON payload for GitHub PAT connection.");
+            }
+        }
+
+        var pipeIdx = trimmed.IndexOf('|');
+        if (pipeIdx > 0 && pipeIdx < trimmed.Length - 1)
+        {
+            var left = trimmed[..pipeIdx].Trim();
+            var right = trimmed[(pipeIdx + 1)..].Trim();
+            if (left.Contains('/', StringComparison.Ordinal) && right.Length > 0)
+            {
+                return (right, left, null);
+            }
+        }
+
+        return (trimmed, null, null);
+    }
+
+    internal static bool IsGitHubUserOrPatToken(string? token)
+        => !string.IsNullOrWhiteSpace(token)
+            && (token.StartsWith("gho_", StringComparison.Ordinal)
+                || token.StartsWith("ghu_", StringComparison.Ordinal)
+                || token.StartsWith("github_pat_", StringComparison.Ordinal)
+                || token.StartsWith("ghp_", StringComparison.Ordinal));
+
+    private static bool IsUserOAuthGrant(OAuthGrant grant)
+    {
+        if (string.Equals(grant.AuthMethodId, "user-oauth", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(grant.Response))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(grant.Response);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            var mode = TryReadJsonString(doc.RootElement, "auth_kind", "authKind", "mode");
+            return string.Equals(mode, "user-oauth", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static string? TryExtractWebhookSecretFromResponse(string? response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(response);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var secret = TryReadJsonString(doc.RootElement, "webhookSecret", "webhook_secret");
+            return string.IsNullOrWhiteSpace(secret) ? null : secret.Trim();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? TryReadJsonString(JsonElement obj, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (obj.TryGetProperty(key, out var val) && val.ValueKind == JsonValueKind.String)
+            {
+                return val.GetString();
+            }
+        }
+
+        return null;
+    }
 
     private static bool IsPersonalAccessTokenGrant(OAuthGrant grant)
     {
