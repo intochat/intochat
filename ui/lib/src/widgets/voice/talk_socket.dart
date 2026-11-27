@@ -11,6 +11,9 @@ import 'talk_ws_io.dart'
 /// Voice-mode phase reported by the Kernel over `/ai/talk`.
 enum TalkPhase { listening, thinking, speaking }
 
+/// Execution status reported by the Kernel for a live tool call over `/ai/talk`.
+enum TalkToolStatus { running, done, failed }
+
 /// Control/status event sent by the Kernel as a JSON text frame on `/ai/talk`.
 sealed class TalkEvent {
   const TalkEvent();
@@ -21,6 +24,12 @@ sealed class TalkEvent {
       'state' => TalkStateEvent(_parsePhase(json['state'])),
       'heard' => TalkHeardEvent('${json['text'] ?? ''}'),
       'reply' => TalkReplyEvent('${json['text'] ?? ''}'),
+      'tool' => TalkToolEvent(
+        callId: '${json['callId'] ?? ''}',
+        name: '${json['name'] ?? ''}',
+        status: _parseToolStatus(json['status']),
+        label: _parseOptionalString(json['label']),
+      ),
       'cancel' => const TalkCancelEvent(),
       'error' => TalkErrorEvent('${json['message'] ?? ''}'),
       _ => throw FormatException('Unknown talk event type: $type'),
@@ -33,6 +42,19 @@ sealed class TalkEvent {
         'speaking' => TalkPhase.speaking,
         _ => TalkPhase.listening,
       };
+
+  static TalkToolStatus _parseToolStatus(Object? raw) =>
+      switch ('$raw'.trim().toLowerCase()) {
+        'done' => TalkToolStatus.done,
+        'failed' || 'error' => TalkToolStatus.failed,
+        _ => TalkToolStatus.running,
+      };
+
+  static String? _parseOptionalString(Object? raw) {
+    if (raw == null) return null;
+    final text = '$raw'.trim();
+    return text.isEmpty ? null : text;
+  }
 }
 
 final class TalkStateEvent extends TalkEvent {
@@ -51,6 +73,23 @@ final class TalkReplyEvent extends TalkEvent {
   const TalkReplyEvent(this.text);
 
   final String text;
+}
+
+final class TalkToolEvent extends TalkEvent {
+  const TalkToolEvent({
+    required this.callId,
+    required this.name,
+    required this.status,
+    this.label,
+  });
+
+  final String callId;
+  final String name;
+  final TalkToolStatus status;
+  final String? label;
+
+  /// Humanized label for display, falling back to [name] when [label] is absent.
+  String get displayLabel => label ?? name;
 }
 
 final class TalkCancelEvent extends TalkEvent {
