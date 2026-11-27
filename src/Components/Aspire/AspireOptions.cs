@@ -117,10 +117,12 @@ public sealed partial class AcaJobCandidateOptions
 
     public Uri ValidateAndGetArmBaseUri()
     {
-        if (!Guid.TryParse(SubscriptionId, out _))
+        if (!Guid.TryParse(SubscriptionId, out var parsedSubscriptionId))
         {
             throw new ArgumentException("AcaJob.SubscriptionId must be a valid GUID.", nameof(SubscriptionId));
         }
+
+        SubscriptionId = parsedSubscriptionId.ToString("D");
 
         if (string.IsNullOrWhiteSpace(ResourceGroup)
             || ResourceGroup.Contains("..", StringComparison.Ordinal)

@@ -257,6 +257,33 @@ public sealed class AcaJobCandidateHostFacts : IDisposable
     }
 
     [Fact]
+    public async Task Remove_RetainsTrackedExecutionWhenStopFails_AndNormalizesSubscriptionGuid()
+    {
+        var opts = ValidOptions();
+        opts.SubscriptionId = "{" + SubscriptionId.ToUpperInvariant() + "}";
+        opts.Validate();
+        Assert.Equal(SubscriptionId, opts.SubscriptionId);
+
+        var handler = new FakeArmHandler { FailNextStop = true };
+        using var http = new HttpClient(handler);
+        using var host = new AcaJobCandidateHost(
+            new NoopProcessRunner(),
+            new ConfigurationBuilder().Build(),
+            opts,
+            _ => Task.FromResult(_workdir),
+            new FakeTokenProvider(),
+            http);
+
+        await host.Run("a1b2c3d", Ct);
+        await Assert.ThrowsAsync<CandidateHostException>(() => host.Remove("a1b2c3d", Ct));
+
+        // Second attempt succeeds because the execution remained tracked after the transient stop error.
+        await host.Remove("a1b2c3d", Ct);
+        var stopCalls = handler.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsolutePath.EndsWith("/stop", StringComparison.Ordinal));
+        Assert.Equal(2, stopCalls);
+    }
+
+    [Fact]
     public void AspireModule_DefaultsToAgentDevSlots_AndFailsClosedWhenAcaJobConfigIsMissing()
     {
         var defaultOptions = new AspireOptions();
@@ -309,6 +336,7 @@ public sealed class AcaJobCandidateHostFacts : IDisposable
         public Queue<string> PollStatuses { get; } = new();
         public string StartExecutionName { get; set; } = "intochat-test-devslot-exec01";
         public string ExecutionsListJson { get; set; } = """{ "value": [] }""";
+        public bool FailNextStop { get; set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -339,6 +367,15 @@ public sealed class AcaJobCandidateHostFacts : IDisposable
 
             if (request.Method == HttpMethod.Post && path.EndsWith("/stop", StringComparison.Ordinal))
             {
+                if (FailNextStop)
+                {
+                    FailNextStop = false;
+                    return new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                    {
+                        Content = new StringContent("transient stop error"),
+                    };
+                }
+
                 return new HttpResponseMessage(HttpStatusCode.OK);
             }
 

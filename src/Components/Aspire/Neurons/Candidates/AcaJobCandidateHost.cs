@@ -255,12 +255,13 @@ internal sealed partial class AcaJobCandidateHost : ICandidateHost, IDisposable
     public async Task Remove(string sha, CancellationToken ct)
     {
         Checked(sha);
-        if (!_executionBySha.TryRemove(sha, out var executionName))
+        if (!_executionBySha.TryGetValue(sha, out var executionName))
         {
             return;
         }
 
         await StopExecutionAsync(executionName, "remove", ct).ConfigureAwait(false);
+        _executionBySha.TryRemove(new KeyValuePair<string, string>(sha, executionName));
     }
 
     public async Task<string[]> Orphans(string[] known, CancellationToken ct)
@@ -363,33 +364,42 @@ internal sealed partial class AcaJobCandidateHost : ICandidateHost, IDisposable
 
     private string BuildStartPayload(IReadOnlyDictionary<string, string> environment)
     {
-        var container = new Dictionary<string, object>(StringComparer.Ordinal)
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
         {
-            ["name"] = _options.ContainerName,
-            ["resources"] = new Dictionary<string, object>(StringComparer.Ordinal)
+            writer.WriteStartObject();
+            writer.WritePropertyName("containers");
+            writer.WriteStartArray();
+            writer.WriteStartObject();
+            writer.WriteString("name", _options.ContainerName);
+            if (!string.IsNullOrWhiteSpace(_options.ImageOverride))
             {
-                ["cpu"] = _options.Cpu,
-                ["memory"] = _options.Memory.Trim(),
-            },
-            ["env"] = environment
-                .OrderBy(static p => p.Key, StringComparer.Ordinal)
-                .Select(static p => new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["name"] = p.Key,
-                    ["value"] = p.Value,
-                })
-                .ToArray(),
-        };
+                writer.WriteString("image", _options.ImageOverride.Trim());
+            }
 
-        if (!string.IsNullOrWhiteSpace(_options.ImageOverride))
-        {
-            container["image"] = _options.ImageOverride.Trim();
+            writer.WritePropertyName("resources");
+            writer.WriteStartObject();
+            writer.WriteNumber("cpu", _options.Cpu);
+            writer.WriteString("memory", _options.Memory.Trim());
+            writer.WriteEndObject();
+
+            writer.WritePropertyName("env");
+            writer.WriteStartArray();
+            foreach (var pair in environment.OrderBy(static p => p.Key, StringComparer.Ordinal))
+            {
+                writer.WriteStartObject();
+                writer.WriteString("name", pair.Key);
+                writer.WriteString("value", pair.Value);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+            writer.WriteEndObject();
         }
 
-        return JsonSerializer.Serialize(new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["containers"] = new[] { container },
-        });
+        return Encoding.UTF8.GetString(buffer.ToArray());
     }
 
     private async Task StopExecutionAsync(string executionName, string stage, CancellationToken ct)

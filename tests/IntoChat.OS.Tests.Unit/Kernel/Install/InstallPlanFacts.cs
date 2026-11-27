@@ -850,12 +850,19 @@ public sealed class InstallPlanFacts
         Assert.NotNull(jobSpec);
         Assert.Equal("intochat-test-devslot", jobSpec.Name);
         Assert.Equal("intochat-test-env", jobSpec.Environment);
+        Assert.Equal("intochat-test-devslot-id", jobSpec.Identity);
         Assert.Equal(2.0, jobSpec.Cpu);
         Assert.Equal("4Gi", jobSpec.Memory);
         Assert.Equal(1, jobSpec.Parallelism);
         Assert.Equal(900, jobSpec.ReplicaTimeoutSeconds);
         Assert.Equal(0, jobSpec.ReplicaRetryLimit);
-        Assert.DoesNotContain(InstallPlan.Foundation(enabledConfig), static s => s is ContainerAppsJobSpec);
+        var foundation = InstallPlan.Foundation(enabledConfig);
+        Assert.DoesNotContain(foundation, static s => s is ContainerAppsJobSpec);
+        // Dedicated AcrPull-only UAMI for DevSlotJob (zero KeyVault/Storage/Foundry grants on devslot-id).
+        Assert.Contains(foundation.OfType<IdentitySpec>(), s => s.Name == "intochat-test-devslot-id");
+        var devSlotGrants = foundation.OfType<RoleGrantSpec>().Where(g => g.Principal == "intochat-test-devslot-id").ToArray();
+        var acrGrant = Assert.Single(devSlotGrants);
+        Assert.Contains("/Microsoft.ContainerRegistry/registries/", acrGrant.Scope, StringComparison.OrdinalIgnoreCase);
 
         var plan = PulumiStackSynthesizer.Synthesize(enabledConfig, OperatingSystemModules.Modules);
         var jobBlock = ResourceBlock(plan.PulumiYaml, "container-apps-job-intochat-test-devslot");
@@ -893,7 +900,11 @@ public sealed class InstallPlanFacts
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { ReplicaTimeoutSeconds = 901 } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { ReplicaRetryLimit = 1 } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = 2.5 } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = double.NaN } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = double.PositiveInfinity } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Memory = "8Gi" } }).Validated());
+        var trimmed = (validBase with { DevSlotJob = validBase.DevSlotJob with { Memory = " 4Gi " } }).Validated();
+        Assert.Equal("4Gi", trimmed.DevSlotJob.Memory);
     }
 
     private static string ResourceBlock(string yaml, string logicalName)

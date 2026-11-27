@@ -4,4 +4,5 @@ public sealed record RepositoryView(
     string ConnectionId,
     bool Connected,
     IReadOnlyList<PullRequestSnapshot> PullRequests,
-    DateTimeOffset? LastWebhookAt);
+    DateTimeOffset? LastWebhookAt,
+    string? Repository = null);

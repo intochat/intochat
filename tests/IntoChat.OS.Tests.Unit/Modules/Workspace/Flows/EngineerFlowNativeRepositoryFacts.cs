@@ -70,6 +70,7 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
 
         var repo = new GitHubRepository("local/connection/github/main", 424242, 9001, 777, "intochat", "intochat", "app");
         var sha = new string('a', 40);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, ".git"), "gitdir: ./.git-real\n", Ct);
 
         await source.PushBranchAsync(repo, new PushBranchRequest("ino/feat-cloud-pr", sha, Force: false, LocalWorktreePath: _tempDir), Ct);
 
@@ -80,7 +81,14 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
         // Token must travel ONLY in ephemeral GIT_CONFIG_* process environment — NEVER in CLI args or URL.
         Assert.DoesNotContain(capturedPsi.ArgumentList, arg => arg.Contains(mintedToken, StringComparison.Ordinal));
         Assert.DoesNotContain(capturedPsi.ArgumentList, arg => arg.Contains(expectedBasic, StringComparison.Ordinal));
-        Assert.Contains("https://github.com/intochat/intochat.git", capturedPsi.ArgumentList);
+        Assert.Contains("http.sslVerify=true", capturedPsi.ArgumentList);
+        Assert.Contains("http.proxy=", capturedPsi.ArgumentList);
+        Assert.Contains("http.https://github.com/.proxy=", capturedPsi.ArgumentList);
+        Assert.Contains("credential.helper=", capturedPsi.ArgumentList);
+        Assert.Contains("core.askPass=", capturedPsi.ArgumentList);
+        var separatorIndex = capturedPsi.ArgumentList.IndexOf("--");
+        var remoteIndex = capturedPsi.ArgumentList.IndexOf("https://github.com/intochat/intochat.git");
+        Assert.True(separatorIndex > 0 && remoteIndex == separatorIndex + 1, "Expected '--' immediately before remoteUrl.");
         Assert.Contains($"{sha}:refs/heads/ino/feat-cloud-pr", capturedPsi.ArgumentList);
 
         Assert.Equal("1", capturedPsi.Environment["GIT_CONFIG_COUNT"]);
@@ -97,6 +105,82 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
         Assert.DoesNotContain(mintedToken, ex.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(expectedBasic, ex.Message, StringComparison.Ordinal);
         Assert.Contains("[REDACTED]", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GitHubRepositorySource_RejectsMaliciousGitPushInputsAndNonGitWorktrees()
+    {
+        var validSha = new string('a', 40);
+        var validSha256 = new string('f', 64);
+        GitHubRepositorySource.ValidateGitPushInputs("ino/feat-clean", validSha);
+        GitHubRepositorySource.ValidateGitPushInputs("ino/feat-sha256", validSha256);
+
+        // Invalid commit SHAs (short, non-hex, flag injection).
+        foreach (var badSha in new[] { "", "abc1234", "--force", "+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", new string('g', 40) })
+        {
+            Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateGitPushInputs("ino/feat-ok", badSha));
+        }
+
+        // Invalid / injection branch names.
+        foreach (var badBranch in new[]
+        {
+            "",
+            "-flag",
+            "+main",
+            ".hidden",
+            "/leading",
+            "trailing/",
+            "bad.lock",
+            "a..b",
+            "a//b",
+            "a@{0}",
+            "a:b",
+            "a~1",
+            "a^1",
+            "a?b",
+            "a*b",
+            "a[b",
+            "a\\b",
+            "has space",
+            "has\nnewline",
+        })
+        {
+            Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateGitPushInputs(badBranch, validSha));
+        }
+
+        // Unrooted and non-git LocalWorktreePath must be rejected to prevent `git -C` parent-repo traversal.
+        Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateLocalWorktreePath("relative/path"));
+        var nonGitDir = Path.Combine(_tempDir, "not-a-repo");
+        Directory.CreateDirectory(nonGitDir);
+        Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateLocalWorktreePath(nonGitDir));
+    }
+
+    [Fact]
+    public async Task GitHubRepositorySource_RunGitProcessAsync_KillsChildProcessOnTimeout()
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        if (OperatingSystem.IsWindows())
+        {
+            psi.ArgumentList.Add("/c");
+            psi.ArgumentList.Add("ping -n 10 127.0.0.1 >nul");
+        }
+        else
+        {
+            psi.ArgumentList.Add("-c");
+            psi.ArgumentList.Add("sleep 10");
+        }
+
+        var ex = await Assert.ThrowsAsync<GitHubUnavailableException>(() =>
+            GitHubRepositorySource.RunGitProcessAsync(psi, TimeSpan.FromMilliseconds(150), Ct));
+        Assert.Contains("timed out", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -200,7 +284,7 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
         services.AddSingleton<IWorkTree>(new ThrowingHostPublishWorkTree());
         services.AddSingleton<IConfirmationRequests>(new ApprovedConfirmations(planId, "person-vlad"));
         services.AddSingleton<IRepository>(nativeRepo);
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
 
         var flowWithRepo = ActivatorUtilities.CreateInstance<EngineerFlow>(provider);
 
@@ -240,7 +324,8 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
         var fallbackServices = new ServiceCollection();
         fallbackServices.AddSingleton<IWorkTree>(fallbackWorkTree);
         fallbackServices.AddSingleton<IConfirmationRequests>(new ApprovedConfirmations(planId, "person-vlad"));
-        var flowWithoutRepo = ActivatorUtilities.CreateInstance<EngineerFlow>(fallbackServices.BuildServiceProvider());
+        using var fallbackProvider = fallbackServices.BuildServiceProvider();
+        var flowWithoutRepo = ActivatorUtilities.CreateInstance<EngineerFlow>(fallbackProvider);
 
         var fallbackPush = await (Task<DigitalBrain.Flows.StepResult<EngineerRun>>)pushStepMethod.Invoke(flowWithoutRepo, [run, Ct])!;
         Assert.Equal("refs/heads/ino/feat-engineer-native", fallbackPush.Next.Publication?.PushedRef);

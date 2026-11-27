@@ -565,7 +565,9 @@ public static partial class PulumiStackSynthesizer
         if (job.RegistryServer.Length > 0 && job.Identity.Length > 0)
         {
             dependsOn.Add(identityLogical);
-            foreach (var grant in roleGrants.Where(g => g.Scope.Contains("/Microsoft.ContainerRegistry/registries/", StringComparison.OrdinalIgnoreCase)))
+            foreach (var grant in roleGrants.Where(g =>
+                string.Equals(g.Principal, job.Identity, StringComparison.Ordinal)
+                && g.Scope.Contains("/Microsoft.ContainerRegistry/registries/", StringComparison.OrdinalIgnoreCase)))
             {
                 dependsOn.Add(LogicalResourceName(grant));
             }
@@ -604,7 +606,7 @@ public static partial class PulumiStackSynthesizer
         output.AppendLine("      template:");
         output.AppendLine("        containers:");
         output.AppendLine("          - name: devslot");
-        output.AppendLine($"            image: \"{job.Image}\"");
+        output.AppendLine($"            image: {YamlQuote(job.Image)}");
         output.AppendLine("            resources:");
         output.AppendLine($"              cpu: {job.Cpu.ToString(CultureInfo.InvariantCulture)}");
         output.AppendLine($"              memory: \"{job.Memory}\"");

@@ -3,13 +3,14 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DigitalBrain.Log;
 using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
-internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposable
+internal sealed partial class GitHubRepositorySource : IGitHubRepositorySource, IDisposable
 {
     internal const int EvidenceBudgetBytes = 131072;
     private const int MaxIssueBodyLength = 65536;
@@ -468,11 +469,13 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         var branchName = request.Branch.StartsWith("refs/heads/", StringComparison.Ordinal)
             ? request.Branch["refs/heads/".Length..]
             : request.Branch;
+        ValidateGitPushInputs(branchName, request.CommitSha);
         var refName = $"heads/{branchName}";
 
-        if (!string.IsNullOrWhiteSpace(request.LocalWorktreePath) && Directory.Exists(request.LocalWorktreePath))
+        if (!string.IsNullOrWhiteSpace(request.LocalWorktreePath))
         {
-            await PushLocalWorktreeWithEphemeralTokenAsync(repository, request.LocalWorktreePath, branchName, request.CommitSha, request.Force, cancellationToken).ConfigureAwait(false);
+            var worktreePath = ValidateLocalWorktreePath(request.LocalWorktreePath);
+            await PushLocalWorktreeWithEphemeralTokenAsync(repository, worktreePath, branchName, request.CommitSha, request.Force, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -487,6 +490,78 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         {
             await client.Git.Reference.Create(repository.RepositoryId, new Octokit.NewReference($"refs/{refName}", request.CommitSha)).WaitAsync(cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    internal static void ValidateGitPushInputs(string branchName, string commitSha)
+    {
+        if (string.IsNullOrWhiteSpace(commitSha) || !CommitShaPattern().IsMatch(commitSha))
+        {
+            throw new ArgumentException("CommitSha must be a 40-character SHA-1 or 64-character SHA-256 hex digest.", nameof(commitSha));
+        }
+
+        if (!IsValidGitBranchName(branchName))
+        {
+            throw new ArgumentException($"Branch name '{branchName}' is not a valid git ref.", nameof(branchName));
+        }
+    }
+
+    internal static bool IsValidGitBranchName(string? branchName)
+    {
+        if (string.IsNullOrWhiteSpace(branchName))
+        {
+            return false;
+        }
+
+        if (branchName[0] is '-' or '.' or '/' or '+'
+            || branchName.EndsWith('/')
+            || branchName.EndsWith(".lock", StringComparison.OrdinalIgnoreCase)
+            || branchName.Contains("..", StringComparison.Ordinal)
+            || branchName.Contains("//", StringComparison.Ordinal)
+            || branchName.Contains("@{", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        foreach (var ch in branchName)
+        {
+            if (char.IsWhiteSpace(ch) || char.IsControl(ch) || ch == '\u007f'
+                || ch is ':' or '~' or '^' or '?' or '*' or '[' or '\\')
+            {
+                return false;
+            }
+        }
+
+        foreach (var segment in branchName.Split('/'))
+        {
+            if (segment.Length == 0 || segment[0] == '.' || segment.EndsWith('.') || segment.EndsWith(".lock", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal static string ValidateLocalWorktreePath(string rawPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath) || !Path.IsPathFullyQualified(rawPath))
+        {
+            throw new ArgumentException("LocalWorktreePath must be a fully qualified path.", nameof(rawPath));
+        }
+
+        var fullPath = Path.GetFullPath(rawPath);
+        if (!Directory.Exists(fullPath))
+        {
+            throw new ArgumentException($"LocalWorktreePath '{fullPath}' does not exist.", nameof(rawPath));
+        }
+
+        var dotGit = Path.Combine(fullPath, ".git");
+        if (!File.Exists(dotGit) && !Directory.Exists(dotGit))
+        {
+            throw new ArgumentException($"LocalWorktreePath '{fullPath}' is not a git repository or worktree (missing .git).", nameof(rawPath));
+        }
+
+        return fullPath;
     }
 
     // Uploads local commit objects to GitHub over HTTPS using a short-lived ContentsWrite installation token
@@ -525,12 +600,23 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         psi.ArgumentList.Add("core.hooksPath=/dev/null");
         psi.ArgumentList.Add("-c");
         psi.ArgumentList.Add("protocol.file.allow=never");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("http.sslVerify=true");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("http.proxy=");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("http.https://github.com/.proxy=");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("credential.helper=");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("core.askPass=");
         psi.ArgumentList.Add("push");
         psi.ArgumentList.Add("--no-verify");
         if (force)
         {
             psi.ArgumentList.Add("--force");
         }
+        psi.ArgumentList.Add("--");
         psi.ArgumentList.Add(remoteUrl);
         psi.ArgumentList.Add($"{commitSha}:refs/heads/{branchName}");
 
@@ -571,8 +657,14 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         return result;
     }
 
-    private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitProcessAsync(
+    internal static Task<(int ExitCode, string StdOut, string StdErr)> RunGitProcessAsync(
         ProcessStartInfo psi,
+        CancellationToken cancellationToken)
+        => RunGitProcessAsync(psi, TimeSpan.FromSeconds(60), cancellationToken);
+
+    internal static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitProcessAsync(
+        ProcessStartInfo psi,
+        TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         using var process = new Process { StartInfo = psi };
@@ -583,12 +675,48 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
 
         process.StandardInput.Close();
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(60));
-        var outTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
-        var errTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
-        await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
-        return (process.ExitCode, await outTask.ConfigureAwait(false), await errTask.ConfigureAwait(false));
+        timeoutCts.CancelAfter(timeout);
+        var outTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var errTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            return (process.ExitCode, await outTask.ConfigureAwait(false), await errTask.ConfigureAwait(false));
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                OsConsoleLog.For<GitHubRepositorySource>().LogSwallowed(ex, "terminating timed-out/cancelled git push process");
+            }
+
+            try
+            {
+                await Task.WhenAll(outTask, errTask).WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                OsConsoleLog.For<GitHubRepositorySource>().LogSwallowed(ex, "draining killed git push stdout/stderr streams");
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            throw new GitHubUnavailableException($"Native git push timed out after {timeout.TotalSeconds:0.#}s and the child process was terminated.");
+        }
     }
+
+    [GeneratedRegex(@"^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?\z", RegexOptions.CultureInvariant)]
+    private static partial Regex CommitShaPattern();
 
     public async Task<PullRequestView> CreatePullRequestAsync(GitHubRepository repository, CreatePullRequest request, CancellationToken cancellationToken)
     {

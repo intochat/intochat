@@ -546,8 +546,12 @@ public static partial class PulumiStackSynthesizer
                     $disableTriggerBody = @{ properties = @{ configuration = @{ triggerType = 'Manual'; replicaRetryLimit = 0; manualTriggerConfig = @{ parallelism = 1; replicaCompletionCount = 1 } } } } | ConvertTo-Json -Depth 5 -Compress
                     $patchJobUri = 'https://management.azure.com' + $job.id + '?api-version=2025-01-01'
                     Write-Output ('DISABLING non-Manual trigger on ContainerApps Job: ' + $job.id)
-                    Invoke-RestMethod -Method PATCH -Uri $patchJobUri -Headers $headers -Body $disableTriggerBody | Out-Null
-                    $stoppedResources.Add([string]$job.id + '#trigger-disabled')
+                    try {
+                        Invoke-RestMethod -Method PATCH -Uri $patchJobUri -Headers $headers -Body $disableTriggerBody | Out-Null
+                        $stoppedResources.Add([string]$job.id + '#trigger-disabled')
+                    } catch {
+                        Write-Warning ('FAILED to disable non-Manual trigger on ContainerApps Job ' + $job.id + ': ' + $_.Exception.Message)
+                    }
                 }
             }
 

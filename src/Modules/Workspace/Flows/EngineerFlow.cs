@@ -1414,10 +1414,25 @@ internal sealed class EngineerFlow(
 
                 var candidate = Context.Get<IRepository>(neuronId);
                 var view = await candidate.Read().ConfigureAwait(true);
-                if (view.Connected)
+                if (!view.Connected)
                 {
-                    return candidate;
+                    continue;
                 }
+
+                // Never push to a mismatched repository connection (especially the shared "main" fallback).
+                if (!string.IsNullOrWhiteSpace(view.Repository))
+                {
+                    if (!string.Equals(view.Repository.Trim(), ghRepo, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                }
+                else if (string.Equals(key, "connection/github/main", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                return candidate;
             }
             catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or NotSupportedException)
             {

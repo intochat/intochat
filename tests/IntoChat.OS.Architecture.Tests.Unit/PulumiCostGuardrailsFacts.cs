@@ -265,6 +265,7 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("/executions?api-version=2025-01-01", publishBlock, StringComparison.Ordinal);
         Assert.Contains("/executions/' + $exec.name + '/stop?api-version=2025-01-01", publishBlock, StringComparison.Ordinal);
         Assert.Contains("DISABLING non-Manual trigger on ContainerApps Job", publishBlock, StringComparison.Ordinal);
+        Assert.Contains("FAILED to disable non-Manual trigger on ContainerApps Job", publishBlock, StringComparison.Ordinal);
         Assert.Contains("Microsoft.DBforPostgreSQL/flexibleServers", publishBlock, StringComparison.Ordinal);
         Assert.Contains("/stop?api-version=2024-08-01", publishBlock, StringComparison.Ordinal);
         Assert.DoesNotContain("/resourceGroups/NetworkWatcherRG", rbacBlock, StringComparison.OrdinalIgnoreCase);

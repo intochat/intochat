@@ -289,11 +289,23 @@ public static class InstallPlan
         }
         if (c.DevSlotJob.Enabled)
         {
+            // Dedicated least-privilege UAMI (AcrPull only): never shares the OS cluster UAMI's KeyVault/Storage/Foundry grants.
+            specs.Add(In(new IdentitySpec { Name = c.DevSlotIdentityName }));
+            if (c.Registry.Enabled)
+            {
+                specs.Add(In(new RoleGrantSpec
+                {
+                    Name = $"{c.DevSlotJobName}-registry-pull",
+                    Principal = c.DevSlotIdentityName,
+                    RoleDefinitionId = AcrPull,
+                    Scope = registryScope,
+                }));
+            }
             specs.Add(In(new ContainerAppsJobSpec
             {
                 Name = c.DevSlotJobName,
                 Environment = environment,
-                Identity = identity,
+                Identity = c.DevSlotIdentityName,
                 Image = c.DevSlotJob.Image,
                 RegistryServer = c.LoginServer,
                 Cpu = c.DevSlotJob.Cpu,

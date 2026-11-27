@@ -192,6 +192,8 @@ public sealed partial record InstallConfig
 
     public string DevSlotJobName => Named("devslot", ResourceNames.App(Prefix, Env, "devslot"));
 
+    public string DevSlotIdentityName => Named("devslot-identity", ResourceNames.For(Prefix, Env, "devslot-id"));
+
     // names.registry, else the first label of registryServer (an install config that already names its registry), else derived.
     public string RegistryName => Named("registry", RegistryServer.Length > 0 ? RegistryServer.Split('.')[0] : ResourceNames.Registry(Prefix, Env));
 
@@ -294,7 +296,7 @@ public sealed partial record InstallConfig
             {
                 throw new InvalidOperationException("The devSlotJob config needs a non-empty 'image' (or a configured registryServer/registry).");
             }
-            if (DevSlotJob.Cpu <= 0 || DevSlotJob.Cpu > DevSlotJobConfig.MaxCpu)
+            if (double.IsNaN(DevSlotJob.Cpu) || double.IsInfinity(DevSlotJob.Cpu) || DevSlotJob.Cpu <= 0 || DevSlotJob.Cpu > DevSlotJobConfig.MaxCpu)
             {
                 throw new InvalidOperationException($"The devSlotJob config requires 0 < cpu <= {DevSlotJobConfig.MaxCpu} (Policy Rule B).");
             }
@@ -314,7 +316,7 @@ public sealed partial record InstallConfig
             {
                 throw new InvalidOperationException($"The devSlotJob config requires replicaRetryLimit == {DevSlotJobConfig.RequiredReplicaRetryLimit} (Policy Rule B).");
             }
-            normalizedDevSlotJob = DevSlotJob with { Image = resolvedImage };
+            normalizedDevSlotJob = DevSlotJob with { Image = resolvedImage, Memory = DevSlotJob.Memory.Trim() };
         }
         return this with
         {
