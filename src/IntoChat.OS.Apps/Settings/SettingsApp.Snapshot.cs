@@ -41,63 +41,82 @@ public sealed partial class SettingsApp
 {
     private async Task RefreshFromNeuronsAsync(string? requestedSection = null)
     {
-        var computeProjection = await ReadComputeSummaryAsync(State);
-        var approvals = await TryReadPendingApprovalsAsync();
         var user = await UserSettings.Read();
-        var deployedUnits = await TryReadDeployedUnitsAsync();
-        var teamRoster = await TryReadTeamRosterAsync();
-        var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
-        var modelInfo = await TryReadModelCatalogAsync(user.DefaultModel);
-        var mcpServers = await TryReadMcpServersAsync(State.McpServers);
-        var (webProvider, searxngUrl) = ResolveWebSearchSettings(user.Variables ?? State.Variables ?? []);
-        var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
-            ? (modelInfo.AutomaticModel ?? KnownModels.Defaults.Device[ModelRole.Chat].Value)
-            : user.DefaultModel.Trim();
+        var userHadExplicitModel = !string.IsNullOrWhiteSpace(user.DefaultModel);
+        var displayModel = userHadExplicitModel
+            ? user.DefaultModel.Trim()
+            : KnownModels.Defaults.Device[ModelRole.Chat].Value;
         var effectiveUser = string.Equals(displayModel, user.DefaultModel, StringComparison.Ordinal)
             ? user
             : user with { DefaultModel = displayModel };
         var targetSection = string.IsNullOrWhiteSpace(requestedSection) ? State.Section : NormalizeSection(requestedSection);
 
-        var projected = computeProjection with
-        {
-            PendingApprovals = approvals,
-            SecretStatuses = secrets,
-            Roles = modelInfo.Roles,
-            Providers = modelInfo.Providers,
-            LocalOllamaEndpoint = modelInfo.LocalEndpoint,
-            Device = modelInfo.Device,
-            McpServers = mcpServers,
-            WebSearchProvider = webProvider,
-            WebSearxngUrl = searxngUrl,
-        };
-
-        var next = projected.ApplyUserSettings(
+        var next = State.ApplyUserSettings(
             effectiveUser,
             $"Settings ({effectiveUser.DisplayName} · {effectiveUser.Theme} · {effectiveUser.DefaultModel})",
-            deployedUnits,
-            teamRoster,
             section: targetSection);
 
-        next = await RefreshDeviceProjectionAsync(next);
-
-        if (string.Equals(next.Section, "connections", StringComparison.Ordinal))
-        {
-            next = await RefreshConnectionsProjectionAsync(next);
-        }
+        next = await RefreshSectionProjectionAsync(next, resolveAutomaticModel: !userHadExplicitModel);
 
         await UpdateAsync(next);
     }
 
-    private static readonly AiProvider[] SettingsProviders =
-    [
-        AiProvider.Ollama,
-        AiProvider.FoundryLocal,
-        AiProvider.OpenAI,
-        AiProvider.Anthropic,
-        AiProvider.Google,
-        AiProvider.XAI,
-        AiProvider.OpenRouter,
-    ];
+    private async Task<SettingsAppState> RefreshSectionProjectionAsync(
+        SettingsAppState baseline,
+        bool resolveAutomaticModel = false)
+    {
+        switch (baseline.Section)
+        {
+            case "general":
+                return string.Equals(baseline.SubPage, "devices", StringComparison.OrdinalIgnoreCase)
+                    ? await RefreshDeviceProjectionAsync(baseline)
+                    : baseline;
+
+            case "apps":
+                return baseline with { DeployedUnits = await TryReadDeployedUnitsAsync() };
+
+            case "connections":
+                return await RefreshConnectionsProjectionAsync(baseline);
+
+            case "models":
+                {
+                    var modelInfo = await TryReadModelCatalogAsync(baseline.DefaultModel);
+                    var nextDefaultModel = resolveAutomaticModel && !string.IsNullOrWhiteSpace(modelInfo.AutomaticModel)
+                        ? modelInfo.AutomaticModel
+                        : baseline.DefaultModel;
+                    var next = baseline with
+                    {
+                        DefaultModel = nextDefaultModel,
+                        Roles = modelInfo.Roles,
+                        Providers = modelInfo.Providers,
+                        LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+                        Device = modelInfo.Device,
+                    };
+
+                    if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
+                    {
+                        next = await RefreshWebToolsProjectionAsync(next);
+                    }
+
+                    return next;
+                }
+
+            case "keys":
+                return baseline with { SecretStatuses = await InspectSecretStatusesAsync(baseline.Variables ?? []) };
+
+            case "billing":
+                return await ReadComputeSummaryAsync(baseline);
+
+            case "team":
+                return baseline with { TeamRoster = await TryReadTeamRosterAsync() };
+
+            case "notifications":
+                return baseline with { PendingApprovals = await TryReadPendingApprovalsAsync() };
+
+            default:
+                return baseline;
+        }
+    }
 
     private async Task SetRoleAsync(ModelRole role, string? modelId)
     {
@@ -144,7 +163,7 @@ public sealed partial class SettingsApp
             ? modelInfo.Roles
             : State.Roles.Length > 0
                 ? State.Roles
-                : SettingsViewRenderer.DefaultRoles(State);
+                : SettingsProviderProjection.DefaultRoles(State);
         var updatedRoles = baselineRoles
             .Select(row => row.Role == role ? row with { Selected = trimmed } : row)
             .ToArray();
@@ -244,7 +263,7 @@ public sealed partial class SettingsApp
             if (ModelCatalog is not { } catalog)
             {
                 var fallbackProviders = deviceView is not null
-                    ? BuildProviderRows([], new Dictionary<string, ModelAvailability>(StringComparer.OrdinalIgnoreCase), deviceView, endpoint)
+                    ? SettingsProviderProjection.BuildProviderRows([], new Dictionary<string, ModelAvailability>(StringComparer.OrdinalIgnoreCase), deviceView, endpoint)
                     : State.Providers;
                 return (State.Roles, fallbackProviders, null, endpoint, deviceView);
             }
@@ -253,8 +272,8 @@ public sealed partial class SettingsApp
                 .ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
             var roleMap = await catalog.Roles();
 
-            var roles = BuildRoleRows(cards, availability, roleMap, personModel);
-            var providers = BuildProviderRows(cards, availability, deviceView, endpoint);
+            var roles = SettingsProviderProjection.BuildRoleRows(cards, availability, roleMap, personModel);
+            var providers = SettingsProviderProjection.BuildProviderRows(cards, availability, deviceView, endpoint);
 
             string? autoModel = null;
             try
@@ -276,178 +295,11 @@ public sealed partial class SettingsApp
         {
             Log.LogDebug(error, "IModelCatalog is optional when SettingsApp runs in standalone tests.");
             var providers = deviceView is not null
-                ? BuildProviderRows([], new Dictionary<string, ModelAvailability>(StringComparer.OrdinalIgnoreCase), deviceView, endpoint)
+                ? SettingsProviderProjection.BuildProviderRows([], new Dictionary<string, ModelAvailability>(StringComparer.OrdinalIgnoreCase), deviceView, endpoint)
                 : State.Providers;
             return (State.Roles, providers, null, endpoint, deviceView);
         }
     }
-
-    private static SettingsRoleRow[] BuildRoleRows(
-        IReadOnlyList<ModelCard> cards,
-        IReadOnlyDictionary<string, ModelAvailability> availability,
-        RoleMap roleMap,
-        string? personModel)
-    {
-        var allRoles = Enum.GetValues<ModelRole>();
-        var rows = new SettingsRoleRow[allRoles.Length];
-        for (var i = 0; i < allRoles.Length; i++)
-        {
-            var role = allRoles[i];
-            var needed = RoleNeeds.Of(role);
-            var deduped = new Dictionary<string, SettingsModelChoice>(StringComparer.OrdinalIgnoreCase);
-            foreach (var card in cards)
-            {
-                if ((card.Can & needed) != needed)
-                {
-                    continue;
-                }
-
-                var id = card.Id.Value;
-                var available = availability.TryGetValue(id, out var avail) && avail.Ready;
-                var reason = available ? null : avail?.Reason;
-                var choice = new SettingsModelChoice(id, card.Name, available, reason);
-                if (!deduped.TryGetValue(id, out var existing) || (!existing.Available && choice.Available))
-                {
-                    deduped[id] = choice;
-                }
-            }
-
-            string? selected = null;
-            var hasDevice = roleMap.Device.TryGetValue(role, out var deviceId);
-            var hasCloud = roleMap.Cloud.TryGetValue(role, out var cloudId);
-            if (hasDevice && availability.TryGetValue(deviceId.Value, out var deviceAvail) && deviceAvail.Ready)
-            {
-                selected = deviceId.Value;
-            }
-            else if (hasCloud && availability.TryGetValue(cloudId.Value, out var cloudAvail) && cloudAvail.Ready)
-            {
-                selected = cloudId.Value;
-            }
-            else if (hasDevice)
-            {
-                selected = deviceId.Value;
-            }
-            else if (hasCloud)
-            {
-                selected = cloudId.Value;
-            }
-            else if (role == ModelRole.Chat && !string.IsNullOrWhiteSpace(personModel))
-            {
-                selected = personModel.Trim();
-            }
-
-            rows[i] = new SettingsRoleRow(role, selected, [.. deduped.Values]);
-        }
-
-        return rows;
-    }
-
-    private static SettingsProviderRow[] BuildProviderRows(
-        IReadOnlyList<ModelCard> cards,
-        IReadOnlyDictionary<string, ModelAvailability> availability,
-        DeviceView? deviceView,
-        string localEndpoint)
-    {
-        var rows = new List<SettingsProviderRow>(SettingsProviders.Length + (deviceView?.Runtimes.Length ?? 0));
-        foreach (var provider in SettingsProviders)
-        {
-            var visual = VisualCatalog.ForProvider(provider.ToString());
-            var label = provider switch
-            {
-                AiProvider.Ollama => "Ollama",
-                AiProvider.FoundryLocal => "Foundry Local",
-                _ => visual.Label,
-            };
-
-            string status;
-            if (provider == AiProvider.FoundryLocal)
-            {
-                var foundry = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.FoundryLocal);
-                var installedCount = deviceView?.Models.Count(static m =>
-                    m.Runtime == RuntimeId.FoundryLocal && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
-                status = FormatRuntimeStatus(foundry, installedCount, fallbackUnavailable: "Not available");
-            }
-            else if (provider == AiProvider.Ollama)
-            {
-                var ollama = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.Ollama);
-                var installedOnDevice = deviceView?.Models.Count(static m =>
-                    m.Runtime == RuntimeId.Ollama && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
-                var readyLocalCount = cards.Count(c =>
-                    c.Provider == AiProvider.Ollama
-                    && availability.TryGetValue(c.Id.Value, out var a)
-                    && a.Ready);
-                status = ollama is not null
-                    ? FormatRuntimeStatus(ollama, installedOnDevice, fallbackUnavailable: $"Not detected · {ollama.Endpoint?.ToString() ?? localEndpoint}")
-                    : readyLocalCount > 0
-                        ? $"Ready · {localEndpoint} · {readyLocalCount} installed"
-                        : $"Not detected · {localEndpoint}";
-            }
-            else
-            {
-                var anyReady = cards.Any(c =>
-                    c.Provider == provider
-                    && availability.TryGetValue(c.Id.Value, out var a)
-                    && a.Ready);
-                status = anyReady ? "Ready" : "Add a key in API keys";
-            }
-
-            rows.Add(new SettingsProviderRow(provider, label, visual.IconKey, status));
-
-            if (provider == AiProvider.FoundryLocal && deviceView is not null)
-            {
-                var compatVisual = VisualCatalog.ForProvider(nameof(AiProvider.OpenAICompatible));
-                foreach (var runtime in deviceView.Runtimes)
-                {
-                    if (runtime.Id == RuntimeId.Ollama || runtime.Id == RuntimeId.FoundryLocal)
-                    {
-                        continue;
-                    }
-                    var installedCount = deviceView.Models.Count(m =>
-                        m.Runtime == runtime.Id && m.State is InstallState.Ready or InstallState.Loaded);
-                    rows.Add(new SettingsProviderRow(
-                        AiProvider.OpenAICompatible,
-                        FormatAttachedRuntimeLabel(runtime.Id),
-                        compatVisual.IconKey,
-                        FormatRuntimeStatus(runtime, installedCount, fallbackUnavailable: FormatUnavailableRuntime(runtime))));
-                }
-            }
-        }
-
-        return [.. rows];
-    }
-
-    internal static string FormatAttachedRuntimeLabel(RuntimeId id)
-    {
-        const string prefix = "openai-compat:";
-        return id.Value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && id.Value.Length > prefix.Length
-            ? id.Value[prefix.Length..]
-            : id.Value;
-    }
-
-    internal static string FormatRuntimeStatus(RuntimeStatus? runtime, int installedCount, string fallbackUnavailable)
-    {
-        if (runtime is not { Reachable: true })
-        {
-            return fallbackUnavailable;
-        }
-
-        var parts = new List<string>(4) { "Ready" };
-        if (!string.IsNullOrWhiteSpace(runtime.Version))
-        {
-            parts.Add($"v{runtime.Version.TrimStart('v', 'V')}");
-        }
-        if (runtime.Endpoint is not null)
-        {
-            parts.Add(runtime.Endpoint.ToString().TrimEnd('/'));
-        }
-        parts.Add($"{installedCount} installed");
-        return string.Join(" · ", parts);
-    }
-
-    internal static string FormatUnavailableRuntime(RuntimeStatus runtime)
-        => runtime.Endpoint is not null
-            ? $"Unreachable · {runtime.Endpoint.ToString().TrimEnd('/')}"
-            : "Unreachable";
 
     private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync(IReadOnlyList<UserVariableEntry> variables)
     {
@@ -569,40 +421,17 @@ public sealed partial class SettingsApp
     {
         ArgumentNullException.ThrowIfNull(request);
         var next = State.Navigate(request.Section, request.SubPage, request.Sheet, request.SearchQuery);
-        if (string.Equals(next.Section, "models", StringComparison.Ordinal))
-        {
-            var modelInfo = await TryReadModelCatalogAsync(next.DefaultModel);
-            next = next with
-            {
-                Roles = modelInfo.Roles,
-                Providers = modelInfo.Providers,
-                LocalOllamaEndpoint = modelInfo.LocalEndpoint,
-                Device = modelInfo.Device,
-            };
-
-            if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
-            {
-                next = await RefreshWebToolsProjectionAsync(next);
-            }
-        }
-        else if (string.Equals(next.Section, "keys", StringComparison.Ordinal))
-        {
-            var secrets = await InspectSecretStatusesAsync(next.Variables ?? []);
-            next = next with { SecretStatuses = secrets };
-        }
-        else if (string.Equals(next.Section, "connections", StringComparison.Ordinal))
-        {
-            next = await RefreshConnectionsProjectionAsync(next);
-        }
-
+        next = await RefreshSectionProjectionAsync(next);
         await UpdateAsync(next);
     }
 
     [On]
-    public Task GoBack(SettingsGoBack request)
+    public async Task GoBack(SettingsGoBack request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return UpdateAsync(State.GoBack());
+        var next = State.GoBack();
+        next = await RefreshSectionProjectionAsync(next);
+        await UpdateAsync(next);
     }
 
     [On]
