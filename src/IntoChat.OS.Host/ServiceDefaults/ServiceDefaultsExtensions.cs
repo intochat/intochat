@@ -16,7 +16,9 @@ namespace IntoChat.OS.Host.ServiceDefaults;
 
 public static class ServiceDefaultsExtensions
 {
-    private const string TelemetryPrefix = "IntoChat.OS";
+    private const string ServiceNamespace = "IntoChat.OS";
+    // Covers both IntoChat.OS.* platform modules and IntoChat.<Name> components.
+    internal const string ProductTelemetryPrefix = "IntoChat";
     private const string AzuriteAccountPathSegment = "/devstoreaccount1/";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
@@ -103,15 +105,15 @@ public static class ServiceDefaultsExtensions
                 // The configured name is used as is: the SDK's detector reads only the process environment, so a
                 // name from another configuration source (appsettings, a command line) would otherwise be lost.
                 if (builder.Configuration["OTEL_SERVICE_NAME"] is { Length: > 0 } configured && !string.IsNullOrWhiteSpace(configured))
-                { resource.AddService(serviceName: configured, serviceNamespace: TelemetryPrefix, autoGenerateServiceInstanceId: false); }
-                else { resource.AddService(serviceName: builder.Environment.ApplicationName, serviceNamespace: TelemetryPrefix); }
+                { resource.AddService(serviceName: configured, serviceNamespace: ServiceNamespace, autoGenerateServiceInstanceId: false); }
+                else { resource.AddService(serviceName: builder.Environment.ApplicationName, serviceNamespace: ServiceNamespace); }
             })
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                .AddMeter(TelemetryPrefix)
-                .AddMeter($"{TelemetryPrefix}.*")
+                .AddMeter(ProductTelemetryPrefix)
+                .AddMeter($"{ProductTelemetryPrefix}.*")
                 .AddMeter("Experimental.Microsoft.Extensions.AI")
                 .AddMeter("Experimental.Microsoft.Extensions.AI.*")
                 .AddMeter("Microsoft.Extensions.AI")
@@ -121,8 +123,8 @@ public static class ServiceDefaultsExtensions
                 .SetSampler(sampler)
                 .AddProcessor(new SuppressNoiseActivityProcessor())
                 .AddSource(builder.Environment.ApplicationName)
-                .AddSource(TelemetryPrefix)
-                .AddSource($"{TelemetryPrefix}.*")
+                .AddSource(ProductTelemetryPrefix)
+                .AddSource($"{ProductTelemetryPrefix}.*")
                 .AddSource("Experimental.Microsoft.Extensions.AI")
                 .AddSource("Experimental.Microsoft.Extensions.AI.*")
                 .AddSource("Microsoft.Extensions.AI")

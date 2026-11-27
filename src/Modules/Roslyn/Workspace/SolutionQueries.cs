@@ -284,14 +284,17 @@ internal static class SolutionQueries
         return node is VariableDeclaratorSyntax { Parent.Parent: BaseFieldDeclarationSyntax field } ? field : node;
     }
 
-    // "src/Modules/AI/IntoChat.OS.Modules.AI/x.csproj" clusters as "Modules/AI"; "src/Modules/IntoChat.OS/Kernel/IntoChat.OS/x.csproj" as "Modules/IntoChat.OS";
+    // "src/Modules/AI/IntoChat.OS.Modules.AI/x.csproj" clusters as "Modules/AI";
+    // "src/Components/Aspire/IntoChat.Aspire.csproj" clusters as "Components/Aspire";
     // a project outside src clusters by its own folder name.
     private static string ClusterOf(string? root, Project project)
+        => ClusterOf(root, project.FilePath, project.Name);
+
+    internal static string ClusterOf(string? root, string? path, string projectName)
     {
-        var path = project.FilePath;
         if (path is null)
         {
-            return project.Name;
+            return projectName;
         }
 
         var relative = root is null ? path : Path.GetRelativePath(root, path);
@@ -299,6 +302,7 @@ internal static class SolutionQueries
         return segments switch
         {
             ["src", "Modules", var module, ..] => $"Modules/{module}",
+            ["src", "Components", var component, ..] => $"Components/{component}",
             ["src", var area, ..] => area,
             [var single] => Path.GetFileNameWithoutExtension(single),
             _ => segments[^2],

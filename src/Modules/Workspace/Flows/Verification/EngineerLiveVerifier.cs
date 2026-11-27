@@ -86,7 +86,8 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         _activityListener = new ActivityListener
         {
             ShouldListenTo = static source =>
-                source.Name.StartsWith("IntoChat.OS", StringComparison.Ordinal)
+                source.Name.Equals("IntoChat", StringComparison.Ordinal)
+                || source.Name.StartsWith("IntoChat.", StringComparison.Ordinal)
                 || source.Name.StartsWith("DigitalBrain", StringComparison.Ordinal),
             Sample = SampleAllActivities,
             ActivityStopped = CaptureStoppedActivity,

@@ -11,6 +11,8 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Testing;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
@@ -129,8 +131,10 @@ public static class OsFakes
         {
             services.AddLogging();
             services.AddSingleton(new CompiledAppsRegistration(typeof(IntoChat.OS.Apps.ShippedShellAppsModule).Assembly));
-            // The Aspire app ships with the Aspire component (AspireModule registers it in the product).
-            services.AddSingleton(new CompiledAppsRegistration(typeof(IntoChat.Aspire.AspireModule).Assembly));
+            foreach (var componentAssembly in OperatingSystemModules.ComponentAssemblies)
+            {
+                services.AddSingleton(new CompiledAppsRegistration(componentAssembly));
+            }
             services.TryAddSingleton(FeatureCatalog.From);
             services.TryAddSingleton<FeatureLoader>();
             services.TryAddSingleton<MarketplaceView>();
@@ -290,14 +294,9 @@ public static class OsFakes
     private sealed class CompiledBrainObserver : IBrainObserver
     {
         private static readonly BrainType[] HostedTypes = new CompiledTypes(
-        [
-            typeof(IWebSearch).Assembly,
-            typeof(IMemory).Assembly,
-            typeof(ITable).Assembly,
-            typeof(IApp).Assembly,
-            typeof(IFriends).Assembly,
-            typeof(IConversation).Assembly,
-        ]).Entries;
+            new ModuleInventory(OperatingSystemModules.Modules),
+            [],
+            [typeof(IntoChat.OS.Apps.ShippedShellAppsModule).Assembly, .. OperatingSystemModules.ComponentAssemblies]).Entries;
 
         public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
         {

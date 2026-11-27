@@ -250,4 +250,41 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
         Assert.Equal(0, report.Http4xxCount);
         Assert.Equal(0, report.Http5xxCount);
     }
+
+    [Fact]
+    public async Task VerifyLiveAsync_CapturesErrorSpansFromComponentActivitySources()
+    {
+        using var verifier = new EngineerLiveVerifier(
+            candidateVerifier: (_, _) => Task.FromResult(new EngineerLiveReport(
+                Succeeded: true,
+                HostHealthy: true,
+                McpProbesPassed: true,
+                PlaywrightPassed: true,
+                Http4xxCount: 0,
+                Http5xxCount: 0,
+                ErrorSpanCount: 0,
+                ErrorLogCount: 0,
+                Probes: [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
+                TraceSummaries: ["span candidate.health status=OK"],
+                Summary: "Candidate healthy")));
+
+        verifier.ClearCapturedSpans();
+        using var componentSource = new ActivitySource("IntoChat.SampleComponent");
+        using (var errActivity = componentSource.StartActivity("component.probe-error"))
+        {
+            errActivity?.SetTag("brain.trace_id", "trace-component-err");
+            errActivity?.SetStatus(ActivityStatusCode.Error, "Injected component error span");
+        }
+
+        var report = await verifier.VerifyLiveAsync(
+            _worktree,
+            "Verify component ActivitySource error span is captured",
+            [$"{Aspire}/Neurons/Telemetry/AspireNeuron.cs"],
+            new EngineerLiveContext(TraceId: "trace-component-err"),
+            Ct);
+
+        Assert.False(report.Succeeded);
+        Assert.True(report.ErrorSpanCount >= 1);
+        Assert.Contains(report.Probes, static p => p.Name == "otel-activity-spans" && !p.Passed);
+    }
 }
