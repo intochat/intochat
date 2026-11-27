@@ -150,6 +150,8 @@
     border: 3px solid var(--bg);
   }
   .roadmap-dot.done { background: var(--green); }
+  .roadmap-dot.partial { background: var(--accent); }
+  .roadmap-dot.planned { background: var(--blue); }
   ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
   li { margin: 4px 0; }
   code { font-family: var(--mono); font-size: 12.5px; color: #f3c6a8; }
@@ -157,24 +159,48 @@
   .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
   .kpi .num { font-size: 24px; font-weight: 700; color: var(--text); }
   .kpi .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--blue);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin: 20px 0 28px;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .callout strong { color: var(--text); }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <span class="badge">UI Architecture Roadmap · C# ↔ FlutterMix + NakedUI</span>
+    <span class="badge">UI Architecture Roadmap · C# ↔ FlutterMix + NakedUI · Item #350</span>
     <h1>Eliminating the 5-Layer UI Complexity</h1>
     <p class="subtitle">
-      Why <code>ui/lib/</code> grew to 274 files across 5 overlapping widget layers — and how unifying C# <code>MixStyle</code>
-      with a single <code>naked_ui</code> + <code>fluttermix</code> primitive layer cuts complexity in half.
+      Why <code>ui/lib/</code> grew to 274 files across 5 overlapping widget layers — how unifying C# <code>MixStyle</code>
+      with a single <code>naked_ui</code> + <code>fluttermix</code> primitive layer brought <code>master</code> down to <strong>239 Dart files</strong>,
+      and the approved <strong>Item #350 Wave 1C &amp; Wave 2A</strong> work remaining to reach <code>~160</code> files.
     </p>
   </header>
 
   <div class="kpi-row">
-    <div class="kpi"><div class="num">274 → ~160</div><div class="lbl">Target Dart files in <code>ui/lib/</code></div></div>
-    <div class="kpi"><div class="num">42 → 1</div><div class="lbl">Single-file dirs in <code>src/ui/</code></div></div>
-    <div class="kpi"><div class="num">5 → 2</div><div class="lbl">Widget layers (Primitives + Adapters)</div></div>
+    <div class="kpi"><div class="num">274 → 239 → ~160</div><div class="lbl"><code>ui/lib/</code> Dart files (baseline → <code>master</code> → Wave 1C)</div></div>
+    <div class="kpi"><div class="num">42 → 0</div><div class="lbl">Single-file dirs in <code>src/ui/</code> (retired on <code>master</code>)</div></div>
+    <div class="kpi"><div class="num">3 → 1</div><div class="lbl">Button primitives → 1 <code>UiMixButton</code> (Wave 1C)</div></div>
     <div class="kpi"><div class="num">1:1</div><div class="lbl">C# <code>MixStyle</code> ↔ Flutter <code>BoxStyler</code></div></div>
+  </div>
+
+  <div class="callout">
+    <strong>Code-Verified <code>master</code> Status (reconciled post-PR #515 <code>UI-06</code>):</strong>
+    <code>ui/lib/</code> currently contains <strong>239 Dart files</strong> (<code>24</code> in <code>src/primitives/</code>, <code>60</code> in <code>src/nodes/</code>, <code>8</code> in <code>src/components/</code>, <code>0</code> in deleted <code>src/ui/</code>), and typed UI wire envelopes across <code>ViewHost</code>, <code>NodeContext</code>, and <code>IntoChatOSUiClient</code> are merged on <code>master</code> (PR <code>#515</code>).
+    Remaining last-mile gaps tracked for approved <strong>Item #350 Wave 1C</strong>:
+    <ul>
+      <li><code>UiStyleMapper.textStyle</code> (<code>ui/lib/src/primitives/style.dart</code>) lacks <code>'body'</code> (<code>14px w400</code>) and <code>'meta'</code> (<code>13px w400</code>) cases, falling through to <code>13.5px w600</code> semibold.</li>
+      <li>Three button primitives still coexist: <code>UiMixButton</code> (<code>src/primitives/style.dart</code>), <code>UiKitButton</code> / <code>UiMixActionButton</code> (<code>src/primitives/button.dart</code>), and legacy <code>Btn</code> (<code>src/design/controls.dart</code>).</li>
+      <li>Raw Material <code>InkWell</code> / <code>Material</code> control views remain in <code>src/nodes/</code> (including <code>expander_view.dart</code>, <code>kanban_view.dart</code>, <code>query_table_view.dart</code>, <code>stepper_view.dart</code>, <code>tree_view.dart</code>, and <code>app_shell.dart</code>).</li>
+      <li>Unused packages <code>flutter_chat_ui</code> and <code>file_picker</code> are still declared in <code>ui/pubspec.yaml</code> with zero Dart imports.</li>
+    </ul>
   </div>
 
   <h2>1. The Main Source of Complexity</h2>
@@ -333,20 +359,37 @@
       </ul>
     </div>
     <div class="roadmap-step">
-      <div class="roadmap-dot done"></div>
-      <h3>Phase 4 — Retire Remaining Legacy Material &amp; Duplicate <code>components/</code> <span class="pill green">DONE</span></h3>
+      <div class="roadmap-dot partial"></div>
+      <h3>Phase 4 — Retire Remaining Legacy Material &amp; Duplicate <code>components/</code> <span class="pill accent">PARTIAL ON MASTER</span></h3>
       <ul>
-        <li>Promoted <code>UiMixInfoBar</code> and <code>UiMixProgress</code> into <code>src/primitives/</code> and migrated all remaining callers off legacy wrappers onto <code>src/primitives/</code> + <code>src/nodes/*_view.dart</code>.</li>
-        <li>Deleted duplicate legacy wrappers <code>src/components/toggle/ui_toggle.dart</code>, <code>button/ui_neuron_button.dart</code>, <code>button/ui_neuron_select.dart</code>, <code>infobar/ui_info_bar.dart</code>, and <code>progress/ui_progress.dart</code> along with their empty directories.</li>
+        <li>Promoted <code>UiMixInfoBar</code> and <code>UiMixProgress</code> into <code>src/primitives/</code> (24 primitive files) and deleted duplicate wrappers <code>src/components/toggle/ui_toggle.dart</code>, <code>button/ui_neuron_button.dart</code>, <code>button/ui_neuron_select.dart</code>, <code>infobar/ui_info_bar.dart</code>, and <code>progress/ui_progress.dart</code>.</li>
+        <li><strong>Remaining for Wave 1C:</strong> converge <code>UiMixButton</code> / <code>UiKitButton</code> / <code>Btn</code> into one primitive, migrate remaining raw Material views (e.g. <code>src/nodes/expander_view.dart</code>) to <code>src/primitives/</code>, and remove unused <code>flutter_chat_ui</code> &amp; <code>file_picker</code> from <code>ui/pubspec.yaml</code>.</li>
       </ul>
     </div>
     <div class="roadmap-step">
       <div class="roadmap-dot done"></div>
-      <h3>Phase 5 — OS Apps <code>Mix.Style()</code> Adoption <span class="pill green">DONE</span></h3>
+      <h3>Phase 5 — OS Apps <code>Mix.Style()</code> Adoption &amp; Typed Wire Envelopes <span class="pill green">DONE ON MASTER</span></h3>
       <ul>
-        <li>Extended <code>DigitalBrain.UI</code> node style parity to <code>Surface</code>, <code>Card</code>, and <code>IconButton</code> (with regenerated <code>node_models.dart</code> / <code>showcase_catalog.json</code> and Flutter Mix adapters in <code>src/nodes/{surface,card,icon_button}.dart</code> + <code>src/primitives/surface.dart</code>).</li>
-        <li>Added <code>OsMixStyles</code> semantic presets and fluent <code>.Style(...)</code> builders across <code>IntoChat.OS.UI</code> (<code>Kit</code>, <code>ButtonBuilder</code>, <code>IconButtonBuilder</code>, <code>CardBuilder</code>, <code>SurfaceBuilder</code>) so every Kit button, icon button, card, and surface emits typed <code>Mix.Style()</code> wire JSON by default.</li>
-        <li>Migrated all flagship OS apps and shipped units onto fluent <code>Mix.Style()</code> with <strong>0 legacy string style literals</strong> remaining in <code>src/IntoChat.OS.Apps/</code> and <code>src/Modules/Workspace/Files/</code>: <code>Ino</code>, <code>Engineer</code>, <code>Settings</code>, <code>Files</code>, <code>Desktop</code> / <code>Catalog</code>, <code>Creator</code>, <code>Friends</code>, <code>Tasks</code>, <code>Data</code>, <code>Gallery</code>, and all 7 shipped micro-app units (<code>HelloWorld</code>, <code>FxRatesMonitor</code>, <code>WorkNotesOrganizer</code>, <code>GithubIssueTriager</code>, <code>XWatch</code>, <code>WebhookRelay</code>, <code>WebWatch</code>).</li>
+        <li>Extended <code>DigitalBrain.UI</code> node style parity to <code>Surface</code>, <code>Card</code>, and <code>IconButton</code> with <code>OsMixStyles</code> semantic presets across <code>IntoChat.OS.UI</code> and flagship OS apps + shipped units.</li>
+        <li>Sealed typed UI wire envelopes across <code>ViewHost</code>, <code>NodeContext</code>, and <code>IntoChatOSUiClient</code> (PR <code>#515</code> / <code>UI-06</code>).</li>
+      </ul>
+    </div>
+    <div class="roadmap-step">
+      <div class="roadmap-dot planned"></div>
+      <h3>Wave 1C (Item #350) — UI Mix Last-Mile &amp; Default Dock Cleanup <span class="pill blue">PLANNED</span></h3>
+      <ul>
+        <li>Fix <code>UiStyleMapper.textStyle</code> (<code>src/primitives/style.dart</code>) to map <code>'body'</code> (<code>14px w400</code>) and <code>'meta'</code> (<code>13px w400</code>) instead of <code>w600</code> semibold.</li>
+        <li>Unify <code>UiMixButton</code>, <code>UiKitButton</code> (<code>UiMixActionButton</code>), and legacy <code>Btn</code> into a single <code>UiMixButton</code> (<code>NakedButton</code> + <code>BoxStyler</code> + <code>SelectionRing</code> + <code>Stop</code>).</li>
+        <li>Wire remaining raw Material control views (<code>expander_view.dart</code>, etc.) onto <code>src/primitives/</code>, drop unused <code>flutter_chat_ui</code> and <code>file_picker</code> deps from <code>ui/pubspec.yaml</code>, and consolidate <code>ui/lib/</code> from <strong>239</strong> (235 pre-<code>#515</code>) down to <code>~160</code> Dart files.</li>
+        <li>Clean up the default Dock by removing <code>Creator</code>, <code>Engineer</code>, and standalone <code>Tasks</code> in favor of the unified <strong>Ino</strong> and <strong>Friends</strong> primary surfaces.</li>
+      </ul>
+    </div>
+    <div class="roadmap-step">
+      <div class="roadmap-dot planned"></div>
+      <h3>Wave 2A (Item #350) — Inline Live App Drawer &amp; Legacy App Retirement <span class="pill blue">PLANNED</span></h3>
+      <ul>
+        <li>Wire Ino's right-hand <code>SplitPaneNode</code> <strong>Inline Live App Drawer</strong> (<code>Preview | Diff | Logs</code> + <code>28px</code> active context chip above composer) and 1-click <strong>Pin as App</strong>.</li>
+        <li>Retire standalone <code>CreatorApp</code> (demoting the 3D Brain/Accordant viewer to opt-in <code>DevUI</code>) and standalone <code>EngineerApp</code> while preserving all 14 server-side UI widget Orleans Neurons (<code>Modules/UI</code> &amp; <code>DigitalBrain.UI</code>) 100%.</li>
       </ul>
     </div>
   </div>
