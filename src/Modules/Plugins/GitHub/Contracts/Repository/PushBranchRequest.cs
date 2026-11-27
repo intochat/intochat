@@ -4,4 +4,5 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 public sealed record PushBranchRequest(
     [property: Id(0)] string Branch,
     [property: Id(1)] string CommitSha,
-    [property: Id(2)] bool Force = false);
+    [property: Id(2)] bool Force = false,
+    [property: Id(3)] string? LocalWorktreePath = null);

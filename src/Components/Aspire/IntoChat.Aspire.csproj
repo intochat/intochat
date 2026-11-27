@@ -15,6 +15,9 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />

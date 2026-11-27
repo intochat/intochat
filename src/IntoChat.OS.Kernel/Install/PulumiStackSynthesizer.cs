@@ -185,12 +185,14 @@ public static partial class PulumiStackSynthesizer
             ? EnforceSingleSiloScale(cloud)
             : null;
         var sandboxAppSpec = InstallPlan.SandboxApp(validated, variables, secrets);
-        var allSpecs = new List<ResourceSpec>(foundationSpecs.Length + secretSpecs.Count + 3);
+        var devSlotJobSpec = InstallPlan.DevSlotJob(validated);
+        var allSpecs = new List<ResourceSpec>(foundationSpecs.Length + secretSpecs.Count + 4);
         allSpecs.AddRange(foundationSpecs);
         allSpecs.AddRange(secretSpecs);
         allSpecs.Add(osAppSpec);
         if (cloudAppSpec is not null) { allSpecs.Add(cloudAppSpec); }
         if (sandboxAppSpec is not null) { allSpecs.Add(sandboxAppSpec); }
+        if (devSlotJobSpec is not null) { allSpecs.Add(devSlotJobSpec); }
 
         return new PulumiStackPlan(
             validated,
@@ -198,7 +200,7 @@ public static partial class PulumiStackSynthesizer
             osAppSpec,
             variables,
             secrets,
-            RenderPulumiYaml(validated, foundationSpecs, secretSpecs, osAppSpec, cloudAppSpec, sandboxAppSpec),
+            RenderPulumiYaml(validated, foundationSpecs, secretSpecs, osAppSpec, cloudAppSpec, sandboxAppSpec, devSlotJobSpec),
             RenderStackConfigYaml(validated));
     }
 
@@ -296,6 +298,7 @@ public static partial class PulumiStackSynthesizer
         FoundryDeploymentSpec => "azure-native:cognitiveservices:Deployment",
         ManagedEnvironmentSpec => "azure-native:app:ManagedEnvironment",
         ContainerAppSpec => "azure-native:app:ContainerApp",
+        ContainerAppsJobSpec => "azure-native:app:Job",
         _ => null,
     };
 }

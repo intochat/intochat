@@ -39,6 +39,7 @@ public sealed partial record InstallConfig
     public FoundryConfig Foundry { get; init; } = new();
     public LogWorkspaceConfig LogWorkspace { get; init; } = new();
     public CostGuardrailConfig CostGuardrails { get; init; } = new();
+    public DevSlotJobConfig DevSlotJob { get; init; } = new();
     // Object id of the principal running the install (the gh-intochat-platform OIDC app). It is granted Key Vault
     // Secrets Officer on the vault so the installer can read and write secret values on the data plane.
     public string InstallerPrincipalId { get; init; } = "";
@@ -65,7 +66,8 @@ public sealed partial record InstallConfig
         string? prefix = null,
         bool includeCloudApp = false,
         bool includeSandboxApp = false,
-        string? publicBaseUrl = null)
+        string? publicBaseUrl = null,
+        bool includeDevSlotJob = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(env);
         var resolvedPrefix = string.IsNullOrWhiteSpace(prefix) ? "intochat" : prefix.Trim();
@@ -100,6 +102,13 @@ public sealed partial record InstallConfig
             OsImage = $"{registryServer}/os:latest",
             CloudImage = includeCloudApp ? $"{registryServer}/cloud:latest" : "",
             SandboxImage = includeSandboxApp ? $"{registryServer}/sandbox:latest" : "",
+            DevSlotJob = includeDevSlotJob
+                ? new DevSlotJobConfig
+                {
+                    Enabled = true,
+                    Image = $"{registryServer}/devslot:latest",
+                }
+                : new DevSlotJobConfig(),
             Registry = new RegistryConfig
             {
                 Enabled = true,
@@ -180,6 +189,10 @@ public sealed partial record InstallConfig
     public string CloudName => Named("cloud", ResourceNames.App(Prefix, Env, "cloud"));
 
     public string SandboxName => Named("sandbox", ResourceNames.App(Prefix, Env, "sandbox"));
+
+    public string DevSlotJobName => Named("devslot", ResourceNames.App(Prefix, Env, "devslot"));
+
+    public string DevSlotIdentityName => Named("devslot-identity", ResourceNames.For(Prefix, Env, "devslot-id"));
 
     // names.registry, else the first label of registryServer (an install config that already names its registry), else derived.
     public string RegistryName => Named("registry", RegistryServer.Length > 0 ? RegistryServer.Split('.')[0] : ResourceNames.Registry(Prefix, Env));
@@ -271,6 +284,40 @@ public sealed partial record InstallConfig
                 throw new InvalidOperationException("The costGuardrails config needs a non-empty alertEmail.");
             }
         }
+        var normalizedDevSlotJob = DevSlotJob;
+        if (DevSlotJob.Enabled)
+        {
+            var resolvedImage = !string.IsNullOrWhiteSpace(DevSlotJob.Image)
+                ? DevSlotJob.Image.Trim()
+                : LoginServer.Length > 0
+                    ? $"{LoginServer}/devslot:latest"
+                    : "";
+            if (string.IsNullOrWhiteSpace(resolvedImage))
+            {
+                throw new InvalidOperationException("The devSlotJob config needs a non-empty 'image' (or a configured registryServer/registry).");
+            }
+            if (double.IsNaN(DevSlotJob.Cpu) || double.IsInfinity(DevSlotJob.Cpu) || DevSlotJob.Cpu <= 0 || DevSlotJob.Cpu > DevSlotJobConfig.MaxCpu)
+            {
+                throw new InvalidOperationException($"The devSlotJob config requires 0 < cpu <= {DevSlotJobConfig.MaxCpu} (Policy Rule B).");
+            }
+            if (!DevSlotJobConfig.IsAllowedMemory(DevSlotJob.Memory))
+            {
+                throw new InvalidOperationException($"The devSlotJob config requires memory <= {DevSlotJobConfig.MaxMemoryGi}Gi using a valid ACA Consumption tier (Policy Rule B).");
+            }
+            if (DevSlotJob.Parallelism < 1 || DevSlotJob.Parallelism > DevSlotJobConfig.MaxParallelism)
+            {
+                throw new InvalidOperationException($"The devSlotJob config requires 1 <= parallelism <= {DevSlotJobConfig.MaxParallelism} (Policy Rule B).");
+            }
+            if (DevSlotJob.ReplicaTimeoutSeconds < 1 || DevSlotJob.ReplicaTimeoutSeconds > DevSlotJobConfig.MaxReplicaTimeoutSeconds)
+            {
+                throw new InvalidOperationException($"The devSlotJob config requires 1 <= replicaTimeoutSeconds <= {DevSlotJobConfig.MaxReplicaTimeoutSeconds} (Policy Rule B).");
+            }
+            if (DevSlotJob.ReplicaRetryLimit != DevSlotJobConfig.RequiredReplicaRetryLimit)
+            {
+                throw new InvalidOperationException($"The devSlotJob config requires replicaRetryLimit == {DevSlotJobConfig.RequiredReplicaRetryLimit} (Policy Rule B).");
+            }
+            normalizedDevSlotJob = DevSlotJob with { Image = resolvedImage, Memory = DevSlotJob.Memory.Trim() };
+        }
         return this with
         {
             ClusterId = ClusterId.Length > 0 ? ClusterId : "intochat-" + Env,
@@ -280,6 +327,7 @@ public sealed partial record InstallConfig
             {
                 ProtectedResourceGroups = NormalizeProtectedResourceGroups(CostGuardrails.ProtectedResourceGroups),
             },
+            DevSlotJob = normalizedDevSlotJob,
         };
     }
 
@@ -388,4 +436,29 @@ public sealed record CostGuardrailConfig
     public double MonthlyBudgetEur { get; init; } = 185.0;
     public string AlertEmail { get; init; } = "vlad@intochat.io";
     public string[] ProtectedResourceGroups { get; init; } = DefaultProtectedResourceGroups;
+}
+
+// devSlotJob: { "enabled": true, "image": "acrintochattest.azurecr.io/devslot:latest", "cpu": 2.0, "memory": "4Gi", "parallelism": 1, "replicaTimeoutSeconds": 900 }.
+// Disabled by default for full backward compatibility. Enforces Policy Rule B ceilings at validation time.
+public sealed record DevSlotJobConfig
+{
+    public const double MaxCpu = 2.0;
+    public const double MaxMemoryGi = 4.0;
+    public const int MaxParallelism = 2;
+    public const int MaxReplicaTimeoutSeconds = 900;
+    public const int RequiredReplicaRetryLimit = 0;
+
+    public static readonly string[] AllowedMemoryTiers = ["0.5Gi", "1Gi", "1.5Gi", "2Gi", "2.5Gi", "3Gi", "3.5Gi", "4Gi"];
+
+    public bool Enabled { get; init; }
+    public string Image { get; init; } = "";
+    public double Cpu { get; init; } = 2.0;
+    public string Memory { get; init; } = "4Gi";
+    public int Parallelism { get; init; } = 1;
+    public int ReplicaTimeoutSeconds { get; init; } = MaxReplicaTimeoutSeconds;
+    public int ReplicaRetryLimit { get; init; } = RequiredReplicaRetryLimit;
+
+    public static bool IsAllowedMemory(string? memory)
+        => !string.IsNullOrWhiteSpace(memory)
+            && AllowedMemoryTiers.Contains(memory.Trim(), StringComparer.Ordinal);
 }
