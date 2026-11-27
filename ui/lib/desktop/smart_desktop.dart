@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 export 'app_catalog_launcher.dart';
-import 'app_catalog_launcher.dart';
 
 /// Interactive Whiteboard Home Desk with 3D `BrainScene3D` orbital neural graph
 /// and draggable, resizable sticky-note Smart Cards with Pinning and Auto-Arrange.

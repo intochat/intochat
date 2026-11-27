@@ -55,29 +55,6 @@ class BarTooltip extends StatelessWidget {
   }
 }
 
-@immutable
-class DesktopNotificationEntry {
-  const DesktopNotificationEntry({
-    required this.id,
-    required this.sourceApp,
-    required this.title,
-    required this.body,
-    required this.priority,
-    required this.read,
-    required this.createdUtc,
-    this.actionUrl,
-  });
-
-  final String id;
-  final String sourceApp;
-  final String title;
-  final String body;
-  final int priority;
-  final bool read;
-  final DateTime createdUtc;
-  final String? actionUrl;
-}
-
 /// Acrylic flyout popover for Clock, Tokens & Compute, Notifications, and
 /// Right-Click Dock Context Menu.
 class DesktopBarPopover extends StatelessWidget {
@@ -116,7 +93,7 @@ class DesktopBarPopover extends StatelessWidget {
   final String? dockAppTitle;
   final int tokensToday;
   final int notificationsCount;
-  final List<DesktopNotificationEntry> notifications;
+  final List<OsNotificationItem> notifications;
   final bool notificationsLoaded;
   final bool notificationsLoading;
   final Set<String> pinnedAppIds;
@@ -534,10 +511,10 @@ class _NotificationsPopover extends StatelessWidget {
   });
 
   final int notificationsCount;
-  final List<DesktopNotificationEntry> notifications;
+  final List<OsNotificationItem> notifications;
   final bool loaded;
   final bool loading;
-  final ValueChanged<DesktopNotificationEntry> onTapNotification;
+  final ValueChanged<OsNotificationItem> onTapNotification;
   final VoidCallback onOpenSettings;
   final VoidCallback onMarkAllRead;
   final VoidCallback? onClearAll;
@@ -550,13 +527,15 @@ class _NotificationsPopover extends StatelessWidget {
     return '${diff.inDays}d';
   }
 
-  static (IconData, Color) _priorityIcon(int priority, UiColors c) =>
-      switch (priority) {
-        3 => (LucideIcons.triangleAlert, c.error),
-        2 => (LucideIcons.hand, c.working),
-        0 => (LucideIcons.bell, c.textMuted),
-        _ => (LucideIcons.sparkles, c.accent),
-      };
+  static (IconData, Color) _priorityIcon(
+    OsNotificationPriority priority,
+    UiColors c,
+  ) => switch (priority) {
+    OsNotificationPriority.urgent => (LucideIcons.triangleAlert, c.error),
+    OsNotificationPriority.high => (LucideIcons.hand, c.working),
+    OsNotificationPriority.low => (LucideIcons.bell, c.textMuted),
+    OsNotificationPriority.normal => (LucideIcons.sparkles, c.accent),
+  };
 
   @override
   Widget build(BuildContext context) {

@@ -4,8 +4,6 @@ import 'package:flutter/material.dart' hide Focus;
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import 'smart_desktop.dart';
-
 const double kOsBarHeight = 48.0;
 
 /// Adaptive `36px` OS bar supporting `Floating Glass Bar`, `Classic Bottom Bar`,

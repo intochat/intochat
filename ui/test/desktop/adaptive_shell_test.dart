@@ -5,7 +5,6 @@ import 'package:intochat_os_flutter_shell/desktop/os_bar.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/workspace/workspace_app.dart';
 
 DesktopShellProjection _fakeProjection() => const DesktopShellProjection(
   windows: [

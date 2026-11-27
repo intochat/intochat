@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import 'smart_desktop.dart';
-
 class CommandPaletteEntry {
   const CommandPaletteEntry({
     required this.id,

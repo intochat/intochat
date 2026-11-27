@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../core/neuron_method_caller.dart';
+import '../design/app_tile.dart' show IcAppIcon;
+import '../design/smart_app_tile_spec.dart';
 import '../nodes/node_context.dart';
 import '../theme/ui_tokens.dart' show IcStylePreset;
 import 'child_route.dart';
@@ -136,6 +138,11 @@ class BrainSessionController extends ChangeNotifier {
   bool _desktopLoading = false;
   bool _desktopReloadAgain = false;
 
+  bool _catalogDirty = true;
+  List<SmartAppTileSpec> _launcherApps = const [];
+  List<SmartAppTileSpec> _dockApps = const [];
+  Map<String, SmartAppTileSpec> _catalogById = const {};
+
   bool _smart = false;
   PresenceState? _presenceState;
   String? _syncedStylePreset;
@@ -166,6 +173,119 @@ class BrainSessionController extends ChangeNotifier {
   bool get notificationsLoaded => _notificationsLoaded;
   bool get notificationsLoading => _notificationsLoading;
   Set<String> get installedApps => Set.unmodifiable(_installedApps);
+
+  /// Memoized catalog of all launchable apps (projection tiles, open windows,
+  /// pins, and installed apps) recomputed only when projection, installed apps,
+  /// or brain changes.
+  List<SmartAppTileSpec> get launcherApps {
+    _ensureCatalog();
+    return _launcherApps;
+  }
+
+  /// Memoized ordered dock apps derived from [launcherApps], pins, units, and
+  /// open windows.
+  List<SmartAppTileSpec> get dockApps {
+    _ensureCatalog();
+    return _dockApps;
+  }
+
+  /// Memoized lowercase-ID lookup table for [launcherApps].
+  Map<String, SmartAppTileSpec> get catalogById {
+    _ensureCatalog();
+    return _catalogById;
+  }
+
+  /// Resolves the display title for [appId] from the memoized catalog.
+  String titleForAppId(String appId) {
+    final normalized = appId.trim().toLowerCase();
+    if (catalogById[normalized] case final spec? when spec.name.isNotEmpty) {
+      return spec.name;
+    }
+    return IcAppIcon.humanizeAppTitle(appId);
+  }
+
+  void _invalidateCatalog() {
+    _catalogDirty = true;
+  }
+
+  void _ensureCatalog() {
+    if (!_catalogDirty) return;
+    _catalogDirty = false;
+    final brain = _brainId.isEmpty ? 'local' : _brainId;
+    final proj = _projection;
+    final tiles = proj?.tiles ?? const <DesktopAppTile>[];
+    final windows = proj?.windows ?? const <DesktopWindowProjection>[];
+    final pins = proj?.pins ?? const <String>[];
+
+    final launcher = <SmartAppTileSpec>[];
+    final launcherSeen = <String>{};
+    for (final tile in tiles) {
+      final norm = tile.id.toLowerCase();
+      if (norm.isNotEmpty && launcherSeen.add(norm)) {
+        launcher.add(SmartAppTileSpec.fromProjectionTile(tile, brain: brain));
+      }
+    }
+    for (final w in windows) {
+      final norm = w.appId.toLowerCase();
+      if (norm.isNotEmpty && launcherSeen.add(norm)) {
+        launcher.add(
+          SmartAppTileSpec.fromIconSpec(
+            w.appId,
+            titleOverride: w.title,
+            brain: brain,
+          ),
+        );
+      }
+    }
+    for (final id in [...pins, ..._installedApps]) {
+      final norm = id.trim().toLowerCase();
+      if (norm.isNotEmpty && launcherSeen.add(norm)) {
+        launcher.add(SmartAppTileSpec.fromIconSpec(norm, brain: brain));
+      }
+    }
+
+    final byId = <String, SmartAppTileSpec>{
+      for (final spec in launcher) spec.id.toLowerCase(): spec,
+    };
+
+    final dockSeen = <String>{};
+    final dock = <SmartAppTileSpec>[];
+    for (final spec in launcher) {
+      if (spec.dock != null && dockSeen.add(spec.id.toLowerCase())) {
+        dock.add(spec);
+      }
+    }
+    for (final pin in pins) {
+      final norm = pin.toLowerCase();
+      if (dockSeen.add(norm)) {
+        dock.add(
+          byId[norm] ?? SmartAppTileSpec.fromIconSpec(pin, brain: brain),
+        );
+      }
+    }
+    for (final spec in launcher) {
+      if (spec.appKind == 'unit' && dockSeen.add(spec.id.toLowerCase())) {
+        dock.add(spec);
+      }
+    }
+    for (final w in windows) {
+      final norm = w.appId.toLowerCase();
+      if (dockSeen.add(norm)) {
+        dock.add(
+          byId[norm] ??
+              SmartAppTileSpec.fromIconSpec(
+                w.appId,
+                titleOverride: w.title,
+                brain: brain,
+              ),
+        );
+      }
+    }
+
+    _launcherApps = List<SmartAppTileSpec>.unmodifiable(launcher);
+    _dockApps = List<SmartAppTileSpec>.unmodifiable(dock);
+    _catalogById = Map<String, SmartAppTileSpec>.unmodifiable(byId);
+  }
 
   SceneClient? get scenes => _client?.scenes(_brainId);
   VoiceTranscriber? get transcribe =>
@@ -207,6 +327,7 @@ class BrainSessionController extends ChangeNotifier {
       return;
     }
     _installedApps = next;
+    _invalidateCatalog();
     _notify();
   }
 
@@ -479,6 +600,7 @@ class BrainSessionController extends ChangeNotifier {
     _desktopError = null;
     _desktopLoading = false;
     _desktopReloadAgain = false;
+    _invalidateCatalog();
     _smart = false;
     _presenceState = null;
     _syncedStylePreset = null;
@@ -528,6 +650,7 @@ class BrainSessionController extends ChangeNotifier {
           if (!_disposed && epoch == _epoch) {
             _projection = projection;
             _desktopError = null;
+            _invalidateCatalog();
             _notify();
           }
         } catch (error) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 
+import 'mix_tokens.dart' show UiThemeSeeds;
 import 'ui_colors.dart';
 import 'ui_shadows.dart';
 import 'ui_tokens.dart';
@@ -570,6 +571,39 @@ final class UiThemeScope extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(type: MaterialType.transparency, child: child);
   }
+}
+
+/// Inherited controller allowing any desktop button, settings panel, or
+/// studio widget to inspect and live-morph the active [UiThemeSeeds] across
+/// the entire Desktop OS shell in real time.
+class UiThemeSeedsController extends InheritedWidget {
+  const UiThemeSeedsController({
+    super.key,
+    required this.seeds,
+    required this.setSeeds,
+    required this.resetSeeds,
+    required super.child,
+  });
+
+  final UiThemeSeeds seeds;
+  final ValueChanged<UiThemeSeeds> setSeeds;
+  final VoidCallback resetSeeds;
+
+  static UiThemeSeedsController? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<UiThemeSeedsController>();
+
+  static UiThemeSeedsController of(BuildContext context) {
+    final controller = maybeOf(context);
+    assert(
+      controller != null,
+      'No UiThemeSeedsController found in widget tree.',
+    );
+    return controller!;
+  }
+
+  @override
+  bool updateShouldNotify(UiThemeSeedsController oldWidget) =>
+      seeds != oldWidget.seeds;
 }
 
 abstract final class UiChatTheme {

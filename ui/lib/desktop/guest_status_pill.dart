@@ -772,3 +772,66 @@ class _AssetChipState extends State<_AssetChip> {
     );
   }
 }
+
+/// Shared Day-0 guest status pill and download modal overlay layers used by
+/// both `WorkspaceApp` (non-desktop roots) and `LiveDesktopShell` (Compact,
+/// Medium, and Expanded shells).
+class GuestChromeOverlay extends StatelessWidget {
+  const GuestChromeOverlay({
+    super.key,
+    required this.showPill,
+    required this.downloadModalOpen,
+    required this.onDownloadApp,
+    required this.onCloseDownloadModal,
+    this.remaining,
+    this.onSaveBrain,
+    this.onOpenUrl,
+    this.downloadHubUri,
+    this.useSafeArea = false,
+  });
+
+  final bool showPill;
+  final bool downloadModalOpen;
+  final VoidCallback onDownloadApp;
+  final VoidCallback onCloseDownloadModal;
+  final Duration? remaining;
+  final VoidCallback? onSaveBrain;
+  final void Function(Uri url)? onOpenUrl;
+  final Uri? downloadHubUri;
+  final bool useSafeArea;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!showPill && !downloadModalOpen) {
+      return const SizedBox.shrink();
+    }
+    final pill = Align(
+      alignment: Alignment.topCenter,
+      child: GuestStatusPill(
+        remaining: remaining,
+        onSaveBrain: onSaveBrain,
+        onDownloadApp: onDownloadApp,
+      ),
+    );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        if (showPill)
+          Positioned(
+            top: 10,
+            left: 16,
+            right: 16,
+            child: useSafeArea ? SafeArea(child: pill) : pill,
+          ),
+        if (downloadModalOpen)
+          Positioned.fill(
+            child: DownloadAppModal(
+              onClose: onCloseDownloadModal,
+              onOpenUrl: onOpenUrl,
+              downloadHubUri: downloadHubUri,
+            ),
+          ),
+      ],
+    );
+  }
+}
