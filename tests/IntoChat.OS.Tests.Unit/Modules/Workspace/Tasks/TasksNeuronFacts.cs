@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Apps.Tasks;
 using TaskStatus = IntoChat.OS.Modules.Apps.Tasks.TaskStatus;
@@ -97,6 +98,91 @@ public sealed class TasksNeuronFacts
 
             var all = await tasks.List();
             Assert.Equal(30, all.Length);
+        }
+    }
+
+    public interface ITestInoAnswerAskRelay
+    {
+        Task<TaskRecord> RelayAnswerAsk(NeuronId tasksId, string taskId, string selectedOption);
+    }
+
+    [Neuron("app.ino")]
+    private sealed class TestInoAnswerAskRelay : Neuron, ITestInoAnswerAskRelay
+    {
+        public Task<TaskRecord> RelayAnswerAsk(NeuronId tasksId, string taskId, string selectedOption)
+            => Context.Get<ITasks>(tasksId).AnswerAsk(taskId, selectedOption);
+    }
+
+    [Fact]
+    public async Task AnswerAsk_EnforcesViaInoShellRelayBoundary()
+    {
+        await using var os = TestOS.Local();
+        os.Register<TasksNeuron>()
+            .Register<TestInoAnswerAskRelay>();
+
+        var tasksId = ITasks.Key(Brain);
+        var tasks = os.Get<ITasks>(tasksId);
+        var otherBrain = new BrainId("other-brain");
+        var sameBrainIno = new NeuronId(Brain, "app.ino", "default");
+        var sameBrainFriends = new NeuronId(Brain, "app.friends", "default");
+        var crossBrainIno = new NeuronId(otherBrain, "app.ino", "default");
+
+        TaskRecord taskForDirect;
+        TaskRecord taskForRelayed;
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
+        {
+            taskForDirect = await tasks.Create("Direct ask");
+            _ = await tasks.Ask(taskForDirect.TaskId, new TaskAskPrompt("Pick track?", ["Canary", "Full"], 0));
+
+            taskForRelayed = await tasks.Create("Relayed ask");
+            _ = await tasks.Ask(taskForRelayed.TaskId, new TaskAskPrompt("Pick env?", ["Sandbox", "Staging"], 0));
+        }
+
+        // REJECT: Conversation != null even with Inside=true and Via=app.ino
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", Brain, via: sameBrainIno, conversation: "main", inside: true)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tasks.AnswerAsk(taskForRelayed.TaskId, "Sandbox"));
+        }
+
+        // REJECT: Inside == false with Via=app.ino
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", Brain, via: sameBrainIno, conversation: null, inside: false)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tasks.AnswerAsk(taskForRelayed.TaskId, "Sandbox"));
+        }
+
+        // REJECT: Via.Type != "app.ino" (e.g., app.friends)
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", Brain, via: sameBrainFriends, conversation: null, inside: true)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tasks.AnswerAsk(taskForRelayed.TaskId, "Sandbox"));
+        }
+
+        // REJECT: Via.Brain != Id.Brain (cross-brain app.ino)
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", Brain, via: crossBrainIno, conversation: null, inside: true)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tasks.AnswerAsk(taskForRelayed.TaskId, "Sandbox"));
+        }
+
+        // REJECT: Actor.Agent relayed through a real same-brain app.ino hop (Inside=true, Via=app.ino)
+        var relay = os.Get<ITestInoAnswerAskRelay>(sameBrainIno);
+        using (os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), Brain)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => relay.RelayAnswerAsk(tasksId, taskForRelayed.TaskId, "Sandbox"));
+        }
+
+        // ALLOW: Direct person (Inside=false, Via=null, Conversation=null)
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
+        {
+            var directAnswered = await tasks.AnswerAsk(taskForDirect.TaskId, "Canary");
+            Assert.Equal(TaskStatus.InProgress, directAnswered.Status);
+            Assert.Equal("Canary", directAnswered.LastAnswer?.SelectedOption);
+        }
+
+        // ALLOW: Same-brain app.ino-relayed person (Actor.Person, Inside=true, Conversation=null, Via={Brain==Id.Brain, Type=="app.ino"})
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", Brain, via: sameBrainIno, conversation: null, inside: true)))
+        {
+            var relayedAnswered = await tasks.AnswerAsk(taskForRelayed.TaskId, "Sandbox");
+            Assert.Equal(TaskStatus.InProgress, relayedAnswered.Status);
+            Assert.Equal("Sandbox", relayedAnswered.LastAnswer?.SelectedOption);
         }
     }
 }

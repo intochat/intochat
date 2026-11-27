@@ -407,6 +407,12 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
 
         if (Tasks is { } tasks)
         {
+            if (Context.Caller is not null
+                && !Answerer.Of(Context.Caller, CurrentBrain).IsPerson)
+            {
+                throw new UnauthorizedAccessException("Only a signed-in person may answer a task question.");
+            }
+
             await tasks.AnswerAsk(taskId, option);
             await RefreshTasksAsync();
         }
@@ -475,7 +481,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             var live = await ReadOptionalAsync<CodeOrchestrationView?>(
                 "code-orchestration-read",
                 null,
-                () => CodeOrchestrations[new NeuronId(CurrentBrain, "flow.code-orchestration", flowId)].ReadAsync());
+                () => CodeOrchestrations[ResolveCodeOrchestrationId(CurrentBrain, flowId)].ReadAsync());
             if (live is not null)
             {
                 artifact = InoCards.FromCodeOrchestrationView(live);
@@ -541,6 +547,12 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             return;
         }
 
+        if (Context.Caller is not null
+            && !Answerer.Of(Context.Caller, CurrentBrain).IsPerson)
+        {
+            throw new UnauthorizedAccessException("PinArtifact is [PersonOnly] and may only be invoked directly by the brain owner.");
+        }
+
         var title = !string.IsNullOrWhiteSpace(request.Title)
             ? request.Title.Trim()
             : State.ActiveArtifact?.Title ?? flowId;
@@ -548,7 +560,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
 
         try
         {
-            var grain = CodeOrchestrations[new NeuronId(CurrentBrain, "flow.code-orchestration", flowId)];
+            var grain = CodeOrchestrations[ResolveCodeOrchestrationId(CurrentBrain, flowId)];
             var receipt = await grain.CrystallizeAsync(alias, title);
             var baseArtifact = State.ActiveArtifact ?? new InoDrawerArtifact($"code-orch:{flowId}", title, "code-orchestration", "done", FlowId: flowId);
             if (receipt.Succeeded)
@@ -578,6 +590,13 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             }
         }
     }
+
+    private static NeuronId ResolveCodeOrchestrationId(BrainId brain, string flowId)
+        => NeuronId.TryParse(flowId, out var parsed)
+            && parsed.Brain == brain
+            && string.Equals(parsed.Type, "flow.code-orchestration", StringComparison.Ordinal)
+            ? parsed
+            : new NeuronId(brain, "flow.code-orchestration", flowId);
 
     [On]
     public async Task Link(InoPasteLink request)

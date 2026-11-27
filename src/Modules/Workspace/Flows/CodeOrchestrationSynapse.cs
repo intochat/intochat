@@ -159,7 +159,12 @@ internal sealed partial class CodeOrchestrationSynapse(
         string? title = null,
         CancellationToken ct = default)
     {
-        if (!Answerer.Of(Context.Caller, Id.Brain).IsPerson)
+        var caller = Context.Caller;
+        var viaInoShell = caller is { Actor: DigitalBrain.Access.Actor.Person, Inside: true, Conversation: null, For.Principal.Length: > 0 }
+            && caller.Brain == Id.Brain
+            && caller.Via is { Type: "app.ino" } via
+            && via.Brain == Id.Brain;
+        if (!Answerer.Of(caller, Id.Brain).IsPerson && !viaInoShell)
         {
             throw new UnauthorizedAccessException(
                 "CrystallizeAsync is [PersonOnly] and may only be invoked directly by the brain owner (not by an agent or delegated caller).");
@@ -508,13 +513,12 @@ internal sealed partial class CodeOrchestrationSynapse(
             // SandboxAppKey: {{safeAppKeyComment}}
             // ScopedContracts: {{safeScopeComment}}
             // ExecutionBoundary: IntoChat.OS.Sandbox
-            using System.Threading;
-            using System.Threading.Tasks;
-            using DigitalBrain.Contracts;
-            using DigitalBrain.Neurons;
+            using DigitalBrain;
+            using DigitalBrain.UI;
 
             namespace CrystallizedApps;
 
+            [State("{{safeAlias}}")]
             public sealed record {{className}}State(
                 string AppKey = "{{safeAppKey}}",
                 string Title = "{{safeTitle}}",
@@ -523,16 +527,16 @@ internal sealed partial class CodeOrchestrationSynapse(
                 public {{className}}State() : this("{{safeAppKey}}", "{{safeTitle}}", "{{safeScopeLiteral}}") { }
             }
 
-            [Neuron("{{safeAlias}}")]
-            public sealed class {{className}} : Neuron<{{className}}State>
+            public static class {{className}}
             {
-                [ReadOnlyCall]
-                public Task<{{className}}State> ReadAsync(CancellationToken ct = default)
-                    => Task.FromResult(State);
-
-                [ReadOnlyCall]
-                public Task<string> SandboxAppKeyAsync(CancellationToken ct = default)
-                    => Task.FromResult(State.AppKey);
+                [Synapse("{{safeAlias}}")]
+                public static View View({{className}}State state) =>
+                    new(state.Title, new Surface(
+                    [
+                        new Text(state.Title),
+                        new Badge("IntoChat.OS.Sandbox", "done"),
+                        new Text($"App key: {state.AppKey} · Contracts: {state.ScopedContracts}"),
+                    ]));
             }
             """;
     }

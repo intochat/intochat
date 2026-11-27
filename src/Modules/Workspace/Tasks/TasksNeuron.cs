@@ -224,7 +224,11 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedOption);
         var caller = RequireSameBrain(() => new UnauthorizedAccessException("Only a signed-in person of this brain may answer a task question."));
         var answerer = Answerer.Of(caller, Id.Brain);
-        if (!answerer.IsPerson)
+        var viaInoShell = caller is { Actor: Actor.Person, Inside: true, Conversation: null, For.Principal.Length: > 0 }
+            && caller.Brain == Id.Brain
+            && caller.Via is { Type: "app.ino" } via
+            && via.Brain == Id.Brain;
+        if (!answerer.IsPerson && !viaInoShell)
         {
             throw new UnauthorizedAccessException("Only a person may answer a task question (RequiresPerson = true).");
         }
@@ -246,7 +250,7 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         var answer = new TaskAskAnswer(
             SelectedOptionIndex: optionIndex,
             SelectedOption: pending.Options[optionIndex],
-            AnsweredBy: answerer.Principal.Id,
+            AnsweredBy: answerer.IsPerson ? answerer.Principal.Id : caller.For!.Principal,
             AnsweredAt: now);
 
         var updated = current with

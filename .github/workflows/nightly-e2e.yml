@@ -1,0 +1,62 @@
+name: nightly-e2e
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'tests/IntoChat.OS.Tests.Browser/Item350*'
+      - '.github/workflows/nightly-e2e.yml'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: nightly-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  item-350-browser-e2e:
+    name: Item #350 Playwright E2E Journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: ui
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build IntoChat.OS.Tests.Browser
+        run: dotnet build tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj -c Release -p:CodeGraphRefresh=false -p:TreatWarningsAsErrors=true
+
+      - name: Install Playwright Chromium
+        run: pwsh artifacts/bin/IntoChat.OS.Tests.Browser/release/playwright.ps1 install --with-deps chromium
+
+      - name: Run Item #350 Playwright E2E Journeys (MTP)
+        run: dotnet test --no-build -c Release --project tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj -- --filter-class "*Item350UnifiedProductResetBrowserFacts*"
