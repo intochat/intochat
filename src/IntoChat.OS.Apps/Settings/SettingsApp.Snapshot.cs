@@ -79,27 +79,27 @@ public sealed partial class SettingsApp
                 return await RefreshConnectionsProjectionAsync(baseline);
 
             case "models":
-            {
-                var modelInfo = await TryReadModelCatalogAsync(baseline.DefaultModel);
-                var nextDefaultModel = resolveAutomaticModel && !string.IsNullOrWhiteSpace(modelInfo.AutomaticModel)
-                    ? modelInfo.AutomaticModel
-                    : baseline.DefaultModel;
-                var next = baseline with
                 {
-                    DefaultModel = nextDefaultModel,
-                    Roles = modelInfo.Roles,
-                    Providers = modelInfo.Providers,
-                    LocalOllamaEndpoint = modelInfo.LocalEndpoint,
-                    Device = modelInfo.Device,
-                };
+                    var modelInfo = await TryReadModelCatalogAsync(baseline.DefaultModel);
+                    var nextDefaultModel = resolveAutomaticModel && !string.IsNullOrWhiteSpace(modelInfo.AutomaticModel)
+                        ? modelInfo.AutomaticModel
+                        : baseline.DefaultModel;
+                    var next = baseline with
+                    {
+                        DefaultModel = nextDefaultModel,
+                        Roles = modelInfo.Roles,
+                        Providers = modelInfo.Providers,
+                        LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+                        Device = modelInfo.Device,
+                    };
 
-                if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
-                {
-                    next = await RefreshWebToolsProjectionAsync(next);
+                    if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
+                    {
+                        next = await RefreshWebToolsProjectionAsync(next);
+                    }
+
+                    return next;
                 }
-
-                return next;
-            }
 
             case "keys":
                 return baseline with { SecretStatuses = await InspectSecretStatusesAsync(baseline.Variables ?? []) };
