@@ -28,7 +28,9 @@ internal sealed class BrainDatabases(IIntegrationHandle integration, Func<string
     {
         try
         {
-            await using var source = NpgsqlDataSource.Create(PostgresConnectionSettings.Parse(adminConnection).ConnectionString);
+            await using var source = PostgresConnectionSettings.BuildDataSource(
+                PostgresConnectionSettings.Parse(adminConnection).ConnectionString,
+                "intochat.postgres.admin");
             await using var connection = await source.OpenConnectionAsync(ct);
             await using (var exists = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = $1", connection))
             {

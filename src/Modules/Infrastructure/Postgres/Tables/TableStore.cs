@@ -132,7 +132,7 @@ internal sealed class TableStore : ITableStore
         deadline.CancelAfter(TimeSpan.FromSeconds(20));
         try
         {
-            await using var owned = _connectionString is null ? null : NpgsqlDataSource.Create(_connectionString);
+            await using var owned = _connectionString is null ? null : PostgresConnectionSettings.BuildDataSource(_connectionString, "intochat.postgres.tables.connection");
             var source = owned ?? await _registry!.Get(placement, deadline.Token);
             await using var connection = await source.OpenConnectionAsync(deadline.Token);
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token);
