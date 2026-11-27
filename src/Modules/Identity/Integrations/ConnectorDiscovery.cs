@@ -30,6 +30,16 @@ internal static class ConnectorDiscovery
                 if (!connector.RequiredIntegrations.Concat(connector.OptionalIntegrations).Contains(method.IntegrationId, StringComparer.Ordinal))
                 { throw new InvalidOperationException($"Connector '{connector.Id}' OAuth method '{method.Id}' names an undeclared Integration '{method.IntegrationId}'."); }
             }
+            foreach (var method in connector.DeviceMethods)
+            {
+                if (!connector.AuthMethods.Contains(method.Id, StringComparer.Ordinal))
+                { throw new InvalidOperationException($"Connector '{connector.Id}' declares OAuth device method '{method.Id}' outside its authentication methods."); }
+                if (connector.OAuthMethods.Any(oauth => string.Equals(oauth.Id, method.Id, StringComparison.Ordinal)))
+                { throw new InvalidOperationException($"Connector '{connector.Id}' cannot declare '{method.Id}' as both an OAuthMethod and an OAuthDeviceMethod."); }
+                if (!string.IsNullOrWhiteSpace(method.IntegrationId)
+                    && !connector.RequiredIntegrations.Concat(connector.OptionalIntegrations).Contains(method.IntegrationId, StringComparer.Ordinal))
+                { throw new InvalidOperationException($"Connector '{connector.Id}' OAuth device method '{method.Id}' names an undeclared Integration '{method.IntegrationId}'."); }
+            }
             foreach (var id in connector.RequiredIntegrations.Concat(connector.OptionalIntegrations))
             {
                 if (!schemas.Any(s => s.Id == id))

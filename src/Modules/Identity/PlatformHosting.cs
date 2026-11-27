@@ -86,7 +86,15 @@ public static class PlatformHosting
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange>();
         services.TryAddSingleton<IOAuthTokenExchange>(provider => provider.GetRequiredService<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange>());
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthLoginFlow>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceRequests>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Connections.IOAuthDeviceFlow>(
+            provider => provider.GetRequiredService<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow>());
+        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Connections.IConnectionSecretBinder,
+            IntoChat.OS.Modules.Identity.Connections.ConnectionSecretBinder>();
         services.AddHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddMeteredHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange.MeteredHttpClientName)
             .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30));

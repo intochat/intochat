@@ -199,6 +199,37 @@ internal sealed class McpClientSession(HttpMessageHandler? httpHandler = null) :
         return FilterAllowedTools(tools, allowedTools);
     }
 
+    // Runs a single one-shot SSRF-validated MCP HTTP session (used by Salesforce and other plugin connectors).
+    public async Task<T> RunEphemeralAsync<T>(
+        Uri endpoint,
+        Dictionary<string, string>? headers,
+        Func<McpClient, CancellationToken, Task<T>> operation,
+        CancellationToken ct,
+        TimeSpan? timeout = null)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        ArgumentNullException.ThrowIfNull(operation);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        budget.CancelAfter(timeout ?? TimeSpan.FromSeconds(30));
+        await using var client = await CreateClientAsync(endpoint, headers, budget.Token).ConfigureAwait(false);
+        return await operation(client, budget.Token).ConfigureAwait(false);
+    }
+
+    public Task<IList<McpClientTool>> ReadCatalogAsync(
+        Uri endpoint,
+        Dictionary<string, string>? headers,
+        CancellationToken ct,
+        TimeSpan? timeout = null)
+        => RunEphemeralAsync(
+            endpoint,
+            headers,
+            static (client, token) => client.ListToolsAsync(cancellationToken: token).AsTask(),
+            ct,
+            timeout);
+
+    internal static JsonElement SerializeCallResult(ModelContextProtocol.Protocol.CallToolResult result)
+        => JsonSerializer.SerializeToElement(result, CallResultJson);
+
     public async Task DropAsync()
     {
         var client = _client;

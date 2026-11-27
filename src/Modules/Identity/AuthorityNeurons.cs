@@ -17,7 +17,11 @@ namespace IntoChat.OS.Modules.Identity;
 // brain-less (accounts, ledgers, integrations), or keyed by the brain id itself, so neither
 // IIntoChatOS.Neuron<T> nor a brain-relative id names them. This is the module's single place that
 // turns an id into a grain reference; key strings are exactly those callers composed before.
-internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider services)
+internal sealed class AuthorityNeurons(
+    IGrainFactory grains,
+    IServiceProvider services,
+    Func<string, IConnection>? connectionOverride = null,
+    Func<string, IConnectionInbound>? connectionInboundOverride = null)
 {
     public IBrain Brain(string brainId) => SiloNeurons.Get<IBrain>(services, IBrain.Key(brainId));
     public DigitalBrain.Identity.Local.Directory.IDirectory Directory() => SiloNeurons.Get<DigitalBrain.Identity.Local.Directory.IDirectory>(services, DigitalBrain.Identity.Local.Directory.IDirectory.Key);
@@ -31,9 +35,12 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider se
     public DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests ConnectionRequests(string brainId) => SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests>(services, DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests.Key(brainId));
     // Connection neurons keep the Framework's connector-aware resolution; a key from a caller goes
     // through the manifest check, not straight to a grain type. 06-08 repoints this seam in the composition (R4-24).
-    public IConnection Connection(string connectionKey) => services.GetConnection(connectionKey);
-    public IConnectionInbound ConnectionInbound(string connectionKey) => services.GetConnectionInbound(connectionKey);
-    public T CallerConnection<T>(IServiceProvider callerServices, string key) where T : class => callerServices.GetNeuron<T>(services, key);
+    public IConnection Connection(string connectionKey) => connectionOverride is not null ? connectionOverride(connectionKey) : services.GetConnection(connectionKey);
+    public IConnectionInbound ConnectionInbound(string connectionKey) => connectionInboundOverride is not null ? connectionInboundOverride(connectionKey) : services.GetConnectionInbound(connectionKey);
+    public T CallerConnection<T>(IServiceProvider callerServices, string key) where T : class
+        => typeof(T) == typeof(IConnection) && connectionOverride is not null
+            ? (T)(object)connectionOverride(key)
+            : callerServices.GetNeuron<T>(services, key);
 
     // The identity module acting for itself, on a call that has no caller yet: registration, sign-in and startup reach the
     // module's own grains before any person is stamped, and the silo refuses a call that carries no caller. A stamped caller

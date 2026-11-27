@@ -2,13 +2,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using ModelContextProtocol;
+using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Modules.Salesforce;
 
-internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
+internal sealed class SalesforceMcpProvider(Uri? endpoint, HttpMessageHandler? httpHandler = null) : ISalesforceProvider
 {
     internal static readonly string[] AdmittedTools = ["getUserInfo", "getObjectSchema", "soqlQuery", "createRecord", "updateRecord"];
+    private readonly McpClientSession _session = new(httpHandler);
 
     public async Task<JsonElement> InvokeAsync(string tool, JsonElement arguments,
         string accessToken, CancellationToken cancellationToken)
@@ -25,10 +26,11 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         var normalized = arguments.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone());
         try
         {
-            return await McpHttpSession.RunAsync(endpoint, accessToken, async (client, token) =>
+            var headers = McpClientSession.BuildHeaders("Authorization", "Bearer ", accessToken);
+            return await _session.RunEphemeralAsync(endpoint, headers, async (client, token) =>
             {
                 var result = await client.CallToolAsync(tool, normalized, cancellationToken: token).ConfigureAwait(false);
-                var envelope = JsonSerializer.SerializeToElement(result, McpJsonUtilities.DefaultOptions);
+                var envelope = McpClientSession.SerializeCallResult(result);
                 if (Encoding.UTF8.GetByteCount(envelope.GetRawText()) > 128 * 1024)
                 {
                     throw new SalesforceUnavailableException("Salesforce response exceeds the provider response budget.");
@@ -46,6 +48,10 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         }
         catch (SalesforceUnavailableException) { throw; }
         catch (SalesforceUnreachableException) { throw; }
+        catch (ArgumentException)
+        {
+            throw new SalesforceUnavailableException("Salesforce MCP endpoint is not allowed.");
+        }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
         {
             throw new SalesforceUnavailableException("Salesforce returned an invalid response shape.");
@@ -71,7 +77,8 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         }
         try
         {
-            var catalog = await McpHttpSession.ReadCatalogAsync(endpoint, accessToken, cancellationToken).ConfigureAwait(false);
+            var headers = McpClientSession.BuildHeaders("Authorization", "Bearer ", accessToken);
+            var catalog = await _session.ReadCatalogAsync(endpoint, headers, cancellationToken).ConfigureAwait(false);
             var selected = catalog.SingleOrDefault(item => item.Name == tool)
                 ?? throw new SalesforceUnavailableException("The authenticated Salesforce catalog does not contain this tool.");
             return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
@@ -79,6 +86,10 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         }
         catch (SalesforceUnavailableException) { throw; }
         catch (SalesforceUnreachableException) { throw; }
+        catch (ArgumentException)
+        {
+            throw new SalesforceUnavailableException("Salesforce MCP endpoint is not allowed.");
+        }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
         {
             throw new SalesforceUnavailableException("Salesforce returned an invalid response shape.");
