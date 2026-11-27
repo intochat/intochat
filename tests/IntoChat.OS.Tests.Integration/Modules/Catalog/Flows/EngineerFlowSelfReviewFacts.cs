@@ -198,10 +198,33 @@ public sealed class EngineerFlowSelfReviewFacts : IDisposable
             => Task.FromResult(new EngineerBuildReport(true, true, true, true, 2, 0, 0, 0, [], 5, "Build & tests passed."));
     }
 
-    private sealed class PassingLiveVerifier : ILiveVerifier
+    private sealed class CountingLiveVerifier(bool failAfterFirstCall = false) : ILiveVerifier
     {
+        private int _calls;
+
+        public int CallCount => Volatile.Read(ref _calls);
+
         public Task<EngineerLiveReport> VerifyLiveAsync(string worktreePath, string goal, IReadOnlyList<string> changedFiles, CancellationToken ct = default)
-            => Task.FromResult(new EngineerLiveReport(true, true, true, true, 0, 0, 0, 0, [], [], "Live verify green."));
+        {
+            var call = Interlocked.Increment(ref _calls);
+            if (failAfterFirstCall && call > 1)
+            {
+                return Task.FromResult(new EngineerLiveReport(
+                    Succeeded: false,
+                    HostHealthy: true,
+                    McpProbesPassed: false,
+                    PlaywrightPassed: false,
+                    Http4xxCount: 0,
+                    Http5xxCount: 1,
+                    ErrorSpanCount: 1,
+                    ErrorLogCount: 0,
+                    Probes: [],
+                    TraceSummaries: [],
+                    Summary: $"Post-repair live verify failed on check #{call}."));
+            }
+
+            return Task.FromResult(new EngineerLiveReport(true, true, true, true, 0, 0, 0, 0, [], [], $"Live verify green on check #{call}."));
+        }
     }
 
     private WorkTreeService CreateWorkTreeService(string subName)
@@ -248,8 +271,9 @@ public sealed class EngineerFlowSelfReviewFacts : IDisposable
     {
         var workTree = CreateWorkTreeService("clean");
         var harness = new ScriptedSelfReviewHarness(HarnessBehavior.CleanFirstTry);
+        var liveVerifier = new CountingLiveVerifier();
 
-        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), new PassingLiveVerifier());
+        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), liveVerifier);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
 
@@ -264,6 +288,7 @@ public sealed class EngineerFlowSelfReviewFacts : IDisposable
         Assert.Equal(FlowStatus.Waiting, waiting.Status);
         Assert.Equal("approval-gate", waiting.WaitingStep);
         Assert.Single(harness.Requests);
+        Assert.Equal(1, liveVerifier.CallCount);
 
         var runs = runtime.Get<IEngineerRuns>(IEngineerRuns.Key(runtime.Brain.Value));
         var summary = await runs.InspectEngineerRun(flowId, Ct);
@@ -271,18 +296,20 @@ public sealed class EngineerFlowSelfReviewFacts : IDisposable
         Assert.False(summary.SelfReview!.HasBlocking);
         Assert.NotNull(summary.Receipt);
         Assert.True(summary.Receipt!.SelfReviewPassed);
+        Assert.True(summary.Receipt.LiveVerified);
         Assert.Contains(summary.DiagnosticsAndTraces, line => line.Contains("self-review · passed", StringComparison.Ordinal));
 
         await flows.Cancel(flowId, "test cleanup", Ct);
     }
 
     [Fact]
-    public async Task EngineerFlow_SwallowViolationTriggersAutoRepairBeforeApprovalGate()
+    public async Task EngineerFlow_SwallowViolationTriggersAutoRepairAndReRunsLiveVerifyBeforeApprovalGate()
     {
         var workTree = CreateWorkTreeService("repair");
         var harness = new ScriptedSelfReviewHarness(HarnessBehavior.SwallowThenFixOnRepair);
+        var liveVerifier = new CountingLiveVerifier();
 
-        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), new PassingLiveVerifier());
+        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), liveVerifier);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
 
@@ -298,15 +325,43 @@ public sealed class EngineerFlowSelfReviewFacts : IDisposable
         Assert.Equal("approval-gate", waiting.WaitingStep);
         Assert.Equal(2, harness.Requests.Count);
         Assert.Contains("HR-Swallow", harness.Requests[1].Goal, StringComparison.Ordinal);
+        // LiveVerifier must be re-invoked for the amended commit SHA after self-review auto-repair.
+        Assert.Equal(2, liveVerifier.CallCount);
 
         var runs = runtime.Get<IEngineerRuns>(IEngineerRuns.Key(runtime.Brain.Value));
         var summary = await runs.InspectEngineerRun(flowId, Ct);
         Assert.NotNull(summary.SelfReview);
         Assert.False(summary.SelfReview!.HasBlocking);
+        Assert.NotNull(summary.Receipt);
+        Assert.True(summary.Receipt!.LiveVerified);
         Assert.Equal(1, Assert.Single(summary.Instances).SelfReviewRepairAttempts);
         Assert.Contains(summary.DiagnosticsAndTraces, line => line.Contains("after 1 repair round(s)", StringComparison.Ordinal));
 
         await flows.Cancel(flowId, "test cleanup", Ct);
+    }
+
+    [Fact]
+    public async Task EngineerFlow_AutoRepairFailsClosedWhenPostRepairLiveVerifyFails()
+    {
+        var workTree = CreateWorkTreeService("repair-live-fail");
+        var harness = new ScriptedSelfReviewHarness(HarnessBehavior.SwallowThenFixOnRepair);
+        var liveVerifier = new CountingLiveVerifier(failAfterFirstCall: true);
+
+        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), liveVerifier);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
+
+        var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
+        var startJson = JsonSerializer.Serialize(new { runId = "engsr04", repository = "os", goal = "Add Execute helper", instanceCount = 1 }, EngineerFlow.Json);
+        var flowId = await flows.Start(IEngineerRuns.EngineerFlow, "Post Repair Live Verify Fail", null, startJson, Ct, flowId: "engsr04");
+
+        var failed = await FlowTypeFacts.Eventually(
+            () => flows.Read(flowId, Ct),
+            v => v.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed);
+
+        Assert.Equal(FlowStatus.Failed, failed.Status);
+        Assert.Equal(2, liveVerifier.CallCount);
+        Assert.Contains("post-repair live-verify", failed.Detail ?? string.Empty, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -315,7 +370,7 @@ public sealed class EngineerFlowSelfReviewFacts : IDisposable
         var workTree = CreateWorkTreeService("fail-closed");
         var harness = new ScriptedSelfReviewHarness(HarnessBehavior.AlwaysViolatesSecret);
 
-        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), new PassingLiveVerifier());
+        await using var fixture = new SelfReviewFixture(workTree, new SingleTaskPlanner(), harness, new PassingBuildVerifier(), new CountingLiveVerifier());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
 

@@ -262,12 +262,32 @@ internal sealed partial class SelfImprovementLoop(
             }
         }
 
-        // Charge daily run budget fail-closed before dispatching.
+        // Charge daily run budget and reserve the active run fail-closed BEFORE dispatching so crashes/timeouts cannot bypass caps.
         tracker.RecordRunStarted(selected.Key);
         var nextRunsToday = state.RunsToday + 1;
         var runId = $"loop-{Guid.NewGuid().ToString("N")[..10]}";
         var repoSlug = string.IsNullOrWhiteSpace(request.RepoSlug) ? "os" : request.RepoSlug.Trim();
         var goal = BuildEngineerGoal(selected, lessonContext);
+
+        var reservedRecord = new LoopRunRecord(
+            FindingKey: selected.Key,
+            FindingTitle: selected.Title,
+            Source: selected.Source,
+            FlowId: runId,
+            RunId: runId,
+            Status: "running",
+            StartedAt: now,
+            CompletedAt: null,
+            OutcomeDetail: null,
+            LessonKey: lessonContext.PrimaryLessonKey,
+            TokensUsed: 0);
+
+        state = state with
+        {
+            RunsToday = nextRunsToday,
+            Runs = AppendBoundedRun(state.Runs, reservedRecord),
+        };
+        await PersistAsync(state).ConfigureAwait(true);
 
         var delegationRequest = new EngineerDelegationRequest(
             RepoSlug: repoSlug,
@@ -280,32 +300,44 @@ internal sealed partial class SelfImprovementLoop(
             Harness: request.Harness);
 
         var engineerRuns = ResolveEngineerRuns();
-        var summary = await engineerRuns.StartEngineerRun(delegationRequest, ct).ConfigureAwait(true);
+        EngineerRunSummary summary;
+        try
+        {
+            summary = await engineerRuns.StartEngineerRun(delegationRequest, ct).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var failedAt = Context.Time.GetUtcNow();
+            var failedRecord = reservedRecord with
+            {
+                Status = "failed",
+                CompletedAt = failedAt,
+                OutcomeDetail = ex.Message,
+            };
+            state = ReplaceReservedRun(state, runId, failedRecord);
+            state = ApplyFindingFailure(state, selected.Key);
+            await TryRecordFailureLessonAsync(memory, selected.Key, selected.Title, ex.Message, ct).ConfigureAwait(true);
+            await PersistAsync(state).ConfigureAwait(true);
+            throw;
+        }
+
         var effectiveFlowId = string.IsNullOrWhiteSpace(summary.FlowId) ? runId : summary.FlowId;
         var effectiveRunId = string.IsNullOrWhiteSpace(summary.RunId) ? runId : summary.RunId;
 
         var runStatus = MapFlowStatus(summary.Ok, summary.Status);
-        var completedAt = runStatus is "completed" or "failed" ? now : (DateTimeOffset?)null;
+        var completedAt = runStatus is "completed" or "failed" ? Context.Time.GetUtcNow() : (DateTimeOffset?)null;
         var outcomeDetail = runStatus is "completed" or "failed" ? summary.SummaryText : null;
 
-        var runRecord = new LoopRunRecord(
-            FindingKey: selected.Key,
-            FindingTitle: selected.Title,
-            Source: selected.Source,
-            FlowId: effectiveFlowId,
-            RunId: effectiveRunId,
-            Status: runStatus,
-            StartedAt: now,
-            CompletedAt: completedAt,
-            OutcomeDetail: outcomeDetail,
-            LessonKey: lessonContext.PrimaryLessonKey,
-            TokensUsed: 0);
-
-        state = state with
+        var runRecord = reservedRecord with
         {
-            RunsToday = nextRunsToday,
-            Runs = AppendBoundedRun(state.Runs, runRecord),
+            FlowId = effectiveFlowId,
+            RunId = effectiveRunId,
+            Status = runStatus,
+            CompletedAt = completedAt,
+            OutcomeDetail = outcomeDetail,
         };
+
+        state = ReplaceReservedRun(state, runId, runRecord);
 
         if (string.Equals(runStatus, "failed", StringComparison.Ordinal))
         {
@@ -364,8 +396,13 @@ internal sealed partial class SelfImprovementLoop(
 
         var existingIndex = Array.FindLastIndex(
             state.Runs,
-            r => string.Equals(r.FlowId, cleanFlowId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(r.FindingKey, cleanKey, StringComparison.OrdinalIgnoreCase));
+            r => string.Equals(r.FlowId, cleanFlowId, StringComparison.OrdinalIgnoreCase));
+
+        // Idempotency: an already-terminal run must not double-count failures, prematurely park findings, or double-add tokens.
+        if (existingIndex >= 0 && !IsActiveRun(state.Runs[existingIndex]))
+        {
+            return state.Runs[existingIndex];
+        }
 
         var effectiveDetail = string.IsNullOrWhiteSpace(detail)
             ? (succeeded ? "Engineer run completed." : "Engineer run failed.")
@@ -475,6 +512,15 @@ internal sealed partial class SelfImprovementLoop(
             try
             {
                 var summary = await engineerRuns.InspectEngineerRun(run.FlowId, ct).ConfigureAwait(true);
+
+                // Guard transient lookup/RPC errors so an active run is not prematurely marked failed and charged an attempt.
+                if (!summary.Ok
+                    && (summary.Status is not (FlowStatus.Failed or FlowStatus.Cancelled)
+                        || summary.SummaryText?.StartsWith("Could not inspect", StringComparison.OrdinalIgnoreCase) == true))
+                {
+                    continue;
+                }
+
                 var mappedStatus = MapFlowStatus(summary.Ok, summary.Status);
                 if (string.Equals(mappedStatus, run.Status, StringComparison.Ordinal))
                 {
@@ -643,6 +689,24 @@ internal sealed partial class SelfImprovementLoop(
         };
     }
 
+    private static SelfImprovementLoopState ReplaceReservedRun(
+        SelfImprovementLoopState state,
+        string reservedRunId,
+        LoopRunRecord replacement)
+    {
+        var idx = Array.FindLastIndex(
+            state.Runs,
+            r => string.Equals(r.RunId, reservedRunId, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0)
+        {
+            return state with { Runs = AppendBoundedRun(state.Runs, replacement) };
+        }
+
+        var updated = state.Runs.ToArray();
+        updated[idx] = replacement;
+        return state with { Runs = updated };
+    }
+
     private static LoopRunRecord[] AppendBoundedRun(LoopRunRecord[] existing, LoopRunRecord next)
     {
         var list = new List<LoopRunRecord>((existing?.Length ?? 0) + 1);
@@ -761,7 +825,7 @@ internal sealed partial class SelfImprovementLoop(
         IWorkingMemory? memory,
         string findingKey,
         string whatWasTried,
-        string whyItFailed,
+        string? whyItFailed,
         CancellationToken ct)
     {
         if (memory is null)
@@ -783,7 +847,7 @@ internal sealed partial class SelfImprovementLoop(
     private async Task TryRecordSuccessLessonAsync(
         IWorkingMemory? memory,
         string findingKey,
-        string whatWorked,
+        string? whatWorked,
         CancellationToken ct)
     {
         if (memory is null)

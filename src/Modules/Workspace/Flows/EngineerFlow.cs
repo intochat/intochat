@@ -1375,6 +1375,7 @@ internal sealed class EngineerFlow(
 
         var current = winner;
         var repairRound = current.SelfReviewRepairAttempts;
+        var commitAmended = false;
 
         if (report.HasBlocking && current.Lease is { } lease)
         {
@@ -1509,6 +1510,7 @@ internal sealed class EngineerFlow(
                         currentCommit = await Task.Run(
                             () => wt.VerifyAndAmendAsync(lease, currentCommit.Commit, commitMessage, ct),
                             ct).ConfigureAwait(true);
+                        commitAmended = true;
                         var changedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
 
                         EngineerBuildReport? updatedBuild = current.Build;
@@ -1528,6 +1530,7 @@ internal sealed class EngineerFlow(
                             RoslynDiagnostics = roslynDiagnostics,
                             Commit = currentCommit,
                             Build = updatedBuild,
+                            Live = null,
                         };
                     }
                 }
@@ -1560,6 +1563,57 @@ internal sealed class EngineerFlow(
             throw new FlowFailed(
                 step,
                 $"LocalSelfReview auto-repair broke build-and-test before approval-gate: {failedBuild.Summary}");
+        }
+
+        if (commitAmended
+            && inner.Verification.Runs(EngineerVerificationPolicy.LiveVerifyGate)
+            && !inner.Verification.LiveVerifyNotAvailable
+            && current.Lease is { } repairedLease)
+        {
+            var liveVerifierInstance = LiveVerifier;
+            if (liveVerifierInstance is ILiveEnvironment { Configured: false })
+            {
+                inner = inner.WithLiveVerifyNotAvailable();
+            }
+            else
+            {
+                var amendedChangedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
+                var amendedLiveContext = BuildLiveVerificationContext() with
+                {
+                    CommitSha = currentCommit.Commit.Value,
+                    BrainId = Id.Brain.Value,
+                };
+                var liveReport = liveVerifierInstance is EngineerLiveVerifier stageVerifier
+                    ? await stageVerifier.VerifyLiveAsync(
+                        repairedLease.TreePath,
+                        inner.Goal,
+                        amendedChangedPaths,
+                        amendedLiveContext,
+                        ct).ConfigureAwait(true)
+                    : await Task.Run(
+                        () => liveVerifierInstance.VerifyLiveAsync(
+                            repairedLease.TreePath,
+                            inner.Goal,
+                            amendedChangedPaths,
+                            ct),
+                        ct).ConfigureAwait(true);
+
+                if (EngineerLiveVerifier.EnvironmentMissing(liveReport))
+                {
+                    throw new FlowFailed(
+                        step,
+                        "LocalSelfReview auto-repair amended the commit, but no live environment was available to re-verify the amended commit before approval-gate.");
+                }
+
+                if (!liveReport.Succeeded)
+                {
+                    throw new FlowFailed(
+                        step,
+                        $"LocalSelfReview auto-repair failed post-repair live-verify before approval-gate: {liveReport.Summary}");
+                }
+
+                current = current with { Live = liveReport };
+            }
         }
 
         var updatedWinner = (current with

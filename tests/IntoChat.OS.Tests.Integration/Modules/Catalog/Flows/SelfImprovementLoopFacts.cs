@@ -204,15 +204,118 @@ public sealed class SelfImprovementLoopFacts
         Assert.Contains("fact:A", snapshot.ParkedFindingKeys);
     }
 
+    [Fact]
+    public async Task RecordOutcome_IsIdempotentAndPreservesDistinctFlowRecordsForSameFinding()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fakeRuns = new RecordingEngineerRuns();
+
+        await using var os = await JourneyOS.Start(
+            NeuronRuntimeKind.TestOS,
+            LoopModules,
+            f => f.Friends().Postgres().Configure(s => s.AddSingleton<IEngineerRuns>(fakeRuns)),
+            ct);
+        var ada = os.Person("ada");
+
+        var findingsTableId = new NeuronId(ada.Brain, "storage", "loop-findings");
+        var installs = ada.Get<IInstalls>(new NeuronId(ada.Brain, "synapse.installs", "default"));
+        await installs.BindComponent(
+            new ComponentId("loop.self-improvement"),
+            [new Binding("findingsLog", new BindingTarget.Local(findingsTableId))],
+            ct);
+
+        var loop = ada.Get<ISelfImprovementLoop>(
+            new NeuronId(ada.Brain, "loop.self-improvement", ISelfImprovementLoop.DefaultKey));
+        await loop.ConfigureBudget(new LoopBudget(RunsPerDay: 10, TokensPerRun: 10_000, AttemptsPerFinding: 2, KillSwitch: false), ct);
+
+        // First attempt (flow-1) fails, then receives a duplicate RecordOutcome delivery.
+        var first = await loop.RunCycle(new LoopCycleRequest(
+            Findings: [new LoopFinding("fact:RetryTarget", "fact", "RetryTarget", "broken")]), ct);
+        Assert.True(first.Dispatched);
+
+        var firstOutcome = await loop.RecordOutcome("fact:RetryTarget", first.FlowId!, succeeded: false, detail: "Attempt 1 failed", tokensUsed: 500, ct);
+        var duplicateOutcome = await loop.RecordOutcome("fact:RetryTarget", first.FlowId!, succeeded: false, detail: "Duplicate delivery", tokensUsed: 500, ct);
+
+        Assert.NotNull(firstOutcome);
+        Assert.NotNull(duplicateOutcome);
+        Assert.Equal(500, duplicateOutcome!.TokensUsed);
+        Assert.Equal("Attempt 1 failed", duplicateOutcome.OutcomeDetail);
+
+        // Must NOT be parked after a single failure with duplicate delivery (AttemptsPerFinding == 2).
+        var afterDuplicate = await loop.Inspect(ct);
+        Assert.DoesNotContain("fact:RetryTarget", afterDuplicate.ParkedFindingKeys);
+
+        // Second attempt (flow-2) for the same finding succeeds and must preserve flow-1 in history.
+        var second = await loop.RunCycle(new LoopCycleRequest(
+            Findings: [new LoopFinding("fact:RetryTarget", "fact", "RetryTarget", "broken")]), ct);
+        Assert.True(second.Dispatched);
+        Assert.NotEqual(first.FlowId, second.FlowId);
+
+        await loop.RecordOutcome("fact:RetryTarget", second.FlowId!, succeeded: true, detail: "Attempt 2 fixed", tokensUsed: 300, ct);
+
+        var finalSnapshot = await loop.Inspect(ct);
+        Assert.Equal(2, finalSnapshot.RecentRuns.Length);
+        Assert.Contains(finalSnapshot.RecentRuns, r => r.FlowId == first.FlowId && r.Status == "failed" && r.TokensUsed == 500);
+        Assert.Contains(finalSnapshot.RecentRuns, r => r.FlowId == second.FlowId && r.Status == "completed" && r.TokensUsed == 300);
+    }
+
+    [Fact]
+    public async Task RunCycle_ChargesDailyBudgetFailClosedWhenStartEngineerRunThrows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fakeRuns = new RecordingEngineerRuns { ThrowOnStart = true };
+
+        await using var os = await JourneyOS.Start(
+            NeuronRuntimeKind.TestOS,
+            LoopModules,
+            f => f.Friends().Postgres().Configure(s => s.AddSingleton<IEngineerRuns>(fakeRuns)),
+            ct);
+        var ada = os.Person("ada");
+
+        var findingsTableId = new NeuronId(ada.Brain, "storage", "loop-findings");
+        var installs = ada.Get<IInstalls>(new NeuronId(ada.Brain, "synapse.installs", "default"));
+        await installs.BindComponent(
+            new ComponentId("loop.self-improvement"),
+            [new Binding("findingsLog", new BindingTarget.Local(findingsTableId))],
+            ct);
+
+        var loop = ada.Get<ISelfImprovementLoop>(
+            new NeuronId(ada.Brain, "loop.self-improvement", ISelfImprovementLoop.DefaultKey));
+        await loop.ConfigureBudget(new LoopBudget(RunsPerDay: 1, TokensPerRun: 10_000, AttemptsPerFinding: 3, KillSwitch: false), ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => loop.RunCycle(new LoopCycleRequest(
+            Findings: [new LoopFinding("fact:Crash", "fact", "Crash", "dispatch explodes")]), ct));
+
+        var afterCrash = await loop.Inspect(ct);
+        Assert.Equal(1, afterCrash.RunsToday);
+        Assert.Equal(0, afterCrash.ActiveRunCount);
+        var failedRun = Assert.Single(afterCrash.RecentRuns);
+        Assert.Equal("failed", failedRun.Status);
+
+        // Even if StartEngineerRun recovers, the daily cap (1/1) remains charged fail-closed.
+        fakeRuns.ThrowOnStart = false;
+        var blocked = await loop.RunCycle(new LoopCycleRequest(
+            Findings: [new LoopFinding("fact:Next", "fact", "Next", "should be refused")]), ct);
+        Assert.False(blocked.Dispatched);
+        Assert.Equal(LoopBudgetExceededException.DailyBudgetCode, blocked.Status);
+    }
+
     private sealed class RecordingEngineerRuns : IEngineerRuns
     {
         private readonly List<EngineerDelegationRequest> _requests = [];
         private int _seq;
 
+        public bool ThrowOnStart { get; set; }
+
         public IReadOnlyList<EngineerDelegationRequest> StartedRequests => _requests;
 
         public Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
         {
+            if (ThrowOnStart)
+            {
+                throw new InvalidOperationException("Simulated StartEngineerRun transport timeout.");
+            }
+
             var id = Interlocked.Increment(ref _seq);
             lock (_requests)
             {
