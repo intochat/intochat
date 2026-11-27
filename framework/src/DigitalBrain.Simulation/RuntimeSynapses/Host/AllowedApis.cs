@@ -131,10 +131,11 @@ internal static class AllowedApis
         // <PrivateImplementationDetails>; every other member is refused below, and those four only pass from there (CompilerOnly).
         "System.Runtime.CompilerServices.Unsafe",
 
-        // Emitted on every Debug build (assembly attribute, DebuggerBrowsable on record members); they describe code only.
+        // Emitted on every Debug build (assembly attribute, DebuggerBrowsable/DebuggerDisplay on compiler-generated members); they describe code only.
         "System.Diagnostics.DebuggableAttribute",
         "System.Diagnostics.DebuggerBrowsableAttribute",
         "System.Diagnostics.DebuggerBrowsableState",
+        "System.Diagnostics.DebuggerDisplayAttribute",
         "System.Diagnostics.DebuggerHiddenAttribute",
         "System.Diagnostics.DebuggerStepThroughAttribute",
         "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute",
