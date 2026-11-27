@@ -16,17 +16,17 @@
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
-    <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
-    <PackageVersion Include="Grpc.AspNetCore.Web" Version="2.84.0" />
-    <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
-    <PackageVersion Include="Grpc.Net.Client.Web" Version="2.84.0" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.85.0" />
+    <PackageVersion Include="Grpc.AspNetCore.Web" Version="2.85.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.85.0" />
+    <PackageVersion Include="Grpc.Net.Client.Web" Version="2.85.0" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="17.11.48" />
     <PackageVersion Include="Microsoft.NET.StringTools" Version="18.11.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.12.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
   </ItemGroup>
@@ -73,7 +73,7 @@
     <PackageVersion Include="Microsoft.Extensions.AI" Version="11.0.1" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="11.0.1" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="11.0.1" />
-    <PackageVersion Include="Anthropic" Version="13.9.0" />
+    <PackageVersion Include="Anthropic" Version="13.14.0" />
     <PackageVersion Include="OpenAI" Version="2.15.0" />
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.28.0" />
     <PackageVersion Include="Microsoft.Agents.AI.Hosting.AGUI.AspNetCore" Version="1.28.0-preview.261106.1" />
@@ -82,7 +82,7 @@
     <PackageVersion Include="Microsoft.Agents.AI.Hosting" Version="1.28.0-preview.261106.1" />
     <PackageVersion Include="Microsoft.Agents.AI.Hosting.OpenAI" Version="1.28.0-alpha.261106.1" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.65.1" />
-    <PackageVersion Include="OllamaSharp" Version="5.5.0" />
+    <PackageVersion Include="OllamaSharp" Version="5.5.2" />
     <PackageVersion Include="OpenTelemetry.Api" Version="1.21.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.21.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.21.0" />
@@ -99,20 +99,20 @@
     <PackageVersion Include="Microsoft.Orleans.Server" Version="10.4.2" />
     <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.4.2" />
     <PackageVersion Include="Microsoft.AI.Foundry.Local" Version="2.5.0" />
-    <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />
-    <PackageVersion Include="Concentus" Version="2.2.2" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="2.0.3" />
+    <PackageVersion Include="Concentus" Version="2.2.3" />
     <PackageVersion Include="Concentus.Oggfile" Version="1.0.7" />
     <PackageVersion Include="NAudio" Version="3.3.0" />
     <PackageVersion Include="NLayer" Version="3.0.1" />
     <PackageVersion Include="MimeKit" Version="4.18.2" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.4" />
+    <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.5" />
     <PackageVersion Include="CsCheck" Version="5.0.1" />
-    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.2" />
-    <PackageVersion Include="Microsoft.TemplateEngine.Authoring.Tasks" Version="11.0.100-rc.1.26425.128" />
-    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
-    <PackageVersion Include="xunit.v3.assert" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.3" />
+    <PackageVersion Include="Microsoft.TemplateEngine.Authoring.Tasks" Version="11.0.100" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.3" />
     <!-- Restored, never referenced for assemblies: hosted tests read DCP and dashboard paths
          out of these packages because they build the Aspire model without an AppHost project. -->
     <PackageVersion Include="Aspire.Hosting.Orchestration.win-x64" Version="$(AspireVersion)" />
