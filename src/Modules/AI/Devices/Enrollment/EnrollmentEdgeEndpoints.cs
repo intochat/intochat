@@ -37,7 +37,10 @@ internal static class EnrollmentEdgeEndpoints
         catch (JsonException) { return Results.BadRequest(); }
         if (request is null || string.IsNullOrWhiteSpace(request.BrainId)) { return Results.BadRequest(); }
 
-        var brain = new BrainId(request.BrainId.Trim());
+        var brainId = request.BrainId.Trim();
+        if (!BrainId.IsValid(brainId)) { return Results.BadRequest(); }
+
+        var brain = new BrainId(brainId);
         var now = http.RequestServices.GetService<TimeProvider>()?.GetUtcNow() ?? DateTimeOffset.UtcNow;
         var code = await AsDevicesModule(http, brain, static enrollment => enrollment.Mint());
         return Results.Json(new MintResponse(code.Value, now + Code.Validity), EnrollmentEdgeJson.Default.MintResponse);

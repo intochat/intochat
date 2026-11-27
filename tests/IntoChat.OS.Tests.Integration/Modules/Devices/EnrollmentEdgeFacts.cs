@@ -122,8 +122,13 @@ public sealed class EnrollmentEdgeFacts(CloudEdgeHost os) : IClassFixture<CloudE
         using var wrongOp = await os.SendAssertedAsync(EnrollmentEdge.RedeemOperation, HttpMethod.Post, EnrollmentEdge.Mint, mintBody);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongOp.StatusCode);
 
+        Assert.Equal("devices.enrollment.mint", EnrollmentEdge.MintOperation);
+
         using var blankBrain = await os.SendAssertedAsync(EnrollmentEdge.MintOperation, HttpMethod.Post, EnrollmentEdge.Mint, Body(new MintRequest("   ")));
         Assert.Equal(HttpStatusCode.BadRequest, blankBrain.StatusCode);
+
+        using var invalidBrain = await os.SendAssertedAsync(EnrollmentEdge.MintOperation, HttpMethod.Post, EnrollmentEdge.Mint, Body(new MintRequest("invalid/brain")));
+        Assert.Equal(HttpStatusCode.BadRequest, invalidBrain.StatusCode);
 
         using var minted = await os.SendAssertedAsync(EnrollmentEdge.MintOperation, HttpMethod.Post, EnrollmentEdge.Mint, mintBody);
         Assert.Equal(HttpStatusCode.OK, minted.StatusCode);

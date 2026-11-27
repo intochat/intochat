@@ -180,6 +180,7 @@ public sealed class RelayDeviceChatRouteFacts
         Assert.Equal(2, relay.Requests.Count);
         foreach (var req in relay.Requests)
         {
+            Assert.Equal(ServiceAssertion.Scheme, req.Scheme);
             Assert.Equal("", req.Proof);
             Assert.False(string.IsNullOrWhiteSpace(req.Bearer));
             var verified = ServiceAssertion.Verify(req.Bearer, issuer => issuer == "os.test.intochat.io" ? (signingKey, "https://relay.test") : null, clock);
@@ -240,7 +241,7 @@ public sealed class RelayDeviceChatRouteFacts
         }
     }
 
-    internal sealed record Seen(string Method, string Path, string Query, string? Bearer, string Proof, string Body);
+    internal sealed record Seen(string Method, string Path, string Query, string? Scheme, string? Bearer, string Proof, string Body);
 
     internal sealed class FakeRelay : HttpMessageHandler
     {
@@ -253,7 +254,7 @@ public sealed class RelayDeviceChatRouteFacts
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
-            Requests.Add(new Seen(request.Method.Method, request.RequestUri!.AbsolutePath, request.RequestUri.Query, request.Headers.Authorization?.Parameter,
+            Requests.Add(new Seen(request.Method.Method, request.RequestUri!.AbsolutePath, request.RequestUri.Query, request.Headers.Authorization?.Scheme, request.Headers.Authorization?.Parameter,
                 request.Headers.TryGetValues(CircleRoutes.MachineProofHeader, out var proof) ? proof.Single() : "", body));
             if (request.RequestUri.AbsolutePath == DeviceRoutes.Catalog)
             {

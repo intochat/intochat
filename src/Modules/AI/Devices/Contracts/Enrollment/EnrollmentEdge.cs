@@ -17,7 +17,7 @@ public static class EnrollmentEdge
     // POST, body MintRequest: mints a single-use enrollment code for the named brain (1-click Cloud link flow).
     public const string Mint = "/devices/enrollment/mint";
 
-    public const string MintOperation = "device-enrollment-mint";
+    public const string MintOperation = "devices.enrollment.mint";
 
     // GET: the brain's enrolled devices (EnrolledDevice[]).
     public const string List = "/brains/{brainId}/devices/enrollment";

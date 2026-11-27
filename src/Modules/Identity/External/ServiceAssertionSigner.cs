@@ -133,6 +133,11 @@ internal sealed partial class ServiceAssertionSigner : IServiceAssertionSigner, 
                 throw new CryptographicException($"Expected P-256 key, got {key.KeySize}-bit key.");
             }
 
+            if (!string.Equals(key.ExportParameters(false).Curve.Oid?.Value, ECCurve.NamedCurves.nistP256.Oid.Value, StringComparison.Ordinal))
+            {
+                throw new CryptographicException("Expected P-256 (nistP256) key.");
+            }
+
             return key;
         }
         catch

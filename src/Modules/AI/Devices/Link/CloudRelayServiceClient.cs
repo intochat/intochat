@@ -3,13 +3,14 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Devices.Link;
 
 /// <summary>
 /// Multi-tenant HTTP client for Hosted Cloud OS -&gt; cloud <c>/circle/v1/compute/*</c> relay calls.
-/// Authenticates each request with a short-lived ES256 <c>ServiceAssertion</c> JWT (<c>Authorization: Bearer &lt;jwt&gt;</c>)
+/// Authenticates each request with a short-lived ES256 <c>ServiceAssertion</c> JWT (<c>Authorization: Service &lt;jwt&gt;</c>)
 /// scoped to the target <c>brainId</c> (<c>purpose: "circle-compute-dispatch"</c>), used when the host has no
 /// single-machine <c>devices/link.bin</c> credential.
 /// </summary>
@@ -103,7 +104,7 @@ internal sealed class CloudRelayServiceClient(HttpClient http, IServiceAssertion
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
         }
 
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Authorization = new AuthenticationHeaderValue(ServiceAssertion.Scheme, token);
         return request;
     }
 

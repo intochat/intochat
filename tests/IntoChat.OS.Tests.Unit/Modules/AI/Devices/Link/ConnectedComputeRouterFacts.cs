@@ -314,7 +314,7 @@ public sealed class ConnectedComputeRouterFacts
         Assert.Equal(3, seenAuth.Count); // ListNodes refresh + Probe + Dispatch
         foreach (var call in seenAuth)
         {
-            Assert.Equal("Bearer", call.Scheme);
+            Assert.Equal(ServiceAssertion.Scheme, call.Scheme);
             Assert.False(call.HasProof);
             var claims = ServiceAssertion.Verify(call.Token, issuer => issuer == "os.test.intochat.io" ? (signingKey, "https://cloud.test") : null, clock);
             Assert.NotNull(claims);
