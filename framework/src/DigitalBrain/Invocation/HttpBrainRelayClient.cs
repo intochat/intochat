@@ -5,8 +5,9 @@ using System.Text.Json;
 namespace DigitalBrain.Invocation;
 
 /// <summary>
-/// HTTP client for relaying sealed <see cref="BrainEnvelope"/> messages through a circle relay endpoint
-/// and polling for incoming envelopes to dispatch through a local <see cref="BrainEnvelopeReceiver"/>.
+/// HTTP client for relaying sealed <see cref="BrainEnvelope"/> messages through a circle relay endpoint,
+/// polling for incoming envelopes to dispatch through a local <see cref="BrainEnvelopeReceiver"/>,
+/// and exchanging self-signed <see cref="FriendCodeBundle"/> payloads over <c>/circle/v1/friends/codes/*</c>.
 /// </summary>
 public sealed class HttpBrainRelayClient
 {
@@ -14,16 +15,20 @@ public sealed class HttpBrainRelayClient
     private const string NextPath = "/circle/v1/brains/next";
     private const string ReplyPath = "/circle/v1/brains/reply";
     private const string WaitReplyPrefix = "/circle/v1/brains/reply/";
+    private const string FriendCodesPrefix = "/circle/v1/friends/codes/";
+    private const string FriendCodesPublishPath = "/circle/v1/friends/codes/publish";
 
     private readonly HttpClient _http;
     private readonly string _basePrefix;
     private readonly Func<HttpRequestMessage, CancellationToken, ValueTask>? _authorize;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Creates a relay client targeting <paramref name="relayBaseUri"/>.</summary>
     public HttpBrainRelayClient(
         HttpClient http,
         Uri relayBaseUri,
-        Func<HttpRequestMessage, CancellationToken, ValueTask>? authorize = null)
+        Func<HttpRequestMessage, CancellationToken, ValueTask>? authorize = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(relayBaseUri);
@@ -31,6 +36,20 @@ public sealed class HttpBrainRelayClient
         _http = http;
         _basePrefix = relayBaseUri.AbsoluteUri.TrimEnd('/');
         _authorize = authorize;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    /// <summary>
+    /// Posts a one-way <paramref name="envelope"/> to the relay without waiting for a reply.
+    /// Compatible with <see cref="SealedRelayBrainTransport"/>'s one-way post delegate.
+    /// </summary>
+    public async Task SendOneWayAsync(BrainEnvelope envelope, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentException.ThrowIfNullOrEmpty(envelope.MessageId);
+
+        var oneWayEnvelope = envelope.OneWay ? envelope : envelope with { OneWay = true };
+        await PostEnvelopeAsync(SendPath, oneWayEnvelope, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -66,7 +85,8 @@ public sealed class HttpBrainRelayClient
 
     /// <summary>
     /// Polls the relay once for the next incoming envelope, delivers it to <paramref name="receiver"/>,
-    /// and posts the resulting sealed reply back to the relay. Returns <see langword="false"/> on <c>204 No Content</c>.
+    /// and posts the resulting sealed reply back to the relay unless the envelope is <see cref="BrainEnvelope.OneWay"/>.
+    /// Returns <see langword="false"/> on <c>204 No Content</c>.
     /// </summary>
     public async Task<bool> PollOnceAsync(BrainEnvelopeReceiver receiver, CancellationToken ct = default)
     {
@@ -84,7 +104,11 @@ public sealed class HttpBrainRelayClient
         response.EnsureSuccessStatusCode();
         var incoming = await ReadEnvelopeAsync(response, ct).ConfigureAwait(false);
         var reply = await receiver.DeliverAsync(incoming, ct).ConfigureAwait(false);
-        await PostEnvelopeAsync(ReplyPath, reply, ct).ConfigureAwait(false);
+        if (!incoming.OneWay)
+        {
+            await PostEnvelopeAsync(ReplyPath, reply, ct).ConfigureAwait(false);
+        }
+
         return true;
     }
 
@@ -106,6 +130,71 @@ public sealed class HttpBrainRelayClient
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // Clean exit on cancellation.
+        }
+    }
+
+    /// <summary>
+    /// Publishes a self-signed <see cref="FriendCodeBundle"/> to <c>POST /circle/v1/friends/codes/publish</c>.
+    /// Verifies the bundle self-signature locally before sending.
+    /// </summary>
+    public async Task PublishFriendCodeAsync(FriendCodeBundle bundle, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        FriendCodeBundleSigner.VerifyOrThrow(bundle, _timeProvider.GetUtcNow());
+
+        var payload = JsonSerializer.SerializeToUtf8Bytes(bundle, RuntimeJsonContext.Default.FriendCodeBundle);
+        using var content = new ByteArrayContent(payload);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_basePrefix + FriendCodesPublishPath))
+        {
+            Content = content,
+        };
+        await AuthorizeAsync(request, ct).ConfigureAwait(false);
+
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Resolves a <see cref="FriendCodeBundle"/> from <c>GET /circle/v1/friends/codes/{code}</c> and verifies
+    /// its self-signature before returning so the relay cannot MITM public keys.
+    /// Returns <see langword="null"/> when the code is not found (<c>404 Not Found</c>).
+    /// </summary>
+    public async Task<FriendCodeBundle?> ResolveFriendCodeAsync(string code, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_basePrefix + FriendCodesPrefix + Uri.EscapeDataString(code)));
+        await AuthorizeAsync(request, ct).ConfigureAwait(false);
+
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var bundle = await JsonSerializer.DeserializeAsync(stream, RuntimeJsonContext.Default.FriendCodeBundle, ct).ConfigureAwait(false)
+            ?? throw new InvalidDataException("Relay response contained a null FriendCodeBundle.");
+
+        FriendCodeBundleSigner.VerifyOrThrow(bundle, _timeProvider.GetUtcNow());
+        return bundle;
+    }
+
+    /// <summary>Revokes or consumes a published friend code via <c>DELETE /circle/v1/friends/codes/{code}</c>.</summary>
+    public async Task RevokeFriendCodeAsync(string code, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(_basePrefix + FriendCodesPrefix + Uri.EscapeDataString(code)));
+        await AuthorizeAsync(request, ct).ConfigureAwait(false);
+
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode != HttpStatusCode.NotFound)
+        {
+            response.EnsureSuccessStatusCode();
         }
     }
 

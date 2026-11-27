@@ -35,6 +35,7 @@ public static class KernelPlatformHosting
         services.TryAddSingleton<BrainStorageKeys>();
         services.AddGrpc();
         services.TryAddSingleton<NeuronSurface>();
+        services.AddKernelBrainRelayTransport();
     }
 
     public static IEndpointRouteBuilder MapKernelPlatform(this IEndpointRouteBuilder endpoints)
