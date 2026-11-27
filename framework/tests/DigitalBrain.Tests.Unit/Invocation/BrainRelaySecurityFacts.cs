@@ -31,34 +31,41 @@ public sealed class BrainRelaySecurityFacts
         using var aliceKeys = BrainKeyPair.Generate();
         using var attackerKeys = BrainKeyPair.Generate();
         var now = new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero);
+        var expiresAt = now.AddHours(24);
 
         var bundle = FriendCodeBundleSigner.Sign(
-            code: "ABCD-EFGH",
+            codeHash: "hash-abcd-efgh",
             brainId: new BrainId("alice"),
-            displayName: "Alice",
-            relayEndpoint: "https://cloud.example/circle/v1",
             keys: aliceKeys,
-            issuedAtUtc: now,
-            expiresAtUtc: now.AddHours(24));
+            expiresAt: expiresAt,
+            relayOrigin: "https://cloud.example");
+
+        var canonical = FriendCodeBundleSigner.BuildCanonicalPayload(
+            bundle.CodeHash,
+            bundle.BrainId,
+            bundle.SigningPublicKey,
+            bundle.ExchangePublicKey,
+            expiresAt);
+        Assert.StartsWith("intochat-friend-code-v1\nalice\n", canonical, StringComparison.Ordinal);
+        Assert.EndsWith($"\nhash-abcd-efgh\n{expiresAt.ToUnixTimeSeconds()}", canonical, StringComparison.Ordinal);
 
         Assert.True(FriendCodeBundleSigner.Verify(bundle, now));
         Assert.True(FriendCodeBundleSigner.Verify(bundle, now.AddHours(12)));
 
         // Expired bundle rejected.
-        Assert.False(FriendCodeBundleSigner.Verify(bundle, now.AddHours(24).AddSeconds(1)));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle, expiresAt.AddSeconds(1)));
 
-        // Tampered code, brain ID, display name, relay endpoint, public keys, timestamps, or signature -> rejected.
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { Code = "XXXX-YYYY" }, now));
+        // Tampered codeHash, brainId, public keys, expiry, or signature -> rejected.
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { CodeHash = "hash-xxxx-yyyy" }, now));
         Assert.False(FriendCodeBundleSigner.Verify(bundle with { BrainId = new BrainId("mallory") }, now));
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { DisplayName = "Mallory" }, now));
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { RelayEndpoint = "https://evil.example" }, now));
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { PublicKeys = attackerKeys.ExportPublicKeys() }, now));
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { ExpiresAtUtc = now.AddHours(48) }, now));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { SigningPublicKey = attackerKeys.ExportPublicKeys().SigningKey }, now));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { ExchangePublicKey = attackerKeys.ExportPublicKeys().ExchangeKey }, now));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { ExpiresAt = now.AddHours(48) }, now));
 
-        var badSig = (byte[])bundle.Signature.Clone();
+        var badSig = (byte[])bundle.SelfSignature.Clone();
         badSig[0] ^= 0xFF;
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { Signature = badSig }, now));
-        Assert.Throws<CryptographicException>(() => FriendCodeBundleSigner.VerifyOrThrow(bundle with { Signature = badSig }, now));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { SelfSignature = badSig }, now));
+        Assert.Throws<CryptographicException>(() => FriendCodeBundleSigner.VerifyOrThrow(bundle with { SelfSignature = badSig }, now));
     }
 
     [Fact]
@@ -282,41 +289,87 @@ public sealed class BrainRelaySecurityFacts
     }
 
     [Fact]
-    public async Task HttpBrainRelayClientVerifiesFriendCodeBundleAndRejectsRelayMitm()
+    public async Task HttpBrainRelayClientVerifiesFriendCodeBundleAndAcksOneWayLeasedEnvelopes()
     {
         var ct = TestContext.Current.CancellationToken;
         var now = new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero);
         var clock = new FixedTimeProvider(now);
         using var aliceKeys = BrainKeyPair.Generate();
+        using var bobKeys = BrainKeyPair.Generate();
         using var mitmKeys = BrainKeyPair.Generate();
 
         var honestBundle = FriendCodeBundleSigner.Sign(
-            "JOIN-1234",
-            new BrainId("alice"),
-            "Alice",
-            "https://relay.example",
-            aliceKeys,
-            now,
-            now.AddHours(24));
+            codeHash: "hash-join-1234",
+            brainId: new BrainId("alice"),
+            keys: aliceKeys,
+            expiresAt: now.AddHours(24),
+            relayOrigin: "https://relay.example");
 
         var tamperMode = false;
+        string? ackedPath = null;
+        string? ackedLeaseId = null;
+
+        var oneWayRequest = new RemoteInvocationRequest(
+            new NeuronId(new BrainId("alice"), "facts.transport.note", "n1"),
+            new RuntimeInvocation(Behavior: string.Empty, Contract: "facts.transport.note", Key: "alice/facts.transport.note/n1", Method: nameof(IRemoteSecretNote.Write), Arguments: [JsonSerializer.SerializeToElement("hi", RuntimeProtocol.Json)]),
+            "bob",
+            "bob",
+            new BrainId("bob"),
+            OneWay: true);
+        var oneWayEnvelope = BrainEnvelopeSealer.Seal(
+            new BrainId("bob"),
+            new BrainId("alice"),
+            "msg-oneway-ack-1",
+            JsonSerializer.SerializeToUtf8Bytes(oneWayRequest, RuntimeProtocol.Json),
+            bobKeys,
+            aliceKeys.ExportPublicKeys(),
+            sentAtUtc: now,
+            oneWay: true);
+
         using var handler = new StubHttpMessageHandler((request, _) =>
         {
-            if (request.Method == HttpMethod.Post && request.RequestUri?.AbsolutePath == "/circle/v1/friends/codes/publish")
+            if (request.Method == HttpMethod.Post && request.RequestUri?.AbsolutePath == "/circle/v1/friends/codes")
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
             }
 
-            if (request.Method == HttpMethod.Get && request.RequestUri?.AbsolutePath == "/circle/v1/friends/codes/JOIN-1234")
+            if (request.Method == HttpMethod.Post && request.RequestUri?.AbsolutePath == "/circle/v1/friends/codes/resolve")
             {
-                var returned = tamperMode
-                    ? honestBundle with { PublicKeys = mitmKeys.ExportPublicKeys() }
-                    : honestBundle;
-                var json = JsonSerializer.Serialize(returned, RuntimeJsonContext.Default.FriendCodeBundle);
+                var returned = new ResolveFriendCodeResponse(
+                    BrainId: honestBundle.BrainId,
+                    SigningPublicKey: tamperMode ? mitmKeys.ExportPublicKeys().SigningKey : honestBundle.SigningPublicKey,
+                    ExchangePublicKey: honestBundle.ExchangePublicKey,
+                    SelfSignature: honestBundle.SelfSignature,
+                    RelayOrigin: honestBundle.RelayOrigin,
+                    ExpiresAt: honestBundle.ExpiresAt);
+                var json = JsonSerializer.Serialize(returned, RuntimeJsonContext.Default.ResolveFriendCodeResponse);
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent(json, Encoding.UTF8, "application/json"),
                 });
+            }
+
+            if (request.Method == HttpMethod.Delete && request.RequestUri?.AbsolutePath == "/circle/v1/friends/codes/hash-join-1234")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            }
+
+            if (request.Method == HttpMethod.Get && request.RequestUri?.AbsolutePath == "/circle/v1/brains/next")
+            {
+                var json = JsonSerializer.Serialize(oneWayEnvelope, RuntimeJsonContext.Default.BrainEnvelope);
+                var resp = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json"),
+                };
+                resp.Headers.TryAddWithoutValidation("X-Brain-Lease-Id", "lease-42");
+                return Task.FromResult(resp);
+            }
+
+            if (request.Method == HttpMethod.Post && request.RequestUri?.AbsolutePath == "/circle/v1/brains/ack/msg-oneway-ack-1")
+            {
+                ackedPath = request.RequestUri.AbsolutePath;
+                ackedLeaseId = request.Headers.TryGetValues("X-Brain-Lease-Id", out var vals) ? vals.FirstOrDefault() : null;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
             }
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -327,14 +380,32 @@ public sealed class BrainRelaySecurityFacts
 
         await client.PublishFriendCodeAsync(honestBundle, ct);
 
-        var resolved = await client.ResolveFriendCodeAsync("JOIN-1234", ct);
+        var resolved = await client.ResolveFriendCodeAsync("hash-join-1234", ct);
         Assert.NotNull(resolved);
         Assert.Equal("alice", resolved.BrainId.Value);
-        Assert.True(resolved.PublicKeys.Matches(aliceKeys.ExportPublicKeys()));
+        Assert.True(resolved.ToPublicKeys().Matches(aliceKeys.ExportPublicKeys()));
 
         // Relay attempts MITM by swapping public keys -> client rejects with CryptographicException!
         tamperMode = true;
-        await Assert.ThrowsAsync<CryptographicException>(() => client.ResolveFriendCodeAsync("JOIN-1234", ct));
+        await Assert.ThrowsAsync<CryptographicException>(() => client.ResolveFriendCodeAsync("hash-join-1234", ct));
+
+        await client.RevokeFriendCodeAsync("hash-join-1234", ct);
+
+        // OneWay leased envelope triggers explicit POST /circle/v1/brains/ack/{messageId} with X-Brain-Lease-Id.
+        await using var aliceOS = TestOS.Local();
+        aliceOS.Register<RemoteSecretNoteNeuron>();
+        var receiver = new BrainEnvelopeReceiver(
+            new BrainId("alice"),
+            aliceKeys,
+            brain => brain == new BrainId("bob") ? bobKeys.ExportPublicKeys() : null,
+            aliceOS.Edge,
+            (target, call, token) => aliceOS.InvokeLocalAsync(target, call, token),
+            (target, call) => aliceOS.PostLocalAsync(target, call),
+            clock: clock);
+
+        Assert.True(await client.PollOnceAsync(receiver, ct));
+        Assert.Equal("/circle/v1/brains/ack/msg-oneway-ack-1", ackedPath);
+        Assert.Equal("lease-42", ackedLeaseId);
     }
 
     private sealed class StubHttpMessageHandler(

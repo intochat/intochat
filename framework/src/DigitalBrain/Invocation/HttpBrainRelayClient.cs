@@ -15,8 +15,11 @@ public sealed class HttpBrainRelayClient
     private const string NextPath = "/circle/v1/brains/next";
     private const string ReplyPath = "/circle/v1/brains/reply";
     private const string WaitReplyPrefix = "/circle/v1/brains/reply/";
+    private const string AckPrefix = "/circle/v1/brains/ack/";
+    private const string LeaseIdHeader = "X-Brain-Lease-Id";
+    private const string FriendCodesPath = "/circle/v1/friends/codes";
+    private const string FriendCodesResolvePath = "/circle/v1/friends/codes/resolve";
     private const string FriendCodesPrefix = "/circle/v1/friends/codes/";
-    private const string FriendCodesPublishPath = "/circle/v1/friends/codes/publish";
 
     private readonly HttpClient _http;
     private readonly string _basePrefix;
@@ -84,8 +87,26 @@ public sealed class HttpBrainRelayClient
     }
 
     /// <summary>
+    /// Explicitly acknowledges a leased envelope via <c>POST /circle/v1/brains/ack/{messageId}</c>.
+    /// </summary>
+    public async Task AckAsync(string messageId, string? leaseId = null, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(messageId);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_basePrefix + AckPrefix + Uri.EscapeDataString(messageId)));
+        if (!string.IsNullOrWhiteSpace(leaseId))
+        {
+            request.Headers.TryAddWithoutValidation(LeaseIdHeader, leaseId);
+        }
+
+        await AuthorizeAsync(request, ct).ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
     /// Polls the relay once for the next incoming envelope, delivers it to <paramref name="receiver"/>,
-    /// and posts the resulting sealed reply back to the relay unless the envelope is <see cref="BrainEnvelope.OneWay"/>.
+    /// and either posts the sealed reply back to the relay (implicit ack) or explicitly acks <see cref="BrainEnvelope.OneWay"/> envelopes.
     /// Returns <see langword="false"/> on <c>204 No Content</c>.
     /// </summary>
     public async Task<bool> PollOnceAsync(BrainEnvelopeReceiver receiver, CancellationToken ct = default)
@@ -102,11 +123,18 @@ public sealed class HttpBrainRelayClient
         }
 
         response.EnsureSuccessStatusCode();
+        string? leaseId = response.Headers.TryGetValues(LeaseIdHeader, out var leaseValues)
+            ? leaseValues.FirstOrDefault()
+            : null;
         var incoming = await ReadEnvelopeAsync(response, ct).ConfigureAwait(false);
         var reply = await receiver.DeliverAsync(incoming, ct).ConfigureAwait(false);
-        if (!incoming.OneWay)
+        if (incoming.OneWay)
         {
-            await PostEnvelopeAsync(ReplyPath, reply, ct).ConfigureAwait(false);
+            await AckAsync(incoming.MessageId, leaseId, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            await PostEnvelopeAsync(ReplyPath, reply, ct, leaseId).ConfigureAwait(false);
         }
 
         return true;
@@ -134,7 +162,7 @@ public sealed class HttpBrainRelayClient
     }
 
     /// <summary>
-    /// Publishes a self-signed <see cref="FriendCodeBundle"/> to <c>POST /circle/v1/friends/codes/publish</c>.
+    /// Publishes a self-signed <see cref="FriendCodeBundle"/> to <c>POST /circle/v1/friends/codes</c>.
     /// Verifies the bundle self-signature locally before sending.
     /// </summary>
     public async Task PublishFriendCodeAsync(FriendCodeBundle bundle, CancellationToken ct = default)
@@ -146,7 +174,7 @@ public sealed class HttpBrainRelayClient
         using var content = new ByteArrayContent(payload);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_basePrefix + FriendCodesPublishPath))
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_basePrefix + FriendCodesPath))
         {
             Content = content,
         };
@@ -157,15 +185,22 @@ public sealed class HttpBrainRelayClient
     }
 
     /// <summary>
-    /// Resolves a <see cref="FriendCodeBundle"/> from <c>GET /circle/v1/friends/codes/{code}</c> and verifies
+    /// Resolves a <see cref="FriendCodeBundle"/> via <c>POST /circle/v1/friends/codes/resolve</c> and verifies
     /// its self-signature before returning so the relay cannot MITM public keys.
-    /// Returns <see langword="null"/> when the code is not found (<c>404 Not Found</c>).
+    /// Returns <see langword="null"/> when the code hash is not found (<c>404 Not Found</c>).
     /// </summary>
-    public async Task<FriendCodeBundle?> ResolveFriendCodeAsync(string code, CancellationToken ct = default)
+    public async Task<FriendCodeBundle?> ResolveFriendCodeAsync(string codeHash, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_basePrefix + FriendCodesPrefix + Uri.EscapeDataString(code)));
+        var body = JsonSerializer.SerializeToUtf8Bytes(new ResolveFriendCodeRequest(codeHash), RuntimeJsonContext.Default.ResolveFriendCodeRequest);
+        using var content = new ByteArrayContent(body);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_basePrefix + FriendCodesResolvePath))
+        {
+            Content = content,
+        };
         await AuthorizeAsync(request, ct).ConfigureAwait(false);
 
         using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
@@ -176,19 +211,28 @@ public sealed class HttpBrainRelayClient
 
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        var bundle = await JsonSerializer.DeserializeAsync(stream, RuntimeJsonContext.Default.FriendCodeBundle, ct).ConfigureAwait(false)
-            ?? throw new InvalidDataException("Relay response contained a null FriendCodeBundle.");
+        var resolved = await JsonSerializer.DeserializeAsync(stream, RuntimeJsonContext.Default.ResolveFriendCodeResponse, ct).ConfigureAwait(false)
+            ?? throw new InvalidDataException("Relay response contained a null ResolveFriendCodeResponse.");
+
+        var bundle = new FriendCodeBundle(
+            CodeHash: codeHash,
+            BrainId: resolved.BrainId,
+            SigningPublicKey: resolved.SigningPublicKey,
+            ExchangePublicKey: resolved.ExchangePublicKey,
+            SelfSignature: resolved.SelfSignature,
+            RelayOrigin: resolved.RelayOrigin,
+            ExpiresAt: resolved.ExpiresAt);
 
         FriendCodeBundleSigner.VerifyOrThrow(bundle, _timeProvider.GetUtcNow());
         return bundle;
     }
 
-    /// <summary>Revokes or consumes a published friend code via <c>DELETE /circle/v1/friends/codes/{code}</c>.</summary>
-    public async Task RevokeFriendCodeAsync(string code, CancellationToken ct = default)
+    /// <summary>Revokes or consumes a published friend code via <c>DELETE /circle/v1/friends/codes/{codeHash}</c>.</summary>
+    public async Task RevokeFriendCodeAsync(string codeHash, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
 
-        using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(_basePrefix + FriendCodesPrefix + Uri.EscapeDataString(code)));
+        using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(_basePrefix + FriendCodesPrefix + Uri.EscapeDataString(codeHash)));
         await AuthorizeAsync(request, ct).ConfigureAwait(false);
 
         using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
@@ -198,7 +242,7 @@ public sealed class HttpBrainRelayClient
         }
     }
 
-    private async Task PostEnvelopeAsync(string path, BrainEnvelope envelope, CancellationToken ct)
+    private async Task PostEnvelopeAsync(string path, BrainEnvelope envelope, CancellationToken ct, string? leaseId = null)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, RuntimeJsonContext.Default.BrainEnvelope);
         using var content = new ByteArrayContent(payload);
@@ -208,6 +252,11 @@ public sealed class HttpBrainRelayClient
         {
             Content = content,
         };
+        if (!string.IsNullOrWhiteSpace(leaseId))
+        {
+            request.Headers.TryAddWithoutValidation(LeaseIdHeader, leaseId);
+        }
+
         await AuthorizeAsync(request, ct).ConfigureAwait(false);
 
         using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);

@@ -14,6 +14,8 @@ namespace DigitalBrain.Invocation;
 [JsonSerializable(typeof(BrainEnvelope))]
 [JsonSerializable(typeof(BrainPublicKeys))]
 [JsonSerializable(typeof(FriendCodeBundle))]
+[JsonSerializable(typeof(ResolveFriendCodeRequest))]
+[JsonSerializable(typeof(ResolveFriendCodeResponse))]
 [JsonSerializable(typeof(BrainKeyRotationProof))]
 [JsonSerializable(typeof(RemoteInvocationRequest))]
 [JsonSerializable(typeof(RemoteInvocationResponse))]

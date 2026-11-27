@@ -117,9 +117,16 @@ public sealed class BrainRelayTransportKernelFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => crypto.DeriveSharedSecret(bobPublicKeys.ExchangeKey, ct));
         }
 
-        // 2. Pin each brain's public keys in the Kernel directory.
+        // 2. Pin each brain's public keys & account binding in the Kernel directory.
+        var kernelDirectory = provider.GetRequiredService<KernelBrainKeyDirectory>();
         await directory.PinAsync(aliceBrain, alicePublicKeys, ct);
         await directory.PinAsync(bobBrain, bobPublicKeys, ct);
+        kernelDirectory.PinAccount(bobBrain, "bob");
+
+        // Fail-closed verifyCallerAccount rejects spoofed accounts and accepts the bound account.
+        Assert.True(await kernelDirectory.VerifyCallerAccountAsync(bobBrain, "bob", ct));
+        Assert.False(await kernelDirectory.VerifyCallerAccountAsync(bobBrain, "alice", ct));
+        Assert.False(await kernelDirectory.VerifyCallerAccountAsync(new BrainId("unknown"), "bob", ct));
 
         // Silent key replacement for a pinned brain must fail closed.
         using var rogueKeys = BrainKeyPair.Generate();
@@ -134,7 +141,7 @@ public sealed class BrainRelayTransportKernelFacts
             await offers.Offer(echoId, "bob", Role.Viewer, ct);
         }
 
-        // 4. Wire BrainEnvelopeReceiver and SealedRelayBrainTransport using the Identity-backed IBrainKeySigner.
+        // 4. Wire BrainEnvelopeReceiver with non-null fail-closed verifyCallerAccount and SealedRelayBrainTransport.
         var receiver = new BrainEnvelopeReceiver(
             isLocalBrain: brain => brain == aliceBrain,
             signer: signer,
@@ -142,7 +149,8 @@ public sealed class BrainRelayTransportKernelFacts
             edge: os.Edge,
             invoke: os.InvokeLocalAsync,
             post: os.PostLocalAsync,
-            timeProvider: clock);
+            timeProvider: clock,
+            verifyCallerAccount: kernelDirectory.VerifyCallerAccountAsync);
 
         var captured = new List<BrainEnvelope>();
         var transport = new SealedRelayBrainTransport(

@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
@@ -8,6 +10,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,13 +48,87 @@ public sealed class BrainRelayOptions
 
 /// <summary>
 /// Kernel-owned pinned public key directory backed by an immutable in-memory pin store with optional read-through
-/// to the calling brain's durable <see cref="IFriends"/> roster.
+/// to the calling brain's durable <see cref="IFriends"/> roster, plus fail-closed sender brain-to-account binding
+/// for <see cref="BrainEnvelopeReceiver"/>'s <c>verifyCallerAccount</c> gate.
 /// </summary>
 public sealed class KernelBrainKeyDirectory(
     IServiceProvider services,
     ICallerAmbient? callers = null) : IBrainKeyDirectory
 {
     private readonly InMemoryPinnedBrainKeyDirectory _pins = new();
+    private readonly ConcurrentDictionary<string, string> _pinnedAccounts = new(StringComparer.Ordinal);
+    private readonly Lock _accountGate = new();
+
+    /// <summary>
+    /// Immutably pins the trusted <paramref name="accountId"/> for <paramref name="brainId"/> on handshake.
+    /// Idempotent for the same account; rejects silent account reassignment fail-closed.
+    /// </summary>
+    public void PinAccount(BrainId brainId, string accountId)
+    {
+        if (string.IsNullOrWhiteSpace(brainId.Value))
+        {
+            throw new ArgumentException("BrainId must be non-empty.", nameof(brainId));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+        lock (_accountGate)
+        {
+            if (_pinnedAccounts.TryGetValue(brainId.Value, out var existing))
+            {
+                if (!string.Equals(existing, accountId, StringComparison.Ordinal))
+                {
+                    throw new CryptographicException(
+                        $"Account for brain '{brainId.Value}' is already pinned and cannot be silently reassigned.");
+                }
+
+                return;
+            }
+
+            _pinnedAccounts[brainId.Value] = accountId;
+        }
+    }
+
+    /// <summary>
+    /// Fail-closed verification that <paramref name="callerAccount"/> is authorized for <paramref name="senderBrain"/>
+    /// according to pinned friend/owner bindings or durable <see cref="IBrainOwners"/> / <see cref="IFriends"/> state.
+    /// </summary>
+    public async ValueTask<bool> VerifyCallerAccountAsync(BrainId senderBrain, string callerAccount, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(senderBrain.Value) || string.IsNullOrWhiteSpace(callerAccount))
+        {
+            return false;
+        }
+
+        if (_pinnedAccounts.TryGetValue(senderBrain.Value, out var pinnedAccount))
+        {
+            return string.Equals(pinnedAccount, callerAccount, StringComparison.Ordinal);
+        }
+
+        if (services.GetService<IBrainOwners>() is { } owners)
+        {
+            var ownerAccount = await owners.OwnerAccount(senderBrain, ct).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(ownerAccount))
+            {
+                return string.Equals(ownerAccount, callerAccount, StringComparison.Ordinal);
+            }
+        }
+
+        var localBrain = callers?.Current?.Brain;
+        var proxies = services.GetService<INeuronProxies>();
+        if (localBrain is { IsSystem: false } active && !string.IsNullOrWhiteSpace(active.Value) && proxies is not null)
+        {
+            var friends = await proxies.Get<IFriends>(FriendsDefaults.Id(active.Value)).List().ConfigureAwait(false);
+            var match = friends.FirstOrDefault(friend => friend.Brain == senderBrain);
+            if (match is not null)
+            {
+                PinAccount(senderBrain, match.Account.Value);
+                return string.Equals(match.Account.Value, callerAccount, StringComparison.Ordinal);
+            }
+        }
+
+        // Fail closed when no trusted binding exists for the sender brain.
+        return false;
+    }
 
     /// <inheritdoc />
     public async ValueTask<BrainPublicKeys?> GetPinnedKeysAsync(BrainId brainId, CancellationToken ct = default)
@@ -82,6 +159,11 @@ public sealed class KernelBrainKeyDirectory(
         }
 
         await _pins.PinAsync(brainId, friendKeys, ct).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(match.Account.Value))
+        {
+            PinAccount(brainId, match.Account.Value);
+        }
+
         return friendKeys;
     }
 
@@ -199,8 +281,10 @@ public static class BrainRelayTransportHosting
             return new BrainEnvelopeReplayCache(capacity, skew + skew);
         });
 
-        services.TryAddSingleton<IBrainKeyDirectory>(static sp =>
+        services.TryAddSingleton<KernelBrainKeyDirectory>(static sp =>
             new KernelBrainKeyDirectory(sp, sp.GetService<ICallerAmbient>()));
+        services.TryAddSingleton<IBrainKeyDirectory>(static sp =>
+            sp.GetRequiredService<KernelBrainKeyDirectory>());
 
         services.TryAddSingleton<KernelBrainRelayClientProvider>(static sp =>
             new KernelBrainRelayClientProvider(
@@ -266,6 +350,7 @@ public static class BrainRelayTransportHosting
             var opts = sp.GetRequiredService<IOptions<BrainRelayOptions>>().Value;
             var signer = sp.GetRequiredService<IBrainKeySigner>();
             var directory = sp.GetRequiredService<IBrainKeyDirectory>();
+            var kernelDirectory = sp.GetService<KernelBrainKeyDirectory>();
             var edge = sp.GetRequiredService<EdgeAuthority>();
             var time = sp.GetService<TimeProvider>() ?? TimeProvider.System;
             var replayCache = sp.GetRequiredService<BrainEnvelopeReplayCache>();
@@ -281,6 +366,9 @@ public static class BrainRelayTransportHosting
                 post: (target, call) => PostLocalOrleansAsync(sp, target, call),
                 timeProvider: time,
                 maxClockSkew: skew,
+                verifyCallerAccount: kernelDirectory is not null
+                    ? kernelDirectory.VerifyCallerAccountAsync
+                    : static (_, _, _) => ValueTask.FromResult(false),
                 replayCache: replayCache);
         });
 

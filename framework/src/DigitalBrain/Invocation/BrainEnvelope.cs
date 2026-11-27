@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -36,18 +38,33 @@ public sealed record BrainEnvelope(
     bool OneWay = false);
 
 /// <summary>
-/// Self-signed friend-code rendezvous bundle published to <c>/circle/v1/friends/codes/*</c>.
-/// The signature covers the canonical bundle bytes under <see cref="PublicKeys"/> so an intermediate relay cannot MITM keys.
+/// Self-signed friend-code rendezvous bundle published to <c>POST /circle/v1/friends/codes</c>.
+/// The <see cref="SelfSignature"/> covers the canonical UTF-8 payload under <see cref="SigningPublicKey"/> so an intermediate relay cannot MITM keys.
 /// </summary>
 public sealed record FriendCodeBundle(
-    string Code,
+    string CodeHash,
     BrainId BrainId,
-    string DisplayName,
-    string RelayEndpoint,
-    BrainPublicKeys PublicKeys,
-    DateTimeOffset IssuedAtUtc,
-    DateTimeOffset ExpiresAtUtc,
-    byte[] Signature);
+    byte[] SigningPublicKey,
+    byte[] ExchangePublicKey,
+    byte[] SelfSignature,
+    string? RelayOrigin = null,
+    DateTimeOffset? ExpiresAt = null)
+{
+    /// <summary>Returns the bundle's public keys as a <see cref="BrainPublicKeys"/> value.</summary>
+    public BrainPublicKeys ToPublicKeys() => new(SigningPublicKey, ExchangePublicKey);
+}
+
+/// <summary>Request payload for <c>POST /circle/v1/friends/codes/resolve</c>.</summary>
+public sealed record ResolveFriendCodeRequest(string CodeHash);
+
+/// <summary>Response payload for <c>POST /circle/v1/friends/codes/resolve</c>.</summary>
+public sealed record ResolveFriendCodeResponse(
+    BrainId BrainId,
+    byte[] SigningPublicKey,
+    byte[] ExchangePublicKey,
+    byte[] SelfSignature,
+    string? RelayOrigin = null,
+    DateTimeOffset? ExpiresAt = null);
 
 /// <summary>
 /// Cryptographically signed proof authorizing a brain to rotate from <see cref="PreviousKeys"/> to <see cref="NewKeys"/>.
@@ -247,92 +264,96 @@ public sealed class BrainKeyPairSigner(BrainKeyPair keys) : IBrainKeySigner
 }
 
 /// <summary>
-/// Creates and verifies self-signed <see cref="FriendCodeBundle"/> payloads over canonical length-prefixed bytes.
+/// Creates and verifies self-signed <see cref="FriendCodeBundle"/> payloads over the canonical UTF-8 string:
+/// <c>"intochat-friend-code-v1\n{brainId}\n{Base64Url(signingPublicKey)}\n{Base64Url(exchangePublicKey)}\n{codeHash}\n{expiresAtUnixSeconds}"</c>.
 /// </summary>
 public static class FriendCodeBundleSigner
 {
-    private static ReadOnlySpan<byte> DomainSeparator => "DigitalBrain.FriendCodeBundle.v1"u8;
+    /// <summary>Canonical domain prefix for friend-code bundle self-signatures.</summary>
+    public const string DomainPrefix = "intochat-friend-code-v1";
 
     /// <summary>Signs a new <see cref="FriendCodeBundle"/> using <paramref name="keys"/>.</summary>
     public static FriendCodeBundle Sign(
-        string code,
+        string codeHash,
         BrainId brainId,
-        string displayName,
-        string relayEndpoint,
         BrainKeyPair keys,
-        DateTimeOffset issuedAtUtc,
-        DateTimeOffset expiresAtUtc)
+        DateTimeOffset expiresAt,
+        string? relayOrigin = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(code);
-        ArgumentException.ThrowIfNullOrWhiteSpace(relayEndpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
         ArgumentNullException.ThrowIfNull(keys);
 
         var publicKeys = keys.ExportPublicKeys();
-        var canonical = BuildCanonicalBytes(code, brainId, displayName ?? string.Empty, relayEndpoint, publicKeys, issuedAtUtc, expiresAtUtc);
+        var canonical = BuildCanonicalBytes(codeHash, brainId, publicKeys.SigningKey, publicKeys.ExchangeKey, expiresAt);
         var signature = keys.SigningKey.SignData(canonical, HashAlgorithmName.SHA256);
-        return new FriendCodeBundle(code, brainId, displayName ?? string.Empty, relayEndpoint, publicKeys, issuedAtUtc, expiresAtUtc, signature);
+        return new FriendCodeBundle(
+            CodeHash: codeHash,
+            BrainId: brainId,
+            SigningPublicKey: publicKeys.SigningKey,
+            ExchangePublicKey: publicKeys.ExchangeKey,
+            SelfSignature: signature,
+            RelayOrigin: relayOrigin,
+            ExpiresAt: expiresAt);
     }
 
     /// <summary>Signs a new <see cref="FriendCodeBundle"/> using a non-exportable <see cref="IBrainKeySigner"/>.</summary>
     public static async ValueTask<FriendCodeBundle> SignAsync(
-        string code,
+        string codeHash,
         BrainId brainId,
-        string displayName,
-        string relayEndpoint,
         IBrainKeySigner signer,
-        DateTimeOffset issuedAtUtc,
-        DateTimeOffset expiresAtUtc,
+        DateTimeOffset expiresAt,
+        string? relayOrigin = null,
         CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(code);
-        ArgumentException.ThrowIfNullOrWhiteSpace(relayEndpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
         ArgumentNullException.ThrowIfNull(signer);
 
         var publicKeys = await signer.GetPublicKeysAsync(brainId, ct).ConfigureAwait(false);
-        var canonical = BuildCanonicalBytes(code, brainId, displayName ?? string.Empty, relayEndpoint, publicKeys, issuedAtUtc, expiresAtUtc);
+        var canonical = BuildCanonicalBytes(codeHash, brainId, publicKeys.SigningKey, publicKeys.ExchangeKey, expiresAt);
         var signature = await signer.SignDataAsync(brainId, canonical, ct).ConfigureAwait(false);
-        return new FriendCodeBundle(code, brainId, displayName ?? string.Empty, relayEndpoint, publicKeys, issuedAtUtc, expiresAtUtc, signature);
+        return new FriendCodeBundle(
+            CodeHash: codeHash,
+            BrainId: brainId,
+            SigningPublicKey: publicKeys.SigningKey,
+            ExchangePublicKey: publicKeys.ExchangeKey,
+            SelfSignature: signature,
+            RelayOrigin: relayOrigin,
+            ExpiresAt: expiresAt);
     }
 
     /// <summary>
-    /// Verifies the bundle's required fields, optional expiration window, and self-signature under <see cref="FriendCodeBundle.PublicKeys"/>.
+    /// Verifies the bundle's required fields, optional expiration window, and self-signature under <see cref="FriendCodeBundle.SigningPublicKey"/>.
     /// </summary>
-    public static bool Verify(FriendCodeBundle? bundle, DateTimeOffset? nowUtc = null, TimeSpan? maxClockSkew = null)
+    public static bool Verify(FriendCodeBundle? bundle, DateTimeOffset? nowUtc = null)
     {
         if (bundle is null
-            || string.IsNullOrWhiteSpace(bundle.Code)
+            || string.IsNullOrWhiteSpace(bundle.CodeHash)
             || string.IsNullOrWhiteSpace(bundle.BrainId.Value)
-            || string.IsNullOrWhiteSpace(bundle.RelayEndpoint)
-            || bundle.PublicKeys is not { SigningKey.Length: > 0, ExchangeKey.Length: > 0 }
-            || bundle.Signature is not { Length: > 0 }
-            || bundle.ExpiresAtUtc <= bundle.IssuedAtUtc)
+            || bundle.SigningPublicKey is not { Length: > 0 }
+            || bundle.ExchangePublicKey is not { Length: > 0 }
+            || bundle.SelfSignature is not { Length: > 0 }
+            || bundle.ExpiresAt is not { } expiresAt)
         {
             return false;
         }
 
-        if (nowUtc is { } now)
+        if (nowUtc is { } now && now > expiresAt)
         {
-            var skew = maxClockSkew ?? BrainEnvelopeSealer.DefaultMaxClockSkew;
-            if (now > bundle.ExpiresAtUtc || bundle.IssuedAtUtc > now + skew)
-            {
-                return false;
-            }
+            return false;
         }
 
         try
         {
             var canonical = BuildCanonicalBytes(
-                bundle.Code,
+                bundle.CodeHash,
                 bundle.BrainId,
-                bundle.DisplayName ?? string.Empty,
-                bundle.RelayEndpoint,
-                bundle.PublicKeys,
-                bundle.IssuedAtUtc,
-                bundle.ExpiresAtUtc);
+                bundle.SigningPublicKey,
+                bundle.ExchangePublicKey,
+                expiresAt);
 
             using var verifier = ECDsa.Create();
-            verifier.ImportSubjectPublicKeyInfo(bundle.PublicKeys.SigningKey, out _);
-            return verifier.VerifyData(canonical, bundle.Signature, HashAlgorithmName.SHA256);
+            verifier.ImportSubjectPublicKeyInfo(bundle.SigningPublicKey, out _);
+            return verifier.VerifyData(canonical, bundle.SelfSignature, HashAlgorithmName.SHA256);
         }
         catch (CryptographicException)
         {
@@ -341,56 +362,33 @@ public static class FriendCodeBundleSigner
     }
 
     /// <summary>Verifies <paramref name="bundle"/> or throws <see cref="CryptographicException"/>.</summary>
-    public static void VerifyOrThrow(FriendCodeBundle? bundle, DateTimeOffset? nowUtc = null, TimeSpan? maxClockSkew = null)
+    public static void VerifyOrThrow(FriendCodeBundle? bundle, DateTimeOffset? nowUtc = null)
     {
-        if (!Verify(bundle, nowUtc, maxClockSkew))
+        if (!Verify(bundle, nowUtc))
         {
             throw new CryptographicException("FriendCodeBundle failed self-signature or freshness verification.");
         }
     }
 
-    /// <summary>Builds the canonical length-prefixed byte representation covered by <see cref="FriendCodeBundle.Signature"/>.</summary>
-    public static byte[] BuildCanonicalBytes(
-        string code,
+    /// <summary>Builds the canonical UTF-8 string covered by <see cref="FriendCodeBundle.SelfSignature"/>.</summary>
+    public static string BuildCanonicalPayload(
+        string codeHash,
         BrainId brainId,
-        string displayName,
-        string relayEndpoint,
-        BrainPublicKeys publicKeys,
-        DateTimeOffset issuedAtUtc,
-        DateTimeOffset expiresAtUtc)
-    {
-        var codeBytes = Encoding.UTF8.GetBytes(code);
-        var brainBytes = Encoding.UTF8.GetBytes(brainId.Value ?? string.Empty);
-        var nameBytes = Encoding.UTF8.GetBytes(displayName);
-        var endpointBytes = Encoding.UTF8.GetBytes(relayEndpoint);
-        var signingKeyBytes = publicKeys.SigningKey;
-        var exchangeKeyBytes = publicKeys.ExchangeKey;
+        ReadOnlySpan<byte> signingPublicKey,
+        ReadOnlySpan<byte> exchangePublicKey,
+        DateTimeOffset expiresAt)
+        => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DomainPrefix}\n{brainId.Value ?? string.Empty}\n{Base64Url.EncodeToString(signingPublicKey)}\n{Base64Url.EncodeToString(exchangePublicKey)}\n{codeHash}\n{expiresAt.ToUnixTimeSeconds()}");
 
-        var total =
-            4 + DomainSeparator.Length +
-            4 + codeBytes.Length +
-            4 + brainBytes.Length +
-            4 + nameBytes.Length +
-            4 + endpointBytes.Length +
-            4 + signingKeyBytes.Length +
-            4 + exchangeKeyBytes.Length +
-            8 +
-            8;
-
-        var buffer = new byte[total];
-        var offset = 0;
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, DomainSeparator);
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, codeBytes);
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, brainBytes);
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, nameBytes);
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, endpointBytes);
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, signingKeyBytes);
-        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, exchangeKeyBytes);
-        BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(offset, 8), issuedAtUtc.ToUnixTimeMilliseconds());
-        offset += 8;
-        BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(offset, 8), expiresAtUtc.ToUnixTimeMilliseconds());
-        return buffer;
-    }
+    /// <summary>Builds the canonical UTF-8 byte representation covered by <see cref="FriendCodeBundle.SelfSignature"/>.</summary>
+    public static byte[] BuildCanonicalBytes(
+        string codeHash,
+        BrainId brainId,
+        ReadOnlySpan<byte> signingPublicKey,
+        ReadOnlySpan<byte> exchangePublicKey,
+        DateTimeOffset expiresAt)
+        => Encoding.UTF8.GetBytes(BuildCanonicalPayload(codeHash, brainId, signingPublicKey, exchangePublicKey, expiresAt));
 }
 
 /// <summary>
