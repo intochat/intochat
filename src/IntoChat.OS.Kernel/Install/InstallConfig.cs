@@ -37,6 +37,7 @@ public sealed partial record InstallConfig
     public RegistryConfig Registry { get; init; } = new();
     public PostgresConfig Postgres { get; init; } = new();
     public FoundryConfig Foundry { get; init; } = new();
+    public CostGuardrailConfig CostGuardrails { get; init; } = new();
     // Object id of the principal running the install (the gh-intochat-platform OIDC app). It is granted Key Vault
     // Secrets Officer on the vault so the installer can read and write secret values on the data plane.
     public string InstallerPrincipalId { get; init; } = "";
@@ -87,8 +88,6 @@ public sealed partial record InstallConfig
                 ? "https://os.intochat.io"
                 : $"https://os.{resolvedEnv}.intochat.io";
 
-        var isProd = string.Equals(resolvedEnv, "prod", StringComparison.OrdinalIgnoreCase);
-
         return new InstallConfig
         {
             Subscription = resolvedSubscription,
@@ -108,8 +107,8 @@ public sealed partial record InstallConfig
             Postgres = new PostgresConfig
             {
                 Enabled = true,
-                Sku = isProd ? "Standard_D2ads_v5" : "Standard_B1ms",
-                Tier = isProd ? "GeneralPurpose" : "Burstable",
+                Sku = "Standard_B1ms",
+                Tier = "Burstable",
                 StorageGb = 32,
                 AdminLogin = resolvedPrefix,
                 Databases = [resolvedPrefix],
@@ -256,12 +255,56 @@ public sealed partial record InstallConfig
                 }
             }
         }
+        if (CostGuardrails.Enabled)
+        {
+            if (CostGuardrails.MonthlyBudgetEur <= 0)
+            {
+                throw new InvalidOperationException("The costGuardrails config needs a positive monthlyBudgetEur.");
+            }
+            if (string.IsNullOrWhiteSpace(CostGuardrails.AlertEmail))
+            {
+                throw new InvalidOperationException("The costGuardrails config needs a non-empty alertEmail.");
+            }
+        }
         return this with
         {
             ClusterId = ClusterId.Length > 0 ? ClusterId : "intochat-" + Env,
             ServiceId = ServiceId.Length > 0 ? ServiceId : "intochat-" + Env,
             Postgres = Postgres with { AdminLogin = Postgres.AdminLogin.Length > 0 ? Postgres.AdminLogin : "dbadmin" },
+            CostGuardrails = CostGuardrails with
+            {
+                ProtectedResourceGroups = NormalizeProtectedResourceGroups(CostGuardrails.ProtectedResourceGroups),
+            },
         };
+    }
+
+    private static string[] NormalizeProtectedResourceGroups(string[]? configured)
+    {
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Hard owner invariant: LeedGenerator and sv are ALWAYS protected, preserving exact casing.
+        foreach (var required in CostGuardrailConfig.DefaultProtectedResourceGroups)
+        {
+            if (seen.Add(required))
+            {
+                result.Add(required);
+            }
+        }
+
+        if (configured is not null)
+        {
+            foreach (var rg in configured)
+            {
+                var trimmed = rg?.Trim();
+                if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
+                {
+                    result.Add(trimmed);
+                }
+            }
+        }
+
+        return [.. result];
     }
 
     private static void ValidateFoundryIdentifier(string field, string value, bool required)
@@ -322,4 +365,16 @@ public sealed record FoundryDeploymentConfig
     public string ModelVersion { get; init; } = "";
     public string SkuName { get; init; } = "GlobalStandard";
     public int Capacity { get; init; } = 10;
+}
+
+// costGuardrails: { "enabled": true, "monthlyBudgetEur": 185.0, "alertEmail": "vlad@intochat.io", "protectedResourceGroups": ["LeedGenerator", "sv", "NetworkWatcherRG"] }.
+// Enabled by default even when omitted in JSON. Enforces Layer 1 Azure Policy Deny rules and Layer 2 automated budget circuit-breaker.
+public sealed record CostGuardrailConfig
+{
+    public static readonly string[] DefaultProtectedResourceGroups = ["LeedGenerator", "sv", "NetworkWatcherRG"];
+
+    public bool Enabled { get; init; } = true;
+    public double MonthlyBudgetEur { get; init; } = 185.0;
+    public string AlertEmail { get; init; } = "vlad@intochat.io";
+    public string[] ProtectedResourceGroups { get; init; } = DefaultProtectedResourceGroups;
 }
