@@ -102,6 +102,22 @@ public static class HttpHosts
             && !(b[0] == 0x3F && b[1] == 0xFF && (b[2] & 0xF0) == 0);
     }
 
+    /// <summary>
+    /// Determines whether an IP address is routable public Internet space or loopback (never private, link-local,
+    /// multicast, CGNAT, documentation, or unspecified). Useful for endpoints that permit local loopback servers
+    /// or test stubs while blocking private-network and metadata-service SSRF targets.
+    /// </summary>
+    public static bool IsPublicOrLoopback(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        return IPAddress.IsLoopback(address) || IsPublic(address);
+    }
+
     private static bool Matches(string entry, string host)
     {
         if (entry is null)

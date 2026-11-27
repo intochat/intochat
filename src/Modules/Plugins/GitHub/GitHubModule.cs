@@ -14,6 +14,8 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 public sealed class GitHubModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "github";
+    // Non-secret public client identifier fallback for RFC 8628 Device Flow when no host ClientId override is configured.
+    internal const string DefaultDeviceClientId = "intochat-os-github-device";
 
     public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
@@ -57,7 +59,7 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         Neurons = [typeof(IRepository)],
         Signals = [typeof(Signals.PullRequestChanged), typeof(Signals.IssueChanged)],
         OAuthMethods = [new("oauth", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", [], "github", "ClientId", "ClientSecret")],
-        DeviceMethods = [new("device", "https://github.com/login/device/code", "https://github.com/login/oauth/access_token", ["repo"], IntegrationId: "github", ClientIdField: "ClientId", DisplayName: "GitHub Device Login")],
+        DeviceMethods = [new("device", "https://github.com/login/device/code", "https://github.com/login/oauth/access_token", ["repo"], DefaultClientId: DefaultDeviceClientId, IntegrationId: "github", ClientIdField: "ClientId", DisplayName: "GitHub Device Login")],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
