@@ -1,38 +1,49 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
-using DigitalBrain;
-using DigitalBrain.Access;
-using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Http;
-using DigitalBrain.Runtime.Http.Connections.OAuth;
+using DigitalBrain.Neurons;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using IntoChat.OS.Host.Callers;
-using IntoChat.OS.Modules.Identity.Contracts.Connections;
 
-namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
+namespace DigitalBrain.Runtime.Http.Connections.OAuth;
+
+/// <summary>Delivers a completed OAuth device grant to the target connection.</summary>
+public interface IOAuthDeviceGrantAcceptor
+{
+    Task<ConnectionView> AcceptGrantAsync(string connectionKey, OAuthGrant grant, CancellationToken ct = default);
+}
+
+/// <summary>Optional policy gate invoked before starting or polling an OAuth device flow.</summary>
+public interface IOAuthDeviceAuthorizationGate
+{
+    ValueTask AuthorizeAsync(BrainId brainId, string connectorId, CancellationToken ct = default);
+}
+
+internal sealed class NeuronProxiesOAuthDeviceGrantAcceptor(INeuronProxies proxies) : IOAuthDeviceGrantAcceptor
+{
+    public Task<ConnectionView> AcceptGrantAsync(string connectionKey, OAuthGrant grant, CancellationToken ct = default)
+        => proxies.Get<IConnectionInbound>(ConnectionKeys.IdFor(connectionKey)).AcceptGrant(grant);
+}
 
 // OAuth 2.0 Device Authorization Grant (RFC 8628): zero-secret public client flow for desktop & CLI.
 // Never sends client_secret; never logs or returns device_code or raw tokens.
-internal sealed class OAuthDeviceFlow(
+public sealed partial class OAuthDeviceFlow(
     IReadOnlyList<ConnectorDefinition> connectors,
-    AuthorityNeurons neurons,
+    IOAuthIntegrationResolver integrations,
     OAuthDeviceRequests requests,
     IOptions<OAuthConnectionsOptions> options,
     TimeProvider clock,
     IHttpClientFactory clients,
-    EdgeAuthority edge,
-    IBrainCapabilityPolicy? capabilityPolicy = null,
+    IOAuthDeviceGrantAcceptor grantAcceptor,
+    IOAuthDeviceAuthorizationGate? authorizationGate = null,
     ILogger<OAuthDeviceFlow>? logger = null) : IOAuthDeviceFlow
 {
-    public const string HttpClientName = "IntoChat.OS.Connections.OAuthDevice";
-    internal const string DeviceCodeGrantType = "urn:ietf:params:oauth:grant-type:device_code";
+    public const string DeviceCodeGrantType = "urn:ietf:params:oauth:grant-type:device_code";
     private const int DefaultExpiresInSeconds = 900;
     private const int MinExpiresInSeconds = 60;
     private const int MaxExpiresInSeconds = 3600;
@@ -40,6 +51,9 @@ internal sealed class OAuthDeviceFlow(
     private const int MinIntervalSeconds = 1;
     private const int MaxIntervalSeconds = 60;
     private const int SlowDownIncrementSeconds = 5;
+
+    private static readonly Action<HttpRequestMessage> AcceptJson =
+        static request => request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
     public async Task<OAuthDeviceStartResult> StartAsync(
         BrainId brainId,
@@ -58,7 +72,10 @@ internal sealed class OAuthDeviceFlow(
             throw new UnauthorizedAccessException("The connection must belong to the owning brain.");
         }
 
-        await EnforceExternalConnectorAllowedAsync(brainId.Value, connectorId, ct).ConfigureAwait(false);
+        if (authorizationGate is not null)
+        {
+            await authorizationGate.AuthorizeAsync(brainId, connectorId, ct).ConfigureAwait(false);
+        }
 
         var method = ResolveMethod(connectorId, authMethodId);
         var clientId = await ResolveClientIdAsync(connectorId, method, ct).ConfigureAwait(false);
@@ -75,17 +92,24 @@ internal sealed class OAuthDeviceFlow(
             form["scope"] = scope;
         }
 
-        var (statusCode, body) = await PostFormAsync(deviceAuthEndpoint, form, ct).ConfigureAwait(false);
-        if (statusCode is < 200 or >= 300)
+        var response = await OAuthHttpProtocol.PostFormAsync(
+            clients,
+            options.Value.ResolvedDeviceHttpClientName,
+            deviceAuthEndpoint,
+            form,
+            clock,
+            AcceptJson,
+            ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
         {
-            logger?.LogWarning("OAuth device authorization start for {ConnectorId} failed with HTTP {StatusCode}.", connectorId, statusCode);
+            if (logger is not null) { LogStartFailed(logger, connectorId, (int)response.StatusCode); }
             throw new OAuthTokenExchangeException(OAuthTokenFailure.Unavailable);
         }
 
-        using var json = ParseJsonObject(body);
+        using var json = OAuthHttpProtocol.ParseJsonObject(response.Body);
         var root = json.RootElement;
 
-        var deviceCode = ReadTokenField(root, "device_code");
+        var deviceCode = OAuthHttpProtocol.ReadTokenField(root, "device_code");
         var userCode = ReadRequiredString(root, "user_code", maxLength: 256);
         var verificationUri = ReadRequiredString(root, "verification_uri", maxLength: 2048);
         if (!Uri.TryCreate(verificationUri, UriKind.Absolute, out var parsedVerifyUri)
@@ -174,10 +198,13 @@ internal sealed class OAuthDeviceFlow(
         }
 
         var (_, connectorId, _) = ConnectionKeys.Parse(flow!.ConnectionKey);
-        await EnforceExternalConnectorAllowedAsync(brainId.Value, connectorId, ct).ConfigureAwait(false);
+        if (authorizationGate is not null)
+        {
+            await authorizationGate.AuthorizeAsync(brainId, connectorId, ct).ConfigureAwait(false);
+        }
 
         // Atomically check throttle/expiry and advance NextAllowedPollUtc before issuing the upstream HTTP poll,
-        // so concurrent /device/poll calls cannot burst the provider.
+        // so concurrent /device/poll calls cannot burst the authorization server.
         if (!requests.TryReservePoll(flowId, brainId.Value, out var reserved, out var expiredAfterCheck))
         {
             if (expiredAfterCheck)
@@ -204,9 +231,16 @@ internal sealed class OAuthDeviceFlow(
         };
 
         var tokenEndpoint = ValidateEndpoint(flow.TokenEndpoint);
-        var (statusCode, body) = await PostFormAsync(tokenEndpoint, form, ct).ConfigureAwait(false);
+        var response = await OAuthHttpProtocol.PostFormAsync(
+            clients,
+            options.Value.ResolvedDeviceHttpClientName,
+            tokenEndpoint,
+            form,
+            clock,
+            AcceptJson,
+            ct).ConfigureAwait(false);
 
-        using var json = ParseJsonObject(body);
+        using var json = OAuthHttpProtocol.ParseJsonObject(response.Body);
         var root = json.RootElement;
 
         // GitHub returns HTTP 200 with {"error":"authorization_pending"}, while RFC 8628 §3.5 uses HTTP 400.
@@ -236,45 +270,17 @@ internal sealed class OAuthDeviceFlow(
 
                 default:
                     requests.Remove(flowId, brainId.Value);
-                    logger?.LogWarning("OAuth device poll for {ConnectorId} returned error code '{ErrorCode}'.", connectorId, errorCode);
+                    if (logger is not null) { LogPollError(logger, connectorId, errorCode); }
                     throw new OAuthTokenExchangeException(OAuthTokenFailure.Unavailable);
             }
         }
 
-        if (statusCode is < 200 or >= 300)
+        if (!response.IsSuccessStatusCode)
         {
             throw new OAuthTokenExchangeException(OAuthTokenFailure.Unavailable);
         }
 
-        var accessToken = ReadTokenField(root, "access_token");
-        string? refreshToken = null;
-        if (root.TryGetProperty("refresh_token", out var refreshProp) && refreshProp.ValueKind == JsonValueKind.String)
-        {
-            refreshToken = refreshProp.GetString();
-            if (refreshToken is not null && (refreshToken.Length > 16384 || refreshToken.Any(c => char.IsControl(c) || char.IsWhiteSpace(c))))
-            {
-                throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-            }
-        }
-
-        DateTimeOffset? expiresAt = root.TryGetProperty("expires_in", out var expiresProp)
-            && double.TryParse(expiresProp.ToString(), CultureInfo.InvariantCulture, out var seconds)
-            && seconds is > 0 and < 315360000
-            ? clock.GetUtcNow().AddSeconds(seconds)
-            : null;
-
-        var scopes = string.Join(' ', flow.Scopes);
-        if (root.TryGetProperty("scope", out var scopeProp))
-        {
-            if (scopeProp.ValueKind != JsonValueKind.String
-                || scopeProp.GetString() is not { Length: <= 16384 } returnedScopes
-                || returnedScopes.Any(char.IsControl))
-            {
-                throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-            }
-
-            scopes = returnedScopes;
-        }
+        var grant = OAuthHttpProtocol.ParseTokenGrant(root, response.Body, flow.AuthMethodId, flow.Scopes, flow.Target, clock);
 
         // Atomically consume the flow so each authorized device flow is strictly single-use.
         if (!requests.TryConsume(flowId, brainId.Value, out _))
@@ -282,12 +288,11 @@ internal sealed class OAuthDeviceFlow(
             return new OAuthDevicePollResult(OAuthDevicePollStatus.Expired, 0, null, "The device authorization flow has already been completed or expired.");
         }
 
-        var grant = new OAuthGrant(flow.AuthMethodId, accessToken, refreshToken, expiresAt, scopes, flow.Target, body);
-        var view = await neurons.ConnectionInbound(flow.ConnectionKey).AcceptGrant(grant).ConfigureAwait(false);
+        var view = await grantAcceptor.AcceptGrantAsync(flow.ConnectionKey, grant, ct).ConfigureAwait(false);
         return new OAuthDevicePollResult(OAuthDevicePollStatus.Connected, flow.IntervalSeconds, view, null);
     }
 
-    internal static Uri ValidateEndpoint(string url)
+    public static Uri ValidateEndpoint(string url)
     {
         if (string.IsNullOrWhiteSpace(url)
             || !Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
@@ -316,8 +321,10 @@ internal sealed class OAuthDeviceFlow(
         throw new ArgumentException("An OAuth device endpoint must use HTTPS.", nameof(url));
     }
 
-    internal static bool IsAllowedVerificationUri(Uri uri)
+    public static bool IsAllowedVerificationUri(Uri uri)
     {
+        ArgumentNullException.ThrowIfNull(uri);
+
         if (!uri.IsAbsoluteUri
             || !string.IsNullOrEmpty(uri.UserInfo)
             || string.IsNullOrWhiteSpace(uri.Host))
@@ -333,7 +340,7 @@ internal sealed class OAuthDeviceFlow(
         return uri.Scheme == "http" && IsLoopbackHost(uri.DnsSafeHost);
     }
 
-    internal static bool MatchesConnectionId(string flowConnectionKey, string brainId, string expectedConnectionId)
+    public static bool MatchesConnectionId(string flowConnectionKey, string brainId, string expectedConnectionId)
     {
         var (_, flowConnectorId, flowConnectionId) = ConnectionKeys.Parse(flowConnectionKey);
         var unescaped = Uri.UnescapeDataString(expectedConnectionId);
@@ -346,20 +353,6 @@ internal sealed class OAuthDeviceFlow(
 
         return string.Equals(unescaped, flowConnectionId, StringComparison.Ordinal)
             || string.Equals(expectedConnectionId, flowConnectionId, StringComparison.Ordinal);
-    }
-
-    private async Task EnforceExternalConnectorAllowedAsync(string brainId, string connectorId, CancellationToken ct)
-    {
-        if (capabilityPolicy is null)
-        {
-            return;
-        }
-
-        var decision = await capabilityPolicy.EvaluateAsync(brainId, BrainCapability.ExternalConnector, connectorId, ct).ConfigureAwait(false);
-        if (!decision.Allowed)
-        {
-            throw new ClaimRequiredException(decision);
-        }
     }
 
     private OAuthDeviceMethod ResolveMethod(string connectorId, string authMethodId)
@@ -381,8 +374,8 @@ internal sealed class OAuthDeviceFlow(
     {
         if (!string.IsNullOrWhiteSpace(method.IntegrationId))
         {
-            var integration = neurons.Integration(method.IntegrationId);
-            var snapshot = await integration.Read().WaitAsync(ct).ConfigureAwait(false);
+            var integration = integrations.Get(method.IntegrationId);
+            var snapshot = await integration.ReadAsync(ct).ConfigureAwait(false);
             // Public ClientId settings are readable even when confidential secrets (e.g. PrivateKeyPem) are unconfigured.
             if (snapshot.Settings.TryGetValue(method.ClientIdField, out var settingClientId)
                 && !string.IsNullOrWhiteSpace(settingClientId))
@@ -392,7 +385,7 @@ internal sealed class OAuthDeviceFlow(
 
             if (snapshot.Status == IntegrationStatus.Ready)
             {
-                var released = await edge.AsKernel(BrainId.Kernel, () => integration.Release().WaitAsync(ct)).ConfigureAwait(false);
+                var released = await integration.ReleaseAsync(ct).ConfigureAwait(false);
                 if (released.Values.TryGetValue(method.ClientIdField, out var overrideClientId)
                     && !string.IsNullOrWhiteSpace(overrideClientId))
                 {
@@ -407,69 +400,6 @@ internal sealed class OAuthDeviceFlow(
         }
 
         throw new InvalidOperationException($"OAuth device method '{method.Id}' on connector '{connectorId}' has no client_id configured.");
-    }
-
-    private async Task<(int StatusCode, string Body)> PostFormAsync(Uri endpoint, Dictionary<string, string> form, CancellationToken ct)
-    {
-        using var client = clients.CreateClient(HttpClientName);
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = new FormUrlEncodedContent(form),
-        };
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30), clock);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
-        try
-        {
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);
-            var body = await ReadBodyAsync(response.Content, linked.Token).ConfigureAwait(false);
-            return ((int)response.StatusCode, body);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            throw new OAuthTokenExchangeException(OAuthTokenFailure.Unavailable);
-        }
-        catch (HttpRequestException)
-        {
-            throw new OAuthTokenExchangeException(OAuthTokenFailure.Unavailable);
-        }
-        catch (IOException)
-        {
-            throw new OAuthTokenExchangeException(OAuthTokenFailure.Unavailable);
-        }
-    }
-
-    private static JsonDocument ParseJsonObject(string body)
-    {
-        try
-        {
-            var document = JsonDocument.Parse(body);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                document.Dispose();
-                throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-            }
-
-            return document;
-        }
-        catch (JsonException)
-        {
-            throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-        }
-    }
-
-    private static string ReadTokenField(JsonElement root, string property)
-    {
-        var value = root.TryGetProperty(property, out var element) && element.ValueKind == JsonValueKind.String
-            ? element.GetString()
-            : null;
-        if (string.IsNullOrWhiteSpace(value) || value.Length > 16384 || value.Any(c => char.IsControl(c) || char.IsWhiteSpace(c)))
-        {
-            throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-        }
-
-        return value;
     }
 
     private static string ReadRequiredString(JsonElement root, string property, int maxLength)
@@ -505,33 +435,13 @@ internal sealed class OAuthDeviceFlow(
         return fallback;
     }
 
-    private static async Task<string> ReadBodyAsync(HttpContent content, CancellationToken ct)
-    {
-        const int maximum = 256 * 1024;
-        if (content.Headers.ContentLength > maximum)
-        {
-            throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-        }
-
-        await using var input = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        using var output = new MemoryStream();
-        var buffer = new byte[8192];
-        while (true)
-        {
-            var count = await input.ReadAsync(buffer, ct).ConfigureAwait(false);
-            if (count == 0) { break; }
-            if (output.Length + count > maximum)
-            {
-                throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
-            }
-
-            output.Write(buffer, 0, count);
-        }
-
-        return Encoding.UTF8.GetString(output.GetBuffer(), 0, (int)output.Length);
-    }
-
     private static bool IsLoopbackHost(string host)
         => string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
            || (IPAddress.TryParse(host, out var ip) && IPAddress.IsLoopback(ip));
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "OAuth device authorization start for {ConnectorId} failed with HTTP {StatusCode}.")]
+    private static partial void LogStartFailed(ILogger logger, string connectorId, int statusCode);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "OAuth device poll for {ConnectorId} returned error code '{ErrorCode}'.")]
+    private static partial void LogPollError(ILogger logger, string connectorId, string? errorCode);
 }

@@ -1,8 +1,6 @@
 using System.Text.Json.Serialization;
-using DigitalBrain;
-using DigitalBrain.Capabilities.Connections;
 
-namespace IntoChat.OS.Modules.Identity.Contracts.Connections;
+namespace DigitalBrain.Capabilities.Connections.Connectors;
 
 /// <summary>Outcome of a single RFC 8628 device authorization poll.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<OAuthDevicePollStatus>))]
@@ -16,7 +14,7 @@ public enum OAuthDevicePollStatus
 
 /// <summary>
 /// Public device authorization prompt returned by <see cref="IOAuthDeviceFlow.StartAsync"/>.
-/// Never carries the provider <c>device_code</c> or any token material.
+/// Never carries the authorization server <c>device_code</c> or any token material.
 /// </summary>
 public sealed record OAuthDeviceStartResult(
     string FlowId,

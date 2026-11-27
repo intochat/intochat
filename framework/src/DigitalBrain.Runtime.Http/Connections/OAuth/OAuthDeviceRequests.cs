@@ -1,11 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Runtime.Http.Connections.OAuth;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
+namespace DigitalBrain.Runtime.Http.Connections.OAuth;
 
-internal sealed record PendingDeviceFlow(
+public sealed record PendingDeviceFlow(
     string FlowId,
     string BrainId,
     string ConnectionKey,
@@ -26,7 +25,7 @@ internal sealed record PendingDeviceFlow(
 
 // Bounded, TTL-expiring in-memory tracker for active RFC 8628 device authorization flows.
 // Bound strictly to the owning BrainId so cross-brain polling is rejected.
-internal sealed class OAuthDeviceRequests(IOptions<OAuthConnectionsOptions> options, TimeProvider clock)
+public sealed class OAuthDeviceRequests(IOptions<OAuthConnectionsOptions> options, TimeProvider clock)
 {
     private readonly Dictionary<string, PendingDeviceFlow> _pending = new(StringComparer.Ordinal);
 
@@ -106,7 +105,7 @@ internal sealed class OAuthDeviceRequests(IOptions<OAuthConnectionsOptions> opti
     }
 
     // Atomically checks throttle/expiry and advances NextAllowedPollUtc before an upstream token poll,
-    // preventing concurrent /device/poll calls from bursting the provider.
+    // preventing concurrent /device/poll calls from bursting the authorization server.
     public bool TryReservePoll(string flowId, string brainId, out PendingDeviceFlow? flow, out bool expired)
     {
         flow = null;

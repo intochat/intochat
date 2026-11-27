@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Routing;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Connections;
-using IntoChat.OS.Modules.Identity.Connections.OAuth;
 
 namespace IntoChat.OS.Modules.Identity.Integrations;
 

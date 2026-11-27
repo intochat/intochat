@@ -7,6 +7,7 @@ public sealed class OAuthConnectionsOptions
     public const string DefaultProductName = "DigitalBrain";
     public const string DefaultHttpClientName = "DigitalBrain.Connections.OAuth";
     public const string DefaultMeteredHttpClientName = "DigitalBrain.Connections.OAuth.Metered";
+    public const string DefaultDeviceHttpClientName = "DigitalBrain.Connections.OAuthDevice";
 
     public static string SectionName => ModuleConfiguration.ConnectionsSectionName;
 
@@ -25,6 +26,9 @@ public sealed class OAuthConnectionsOptions
     // Named HttpClient used for metered OAuth token exchange requests.
     public string MeteredHttpClientName { get; set; } = DefaultMeteredHttpClientName;
 
+    // Named HttpClient used for RFC 8628 OAuth device authorization requests.
+    public string DeviceHttpClientName { get; set; } = DefaultDeviceHttpClientName;
+
     // Test hosts point a connector at a stub token endpoint; keyed by connector id.
     public Dictionary<string, string> TokenEndpoints { get; set; } = new(StringComparer.Ordinal);
 
@@ -42,4 +46,6 @@ public sealed class OAuthConnectionsOptions
     internal string ResolvedHttpClientName => string.IsNullOrWhiteSpace(HttpClientName) ? DefaultHttpClientName : HttpClientName;
 
     internal string ResolvedMeteredHttpClientName => string.IsNullOrWhiteSpace(MeteredHttpClientName) ? DefaultMeteredHttpClientName : MeteredHttpClientName;
+
+    internal string ResolvedDeviceHttpClientName => string.IsNullOrWhiteSpace(DeviceHttpClientName) ? DefaultDeviceHttpClientName : DeviceHttpClientName;
 }
