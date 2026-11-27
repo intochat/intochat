@@ -1,6 +1,7 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Capabilities.Storage.Gating;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Operations;
 using IntoChat.OS.Host.Primitives;
@@ -95,7 +96,7 @@ internal sealed class LocalDiskNeuron(
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.Source is { } source) { _ = PathConfinement.Resolve(Paths(), PathOf(source)); }
         if (plan.TargetFolder is { } folder) { _ = PathConfinement.Resolve(Paths(), PathOf(folder)); }
-        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await Engine.Write(plan, ct).ConfigureAwait(true);
     }
 
@@ -125,26 +126,8 @@ internal sealed class LocalDiskNeuron(
         ArgumentNullException.ThrowIfNull(plan);
         var folder = plan.TargetFolder ?? throw new Unsupported(null);
         _ = PathConfinement.ResolveForCreate(Paths(), PathOf(folder), plan.Name ?? "file", PathConfinement.Current);
-        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await Engine.OpenWrite(plan, ct).ConfigureAwait(true);
-    }
-
-    private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
-    {
-        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(true)) { return; }
-        if (plan.DryRun) { return; }
-        // Fail closed: a host without the confirmation gate must not write on anyone's behalf.
-        if (confirmations is null) { throw new InvalidOperationException("Local disk writes need the confirmation gate, and this host has none."); }
-        var descriptor = await Describe(ct).ConfigureAwait(true);
-        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
-        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
-            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
-        var question = await runner.Confirmation(plan, ct).ConfigureAwait(true);
-        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(true);
-        if (answer.Outcome != ConfirmationOutcome.Approved)
-        {
-            throw new Denied(plan.Source ?? plan.TargetFolder);
-        }
     }
 
     // Which folders of this computer a brain may reach is the person's choice (acting directly, not through an app or an

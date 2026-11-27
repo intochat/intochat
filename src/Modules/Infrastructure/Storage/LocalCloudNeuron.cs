@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Capabilities.Storage.Gating;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Modules;
 using DigitalBrain.Neurons;
@@ -132,50 +133,26 @@ internal sealed class LocalCloudNeuron(
     public async Task<OperationId> Write(WritePlan plan, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.WorkspaceDirect, ct).ConfigureAwait(true);
         return await Engine.Write(plan, ct).ConfigureAwait(true);
     }
 
     public async Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.WorkspaceDirect, ct).ConfigureAwait(true);
         return await Engine.OpenWrite(plan, ct).ConfigureAwait(true);
     }
 
     async Task<string> IStorageUpload.BeginUpload(WritePlan plan, CancellationToken ct)
     {
-        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.WorkspaceDirect, ct).ConfigureAwait(true);
         return await Uploads.BeginUpload(plan, ct).ConfigureAwait(true);
     }
 
     Task IStorageUpload.AppendUpload(string upload, long offset, byte[] bytes, CancellationToken ct) => Uploads.AppendUpload(upload, offset, bytes, ct);
     Task<ItemId> IStorageUpload.CommitUpload(string upload, long length, CancellationToken ct) => Uploads.CommitUpload(upload, length, ct);
     Task IStorageUpload.AbortUpload(string upload, CancellationToken ct) => Uploads.AbortUpload(upload, ct);
-
-    // The workspace is the brain's own: the person acting directly, or a module or the kernel of this brain (host code that
-    // applied its own rule, such as a file share checking an editor), writes without a question. Anyone else (an app or an
-    // agent calling the neuron, a caller of another brain, no caller) needs an approved runner's permit or the owner's
-    // confirmation, and a host without the confirmation gate refuses.
-    private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
-    {
-        if (IsSameBrainCaller() && Context.Caller is { } caller && caller.Actor switch
-        {
-            DigitalBrain.Access.Actor.Person => caller.Direct,
-            DigitalBrain.Access.Actor.Module or DigitalBrain.Access.Actor.Kernel => true,
-            _ => false,
-        }) { return; }
-        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(true)) { return; }
-        if (plan.DryRun) { return; }
-        if (confirmations is null) { throw new Denied(plan.Source ?? plan.TargetFolder); }
-        var descriptor = await Describe(ct).ConfigureAwait(true);
-        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
-        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
-            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
-        var question = await runner.Confirmation(plan, ct).ConfigureAwait(true);
-        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(true);
-        if (answer.Outcome != ConfirmationOutcome.Approved) { throw new Denied(plan.Source ?? plan.TargetFolder); }
-    }
 
     // "main" is the brain's workspace; a sandbox key is an isolated folder of its own and never copies anything in.
     private bool IsWorkspace => Id.Key == "main";

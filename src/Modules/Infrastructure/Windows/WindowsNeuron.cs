@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Capabilities.Storage.Gating;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
@@ -74,7 +75,7 @@ internal sealed class WindowsNeuron(
     Task<Content> IStorage.Read(ItemId id, ByteRange? range, CancellationToken ct) => Storage.Read(id, range, ct);
     async Task<DigitalBrain.Operations.OperationId> IStorage.Write(WritePlan plan, CancellationToken ct)
     {
-        await AuthorizeWrite(plan, ct);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, Storage, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await Storage.Write(plan, ct);
     }
     Task<Page<Item>> IStorage.Search(SearchQuery query, CancellationToken ct) => Storage.Search(query, ct);
@@ -82,32 +83,18 @@ internal sealed class WindowsNeuron(
     Task<StorageReadStream> IStorage.OpenRead(ItemId item, ByteRange? range, CancellationToken ct) => Storage.OpenRead(item, range, ct);
     async Task<StorageWriteStream> IStorage.OpenWrite(WritePlan plan, CancellationToken ct)
     {
-        await AuthorizeWrite(plan, ct);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, Storage, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await Storage.OpenWrite(plan, ct);
     }
 
     async Task<string> IStorageUpload.BeginUpload(WritePlan plan, CancellationToken ct)
     {
-        await AuthorizeWrite(plan, ct);
+        await StorageWriteGate.AuthorizeAsync(Context.Id, Storage, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await Uploads.BeginUpload(plan, ct);
     }
     Task IStorageUpload.AppendUpload(string upload, long offset, byte[] bytes, CancellationToken ct) => Uploads.AppendUpload(upload, offset, bytes, ct);
     Task<ItemId> IStorageUpload.CommitUpload(string upload, long length, CancellationToken ct) => Uploads.CommitUpload(upload, length, ct);
     Task IStorageUpload.AbortUpload(string upload, CancellationToken ct) => Uploads.AbortUpload(upload, ct);
-
-    private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
-    {
-        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(true)) { return; }
-        if (confirmations is null || plan.DryRun) { return; }
-        var descriptor = await Storage.Describe(ct).ConfigureAwait(true);
-        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, Storage);
-        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
-            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
-        var question = await runner.Confirmation(plan, ct).ConfigureAwait(true);
-        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(true);
-        if (answer.Outcome != ConfirmationOutcome.Approved)
-        { throw new Denied(plan.Source ?? plan.TargetFolder); }
-    }
 
     protected override async Task OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, CancellationToken cancellationToken)
     {

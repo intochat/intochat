@@ -170,26 +170,11 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     public async Task<bool> IsConnectionBoundAsync(string brain, Caller caller, string targetOrConnectionKey, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (string.IsNullOrWhiteSpace(targetOrConnectionKey) || !IsConnectionTarget(targetOrConnectionKey)) { return false; }
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }
-
-        var clean = StripNeuronPrefix(targetOrConnectionKey);
-        var slash = clean.IndexOf('/', StringComparison.Ordinal);
-        var canonicalKey = slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]) ? clean[(slash + 1)..] : clean;
-        var ownerBrain = TryExtractBrain(canonicalKey, out var extracted)
-            ? extracted.Value
-            : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
-        if (string.IsNullOrEmpty(ownerBrain)) { return false; }
-
-        var targets = new List<string> { canonicalKey };
-        if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal))
+        if (!TryResolveConnectionBindingTargets(brain, targetOrConnectionKey, out var ownerBrain, out var targets))
         {
-            targets.Add(targetOrConnectionKey);
-        }
-        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal) && !string.IsNullOrEmpty(canonicalKey) && TryParseOwnerBrain(ownerBrain, out var validOwner))
-        {
-            targets.Add(new DigitalBrain.NeuronId(validOwner, "connection", canonicalKey).FullKey());
+            return false;
         }
 
         foreach (var target in targets)
@@ -234,10 +219,31 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             && IsConnectionBoundInMemory(caller.Brain.Value, caller, targetOrConnectionKey);
     }
 
+    internal static bool IsConnectionBoundInGrants(Caller caller, string? targetOrConnectionKey, IReadOnlyList<Grant> grants, PrincipalSet principals)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey) || grants.Count == 0) { return false; }
+        var callerAppKey = GrantRules.AppOf(caller);
+        if (string.IsNullOrEmpty(callerAppKey)) { return false; }
+        if (!TryResolveConnectionBindingTargets(caller.Brain.Value, targetOrConnectionKey, out var ownerBrain, out var targets))
+        {
+            return false;
+        }
+
+        var relation = "use-via:" + callerAppKey;
+        foreach (var target in targets)
+        {
+            if (GrantRules.IsGranted(relation, target, grants, principals, caller, ownerBrain)) { return true; }
+        }
+        return false;
+    }
+
     private static bool IsConnectionTarget(string targetOrConnectionKey)
     {
         var clean = StripNeuronPrefix(targetOrConnectionKey);
-        if (ConnectionKeys.Is(clean) || clean.StartsWith("connection/", StringComparison.OrdinalIgnoreCase))
+        if (ConnectionKeys.Is(clean)
+            || clean.StartsWith("connection/", StringComparison.OrdinalIgnoreCase)
+            || TryParseBuiltInStorageTarget(clean, out _, out _, out _))
         {
             return true;
         }
@@ -245,28 +251,97 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         return slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]);
     }
 
+    private static bool TryResolveConnectionBindingTargets(string? brain, string targetOrConnectionKey, out string ownerBrain, out List<string> targets)
+    {
+        ownerBrain = string.Empty;
+        targets = [];
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey) || !IsConnectionTarget(targetOrConnectionKey))
+        {
+            return false;
+        }
+
+        var clean = StripNeuronPrefix(targetOrConnectionKey);
+        if (TryParseBuiltInStorageTarget(clean, out var storageBrain, out var storageConnectionKey, out var storageNeuronTarget))
+        {
+            ownerBrain = storageBrain;
+            targets = [storageConnectionKey, storageNeuronTarget];
+            if (!string.Equals(storageConnectionKey, targetOrConnectionKey, StringComparison.Ordinal)
+                && !string.Equals(storageNeuronTarget, targetOrConnectionKey, StringComparison.Ordinal))
+            {
+                targets.Add(targetOrConnectionKey);
+            }
+            return true;
+        }
+
+        var slash = clean.IndexOf('/', StringComparison.Ordinal);
+        var canonicalKey = slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]) ? clean[(slash + 1)..] : clean;
+        ownerBrain = TryExtractBrain(canonicalKey, out var extracted)
+            ? extracted.Value
+            : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
+        if (string.IsNullOrEmpty(ownerBrain))
+        {
+            return false;
+        }
+
+        targets = [canonicalKey];
+        if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal))
+        {
+            targets.Add(targetOrConnectionKey);
+        }
+        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal) && !string.IsNullOrEmpty(canonicalKey) && TryParseOwnerBrain(ownerBrain, out var validOwner))
+        {
+            targets.Add(new DigitalBrain.NeuronId(validOwner, "connection", canonicalKey).FullKey());
+        }
+        return true;
+    }
+
+    internal static bool TryParseBuiltInStorageTarget(string value, out string ownerBrain, out string connectionKey, out string neuronTarget)
+    {
+        ownerBrain = string.Empty;
+        connectionKey = string.Empty;
+        neuronTarget = string.Empty;
+        if (string.IsNullOrWhiteSpace(value)) { return false; }
+
+        var clean = StripNeuronPrefix(value);
+        var parts = clean.Split('/');
+        if (parts.Length != 3 || string.IsNullOrWhiteSpace(parts[2])) { return false; }
+
+        if (IsBuiltInStorageType(parts[0]) && TryParseOwnerBrain(parts[1], out var neuronBrain))
+        {
+            ownerBrain = neuronBrain.Value;
+            connectionKey = new DigitalBrain.NeuronId(neuronBrain, parts[0], parts[2]).ToString();
+            neuronTarget = $"{parts[0]}/{ownerBrain}/{parts[2]}";
+            return true;
+        }
+
+        if (IsBuiltInStorageType(parts[1]) && TryParseOwnerBrain(parts[0], out var connBrain))
+        {
+            ownerBrain = connBrain.Value;
+            connectionKey = new DigitalBrain.NeuronId(connBrain, parts[1], parts[2]).ToString();
+            neuronTarget = $"{parts[1]}/{ownerBrain}/{parts[2]}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsBuiltInStorageType(string segment)
+        => string.Equals(segment, "local-cloud", StringComparison.Ordinal)
+            || string.Equals(segment, "local-disk", StringComparison.Ordinal);
+
     private bool IsConnectionBoundInMemory(string brain, Caller caller, string targetOrConnectionKey)
     {
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }
-        var clean = StripNeuronPrefix(targetOrConnectionKey);
-        var slash = clean.IndexOf('/', StringComparison.Ordinal);
-        var canonicalKey = slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]) ? clean[(slash + 1)..] : clean;
-        var ownerBrain = TryExtractBrain(canonicalKey, out var extracted)
-            ? extracted.Value
-            : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
-        if (string.IsNullOrEmpty(ownerBrain)) { return false; }
+        if (!TryResolveConnectionBindingTargets(brain, targetOrConnectionKey, out var ownerBrain, out var targets))
+        {
+            return false;
+        }
         if (!_cache.TryGetValue(ownerBrain, out var cached)) { return false; }
         var principals = PrincipalSet.For(caller);
-        var targets = new List<string> { canonicalKey };
-        if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal)) { targets.Add(targetOrConnectionKey); }
-        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal) && !string.IsNullOrEmpty(canonicalKey) && TryParseOwnerBrain(ownerBrain, out var validOwnerInMemory))
-        {
-            targets.Add(new DigitalBrain.NeuronId(validOwnerInMemory, "connection", canonicalKey).FullKey());
-        }
         foreach (var target in targets)
         {
-            if (GrantRules.IsGranted("use-via:" + callerAppKey, target, cached.Grants, principals, caller)) { return true; }
+            if (GrantRules.IsGranted("use-via:" + callerAppKey, target, cached.Grants, principals, caller, ownerBrain)) { return true; }
         }
         return false;
     }
@@ -331,6 +406,11 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         if (ConnectionKeys.TryParse(clean, out var conn) && DigitalBrain.BrainId.IsValid(conn.BrainId))
         {
             brain = new DigitalBrain.BrainId(conn.BrainId);
+            return true;
+        }
+        if (TryParseBuiltInStorageTarget(clean, out var storageBrain, out _, out _) && TryParseOwnerBrain(storageBrain, out var parsedStorageBrain))
+        {
+            brain = parsedStorageBrain;
             return true;
         }
         var slash = clean.IndexOf('/', StringComparison.Ordinal);

@@ -41,6 +41,7 @@ public sealed class ContextMapFacts
                 "DigitalBrain.Capabilities.Secrets",
                 "DigitalBrain.Capabilities.Storage",
                 "DigitalBrain.Capabilities.Storage.Confinement",
+                "DigitalBrain.Capabilities.Storage.Gating",
                 "DigitalBrain.Capabilities.Tools",
             ],
             ["Authoring", "Kernel", "Neurons", "Connections", "Work", "Limits", "Units", "Modules", "UI"]),

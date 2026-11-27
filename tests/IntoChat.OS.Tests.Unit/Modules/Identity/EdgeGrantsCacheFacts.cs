@@ -127,4 +127,48 @@ public sealed class EdgeGrantsCacheFacts
         Assert.False(await cache.IsConnectionBoundAsync("owner", caller, "brain/owner/main", TestContext.Current.CancellationToken));
         Assert.False(cache.IsConnectionBound(caller, "brain/owner/main"));
     }
+
+    [Fact]
+    public async Task BrokerBoundBuiltInStorageConnectionsAdmitBoundAppAndRefuseUnboundApp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cache = new EdgeGrantsCache();
+        var brain = "alice";
+        var appKey = "alice/apps/files";
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.App(appKey, new Actor.Person("alice", "alice"), new BrainId(brain));
+        var stranger = IntoChat.OS.Tests.TestEdge.Authority.App("alice/apps/stranger", new Actor.Person("alice", "alice"), new BrainId(brain));
+
+        cache.BindFriendConnection("alice/local-cloud/main", appKey);
+        cache.BindFriendConnection("alice/local-disk/main", appKey);
+
+        Assert.True(await cache.IsConnectionBoundAsync(caller, "local-cloud/alice/main"));
+        Assert.True(await cache.IsConnectionBoundAsync(caller, "local-disk/alice/main"));
+        Assert.False(await cache.IsConnectionBoundAsync(stranger, "local-cloud/alice/main"));
+        Assert.False(await cache.IsConnectionBoundAsync(stranger, "local-disk/alice/main"));
+
+        Assert.True(EdgeGrantsCache.TryExtractBrain("local-cloud/alice/main", out var extractedCloud));
+        Assert.Equal(new BrainId("alice"), extractedCloud);
+        Assert.True(EdgeGrantsCache.TryExtractBrain("local-disk/alice/main", out var extractedDisk));
+        Assert.Equal(new BrainId("alice"), extractedDisk);
+
+        // Verify GrantRules admits the bound app and denies the unbound app for IStorage calls.
+        var boundDecision = GrantRules.Evaluate(
+            caller,
+            new CallRequest { TargetNeuron = "local-cloud/alice/main", Operation = "IStorage.Roots", TargetScope = brain },
+            member: null,
+            grants: [],
+            principals: PrincipalSet.For(caller),
+            connectionBound: await cache.IsConnectionBoundAsync(caller, "local-cloud/alice/main"));
+        Assert.True(boundDecision?.Allowed);
+
+        var unboundDecision = GrantRules.Evaluate(
+            stranger,
+            new CallRequest { TargetNeuron = "local-cloud/alice/main", Operation = "IStorage.Roots", TargetScope = brain },
+            member: null,
+            grants: [],
+            principals: PrincipalSet.For(stranger),
+            connectionBound: await cache.IsConnectionBoundAsync(stranger, "local-cloud/alice/main"));
+        Assert.False(unboundDecision?.Allowed);
+        Assert.Equal(CallDenial.MissingGrant, unboundDecision?.Denial);
+    }
 }
