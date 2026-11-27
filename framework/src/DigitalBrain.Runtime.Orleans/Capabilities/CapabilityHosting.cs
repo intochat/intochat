@@ -147,6 +147,55 @@ public static class CapabilityHosting
         }
     }
 
+    /// <summary>
+    /// Returns any <see cref="DigitalBrain.Modules.Module"/> types declared in the same namespace as a registered host port,
+    /// so <see cref="Hosting.NeuronTypeRegistry"/> scopes multi-module port assemblies (such as <c>DigitalBrain.Identity.Local</c>)
+    /// to only the backing neurons of the ports actually registered on this host.
+    /// </summary>
+    internal static IEnumerable<Type> RegisteredPortModules(IServiceProvider services)
+    {
+        if (services.GetService<IIdentityDirectoryPort>() is { } directory && !ReferenceEquals(directory, DeniedIdentityDirectoryPort.Instance))
+        {
+            var unwrapped = directory is PlatformIdentityDirectoryPort platform ? platform.Inner : directory;
+            foreach (var module in SameNamespaceModules(unwrapped.GetType()))
+            {
+                yield return module;
+            }
+        }
+
+        if (services.GetService<ISecretVaultPort>() is { } vault && !ReferenceEquals(vault, DeniedSecretVaultPort.Instance))
+        {
+            foreach (var module in SameNamespaceModules(vault.GetType()))
+            {
+                yield return module;
+            }
+        }
+    }
+
+    private static IEnumerable<Type> SameNamespaceModules(Type portType)
+    {
+        var ns = portType.Namespace;
+        if (string.IsNullOrEmpty(ns))
+        {
+            yield break;
+        }
+
+        Type[] types;
+        try { types = portType.Assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException ex) { types = [.. ex.Types.OfType<Type>()]; }
+
+        foreach (var type in types)
+        {
+            if (type is { IsClass: true, IsAbstract: false }
+                && string.Equals(type.Namespace, ns, StringComparison.Ordinal)
+                && typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)
+                && type.IsDefined(typeof(DigitalBrain.Modules.ModuleAttribute), inherit: false))
+            {
+                yield return type;
+            }
+        }
+    }
+
     /// <summary>Registers the broker over the host's <see cref="ICapabilityConnections"/> and the single-registration startup check.</summary>
     internal static void AddCapabilityBroker(this IServiceCollection services)
     {

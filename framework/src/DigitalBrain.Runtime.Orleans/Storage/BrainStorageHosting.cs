@@ -44,6 +44,9 @@ public static class BrainStorageHosting
             sp.GetServices<SignalAssemblies>()
                 .SelectMany(item => item.Assemblies)
                 .Concat(Capabilities.CapabilityHosting.RegisteredPortAssemblies(sp))
+                .Distinct(),
+            TopologyHosting.ComposedModules(sp)
+                .Concat(Capabilities.CapabilityHosting.RegisteredPortModules(sp))
                 .Distinct()));
         services.TryAddSingleton<JournalPayloads>();
         services.TryAddSingleton<BrainSignalHistories>();

@@ -16,7 +16,7 @@ public sealed class LocalDirectoryModule : Module
 
     /// <summary>Module manifest.</summary>
     public static ModuleManifest Manifest { get; } = new(
-        Provides: [Capability.Identity.V1],
+        Provides: [],
         Requires: [],
         Needs: [Need.State("directory")],
         Settings: [],

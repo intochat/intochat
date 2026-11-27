@@ -16,7 +16,7 @@ public sealed class LocalVaultModule : Module
 
     /// <summary>Module manifest.</summary>
     public static ModuleManifest Manifest { get; } = new(
-        Provides: [Capability.Secrets.V1],
+        Provides: [],
         Requires: [],
         Needs: [Need.State("vault")],
         Settings: [],
