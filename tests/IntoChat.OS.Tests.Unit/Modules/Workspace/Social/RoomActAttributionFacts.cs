@@ -450,4 +450,68 @@ public sealed class RoomActAttributionFacts
             Assert.Equal(string.Empty, tombstoned.Text);
         }
     }
+
+    private sealed class GatedSecretRedactor(int expectedConcurrent) : ISecretRedactor
+    {
+        private int _arrived;
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<string?> Redact(string? text, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _arrived) >= expectedConcurrent)
+            {
+                _release.TrySetResult();
+            }
+            await _release.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            return text;
+        }
+
+        public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
+    }
+
+    [Fact]
+    public async Task Say_ConcurrentDuplicateMessageId_DeduplicatesAcrossAwaitPendingWrite()
+    {
+        var friends = new MutableFriendCheck();
+        var redactor = new GatedSecretRedactor(expectedConcurrent: 2);
+        EdgeAuthority? capturedEdge = null;
+        var sp = new ServiceCollection()
+            .AddSingleton<IFriendCheck>(friends)
+            .AddSingleton<IBrainOwners>(new StaticBrainOwners())
+            .AddSingleton<ISecretRedactor>(redactor)
+            .AddSingleton(TimeProvider.System)
+            .AddSingleton(_ => capturedEdge ?? throw new InvalidOperationException("EdgeAuthority not yet captured."))
+            .BuildServiceProvider();
+
+        await using var os = TestOS.Local(options => options.Services = sp)
+            .Register<ConversationNeuron>()
+            .Register<ThreadDirectoryNeuron>()
+            .Register<FakeFriendsRoster>();
+        capturedEdge = os.Edge;
+
+        var aliceBrain = new BrainId("alice");
+        var bobBrain = new BrainId("bob");
+        friends.Friends.Add((aliceBrain.Value, "bob"));
+        friends.Friends.Add((bobBrain.Value, "alice"));
+
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/concurrent-idempotency");
+        using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
+        {
+            var room = os.Get<IConversation>(roomId);
+            await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Race Room");
+            await room.Invite(new AccountId("bob"), bobBrain, Role.Editor);
+        }
+
+        using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
+        {
+            var bobRoom = os.Get<IConversation>(roomId);
+            var first = bobRoom.Say("Hello once", messageId: "dup-race-1");
+            var second = bobRoom.Say("Hello once", messageId: "dup-race-1");
+            await Task.WhenAll(first, second);
+
+            var view = await bobRoom.Read();
+            var single = Assert.Single(view.Entries.OfType<Said>());
+            Assert.Equal("dup-race-1", single.MessageId);
+        }
+    }
 }

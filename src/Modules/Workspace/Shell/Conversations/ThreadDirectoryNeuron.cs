@@ -122,6 +122,11 @@ internal sealed class ThreadDirectoryNeuron(
         var entryId = Threads.EntryIdFor(Id.Brain, threadId);
 
         var existing = FindByThreadOrId(threadId, entryId);
+        if (existing is not null && existing.TrustPosture != ThreadTrustPosture.CrossBrainShared)
+        {
+            throw new InvalidOperationException(
+                $"Thread '{entryId}' already exists with immutable TrustPosture '{existing.TrustPosture}' and cannot be converted to '{ThreadTrustPosture.CrossBrainShared}'.");
+        }
         var entry = existing is not null
             ? existing with { Title = cleanTitle, Kind = kind, TrustPosture = ThreadTrustPosture.CrossBrainShared, UpdatedAt = Now(), Archived = false }
             : new ThreadEntry(
@@ -353,6 +358,7 @@ internal sealed class ThreadDirectoryNeuron(
 
     public Task<long> LastRevision(NeuronId thread)
     {
+        _ = RequireSameBrain(FriendRelay.Refused);
         var entryId = Threads.EntryIdFor(Id.Brain, thread);
         var existing = FindByThreadOrId(thread, entryId);
         return Task.FromResult(existing?.LastRevision ?? 0);

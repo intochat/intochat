@@ -82,6 +82,25 @@ public sealed class SessionListFacts
     }
 
     [Fact]
+    public async Task CreateShared_ThrowsWhenThreadKeyAlreadyBelongsToOwnerTrustedEntry()
+    {
+        await using var os = CreateOs();
+        using var person = AsPerson(os);
+        var directory = os.Get<IThreadDirectory>(ListId);
+
+        var id = "c-" + new string('9', 32);
+        await directory.Create(id, "Private Squad", ThreadTrustPosture.OwnerTrusted, ThreadKind.Squad);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => directory.CreateShared("Attempted Downgrade", ThreadKind.SharedRoom, threadKey: id));
+
+        var entry = await directory.Get(id);
+        Assert.NotNull(entry);
+        Assert.Equal(ThreadTrustPosture.OwnerTrusted, entry!.TrustPosture);
+        Assert.Equal("Private Squad", entry.Title);
+    }
+
+    [Fact]
     public void AnOldChatIndexStateStillLoads()
     {
         var loaded = (ThreadDirectoryState)RuntimeProtocol.Deserialize(

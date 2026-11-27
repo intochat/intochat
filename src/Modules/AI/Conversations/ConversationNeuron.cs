@@ -53,6 +53,7 @@ internal sealed class ConversationNeuron(
     private static readonly TimeSpan PresenceTtl = TimeSpan.FromMinutes(2);
 
     private readonly Dictionary<string, DateTimeOffset> _presence = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _sharedWriteGate = new(1, 1);
     private Task? _importing;
     private (long Revision, string Text)? _pendingActivity;
 
@@ -189,7 +190,8 @@ internal sealed class ConversationNeuron(
         || State.Log.Length > 0
         || State.Agents.Length > 0
         || State.Participants.Length > 0
-        || State.Members.Length > 0;
+        || State.Members.Length > 0
+        || State.PinnedScreens.Length > 0;
 
     private static void ValidateKindMatchesPosture(ThreadTrustPosture posture, ThreadKind kind)
     {
@@ -521,34 +523,49 @@ internal sealed class ConversationNeuron(
         }
 
         var masked = await Runner.Mask(trimmed);
-        await AwaitPendingWrite();
-
         var sanitizedAttachments = IsSameBrainCaller() && attachments is { Length: > 0 }
             ? await SanitizeAndAuthorizeAttachmentsAsync(attachments)
             : null;
-        var said = new Said(
-            EntryIds.Said(Guid.NewGuid().ToString("N")),
-            speaker,
-            Clock.GetUtcNow(),
-            masked,
-            Sender: new SenderIdentity(author, author, SenderKind.Human),
-            Attachments: sanitizedAttachments,
-            MessageId: cleanMessageId,
-            ReplyTo: replyTo);
-        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
-        var participants = WithParticipants(State.Participants, speaker);
 
-        using (OwnModuleIfForeign())
+        long committedRevision;
+        await _sharedWriteGate.WaitAsync();
+        try
         {
-            await Persist(State with
+            await AwaitPendingWrite();
+            if (cleanMessageId is not null && ConversationLog.HasMessageId(State.Log, cleanMessageId, speaker))
             {
-                PostureLocked = true,
-                Participants = participants,
-                Log = nextLog,
-            });
+                return;
+            }
+
+            var said = new Said(
+                EntryIds.Said(Guid.NewGuid().ToString("N")),
+                speaker,
+                Clock.GetUtcNow(),
+                masked,
+                Sender: new SenderIdentity(author, author, SenderKind.Human),
+                Attachments: sanitizedAttachments,
+                MessageId: cleanMessageId,
+                ReplyTo: replyTo);
+            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
+            var participants = WithParticipants(State.Participants, speaker);
+
+            using (OwnModuleIfForeign())
+            {
+                await Persist(State with
+                {
+                    PostureLocked = true,
+                    Participants = participants,
+                    Log = nextLog,
+                });
+            }
+
+            committedRevision = State.Revision;
+        }
+        finally
+        {
+            _sharedWriteGate.Release();
         }
 
-        var committedRevision = State.Revision;
         await NudgeDirectoriesAsync(committedRevision);
 
         // Shared rooms enforce explicit @agentId mention trigger ONLY; normal human messages trigger 0 agent turns.
@@ -688,7 +705,7 @@ internal sealed class ConversationNeuron(
         }
 
         var nextPinned = State.PinnedScreens.Append(new PinnedScreen(type, key)).ToArray();
-        await Persist(State with { PinnedScreens = nextPinned });
+        await Persist(State with { PostureLocked = true, PinnedScreens = nextPinned });
 
         var screenId = new NeuronId(Id.Brain, type, key);
         foreach (var member in State.Members)
@@ -1166,18 +1183,29 @@ internal sealed class ConversationNeuron(
         }
 
         var masked = await Runner.Mask(replyText);
-        var assistantParticipant = new Participant.Assistant(resolvedAgentId);
-        var reply = new Said(
-            EntryIds.Reply(Guid.NewGuid().ToString("N")),
-            assistantParticipant,
-            Clock.GetUtcNow(),
-            masked,
-            Sender: sender);
+        long committedRevision;
+        await _sharedWriteGate.WaitAsync();
+        try
+        {
+            await AwaitPendingWrite();
+            var assistantParticipant = new Participant.Assistant(resolvedAgentId);
+            var reply = new Said(
+                EntryIds.Reply(Guid.NewGuid().ToString("N")),
+                assistantParticipant,
+                Clock.GetUtcNow(),
+                masked,
+                Sender: sender);
 
-        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, reply);
-        var participants = WithParticipants(State.Participants, assistantParticipant);
-        await Persist(State with { Log = nextLog, Participants = participants });
-        await NudgeDirectoriesAsync(State.Revision);
+            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, reply);
+            var participants = WithParticipants(State.Participants, assistantParticipant);
+            await Persist(State with { Log = nextLog, Participants = participants });
+            committedRevision = State.Revision;
+        }
+        finally
+        {
+            _sharedWriteGate.Release();
+        }
+        await NudgeDirectoriesAsync(committedRevision);
     }
 
     public async Task Drive(string runId, string? model, string? replaces, string? targetAgentId = null, int depth = 0)
@@ -1197,17 +1225,19 @@ internal sealed class ConversationNeuron(
         var agentParticipant = new Participant.Assistant(seated.AgentId);
         EntryId? replacingId = string.IsNullOrWhiteSpace(replaces) ? null : new EntryId(replaces);
 
-        using var activeRun = BeginRun(runId, definition.Timeout);
-        var turnState = new TurnState(State.ActiveRun);
         var committed = false;
+        string? handoffTarget = null;
+        string? handoffText = null;
+
+        using (var activeRun = BeginRun(runId, definition.Timeout))
+        {
+        var turnState = new TurnState(State.ActiveRun);
         var deltaCount = 0;
         var storeCount = 0;
         double? firstTokenMs = null;
         var streamStarted = false;
         var streamStart = 0L;
         var replyEntry = EntryIds.Reply(runId);
-        string? handoffTarget = null;
-        string? handoffText = null;
 
         var sink = new ConversationTurnSink(
             async updatedRun =>
@@ -1400,11 +1430,10 @@ internal sealed class ConversationNeuron(
                     runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
             }
         }
+        }
 
         if (committed && handoffTarget is not null && handoffText is not null && !IsBlocked)
         {
-            // Release the current run lease BEFORE dispatching the next Squad handoff turn so IsActive is false.
-            activeRun.Dispose();
             var nextRunId = Guid.NewGuid().ToString("N");
             var handoffRun = new AgentRun(nextRunId, AgentRunStatus.Running, handoffText, Clock.GetUtcNow())
             {

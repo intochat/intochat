@@ -96,4 +96,81 @@ public sealed class SquadRoutingFacts
             Assert.Equal(["coder", "architect", "coder"], replies.Select(static r => ((Participant.Assistant)r.By).AgentId));
         }
     }
+
+    private sealed class GatedHandoffChatClient(
+        TaskCompletionSource turn2Started,
+        TaskCompletionSource<bool> turn2Cancelled) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Coder done, handing off to @architect")));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var sys = (options?.Instructions ?? "") + "\n" + string.Concat(messages.Where(m => m.Role == ChatRole.System).Select(m => m.Text));
+            if (sys.Contains("CODER_PERSONA", StringComparison.Ordinal))
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, "Coder done, handing off to @architect");
+                yield break;
+            }
+
+            turn2Started.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                turn2Cancelled.TrySetResult(true);
+                throw;
+            }
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public async Task Stop_CancelsInFlightSquadHandoffTurn2()
+    {
+        var turn2Started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var turn2Cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new GatedHandoffChatClient(turn2Started, turn2Cancelled);
+
+        var sc = new ServiceCollection()
+            .AddSingleton<ISecretRedactor>(new NoOpSecretRedactor())
+            .AddSingleton<IAiCredentials>(new NoOpAiCredentials())
+            .AddSingleton(new NeuronSurface())
+            .AddSingleton<IChatClient>(client)
+            .AddSingleton<ModelCatalog>()
+            .AddSingleton(TimeProvider.System);
+        sc.AddOptions<AIOptions>();
+        var services = sc.BuildServiceProvider();
+
+        await using var os = TestOS.Local(options => options.Services = services)
+            .Register<ConversationNeuron>();
+
+        var convId = new NeuronId(Brain, IConversation.Type, "conversations/squad-cancel");
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
+        {
+            var conv = os.Get<IConversation>(convId);
+            await conv.Configure(ThreadTrustPosture.OwnerTrusted, ThreadKind.Squad, "Engineering Squad", leadAgentId: "architect");
+            await conv.Seat("architect", new AgentDefinition { DisplayName = "Architect", Instructions = "ARCHITECT_PERSONA" });
+            await conv.Seat("coder", new AgentDefinition { DisplayName = "Coder", Instructions = "CODER_PERSONA" });
+
+            await conv.Say("@coder start work");
+            await turn2Started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+            await conv.Stop();
+            Assert.True(await turn2Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+            await os.Idle();
+            var view = await conv.Read();
+            var replies = view.Entries.OfType<Said>().Where(static s => s.By is Participant.Assistant).ToArray();
+            var singleReply = Assert.Single(replies);
+            Assert.Equal("coder", ((Participant.Assistant)singleReply.By).AgentId);
+        }
+    }
 }
