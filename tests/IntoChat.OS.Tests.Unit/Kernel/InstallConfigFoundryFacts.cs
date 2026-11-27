@@ -85,4 +85,22 @@ public sealed class InstallConfigFoundryFacts
 
         Assert.Throws<InvalidOperationException>(config.Validated);
     }
+
+    [Theory]
+    [InlineData("foundry\nmalicious: true")]
+    [InlineData("foundry; rm -rf /")]
+    [InlineData("foundry/evil")]
+    public void RejectsUnsafeCharactersInFoundryName(string unsafeName)
+    {
+        var config = BaseConfig(new FoundryConfig
+        {
+            Enabled = true,
+            Sku = "S0",
+        }) with
+        {
+            Names = new Dictionary<string, string> { ["foundry"] = unsafeName },
+        };
+
+        Assert.Throws<InvalidOperationException>(config.Validated);
+    }
 }

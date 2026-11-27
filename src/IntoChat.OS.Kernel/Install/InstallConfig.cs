@@ -241,6 +241,7 @@ public sealed partial record InstallConfig
         }
         if (Foundry.Enabled)
         {
+            ValidateFoundryIdentifier("names.foundry", FoundryName, required: true);
             ValidateFoundryIdentifier("foundry.sku", Foundry.Sku, required: true);
             foreach (var deployment in Foundry.Deployments)
             {

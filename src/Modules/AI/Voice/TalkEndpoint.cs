@@ -32,6 +32,8 @@ internal static class TalkEndpoint
     private static readonly TimeSpan SilenceTimeout = TimeSpan.FromMinutes(2);
 
     internal const string BrainTurnToolName = "run_brain_turn";
+    internal const int MaxBrainTurnCallsPerSession = 24;
+    private const int MaxHandledToolCallsPerSession = 64;
 
     private const string DefaultPersona =
         "You are a helpful voice assistant. Keep spoken answers clear, natural, and concise. "
@@ -409,7 +411,9 @@ internal static class TalkEndpoint
         CancellationTokenSource pumpCts)
     {
         var turnCounter = 0;
+        var brainTurnCalls = 0;
         var handledToolCalls = new HashSet<string>(StringComparer.Ordinal);
+        var pendingToolCalls = new List<FunctionCallContent>();
         try
         {
             await foreach (var message in session.GetStreamingResponseAsync(pumpCts.Token).ConfigureAwait(false))
@@ -417,6 +421,7 @@ internal static class TalkEndpoint
                 if (IsBargeInSignal(message))
                 {
                     turnState.Reset();
+                    pendingToolCalls.Clear();
                     await SendEventAsync(ws, sendLock, new TalkCancel(), pumpCts.Token).ConfigureAwait(false);
                     continue;
                 }
@@ -447,18 +452,10 @@ internal static class TalkEndpoint
                     && message.Type == RealtimeServerMessageType.ResponseOutputItemDone
                     && outputItem.Item?.Contents is { Count: > 0 } itemContents)
                 {
-                    await HandleFunctionCallsAsync(
-                        itemContents.OfType<FunctionCallContent>(),
-                        handledToolCalls,
-                        ws,
-                        sendLock,
-                        session,
-                        conversation,
-                        brains,
-                        brainId,
-                        turnState,
-                        logger,
-                        pumpCts.Token).ConfigureAwait(false);
+                    foreach (var call in itemContents.OfType<FunctionCallContent>())
+                    {
+                        pendingToolCalls.Add(call);
+                    }
                     continue;
                 }
 
@@ -510,15 +507,21 @@ internal static class TalkEndpoint
                 if (message.Type == RealtimeServerMessageType.ResponseDone)
                 {
                     var done = message as ResponseCreatedRealtimeServerMessage;
-                    var triggeredToolCall = false;
+                    var allCalls = new List<FunctionCallContent>(pendingToolCalls);
+                    pendingToolCalls.Clear();
                     if (done?.Items is { Count: > 0 })
                     {
-                        var calls = done.Items
+                        allCalls.AddRange(done.Items
                             .Where(static i => i.Contents is { Count: > 0 })
-                            .SelectMany(static i => i.Contents.OfType<FunctionCallContent>());
-                        triggeredToolCall = await HandleFunctionCallsAsync(
-                            calls,
+                            .SelectMany(static i => i.Contents.OfType<FunctionCallContent>()));
+                    }
+
+                    if (allCalls.Count > 0)
+                    {
+                        var (executedAny, updatedBrainCalls) = await HandleFunctionCallsAsync(
+                            allCalls,
                             handledToolCalls,
+                            brainTurnCalls,
                             ws,
                             sendLock,
                             session,
@@ -528,11 +531,13 @@ internal static class TalkEndpoint
                             turnState,
                             logger,
                             pumpCts.Token).ConfigureAwait(false);
-                    }
+                        brainTurnCalls = updatedBrainCalls;
 
-                    if (triggeredToolCall)
-                    {
-                        continue;
+                        if (executedAny)
+                        {
+                            await session.SendAsync(new CreateResponseRealtimeClientMessage(), pumpCts.Token).ConfigureAwait(false);
+                            continue;
+                        }
                     }
 
                     var (heard, reply, delegated) = turnState.Complete();
@@ -577,9 +582,10 @@ internal static class TalkEndpoint
         }
     }
 
-    private static async Task<bool> HandleFunctionCallsAsync(
+    private static async Task<(bool ExecutedAny, int BrainTurnCalls)> HandleFunctionCallsAsync(
         IEnumerable<FunctionCallContent> calls,
         HashSet<string> handledCallIds,
+        int brainTurnCalls,
         WebSocket ws,
         SemaphoreSlim sendLock,
         IRealtimeClientSession session,
@@ -594,9 +600,14 @@ internal static class TalkEndpoint
         foreach (var call in calls)
         {
             var callId = string.IsNullOrWhiteSpace(call.CallId) ? Guid.NewGuid().ToString("N") : call.CallId;
-            if (!handledCallIds.Add(callId))
+            if (handledCallIds.Contains(callId))
             {
                 continue;
+            }
+
+            if (handledCallIds.Count < MaxHandledToolCallsPerSession)
+            {
+                handledCallIds.Add(callId);
             }
 
             executedAny = true;
@@ -605,22 +616,30 @@ internal static class TalkEndpoint
             string resultText;
             if (string.Equals(call.Name, BrainTurnToolName, StringComparison.OrdinalIgnoreCase))
             {
-                var request = ExtractToolRequest(call, turnState.PeekHeard());
-                if (string.IsNullOrWhiteSpace(request))
+                if (brainTurnCalls >= MaxBrainTurnCallsPerSession)
                 {
-                    resultText = "No request was provided for the brain turn.";
+                    resultText = "Voice session tool call limit reached. Ask the user to start a new voice session or continue in text chat.";
                 }
                 else
                 {
-                    try
+                    brainTurnCalls++;
+                    var request = ExtractToolRequest(call, turnState.PeekHeard());
+                    if (string.IsNullOrWhiteSpace(request))
                     {
-                        turnState.MarkDelegatedToBrain();
-                        resultText = await ExecuteBrainTurnAsync(conversation, brains, brainId, request, ct).ConfigureAwait(false);
+                        resultText = "No request was provided for the brain turn.";
                     }
-                    catch (Exception error) when (error is not OperationCanceledException)
+                    else
                     {
-                        logger.LogSwallowed(error, "executing run_brain_turn from realtime voice session");
-                        resultText = $"I could not complete that action: {error.Message}";
+                        try
+                        {
+                            turnState.MarkDelegatedToBrain();
+                            resultText = await ExecuteBrainTurnAsync(conversation, brains, brainId, request, ct).ConfigureAwait(false);
+                        }
+                        catch (Exception error) when (error is not OperationCanceledException)
+                        {
+                            logger.LogSwallowed(error, "executing run_brain_turn from realtime voice session");
+                            resultText = "I could not complete that action right now.";
+                        }
                     }
                 }
             }
@@ -633,10 +652,9 @@ internal static class TalkEndpoint
                 new CreateConversationItemRealtimeClientMessage(
                     new RealtimeConversationItem([new FunctionResultContent(callId, resultText)])),
                 ct).ConfigureAwait(false);
-            await session.SendAsync(new CreateResponseRealtimeClientMessage(), ct).ConfigureAwait(false);
         }
 
-        return executedAny;
+        return (executedAny, brainTurnCalls);
     }
 
     private static string? ExtractToolRequest(FunctionCallContent call, string? fallbackHeard)

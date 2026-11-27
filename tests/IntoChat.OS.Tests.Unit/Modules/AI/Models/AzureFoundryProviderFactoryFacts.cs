@@ -139,6 +139,55 @@ public sealed class AzureFoundryProviderFactoryFacts
             () => factory.ResolveAuthAsync(options, credentials, pinnedEndpoint: null, brainId: null, Ct));
     }
 
+    [Theory]
+    [InlineData("https://my-foundry.services.ai.azure.com")]
+    [InlineData("https://my-openai.openai.azure.com")]
+    [InlineData("https://my-cog.cognitiveservices.azure.com")]
+    [InlineData("http://localhost:8080")]
+    [InlineData("http://127.0.0.1:8080")]
+    [InlineData("http://[::1]:8080")]
+    public async Task EntraIdAllowsTrustedAzureAndLoopbackHosts(string endpointUrl)
+    {
+        var factory = new AzureFoundryProviderFactory(static () => new StubTokenProvider());
+        var options = new AIOptions
+        {
+            AzureFoundry = new AzureFoundryOptions
+            {
+                Endpoint = endpointUrl,
+                UseEntraId = true,
+            },
+        };
+        var credentials = new FixedAiCredentials();
+
+        Assert.True(await factory.IsConfigured(options, credentials, Ct));
+        var (_, apiKey, policy) = await factory.ResolveAuthAsync(options, credentials, pinnedEndpoint: null, brainId: null, Ct);
+        Assert.Null(apiKey);
+        Assert.IsType<BearerTokenPolicy>(policy);
+    }
+
+    [Theory]
+    [InlineData("https://evil.example.com")]
+    [InlineData("https://evilservices.ai.azure.com")]
+    [InlineData("https://services.ai.azure.com")]
+    [InlineData("https://my-foundry.services.ai.azure.com.evil.com")]
+    public async Task EntraIdRejectsNonAzureNonLoopbackHosts(string untrustedEndpoint)
+    {
+        var factory = new AzureFoundryProviderFactory(static () => new StubTokenProvider());
+        var options = new AIOptions
+        {
+            AzureFoundry = new AzureFoundryOptions
+            {
+                Endpoint = untrustedEndpoint,
+                UseEntraId = true,
+            },
+        };
+        var credentials = new FixedAiCredentials();
+
+        Assert.False(await factory.IsConfigured(options, credentials, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => factory.ResolveAuthAsync(options, credentials, pinnedEndpoint: null, brainId: null, Ct));
+    }
+
     [Fact]
     public void CatalogIncludesAllSevenAzureFoundryCards()
     {

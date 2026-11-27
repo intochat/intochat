@@ -144,6 +144,7 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
     {
         var toolResultReceived = new TaskCompletionSource<FunctionResultContent>(TaskCreationOptions.RunContinuationsAsynchronously);
         var continueRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var createResponseCount = 0;
 
         var realtime = new ScriptedRealtimeClient(
             onFirstAudio: session =>
@@ -162,6 +163,12 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
                         new FunctionCallContent("call_42", TalkEndpoint.BrainTurnToolName, new Dictionary<string, object?> { ["request"] = "check my memory" }),
                     ]),
                 });
+                session.Emit(new ResponseCreatedRealtimeServerMessage(
+                    RealtimeServerMessageType.ResponseDone)
+                {
+                    ResponseId = "resp_tool_1",
+                    Status = RealtimeResponseStatus.Completed,
+                });
             },
             onClientMessage: (session, message) =>
             {
@@ -172,6 +179,7 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
                 }
                 else if (message is CreateResponseRealtimeClientMessage)
                 {
+                    Interlocked.Increment(ref createResponseCount);
                     continueRequested.TrySetResult();
                     session.Emit(new OutputTextAudioRealtimeServerMessage(
                         RealtimeServerMessageType.OutputTextDelta)
@@ -206,6 +214,8 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
         Assert.Equal("call_42", toolResult.CallId);
         Assert.NotNull(toolResult.Result);
         await continueRequested.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        Assert.Equal(1, Volatile.Read(ref createResponseCount));
+        Assert.Single(frames.OfType<TalkState>(), static s => s.State == "listening");
         Assert.Equal("I checked with the brain.", string.Concat(frames.OfType<TalkReply>().Select(static r => r.Text)));
 
         await SendEventAsync(ws, new TalkEnd(), Ct);

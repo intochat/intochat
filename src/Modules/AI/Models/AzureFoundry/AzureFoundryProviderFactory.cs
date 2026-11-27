@@ -12,11 +12,18 @@ internal sealed class AzureFoundryProviderFactory : ILlmProviderFactory
     internal const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
     internal const string ModelIdPrefix = "foundry/";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(5);
+    private static readonly Lazy<AuthenticationTokenProvider> SharedDefaultCredential = new(static () => new DefaultAzureCredential());
+    private static readonly string[] TrustedEntraHostSuffixes =
+    [
+        ".services.ai.azure.com",
+        ".openai.azure.com",
+        ".cognitiveservices.azure.com",
+    ];
 
     private readonly Func<AuthenticationTokenProvider> _tokenProviderFactory;
 
     public AzureFoundryProviderFactory()
-        : this(static () => new DefaultAzureCredential())
+        : this(static () => SharedDefaultCredential.Value)
     {
     }
 
@@ -38,7 +45,7 @@ internal sealed class AzureFoundryProviderFactory : ILlmProviderFactory
         var snapshot = await credentials.StatusOf(IntegrationId, cancellationToken).ConfigureAwait(false);
         var rawEndpoint = snapshot.Settings.GetValueOrDefault(AiIntegrations.EndpointField)
             ?? configuration.AzureFoundry.Endpoint;
-        if (!TryNormalizeEndpoint(rawEndpoint, out _))
+        if (!TryNormalizeEndpoint(rawEndpoint, out var normalized))
         {
             return false;
         }
@@ -48,7 +55,7 @@ internal sealed class AzureFoundryProviderFactory : ILlmProviderFactory
             return true;
         }
 
-        return configuration.AzureFoundry.UseEntraId;
+        return configuration.AzureFoundry.UseEntraId && IsTrustedEntraHost(normalized);
     }
 
     public Task<IChatClient> CreateChatClient(ModelCard card, AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
@@ -154,6 +161,13 @@ internal sealed class AzureFoundryProviderFactory : ILlmProviderFactory
 
         if (configuration.AzureFoundry.UseEntraId)
         {
+            if (!IsTrustedEntraHost(endpoint))
+            {
+                throw new ArgumentException(
+                    $"Azure AI Foundry Entra ID authentication requires a trusted Azure AI Foundry or Cognitive Services host (*.services.ai.azure.com, *.openai.azure.com, *.cognitiveservices.azure.com) or loopback; '{endpoint.Host}' is not allowed.",
+                    nameof(pinnedEndpoint));
+            }
+
             var policy = new BearerTokenPolicy(_tokenProviderFactory(), CognitiveServicesScope);
             return (endpoint, null, policy);
         }
@@ -229,6 +243,26 @@ internal sealed class AzureFoundryProviderFactory : ILlmProviderFactory
             Fragment = string.Empty,
         };
         return builder.Uri;
+    }
+
+    internal static bool IsTrustedEntraHost(Uri endpoint)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        if (endpoint.IsLoopback)
+        {
+            return true;
+        }
+
+        var host = endpoint.IdnHost;
+        foreach (var suffix in TrustedEntraHostSuffixes)
+        {
+            if (host.Length > suffix.Length && host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static Uri RealtimeEndpointOf(Uri openAiV1Endpoint)
