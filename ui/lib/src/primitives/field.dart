@@ -9,7 +9,7 @@ import '../theme/ui_icon.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
-import 'surface.dart';
+import 'layout_primitives.dart';
 
 /// Desktop-dense text field: 13/600 label, 6 gap, then a 36px single-line box
 /// with radius 12, `inputBorder` border, `surface` fill and xs shadow. Focus

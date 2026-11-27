@@ -8,7 +8,7 @@ import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 import 'button.dart';
-import 'surface.dart';
+import 'layout_primitives.dart';
 
 /// Ghost square icon button (34x34, `radiusSmall` corners) with tooltip,
 /// semantic label, hover fill, and keyboard focus halo.
@@ -231,9 +231,9 @@ class _UiMenuState extends State<UiMenu> {
                 onPressed: toggle,
                 focusNode: _trigger,
               )
-            : UiKitButton(
+            : UiMixButton.preset(
                 label: text,
-                style: UiKitButtonStyle.ghost,
+                style: UiMixButtonStyle.ghost,
                 onPressed: toggle,
                 focusNode: _trigger,
               );

@@ -432,7 +432,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
                   const SizedBox(height: 16),
                 ],
                 if (!usesOAuth)
-                  UiKitButton(
+                  UiMixButton.preset(
                     key: const Key('connect_submit'),
                     label: 'Connect',
                     icon: 'link',
@@ -440,7 +440,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
                     onPressed: busy || source == null ? null : connect,
                   ),
                 if (usesOAuth)
-                  UiKitButton(
+                  UiMixButton.preset(
                     key: const Key('connect_oauth'),
                     label: 'Sign in with the provider',
                     icon: 'external-link',

@@ -101,7 +101,7 @@ void main() {
             );
             await tester.pumpAndSettle();
             if (scene.key == 'copy_toast') {
-              await tester.tap(find.widgetWithText(UiKitButton, 'Copy link'));
+              await tester.tap(find.widgetWithText(UiMixButton, 'Copy link'));
               await tester.pump();
               await tester.pump(const Duration(milliseconds: 400));
             }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../primitives/button.dart';
 import '../controls.dart';
 import '../keys.dart';
 import '../../theme/ui_colors.dart';
@@ -354,7 +355,12 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                 ),
               ),
             ),
-            Btn(label: 'Try again', small: true, onTap: widget.onRetry),
+            UiMixButton.preset(
+              label: 'Try again',
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              onPressed: widget.onRetry,
+            ),
           ],
         ),
       ),
@@ -546,29 +552,32 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
               runSpacing: 8,
               children: [
                 if (d.sourceNeuronUri != null)
-                  Btn(
+                  UiMixButton.preset(
                     label: 'Copy URI',
-                    icon: LucideIcons.copy,
-                    small: true,
-                    onTap: () {
+                    style: UiMixButtonStyle.secondary,
+                    iconData: LucideIcons.copy,
+                    compact: true,
+                    onPressed: () {
                       final uri = d.sourceNeuronUri!;
                       Clipboard.setData(ClipboardData(text: uri));
                       widget.onCopyNeuronUri?.call(uri);
                     },
                   ),
                 if (widget.onDownload != null)
-                  Btn(
+                  UiMixButton.preset(
                     label: 'Download CSV',
-                    icon: LucideIcons.download,
-                    small: true,
-                    onTap: widget.onDownload,
+                    style: UiMixButtonStyle.secondary,
+                    iconData: LucideIcons.download,
+                    compact: true,
+                    onPressed: widget.onDownload,
                   ),
                 if (widget.onOpen != null)
-                  Btn(
+                  UiMixButton.preset(
                     label: 'Open in Sheets',
-                    icon: LucideIcons.grid3x3,
-                    small: true,
-                    onTap: widget.onOpen,
+                    style: UiMixButtonStyle.secondary,
+                    iconData: LucideIcons.grid3x3,
+                    compact: true,
+                    onPressed: widget.onOpen,
                   ),
               ],
             ),

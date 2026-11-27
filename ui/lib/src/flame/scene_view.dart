@@ -11,7 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
-import 'prefabs/sphere.dart';
+import 'flame_prefabs.dart';
 import 'scene_game.dart';
 
 typedef SceneReplayKeyHandler = void Function(String key, String cursor);

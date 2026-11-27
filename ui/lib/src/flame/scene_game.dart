@@ -7,12 +7,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import 'node_components.dart';
-import 'placeholder_node.dart';
-import 'prefabs/sphere.dart';
-import 'primitive_nodes.dart';
+import 'flame_nodes.dart';
 
-export 'graph_semantics.dart';
+import 'flame_prefabs.dart';
+
+export 'flame_nodes.dart' hide TextNode;
 
 typedef SceneInputHandler = void Function(
   String nodeId,

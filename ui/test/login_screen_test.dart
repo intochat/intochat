@@ -78,7 +78,7 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<UiKitButton>(find.byKey(const Key('login-submit')))
+            .widget<UiMixButton>(find.byKey(const Key('login-submit')))
             .onPressed,
         isNull,
       );
@@ -88,7 +88,7 @@ void main() {
       expect(find.text('Unable to connect. Please try again.'), findsOneWidget);
       expect(
         tester
-            .widget<UiKitButton>(find.byKey(const Key('login-submit')))
+            .widget<UiMixButton>(find.byKey(const Key('login-submit')))
             .onPressed,
         isNotNull,
       );

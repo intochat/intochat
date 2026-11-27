@@ -113,7 +113,7 @@ void main() {
   ) async {
     final events = <Map<String, dynamic>>[];
     await _host(tester, nodeSamples['button']!, events: events);
-    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.tap(find.widgetWithText(UiMixButton, 'Go'));
     await tester.pumpAndSettle();
     expect(events, [
       {
@@ -234,7 +234,7 @@ void main() {
       onActivate: opened.add,
       knowsApp: (app) => app == 'trace',
     );
-    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.tap(find.widgetWithText(UiMixButton, 'Go'));
     await tester.pumpAndSettle();
     expect(opened.single['kind'], 'os_uri');
     expect(opened.single['uri'], 'os://window/open?app=trace&input=run-1');
@@ -323,7 +323,7 @@ void main() {
       },
       onActivate: opened.add,
     );
-    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.tap(find.widgetWithText(UiMixButton, 'Go'));
     await tester.pumpAndSettle();
     expect(opened, isEmpty);
   });
@@ -338,7 +338,7 @@ void main() {
       }),
       onActivate: opened.add,
     );
-    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.tap(find.widgetWithText(UiMixButton, 'Go'));
     await tester.pumpAndSettle();
     expect(opened, isEmpty);
   });
@@ -361,7 +361,7 @@ void main() {
       ),
     );
     await _host(tester, _intentButton({'intentKind': 'Copy', 'arg': 'hello'}));
-    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.tap(find.widgetWithText(UiMixButton, 'Go'));
     await tester.pump();
     expect(copied, 'hello');
     await tester.pump(const Duration(seconds: 5));
