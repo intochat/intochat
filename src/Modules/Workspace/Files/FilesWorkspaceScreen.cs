@@ -69,6 +69,7 @@ internal sealed record FilesWorkspaceState
     public bool Ready { get; init; }
     public int Width { get; init; } = 1440;
     public bool PreviewOpen { get; init; }
+    public bool QuickWriteCollapsed { get; init; }
     public string ViewMode { get; init; } = "list";
     public FilesTyped Typed { get; init; } = new();
 }
@@ -203,8 +204,9 @@ internal sealed partial class FilesWorkspaceScreen(
                 return Stored() with { PageOffset = app.Snapshot.Items.Length > offset ? offset : next.PageOffset };
             case "previous": return next with { PageOffset = Math.Max(0, next.PageOffset - 40) };
             case "next": return next with { PageOffset = Math.Min(Math.Max(0, next.Files.Items.Length - 1) / 40 * 40, next.PageOffset + 40) };
-            case "copy": app.Copy(move: false); return Stored();
-            case "move": app.Copy(move: true); return Stored();
+            case "copy": app.Copy(move: false); return Stored() with { QuickWriteCollapsed = false };
+            case "move": app.Copy(move: true); return Stored() with { QuickWriteCollapsed = false };
+            case "toggle-quick-write": return next with { QuickWriteCollapsed = !next.QuickWriteCollapsed };
             case "ask-ino":
                 var prompt = app.AskIno();
                 await HandToIno(app.Snapshot, prompt);

@@ -20,7 +20,8 @@ internal static class ChildKeys
         var hidden = Hide(view);
         if (JsonNode.Parse(hidden.GetRawText()) is not JsonObject obj) { return hidden; }
         obj["acts"] = DigitalBrain.UI.View.ActRoute;
-        return JsonSerializer.SerializeToElement(obj);
+        using var doc = JsonDocument.Parse(obj.ToJsonString());
+        return doc.RootElement.Clone();
     }
 
     // Also strips a top-level "acts" mark: only Screen writes it, so a view that reached here carrying one (an app's raw JSON) loses it.
@@ -32,7 +33,8 @@ internal static class ChildKeys
         if (root is null) { return view; }
         if (root is JsonObject top) { top.Remove("acts"); }
         Rewrite(root);
-        return JsonSerializer.SerializeToElement(root);
+        using var doc = JsonDocument.Parse(root.ToJsonString());
+        return doc.RootElement.Clone();
     }
 
     private static void Rewrite(JsonNode node)

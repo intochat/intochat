@@ -155,6 +155,26 @@ public sealed class FilesWorkspaceScreenFacts
     }
 
     [Fact]
+    public async Task Quick_write_panel_toggles_through_screen_state_without_legacy_expander()
+    {
+        var (storage, _, _) = Disk();
+        await using var os = Os(storage);
+        using var person = AsPerson();
+
+        var initial = await ViewOf(os);
+        Assert.DoesNotContain("expander:", initial, StringComparison.Ordinal);
+        Assert.Contains("\"input-name\"", initial, StringComparison.Ordinal);
+
+        await Press(os, "toggle-quick-write");
+        var collapsed = await ViewOf(os);
+        Assert.DoesNotContain("\"input-name\"", collapsed, StringComparison.Ordinal);
+
+        await Press(os, "toggle-quick-write");
+        var reopened = await ViewOf(os);
+        Assert.Contains("\"input-name\"", reopened, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Operation_cards_show_what_the_operation_signals_reported()
     {
         var cards = FilesWorkspaceScreen.OperationCards(

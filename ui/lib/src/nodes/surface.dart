@@ -82,17 +82,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
       );
     }
 
-    // 4. Interactive collapsible Expander (`kind: "expander"` | `"expander:open"` | `"expander:closed"`)
-    if (variant.kind == SurfaceVariantKind.expander) {
-      return _ExpanderSurfaceView(
-        title: node.title ?? 'Details',
-        subtitle: node.subtitle,
-        initiallyExpanded: variant.initiallyOpen,
-        children: renderAll(node.children, ctx),
-      );
-    }
-
-    // 5. Bounded vertical ScrollBox (`kind: "scroll"`)
+    // 4. Bounded vertical ScrollBox (`kind: "scroll"`)
     if (variant.kind == SurfaceVariantKind.scroll) {
       final maxHeight = node.padding > 0
           ? node.padding.clamp(100.0, 1400.0)
@@ -441,114 +431,6 @@ class _CodeSurfaceViewState extends State<_CodeSurfaceView> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExpanderSurfaceView extends StatefulWidget {
-  const _ExpanderSurfaceView({
-    required this.title,
-    required this.subtitle,
-    required this.initiallyExpanded,
-    required this.children,
-  });
-
-  final String title;
-  final String? subtitle;
-  final bool initiallyExpanded;
-  final List<Widget> children;
-
-  @override
-  State<_ExpanderSurfaceView> createState() => _ExpanderSurfaceViewState();
-}
-
-class _ExpanderSurfaceViewState extends State<_ExpanderSurfaceView> {
-  late bool _expanded = widget.initiallyExpanded;
-
-  @override
-  void didUpdateWidget(covariant _ExpanderSurfaceView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initiallyExpanded != widget.initiallyExpanded) {
-      _expanded = widget.initiallyExpanded;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = UiColors.of(context);
-    final tokens = UiTokens.of(context);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surfaceCard,
-        borderRadius: BorderRadius.circular(tokens.surfaceRadius),
-        border: Border.all(color: c.borderHairline),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(
-                    _expanded
-                        ? LucideIcons.chevronDown
-                        : LucideIcons.chevronRight,
-                    size: 16,
-                    color: c.muted,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.title,
-                          style: UiType.textStyle(
-                            13,
-                            weight: FontWeight.w600,
-                            color: c.textStrong,
-                          ),
-                        ),
-                        if (widget.subtitle case final sub? when sub.isNotEmpty)
-                          Text(
-                            sub,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: UiType.textStyle(
-                              11.5,
-                              weight: FontWeight.w400,
-                              color: c.muted,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_expanded && widget.children.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: c.borderHairline)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 10,
-                children: widget.children,
-              ),
-            ),
         ],
       ),
     );

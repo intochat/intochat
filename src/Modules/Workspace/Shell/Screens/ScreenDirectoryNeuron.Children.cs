@@ -14,6 +14,13 @@ namespace IntoChat.OS.Modules.Flutter.Screens;
 internal sealed partial class ScreenDirectoryNeuron
 {
     private const int MaxChildDepth = 4;
+    private static readonly JsonElement EmptyObject = ParseElement("{}");
+
+    private static JsonElement ParseElement(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
 
     // A screen's children drawn in place for MCP and HTTP readers: each child ref is replaced by the child's view root, whose node keys
     // carry the child key path ("conversation/composer"); Act routes such a key to the child. A child that cannot be read keeps its ref.
@@ -23,7 +30,7 @@ internal sealed partial class ScreenDirectoryNeuron
         var root = System.Text.Json.Nodes.JsonNode.Parse(view.GetRawText());
         if (root is null) { return view; }
         await InlineAsync(root, "", 0);
-        return JsonSerializer.SerializeToElement(root);
+        return ParseElement(root.ToJsonString());
     }
 
     private async Task InlineAsync(System.Text.Json.Nodes.JsonNode node, string prefix, int depth)
@@ -87,11 +94,11 @@ internal sealed partial class ScreenDirectoryNeuron
                 ? (id.Key[(slash + 1)..], id)
                 : null;
 
-    // The screen that takes the app's commands and its current view: the one the resolver names, or else (no resolver) the first
-    // host that has a view, in the order Read tries them.
+    // The screen that takes the app's commands and its current view: resolved via ScreenViewResolver.
     private async Task<(NeuronId Id, PublishedView View)?> TopScreenAsync(string brainId, string appId, string normalizedApp, string kind)
     {
-        foreach (var id in await ScreenCandidatesAsync(brainId, appId, normalizedApp, kind))
+        if (!BrainId.IsValid(brainId)) { return null; }
+        foreach (var id in await ScreenViewResolver.ScreenCandidatesAsync(new BrainId(brainId), appId, normalizedApp, kind, targetResolver))
         {
             try
             {
@@ -103,24 +110,6 @@ internal sealed partial class ScreenDirectoryNeuron
             }
         }
         return null;
-    }
-
-    private async Task<NeuronId[]> ScreenCandidatesAsync(string brainId, string appId, string normalizedApp, string kind)
-    {
-        if (!BrainId.IsValid(brainId)) { return []; }
-        var brain = new BrainId(brainId);
-        if (targetResolver is not null)
-        {
-            return await targetResolver.ResolveAsync(brain, normalizedApp) is { Kind: not IScreenTargetResolver.ConfirmationsKind } resolved ? [resolved.ScreenId] : [];
-        }
-        var unit = new NeuronId(brain, normalizedApp, "default");
-        if (string.Equals(kind, IScreenTargetResolver.AgentAppKind, StringComparison.Ordinal)) { return [new NeuronId(brain, "agentapp", normalizedApp)]; }
-        if (string.Equals(kind, IScreenTargetResolver.UnitKind, StringComparison.Ordinal)) { return [unit]; }
-        var viewName = appId.Contains('/', StringComparison.Ordinal) ? appId : IntoChat.OS.Host.Primitives.AppRef.Of(brain, normalizedApp).ViewKey;
-        var view = PlainNeuronContracts.IdOf(typeof(IView), viewName);
-        return !normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal)
-            ? [new NeuronId(brain, normalizedApp.StartsWith("app.", StringComparison.Ordinal) ? normalizedApp : "app." + normalizedApp, "default"), view, unit]
-            : [view, unit];
     }
 
     // The view a key path's node is in: while the leading segment names a child of the view, the path descends into that child, read
@@ -322,33 +311,6 @@ internal sealed partial class ScreenDirectoryNeuron
         }
 
         return [.. items];
-    }
-
-    private static string NormalizeAppId(string brain, string app)
-    {
-        if (BrainId.IsValid(brain) && IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brain), app, out var appRef))
-        {
-            return appRef.Name;
-        }
-        var prefix = brain + "/units/";
-        if (app.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return app[prefix.Length..];
-        }
-        prefix = brain + "/";
-        if (app.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return app[prefix.Length..];
-        }
-        if (app.StartsWith("apps/", StringComparison.Ordinal))
-        {
-            return app[5..];
-        }
-        if (app.StartsWith("app.", StringComparison.Ordinal))
-        {
-            return app[4..];
-        }
-        return app;
     }
 
     private static string FormatTitle(string appId)

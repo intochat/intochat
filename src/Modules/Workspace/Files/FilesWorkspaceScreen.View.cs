@@ -41,16 +41,7 @@ internal sealed partial class FilesWorkspaceScreen
                     ].ToNode()
                     : null,
                 Editor(files, state.Typed, appKey, rev),
-                Expander(
-                    "Quick Write & Clipboard",
-                    "Create a text file or paste clipboard selection into the active folder",
-                    expanded: files.Clipboard is not null,
-                    FilesUi.Field("input-name", appKey + "/" + NameField, FieldKind.Text, "Single-segment file or folder name…", label: "File or folder name", value: state.Typed.Name ?? "", typed: NameField),
-                    FilesUi.Field("input-content", appKey + "/" + ContentField, FieldKind.Multiline, "File contents (max 256 KiB)…", label: "Contents", value: state.Typed.Content ?? "", typed: ContentField),
-                    HStack(Space.Sm)[
-                        Button("write", "Save text file", "write", folderWritable, style: FilesUi.Primary),
-                        Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", "paste", files.Clipboard is not null)
-                    ]),
+                QuickWritePanel(state, files, appKey, rev, folderWritable),
                 .. OperationCards(state.Started, index => Button("cancel-" + index, "Cancel", "cancel", index: index)),
             ]).ToNode();
 
@@ -94,6 +85,32 @@ internal sealed partial class FilesWorkspaceScreen
                 HStack(Space.Sm)[
                     FilesUi.Button("save-edit", "Save", FilesUi.Act(rev, "save-edit"), style: FilesUi.Primary)
                 ]
+            ]
+        ].ToNode();
+    }
+
+    // Quick Write & Clipboard disclosure panel owned by Files screen state (replaces legacy Kit.Expander).
+    private static Node QuickWritePanel(FilesWorkspaceState state, FilesState files, string appKey, string rev, bool folderWritable)
+    {
+        var open = !state.QuickWriteCollapsed || files.Clipboard is not null;
+        return Card(
+            "Quick Write & Clipboard",
+            "Create a text file or paste clipboard selection into the active folder")
+            .Style(OsMixStyles.Card())[
+            VStack(Space.Sm)[
+                HStack(Space.Sm)[
+                    FilesUi.Button("toggle-quick-write", open ? "Hide" : "Show", FilesUi.Act(rev, "toggle-quick-write"), style: FilesUi.Ghost)
+                ],
+                open
+                    ? VStack(Space.Sm)[
+                        FilesUi.Field("input-name", appKey + "/" + NameField, FieldKind.Text, "Single-segment file or folder name…", label: "File or folder name", value: state.Typed.Name ?? "", typed: NameField),
+                        FilesUi.Field("input-content", appKey + "/" + ContentField, FieldKind.Multiline, "File contents (max 256 KiB)…", label: "Contents", value: state.Typed.Content ?? "", typed: ContentField),
+                        HStack(Space.Sm)[
+                            FilesUi.Button("write", "Save text file", FilesUi.Act(rev, "write"), folderWritable, style: FilesUi.Primary),
+                            FilesUi.Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", FilesUi.Act(rev, "paste"), files.Clipboard is not null)
+                        ]
+                    ].ToNode()
+                    : null
             ]
         ].ToNode();
     }
