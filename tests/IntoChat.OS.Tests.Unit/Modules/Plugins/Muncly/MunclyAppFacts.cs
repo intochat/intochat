@@ -1,15 +1,31 @@
+using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Invocation;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
 using IntoChat.Muncly;
 using IntoChat.Muncly.Screens;
+using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Apps.Tests.Unit;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Tools;
+using IntoChat.OS.Modules.UI;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Tests.Unit.Components.Muncly;
 
+[CollectionDefinition(nameof(MunclyAppFacts), DisableParallelization = true)]
+public sealed class MunclyAppFactsCollection;
+
+[Collection(nameof(MunclyAppFacts))]
 public sealed class MunclyAppFacts
 {
     [Fact]
@@ -18,7 +34,7 @@ public sealed class MunclyAppFacts
         var initial = new MunclyAppState();
         Assert.True(initial.ValidBaseUrlInvariant);
         Assert.True(initial.ValidPathInvariant);
-        Assert.Equal("https://crm.munc.ly", initial.CurrentUrl);
+        Assert.Equal("https://mcpdemo-crm.munc.ly", initial.CurrentUrl);
 
         var connected = initial.ConnectEndpoint("https://acme.munc.ly/dashboard");
         Assert.True(connected.IsAccepted);
@@ -58,30 +74,15 @@ public sealed class MunclyAppFacts
     }
 
     [Fact]
-    public async Task MunclyMcpSeedProviderResolvesConfigAndToken()
+    public void MunclyModuleIntegrationExposesNoPersonalCredentials()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["IntoChatOS:Modules:muncly:Options:BaseUrl"] = "https://acme.munc.ly",
-                ["IntoChatOS:Modules:muncly:Options:ToolSets"] = "core,setup",
-                ["IntoChatOS:Modules:muncly:Options:AllowedTools:0"] = "list_records",
-                ["IntoChatOS:Integrations:muncly:McpToken"] = "tok_live_123",
-            })
-            .Build();
-
-        var provider = new MunclyMcpSeedProvider(config);
-        var seed = await provider.ResolveAsync("owner", TestContext.Current.CancellationToken);
-
-        Assert.NotNull(seed);
-        Assert.Equal("muncly-crm", seed!.Name);
-        Assert.Equal("https://acme.munc.ly/api/mcp?sets=core%2Csetup", seed.Config.Url);
-        Assert.Equal("Muncly CRM", seed.Config.Title);
-        Assert.Equal("Authorization", seed.Config.HeaderName);
-        Assert.Equal("Bearer ", seed.Config.HeaderPrefix);
-        Assert.NotNull(seed.Config.AllowedTools);
-        Assert.Equal(["list_records"], seed.Config.AllowedTools);
-        Assert.Equal("tok_live_123", seed.Token);
+        var integration = MunclyModule.Integration;
+        Assert.DoesNotContain(integration.AllFields, f =>
+            string.Equals(f, "WebEmail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(f, "WebPassword", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(f, "McpToken", StringComparison.OrdinalIgnoreCase));
+        Assert.Empty(integration.SecretFields);
+        Assert.Empty(integration.OptionalSecretFields);
     }
 
     [Fact]
@@ -97,7 +98,9 @@ public sealed class MunclyAppFacts
             .AddSingleton<IConfiguration>(config)
             .BuildServiceProvider();
 
-        await using var os = TestOS.Local(o => o.Services = services);
+        await using var os = TestOS.Local(o => o.Services = services)
+            .RegisterCatalog()
+            .Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         os.Register<MunclyApp>();
 
         var brain = new BrainId("facts");
@@ -106,13 +109,17 @@ public sealed class MunclyAppFacts
         var opened = await screen.Open();
 
         Assert.NotNull(opened);
-        Assert.Contains("https://acme.munc.ly", opened!.View.GetRawText(), StringComparison.Ordinal);
+        var wire = opened!.View.GetRawText();
+        Assert.Contains("https://acme.munc.ly", wire, StringComparison.Ordinal);
+        Assert.Contains("muncly:open-browser", wire, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task UnconfiguredMunclyAppShowsInlineSetupCard()
+    public async Task UnconfiguredMunclyAppShowsServerSideFormControlCard()
     {
-        await using var os = TestOS.Local();
+        await using var os = TestOS.Local()
+            .RegisterCatalog()
+            .Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         os.Register<MunclyApp>();
 
         var brain = new BrainId("facts");
@@ -121,6 +128,220 @@ public sealed class MunclyAppFacts
         var opened = await screen.Open();
 
         Assert.NotNull(opened);
-        Assert.Contains("Connect Muncly CRM", opened!.View.GetRawText(), StringComparison.Ordinal);
+        var wire = opened!.View.GetRawText();
+        Assert.Contains("Connect Muncly CRM", wire, StringComparison.Ordinal);
+        Assert.Contains("/control.form/", wire, StringComparison.Ordinal);
+        Assert.Contains(MunclyApp.ConnectFormKey, wire, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task MunclyAppConnectRoundtripSharesConnectionWithSettingsAndNeverLeaksBearerToken()
+    {
+        FakeMunclyMcpConnectionNeuron.Reset();
+        var rawToken = "crm_test_" + new string('t', 24);
+        var tokenRef = SecretReferences.For("local", "app.muncly/default/muncly-connect/token", "MCP Bearer Token", isSet: true).Reference;
+        var vaultPort = new InMemorySecretVaultPort(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [tokenRef] = rawToken,
+        });
+
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretVaultPort>(vaultPort)
+            .BuildServiceProvider();
+
+        try
+        {
+            var brain = new BrainId("local");
+            await using var os = TestOS.Local(o => o.Services = services)
+                .RegisterCatalog()
+                .Register<FakeMunclyMcpConnectionNeuron>();
+            os.Register<MunclyApp>();
+
+            using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+            var muncly = await os.Install<MunclyApp>();
+            var opened = await muncly.Screen.Open();
+            Assert.Contains("Connect Muncly CRM", opened!.View.GetRawText(), StringComparison.Ordinal);
+
+            // Submit the server-side FormControl with URL + SecretRef
+            var submit = new Submit(
+                new Dictionary<string, string> { ["url"] = "https://mcpdemo-crm.munc.ly" },
+                new Dictionary<string, string> { ["token"] = tokenRef });
+            await muncly.Screen.Dispatch(new Command(
+                MunclyApp.ConnectFormKey,
+                "control.submit",
+                JsonSerializer.SerializeToElement(submit, JsonSerializerOptions.Web)));
+            await os.Idle();
+
+            // Verify IConnection.Connect("bearer-token", ...) + Probe() were called on connection/mcp/muncly-crm
+            Assert.Equal("connection/mcp/muncly-crm", FakeMunclyMcpConnectionNeuron.LastConnectedKey);
+            Assert.Equal("bearer-token", FakeMunclyMcpConnectionNeuron.LastAuthMethodId);
+            Assert.NotNull(FakeMunclyMcpConnectionNeuron.LastConnectPayload);
+            Assert.Contains(rawToken, FakeMunclyMcpConnectionNeuron.LastConnectPayload!, StringComparison.Ordinal);
+            Assert.Contains("https://mcpdemo-crm.munc.ly/api/mcp", FakeMunclyMcpConnectionNeuron.LastConnectPayload!, StringComparison.Ordinal);
+            Assert.True(FakeMunclyMcpConnectionNeuron.ProbeCount >= 1);
+
+            Assert.True(muncly.App.State.IsConfiguredEndpoint);
+            Assert.Equal(ConnectionStatus.Connected, muncly.App.State.ConnectionStatus);
+            Assert.Equal(["list_contacts", "create_deal"], muncly.App.State.DiscoveredTools);
+
+            // Toggle live MCP tools inspector and verify toolbar + external launch + tools list
+            await muncly.Screen.Click("muncly:toggle-inspector");
+            await os.Idle();
+            Assert.True(muncly.App.State.ShowToolsInspector);
+
+            var connectedWire = JsonSerializer.Serialize(muncly.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
+            Assert.Contains("Open Muncly CRM in Browser", connectedWire, StringComparison.Ordinal);
+            Assert.Contains("Connected CRM \\u0026 Live MCP Tools Inspector", connectedWire, StringComparison.Ordinal);
+            Assert.Contains("list_contacts", connectedWire, StringComparison.Ordinal);
+            Assert.Contains("create_deal", connectedWire, StringComparison.Ordinal);
+
+            // Prove Settings -> Connections sees the SAME connection/mcp/muncly-crm as Connected (2 tools)!
+            var settings = await os.Install<SettingsApp>();
+            settings.App.Observer = os;
+            await settings.App.Navigate(new SettingsNavigate("connections"));
+            Assert.Contains(settings.App.State.ActiveConnections, c =>
+                c.Key == "connection/mcp/muncly-crm"
+                && c.Status == ConnectionStatus.Connected
+                && c.ToolCount == 2);
+
+            // Prove ZERO raw secrets in MunclyAppState, View, or journal
+            var serializedState = JsonSerializer.Serialize(muncly.App.State);
+            Assert.DoesNotContain(rawToken, serializedState, StringComparison.Ordinal);
+            Assert.DoesNotContain(rawToken, connectedWire, StringComparison.Ordinal);
+
+            // Re-probe and Disconnect
+            await muncly.Screen.Click("muncly:probe");
+            await os.Idle();
+            Assert.True(FakeMunclyMcpConnectionNeuron.ProbeCount >= 2);
+
+            await muncly.Screen.Click("muncly:disconnect");
+            await os.Idle();
+            Assert.False(muncly.App.State.IsConfiguredEndpoint);
+            Assert.Equal(ConnectionStatus.Disconnected, muncly.App.State.ConnectionStatus);
+            Assert.Empty(muncly.App.State.DiscoveredTools);
+        }
+        finally
+        {
+            FakeMunclyMcpConnectionNeuron.Reset();
+        }
+    }
+
+    private sealed class InMemorySecretVaultPort(Dictionary<string, string> secrets) : ISecretVaultPort
+    {
+        public Task<SecretVaultResult> Set(string name, string label, string value, CancellationToken cancellationToken)
+            => Task.FromResult(SecretVaultResult.Denied);
+
+        public Task<SecretVaultStatus> Remove(string name, CancellationToken cancellationToken)
+            => Task.FromResult(SecretVaultStatus.Ok);
+
+        public Task<SecretVaultResult> Resolve(SecretRef secret, CancellationToken cancellationToken)
+            => Task.FromResult(secrets.TryGetValue(secret.Reference, out var val)
+                ? SecretVaultResult.Resolved(val)
+                : SecretVaultResult.NotFound);
+    }
+}
+
+[Neuron("mcp")]
+public sealed class FakeMunclyMcpConnectionNeuron : Neuron, IConnection, IMcpToolConnection
+{
+    public static string? LastConnectedKey { get; private set; }
+    public static string? LastAuthMethodId { get; private set; }
+    public static string? LastConnectPayload { get; private set; }
+    public static int ProbeCount { get; private set; }
+    public static bool IsConnected { get; private set; }
+    public static string CurrentUrl { get; private set; } = string.Empty;
+
+    public static void Reset()
+    {
+        LastConnectedKey = null;
+        LastAuthMethodId = null;
+        LastConnectPayload = null;
+        ProbeCount = 0;
+        IsConnected = false;
+        CurrentUrl = string.Empty;
+    }
+
+    Task<ConnectionView> IConnection.Read()
+        => Task.FromResult(new ConnectionView(
+            "mcp",
+            Id.Key.Split('/').Last(),
+            LastAuthMethodId ?? "bearer-token",
+            IsConnected ? ConnectionStatus.Connected : ConnectionStatus.Disconnected,
+            CurrentUrl,
+            null,
+            DateTimeOffset.UtcNow,
+            null));
+
+    public Task<ConnectionView> Connect(string authMethodId, string value)
+    {
+        LastConnectedKey = Id.Key;
+        LastAuthMethodId = authMethodId;
+        LastConnectPayload = value;
+        IsConnected = true;
+        using var doc = JsonDocument.Parse(value);
+        if (doc.RootElement.TryGetProperty("url", out var urlProp))
+        {
+            CurrentUrl = urlProp.GetString() ?? string.Empty;
+        }
+        return ((IConnection)this).Read();
+    }
+
+    public Task<ConnectionView> Probe()
+    {
+        ProbeCount++;
+        return ((IConnection)this).Read();
+    }
+
+    public Task Disconnect()
+    {
+        IsConnected = false;
+        return Task.CompletedTask;
+    }
+
+    public Task<ConnectionView> Adopt(string authMethodId, string? account) => ((IConnection)this).Read();
+    public Task<Dictionary<string, SealedSecret>> ExportFor(string brainId) => Task.FromResult(new Dictionary<string, SealedSecret>());
+    public Task<ConnectionView> Import(string authMethodId, string? account, Dictionary<string, SealedSecret> secrets, ConnectionStatus status, string? detail) => ((IConnection)this).Read();
+    public Task ShareInto(string brainId, string app) => Task.CompletedTask;
+    public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(false);
+    public Task UnshareFrom(string brainId, string app) => Task.CompletedTask;
+    public Task ShareWith(string principalId) => Task.CompletedTask;
+    public Task<bool> IsSharedWith(string principalId) => Task.FromResult(false);
+    public Task UnshareWith(string principalId) => Task.CompletedTask;
+
+    public Task<McpServerState> ConnectServer(McpConnectionConfig config, CancellationToken ct = default)
+    {
+        LastConnectedKey = Id.Key;
+        CurrentUrl = config.Url;
+        IsConnected = true;
+        return ReadState(ct);
+    }
+
+    public Task<McpServerState> Configure(McpConnectionConfig config, CancellationToken ct = default) => ConnectServer(config, ct);
+
+    public Task DisconnectServer(CancellationToken ct = default)
+    {
+        IsConnected = false;
+        return Task.CompletedTask;
+    }
+
+    public Task<McpServerState> ReadState(CancellationToken ct = default)
+        => Task.FromResult(new McpServerState(
+            "Muncly CRM",
+            CurrentUrl,
+            IsConnected,
+            IsConnected
+                ? [
+                    new ToolDescriptor("list_contacts", "List Contacts", "List CRM contacts", "{}", true),
+                    new ToolDescriptor("create_deal", "Create Deal", "Create a CRM deal", "{}", false),
+                  ]
+                : [],
+            null,
+            DateTimeOffset.UtcNow));
+
+    public Task<IReadOnlyList<string>> List() => Task.FromResult<IReadOnlyList<string>>([]);
+    public Task<ToolSet> Tools(CancellationToken ct = default) => Task.FromResult(new ToolSet("Muncly CRM", []));
+    public Task<IReadOnlyList<ToolDescriptor>> Search(string query, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ToolDescriptor>>([]);
+    public Task<bool> Validate(string tool, JsonElement args, CancellationToken ct = default) => Task.FromResult(true);
+    public Task<JsonElement> Run(string tool, JsonElement args, CancellationToken ct = default) => Task.FromResult(JsonDocument.Parse("{}").RootElement.Clone());
+    public Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default) => Task.FromResult(new ToolResult(false, "{}", []));
 }
