@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
@@ -25,7 +26,7 @@ internal sealed record PendingDeviceFlow(
 
 // Bounded, TTL-expiring in-memory tracker for active RFC 8628 device authorization flows.
 // Bound strictly to the owning BrainId so cross-brain polling is rejected.
-internal sealed class OAuthDeviceRequests(IOptions<ConnectionsOptions> options, TimeProvider clock)
+internal sealed class OAuthDeviceRequests(IOptions<OAuthConnectionsOptions> options, TimeProvider clock)
 {
     private readonly Dictionary<string, PendingDeviceFlow> _pending = new(StringComparer.Ordinal);
 

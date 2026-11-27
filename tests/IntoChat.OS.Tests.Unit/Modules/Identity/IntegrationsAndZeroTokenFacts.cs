@@ -5,8 +5,10 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.AspNetCore.Builder;
@@ -14,7 +16,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Connections;
-using IntoChat.OS.Modules.Identity.Connections.OAuth;
 using IntoChat.OS.Modules.Identity.Grants;
 using IntoChat.OS.Modules.Identity.Secrets;
 
@@ -26,14 +27,14 @@ public sealed class IntegrationsAndZeroTokenFacts
     [Fact]
     public void OAuthCallbackUriAndRoutingUseUnifiedIntegrationsProviderPathAndBackwardsCompatiblePaths()
     {
-        var options = Options.Create(new ConnectionsOptions
+        var options = Options.Create(new OAuthConnectionsOptions
         {
             PublicOrigin = new Uri("https://os.intochat.test"),
         });
         var requests = new OAuthLoginRequests(options, TimeProvider.System);
         var exchange = new OAuthTokenExchange(
             [],
-            new AuthorityNeurons(null!, new EmptyServiceProvider()),
+            new EmptyIntegrationResolver(),
             options,
             TimeProvider.System,
             new FakeHttpClientFactory(),
@@ -43,7 +44,7 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         Assert.Equal("https://os.intochat.test/integrations/github/oauth/callback", flow.CallbackUri("github").AbsoluteUri);
 
-        var unconfiguredOptions = Options.Create(new ConnectionsOptions());
+        var unconfiguredOptions = Options.Create(new OAuthConnectionsOptions());
         var fallbackFlow = new OAuthLoginFlow(new OAuthLoginRequests(unconfiguredOptions, TimeProvider.System), exchange, unconfiguredOptions);
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Scheme = "http";
@@ -267,6 +268,11 @@ public sealed class IntegrationsAndZeroTokenFacts
     private sealed class EmptyServiceProvider : IServiceProvider
     {
         public object? GetService(Type serviceType) => null;
+    }
+
+    private sealed class EmptyIntegrationResolver : IOAuthIntegrationResolver
+    {
+        public IIntegrationHandle Get(string integrationId) => throw new NotSupportedException();
     }
 
     private sealed class FakeHttpClientFactory : IHttpClientFactory

@@ -1,26 +1,24 @@
-using DigitalBrain;
-using DigitalBrain.Access;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
-using DigitalBrain.Brains;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.Extensions.Options;
-using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Host.Callers;
 
-namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
+namespace DigitalBrain.Runtime.Http.Connections.OAuth;
 
-internal sealed class OAuthTokenExchange(
-    IReadOnlyList<ConnectorDefinition> connectors, AuthorityNeurons neurons, IOptions<ConnectionsOptions> options,
-    TimeProvider clock, IHttpClientFactory clients, ModulePriceListRegistry operations, EdgeAuthority edge) : IOAuthTokenExchange
+public sealed class OAuthTokenExchange(
+    IReadOnlyList<ConnectorDefinition> connectors,
+    IOAuthIntegrationResolver integrations,
+    IOptions<OAuthConnectionsOptions> options,
+    TimeProvider clock,
+    IHttpClientFactory clients,
+    ModulePriceListRegistry operations,
+    EdgeAuthority edge) : IOAuthTokenExchange
 {
-    public const string HttpClientName = "IntoChat.OS.Connections.OAuth";
-    public const string MeteredHttpClientName = "IntoChat.OS.Connections.OAuth.Metered";
-
     public Task<OAuthGrant> ExchangeCodeAsync(string connectionKey, string authMethodId, string code, string codeVerifier, string redirectUri, string? target, CancellationToken ct)
         => PostAsync(connectionKey, authMethodId, target, false, new Dictionary<string, string>
         {
@@ -44,13 +42,13 @@ internal sealed class OAuthTokenExchange(
     internal string TokenEndpoint(string connectorId, OAuthMethod method)
         => options.Value.TokenEndpoints.TryGetValue(connectorId, out var endpoint) ? endpoint : method.TokenEndpoint;
 
-    // The Integration neuron releases only to the kernel; the client values never leave this method.
+    // The integration handle releases only under kernel scope; the client values never leave this method.
     internal async Task<(string Id, string Secret)> ClientAsync(OAuthMethod method, CancellationToken ct)
     {
-        var integration = neurons.Integration(method.IntegrationId);
-        if ((await integration.Read().WaitAsync(ct)).Status != IntegrationStatus.Ready)
+        var integration = integrations.Get(method.IntegrationId);
+        if ((await integration.ReadAsync(ct).ConfigureAwait(false)).Status != IntegrationStatus.Ready)
         { throw new InvalidOperationException($"Integration '{method.IntegrationId}' is not configured."); }
-        var released = await edge.AsKernel(BrainId.Kernel, () => integration.Release().WaitAsync(ct));
+        var released = await integration.ReleaseAsync(ct).ConfigureAwait(false);
         // An optional client field can be missing from a Ready integration; refuse before any redirect.
         if (!released.Values.TryGetValue(method.ClientIdField, out var id) || string.IsNullOrWhiteSpace(id)
             || !released.Values.TryGetValue(method.ClientSecretField, out var secret) || string.IsNullOrWhiteSpace(secret))
@@ -74,10 +72,11 @@ internal sealed class OAuthTokenExchange(
             if (operations.GetOperation(operation).Integration != method.IntegrationId)
             { throw new InvalidOperationException("The OAuth operation must belong to its declared integration."); }
         }
-        var (id, secret) = await ClientAsync(method, ct);
+        var (id, secret) = await ClientAsync(method, ct).ConfigureAwait(false);
         form["client_id"] = id;
         form["client_secret"] = secret;
-        using var client = clients.CreateClient(operation is null ? HttpClientName : MeteredHttpClientName);
+        var clientName = operation is null ? options.Value.ResolvedHttpClientName : options.Value.ResolvedMeteredHttpClientName;
+        using var client = clients.CreateClient(clientName);
         using var request = new HttpRequestMessage(HttpMethod.Post, TokenEndpoint(connectorId, method)) { Content = new FormUrlEncodedContent(form) };
         if (operation is not null)
         { request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: connectionKey), Guid.NewGuid().ToString("N"))); }
@@ -85,8 +84,8 @@ internal sealed class OAuthTokenExchange(
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
         try
         {
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
-            var body = await ReadBody(response.Content, linked.Token);
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);
+            var body = await ReadBody(response.Content, linked.Token).ConfigureAwait(false);
             using var json = JsonDocument.Parse(body);
             var root = json.RootElement;
             if (root.ValueKind != JsonValueKind.Object) { throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse); }
@@ -123,16 +122,16 @@ internal sealed class OAuthTokenExchange(
     {
         const int maximum = 256 * 1024;
         if (content.Headers.ContentLength > maximum) { throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse); }
-        await using var input = await content.ReadAsStreamAsync(ct);
+        await using var input = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         using var output = new MemoryStream();
         var buffer = new byte[8192];
         while (true)
         {
-            var count = await input.ReadAsync(buffer, ct);
+            var count = await input.ReadAsync(buffer, ct).ConfigureAwait(false);
             if (count == 0) { break; }
             if (output.Length + count > maximum) { throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse); }
             output.Write(buffer, 0, count);
         }
-        return System.Text.Encoding.UTF8.GetString(output.GetBuffer(), 0, (int)output.Length);
+        return Encoding.UTF8.GetString(output.GetBuffer(), 0, (int)output.Length);
     }
 }

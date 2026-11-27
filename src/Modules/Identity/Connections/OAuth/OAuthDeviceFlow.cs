@@ -10,6 +10,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Callers;
@@ -23,7 +24,7 @@ internal sealed class OAuthDeviceFlow(
     IReadOnlyList<ConnectorDefinition> connectors,
     AuthorityNeurons neurons,
     OAuthDeviceRequests requests,
-    IOptions<ConnectionsOptions> options,
+    IOptions<OAuthConnectionsOptions> options,
     TimeProvider clock,
     IHttpClientFactory clients,
     EdgeAuthority edge,

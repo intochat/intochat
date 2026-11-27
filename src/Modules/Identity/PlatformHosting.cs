@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -72,35 +73,30 @@ public static class PlatformHosting
         SingleSiloGuard.Register(services);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, IntoChat.OS.Modules.Identity.Hosting.AccessPolicyValidation>());
         silo.AddStartupTask<IntoChat.OS.Modules.Identity.Hosting.AccessPolicyValidation>();
-        services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName)
-            .PostConfigure(options =>
+        services.TryAddSingleton<IOAuthIntegrationResolver, OsOAuthIntegrationResolver>();
+        services.AddDigitalBrainOAuthConnections(options =>
+        {
+            options.ProductName = "IntoChat.OS";
+            options.ConfigHint = "IntoChatOS:Connections:PublicOrigin";
+            options.HttpClientName = "IntoChat.OS.Connections.OAuth";
+            options.MeteredHttpClientName = "IntoChat.OS.Connections.OAuth.Metered";
+        });
+        services.PostConfigure<OAuthConnectionsOptions>(options =>
+        {
+            if (options.PublicOrigin is { Host: "localhost" } origin
+                && string.Equals(origin.Port.ToString(System.Globalization.CultureInfo.InvariantCulture), Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS"), StringComparison.Ordinal))
             {
-                if (options.PublicOrigin is { Host: "localhost" } origin
-                    && string.Equals(origin.Port.ToString(System.Globalization.CultureInfo.InvariantCulture), Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS"), StringComparison.Ordinal))
-                {
-                    options.PublicOrigin = new Uri("http://localhost:5080");
-                }
-            });
-        // Silo singletons: a restart takes the pending logins with it, so a callback fails closed.
-        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthLoginRequests>();
-        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange>();
-        services.TryAddSingleton<IOAuthTokenExchange>(provider => provider.GetRequiredService<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange>());
-        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthLoginFlow>();
+                options.PublicOrigin = new Uri("http://localhost:5080");
+            }
+        });
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceRequests>();
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow>();
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Connections.IOAuthDeviceFlow>(
             provider => provider.GetRequiredService<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow>());
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Connections.IConnectionSecretBinder,
             IntoChat.OS.Modules.Identity.Connections.ConnectionSecretBinder>();
-        services.AddHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-        services.AddMeteredHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthTokenExchange.MeteredHttpClientName)
-            .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30));
-        services.AddSingleton<IHttpSurface, IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthCallback>();
-        // "Request starting" lines carry the callback's query (code and state); never log them, whatever the host's level.
-        services.AddLogging(logging => logging.AddFilter(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthCallback.RequestLogCategory, LogLevel.Warning));
     }
 
     public static IEndpointRouteBuilder MapIntoChatOSPlatform(this IEndpointRouteBuilder endpoints)
