@@ -22,6 +22,7 @@ public sealed class AspireDiscoveryFacts
         Assert.True(aspire.LoadsUnder("local"));
         Assert.False(aspire.RequiresContainer);
         Assert.Contains(OperatingSystemModules.InProcessModules, module => module.Type == typeof(AspireModule));
+        Assert.Contains(typeof(AspireModule).Assembly, OperatingSystemModules.ComponentAssemblies);
     }
 
     [Fact]

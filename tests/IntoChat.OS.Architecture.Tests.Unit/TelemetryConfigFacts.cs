@@ -1,4 +1,12 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
+using IntoChat.OS.Host.ServiceDefaults;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -28,6 +36,81 @@ public sealed class TelemetryConfigFacts
         {
             var settings = Path.Combine(Repository.ProjectNamed(name).Directory, "appsettings.json");
             Assert.Empty(Values(settings, "WriteFormat"));
+        }
+    }
+
+    [Fact]
+    public void ServiceDefaultsExportsComponentAndOsTelemetrySourcesAndMeters()
+    {
+        var recordedActivities = new List<string>();
+        var recordedMetrics = new List<string>();
+
+        var builder = Microsoft.Extensions.Hosting.Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings { ApplicationName = "TelemetryConfigFactsHost" });
+        builder.AddServiceDefaults();
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing.AddProcessor(new RecordingActivityProcessor(recordedActivities)))
+            .WithMetrics(metrics => metrics.AddReader(new BaseExportingMetricReader(new RecordingMetricExporter(recordedMetrics))));
+
+        using var host = builder.Build();
+        var tracerProvider = host.Services.GetRequiredService<TracerProvider>();
+        var meterProvider = host.Services.GetRequiredService<MeterProvider>();
+
+        using (var osSource = new ActivitySource("IntoChat.OS.Modules.TelemetryProbe"))
+        using (var componentSource = new ActivitySource("IntoChat.SampleComponent"))
+        using (var componentSubSource = new ActivitySource("IntoChat.SampleComponent.Sub"))
+        using (var unrelatedSource = new ActivitySource("Unrelated.External"))
+        {
+            using (osSource.StartActivity("os-op")) { }
+            using (componentSource.StartActivity("component-op")) { }
+            using (componentSubSource.StartActivity("component-sub-op")) { }
+            using (unrelatedSource.StartActivity("unrelated-op")) { }
+        }
+
+        using (var osMeter = new Meter("IntoChat.OS.Modules.TelemetryProbe"))
+        using (var componentMeter = new Meter("IntoChat.SampleComponent"))
+        using (var unrelatedMeter = new Meter("Unrelated.External"))
+        {
+            osMeter.CreateCounter<long>("os.probe.count").Add(1);
+            componentMeter.CreateCounter<long>("component.probe.count").Add(1);
+            unrelatedMeter.CreateCounter<long>("unrelated.probe.count").Add(1);
+            meterProvider.ForceFlush();
+        }
+
+        tracerProvider.ForceFlush();
+
+        Assert.Contains("IntoChat.OS.Modules.TelemetryProbe:os-op", recordedActivities);
+        Assert.Contains("IntoChat.SampleComponent:component-op", recordedActivities);
+        Assert.Contains("IntoChat.SampleComponent.Sub:component-sub-op", recordedActivities);
+        Assert.DoesNotContain(recordedActivities, entry => entry.StartsWith("Unrelated.External:", StringComparison.Ordinal));
+
+        Assert.Contains("IntoChat.OS.Modules.TelemetryProbe:os.probe.count", recordedMetrics);
+        Assert.Contains("IntoChat.SampleComponent:component.probe.count", recordedMetrics);
+        Assert.DoesNotContain(recordedMetrics, entry => entry.StartsWith("Unrelated.External:", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingActivityProcessor(List<string> recorded) : BaseProcessor<Activity>
+    {
+        public override void OnEnd(Activity data)
+        {
+            lock (recorded)
+            {
+                recorded.Add($"{data.Source.Name}:{data.OperationName}");
+            }
+        }
+    }
+
+    private sealed class RecordingMetricExporter(List<string> recorded) : BaseExporter<Metric>
+    {
+        public override ExportResult Export(in Batch<Metric> batch)
+        {
+            lock (recorded)
+            {
+                foreach (var metric in batch)
+                {
+                    recorded.Add($"{metric.MeterName}:{metric.Name}");
+                }
+            }
+            return ExportResult.Success;
         }
     }
 

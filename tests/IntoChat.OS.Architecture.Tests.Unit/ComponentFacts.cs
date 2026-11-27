@@ -68,6 +68,15 @@ public sealed partial class ComponentFacts
             + string.Join('\n', findings));
     }
 
+    [Fact]
+    public void NoModuleOrOtherComponentReferencesAComponentImplementation()
+    {
+        var findings = InboundComponentReferenceFindings(Repository.ComponentsRoot, Repository.ModuleRoots);
+        Assert.True(findings.Count == 0,
+            "No module, sibling component, or contracts project may reference a component implementation project; reference its *.Contracts project instead:\n"
+            + string.Join('\n', findings));
+    }
+
     // The package allow-list packs IntoChat.OS* only (PackageRootAllowlistFacts), so a component's packages are
     // IntoChat.OS.Components.<Name> and IntoChat.OS.Components.<Name>.Contracts while its assemblies are IntoChat.<Name>.
     [Fact]
@@ -190,6 +199,33 @@ public sealed partial class ComponentFacts
         var stale = ReferenceFindings(components, roots, [.. allowed, ("IntoChat.Alpha", "IntoChat.Gone")], owed + "\n- `IntoChat.Alpha` `IntoChat.Gone`");
         Assert.Single(stale);
         Assert.Contains("stale", stale[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InboundReferenceChallengerFlagsModulesSiblingComponentsAndContractsReferencingAComponentImplementation()
+    {
+        using var sample = new Sample();
+        var modules = Path.Combine(sample.Root, "modules");
+        var components = Path.Combine(sample.Root, "components");
+        string[] roots = [modules, components];
+
+        sample.Write("components/Beta/IntoChat.Beta.csproj", "<Project />");
+        sample.Write("components/Beta/Contracts/IntoChat.Beta.Contracts.csproj", "<Project />");
+        sample.Write("components/Alpha/IntoChat.Alpha.csproj", References("../Beta/Contracts/IntoChat.Beta.Contracts.csproj"));
+        sample.Write("modules/Mod/IntoChat.OS.Modules.Mod.csproj", References("../../components/Beta/Contracts/IntoChat.Beta.Contracts.csproj"));
+
+        Assert.Empty(InboundComponentReferenceFindings(components, roots));
+
+        sample.Write("modules/Mod/IntoChat.OS.Modules.Mod.csproj", References("../../components/Beta/IntoChat.Beta.csproj"));
+        sample.Write("components/Alpha/IntoChat.Alpha.csproj", References("../Beta/IntoChat.Beta.csproj"));
+        sample.Write("components/Beta/Contracts/IntoChat.Beta.Contracts.csproj", References("../IntoChat.Beta.csproj"));
+
+        var findings = InboundComponentReferenceFindings(components, roots);
+
+        Assert.Equal(3, findings.Count);
+        Assert.Contains(findings, finding => finding.Contains("IntoChat.OS.Modules.Mod -> IntoChat.Beta", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.Contains("IntoChat.Alpha -> IntoChat.Beta", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.Contains("IntoChat.Beta.Contracts -> IntoChat.Beta", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -358,6 +394,42 @@ public sealed partial class ComponentFacts
                 findings.Add($"{project} -> {referenced}: allowed but no OWED.md line names both projects");
             }
         }
+        return findings;
+    }
+
+    private static List<string> InboundComponentReferenceFindings(string componentsRoot, IReadOnlyList<string> roots)
+    {
+        var findings = new List<string>();
+        if (!Directory.Exists(componentsRoot))
+        {
+            return findings;
+        }
+
+        var componentImplementations = Repository.SourceFiles(componentsRoot, "*.csproj")
+            .Select(path => Path.GetFileNameWithoutExtension(path)!)
+            .Where(name => !name.EndsWith(".Contracts", StringComparison.Ordinal))
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (componentImplementations.Count == 0)
+        {
+            return findings;
+        }
+
+        foreach (var root in roots)
+        {
+            foreach (var project in Repository.SourceFiles(root, "*.csproj").Order(StringComparer.Ordinal))
+            {
+                var name = Path.GetFileNameWithoutExtension(project)!;
+                foreach (var referenced in Repository.References(project))
+                {
+                    if (referenced != name && componentImplementations.Contains(referenced))
+                    {
+                        findings.Add($"{name} -> {referenced}: inbound reference to a component implementation project is forbidden; reference its *.Contracts project instead");
+                    }
+                }
+            }
+        }
+
         return findings;
     }
 
