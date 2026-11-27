@@ -117,11 +117,11 @@ public sealed class IdentityRulesFacts
         var ownerCaller = edge.Person("alice", "acct-1", vaultBrain);
         var otherCaller = edge.Person("mallory", "acct-2", vaultBrain);
         var platformCaller = edge.Kernel(vaultBrain);
-        Assert.False(new CallerCanStoreSecret(ownerCaller, "alice").Broken);
-        Assert.True(new CallerCanStoreSecret(otherCaller, "alice").Broken);
-        Assert.False(new CallerCanRemoveSecret(ownerCaller, "alice").Broken);
-        Assert.False(new CallerCanRemoveSecret(platformCaller, "alice").Broken);
-        Assert.True(new CallerCanRemoveSecret(otherCaller, "alice").Broken);
+        Assert.True(DigitalBrain.Identity.Local.Vault.VaultPolicy.CanStore(ownerCaller, "alice"));
+        Assert.False(DigitalBrain.Identity.Local.Vault.VaultPolicy.CanStore(otherCaller, "alice"));
+        Assert.True(DigitalBrain.Identity.Local.Vault.VaultPolicy.CanRemove(ownerCaller, "alice"));
+        Assert.True(DigitalBrain.Identity.Local.Vault.VaultPolicy.CanRemove(platformCaller, "alice"));
+        Assert.False(DigitalBrain.Identity.Local.Vault.VaultPolicy.CanRemove(otherCaller, "alice"));
 
         var issuers = new[] { new TrustedIssuer { Name = "https://auth.example" } };
         Assert.False(new IssuerIsKnown("https://auth.example", issuers).Broken);

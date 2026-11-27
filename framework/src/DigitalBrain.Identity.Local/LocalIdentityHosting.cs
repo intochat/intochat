@@ -80,7 +80,10 @@ public static class LocalIdentityHosting
         }
 
         services.TryAddSingleton(sp => new MasterKeyWrapper(sp.GetRequiredService<IMasterKeyCustody>()));
-        services.TryAddSingleton(sp => new LocalSecretSealer(sp.GetRequiredService<IMasterKeyCustody>()));
+        services.TryAddSingleton(sp => new LocalSecretSealer(
+            sp.GetRequiredService<IMasterKeyCustody>(),
+            sp.GetService<MasterKeyWrapper>(),
+            sp.GetService<ILegacyBrainKeyReader>()));
         services.TryAddSingleton<ISecretSealer>(sp => sp.GetRequiredService<LocalSecretSealer>());
         services.TryAddSingleton<IBrainSecretSealer>(sp => sp.GetRequiredService<LocalSecretSealer>());
         services.TryAddSingleton(sp => new LocalVaultPort(
@@ -88,8 +91,17 @@ public static class LocalIdentityHosting
             sp.GetRequiredService<IMasterKeyCustody>(),
             sp.GetService<IConfiguration>(),
             sp.GetService<EdgeAuthority>(),
-            sp.GetService<ICallerAmbient>()));
+            sp.GetService<ICallerAmbient>(),
+            sp.GetService<IBrainSecretSealer>(),
+            sp.GetService<DigitalBrain.Brains.IBrainCapabilityPolicy>(),
+            sp.GetService<CachingSecretValueSource>()));
         services.TryAddSingleton<ISecretVaultPort>(sp => sp.GetRequiredService<LocalVaultPort>());
+        services.TryAddSingleton(sp => new CachingSecretValueSource(
+            (owner, ct) => sp.GetRequiredService<LocalVaultPort>().LoadValuesForRedactionAsync(owner, ct),
+            sp.GetService<ICallerAmbient>()
+                ?? (sp.GetService<EdgeAuthority>() is { } edge ? new EdgeCallerAmbient(edge) : EmptyCallerAmbient.Instance),
+            sp.GetService<TimeProvider>()));
+        services.TryAddSingleton<ISecretValueSource>(sp => sp.GetRequiredService<CachingSecretValueSource>());
         services.TryAddSingleton(sp => new LocalDirectoryPort(
             (contract, key) => neuronResolver(sp, contract, key),
             sp.GetService<TimeProvider>(),
@@ -102,5 +114,16 @@ public static class LocalIdentityHosting
             sp.GetService<ConnectionNeuronTypes>()));
         services.TryAddSingleton<ICapabilityConnections>(sp => sp.GetRequiredService<LocalConnections>());
         return services;
+    }
+
+    private sealed class EmptyCallerAmbient : ICallerAmbient
+    {
+        public static readonly EmptyCallerAmbient Instance = new();
+        public Caller? Current => null;
+    }
+
+    private sealed class EdgeCallerAmbient(EdgeAuthority edge) : ICallerAmbient
+    {
+        public Caller? Current => edge.Current;
     }
 }

@@ -23,7 +23,7 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider se
 
     public IBrain Brain(string brainId) => SiloNeurons.Get<IBrain>(services, IBrain.Key(brainId));
     public IDirectoryStore Directory() => SiloNeurons.Get<IDirectoryStore>(services, IDirectoryStore.Key);
-    public IOsVault Vault(string owner) => SiloNeurons.Get<IOsVault>(services, IOsVault.Key(owner));
+    public DigitalBrain.Identity.Local.Vault.IVault Vault(string owner) => SiloNeurons.Get<DigitalBrain.Identity.Local.Vault.IVault>(services, DigitalBrain.Identity.Local.Vault.IVault.Key(owner));
     public IPrincipalCredential Credential(string principalId) => Resolve<IPrincipalCredential>(principalId);
     public IntoChat.OS.Modules.Identity.External.IExternalTicketReplay ExternalTicketReplay(string issuer, string jti) => Resolve<IntoChat.OS.Modules.Identity.External.IExternalTicketReplay>(IntoChat.OS.Modules.Identity.External.IExternalTicketReplay.Key(issuer, jti));
     public IIdentityDirectory Passwords() => Resolve<IIdentityDirectory>((identity?.Value ?? DefaultIdentity).DirectoryKey);

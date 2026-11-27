@@ -165,7 +165,7 @@ internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuron
         catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
     }
 
-    private static IEnumerable<Type> SelectedLoadable(IEnumerable<Assembly> assemblies, IEnumerable<Type> selectedModules)
+    internal static IEnumerable<Type> SelectedLoadable(IEnumerable<Assembly> assemblies, IEnumerable<Type> selectedModules)
     {
         var selectedByAssembly = selectedModules
             .Distinct()

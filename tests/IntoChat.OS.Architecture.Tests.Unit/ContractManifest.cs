@@ -38,6 +38,8 @@ internal sealed record ContractManifest(
         // The semantic type catalog (deleted unused with TypeCatalog in the identity break-up); nothing produced either value.
         ("IntoChat.OS.Connections.SemanticType", "semantic.type; Kind=0, Id=1, Primitive=2, Sensitivity=3, LlmExposure=4, InputWidget=5, DisplayWidget=6, Redactor=7, Indexable=8"),
         ("IntoChat.OS.Connections.TypeValidationException", "types.type-validation; Kind=0, AllowedValues=1, RejectedValue=2"),
+        ("IntoChat.OS.Authority.Secrets.OsSecretRecord", "mydata.field-record; FieldPath=0, Kind=1, IsSecret=2, Label=3, IsSet=4, SealedValue=5, SealedSecret=7"),
+        ("IntoChat.OS.Authority.Secrets.SecretsState", "mydata.state; Owner=0, WrappedOwnerKey=1, Fields=2"),
     ];
 
     // OS types whose CLR name changed while their persisted identity did not (identity break-up, 2026-11-20: identity's
@@ -62,9 +64,6 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Authority.Identity.PrincipalCredentialState", "IntoChat.OS.Modules.Identity.Accounts.PrincipalCredentialState"),
         ("IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Modules.Identity.Integrations.IntegrationNeuron"),
         ("IntoChat.OS.Authority.Integrations.IntegrationState", "IntoChat.OS.Modules.Identity.Integrations.IntegrationState"),
-        ("IntoChat.OS.Authority.Secrets.OsSecretRecord", "IntoChat.OS.Modules.Identity.Secrets.OsSecretRecord"),
-        ("IntoChat.OS.Authority.Secrets.OsVaultChanged", "IntoChat.OS.Modules.Identity.Secrets.OsVaultChanged"),
-        ("IntoChat.OS.Authority.Secrets.SecretsState", "IntoChat.OS.Modules.Identity.Secrets.SecretsState"),
         ("IntoChat.OS.Connections.Platform.Entries.EntrySummary", "IntoChat.OS.Modules.Identity.Contracts.Entries.EntrySummary"),
         ("IntoChat.OS.Connections.Platform.Entries.IBrainEntries", "IntoChat.OS.Modules.Identity.Contracts.Entries.IBrainEntries"),
         ("IntoChat.OS.Connections.Platform.Integrations.IIntegration", "IntoChat.OS.Modules.Identity.Contracts.Integrations.IIntegration"),
@@ -133,6 +132,7 @@ internal sealed record ContractManifest(
         ("IntoChat.Files.FilesSearch", typeof(IntoChat.OS.Modules.Apps.FilesSearch)),
         ("IntoChat.Files.FilesSelected", typeof(IntoChat.OS.Modules.Apps.FilesSelected)),
         ("IntoChat.OS.Modules.Microsoft.Orleans.ClusterChanged", typeof(IntoChat.OS.Host.Cluster.ClusterChanged)),
+        ("IntoChat.OS.Authority.Secrets.OsVaultChanged", typeof(DigitalBrain.Identity.Local.Vault.VaultChanged)),
     ];
 
     internal static string BaselinePath => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, FileName);

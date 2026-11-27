@@ -1,6 +1,8 @@
-using DigitalBrain.Access;
 using System.Security.Cryptography;
+using DigitalBrain.Access;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Identity.Local.Custody;
 using DigitalBrain.Modules.Configuration;
@@ -8,19 +10,28 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Identity.Local.Vault;
 
-/// <summary>Implements <see cref="ISecretVaultPort"/> over <see cref="VaultNeuron"/> and <see cref="LocalSecretSealer"/>.</summary>
+/// <summary>
+/// Implements <see cref="ISecretVaultPort"/> over <see cref="VaultNeuron"/> and <see cref="IBrainSecretSealer"/>.
+/// Enforces unified owner resolution (persons, agents, apps for outbound resolve, and modules),
+/// <see cref="IBrainCapabilityPolicy"/> for ephemeral brains, and write-through redaction cache invalidation.
+/// </summary>
 public sealed class LocalVaultPort(
     Func<Type, string, object> neuronResolver,
     IMasterKeyCustody custody,
     IConfiguration? configuration = null,
     EdgeAuthority? edge = null,
-    ICallerAmbient? callers = null) : ISecretVaultPort
+    ICallerAmbient? callers = null,
+    IBrainSecretSealer? brainSealer = null,
+    IBrainCapabilityPolicy? capabilityPolicy = null,
+    CachingSecretValueSource? redactionCache = null) : ISecretVaultPort
 {
     private const string SecretScheme = "secret://";
 
     private readonly Func<Type, string, object> _neuronResolver = neuronResolver ?? throw new ArgumentNullException(nameof(neuronResolver));
-    private readonly LocalSecretSealer _sealer = new(custody ?? throw new ArgumentNullException(nameof(custody)));
+    private readonly IBrainSecretSealer _sealer = brainSealer ?? new LocalSecretSealer(custody ?? throw new ArgumentNullException(nameof(custody)));
     private readonly IConfiguration? _configuration = configuration;
+    private readonly IBrainCapabilityPolicy? _capabilityPolicy = capabilityPolicy;
+    private readonly CachingSecretValueSource? _redactionCache = redactionCache;
 
     /// <inheritdoc />
     public async Task<SecretVaultResult> Set(
@@ -33,9 +44,24 @@ public sealed class LocalVaultPort(
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(value);
         cancellationToken.ThrowIfCancellationRequested();
+
+        var owner = VaultPolicy.VaultOwner(caller)
+            ?? throw new UnauthorizedAccessException("secrets@1: caller does not own a vault.");
+
+        if (!VaultPolicy.CanStore(caller, owner))
+        {
+            return SecretVaultResult.Denied;
+        }
+
+        if (!await IsDurableSecretsAllowedAsync(caller, name, cancellationToken).ConfigureAwait(false))
+        {
+            return SecretVaultResult.Denied;
+        }
+
         try
         {
-            var stored = await AsPlatform(() => Vault(caller).Set(name, label ?? "", value)).ConfigureAwait(false);
+            var stored = await AsPlatform(() => Vault(owner).Set(name, label ?? "", value)).ConfigureAwait(false);
+            _redactionCache?.NotifySet(owner, value);
             return SecretVaultResult.Stored(stored);
         }
         catch (InvalidOperationException)
@@ -52,9 +78,23 @@ public sealed class LocalVaultPort(
         var caller = Stamped();
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         cancellationToken.ThrowIfCancellationRequested();
+
+        var owner = VaultPolicy.VaultOwner(caller)
+            ?? throw new UnauthorizedAccessException("secrets@1: caller does not own a vault.");
+
+        if (!VaultPolicy.CanRemove(caller, owner))
+        {
+            return SecretVaultStatus.Denied;
+        }
+
         try
         {
-            await AsPlatform(async () => { await Vault(caller).Remove(name).ConfigureAwait(false); return true; }).ConfigureAwait(false);
+            await AsPlatform(async () =>
+            {
+                await Vault(owner).Remove(name).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+            _redactionCache?.NotifyRemove(owner);
             return SecretVaultStatus.Ok;
         }
         catch (InvalidOperationException)
@@ -93,14 +133,15 @@ public sealed class LocalVaultPort(
         }
 
         var owner = remainder[..slash];
-        if (!string.Equals(owner, caller.For?.Principal, StringComparison.Ordinal))
+        var callerOwner = VaultPolicy.VaultOwner(caller);
+        if (!string.Equals(owner, callerOwner, StringComparison.Ordinal))
         {
             return SecretVaultResult.Denied;
         }
 
         try
         {
-            var resolved = await AsPlatform(() => Vault(caller).Resolve(secret)).ConfigureAwait(false);
+            var resolved = await AsPlatform(() => Vault(owner).Resolve(secret)).ConfigureAwait(false);
             return SecretVaultResult.Resolved(resolved);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("another owner", StringComparison.OrdinalIgnoreCase))
@@ -122,6 +163,11 @@ public sealed class LocalVaultPort(
         var caller = Stamped();
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(context) || string.IsNullOrWhiteSpace(caller.Brain.Value))
+        {
+            return null;
+        }
+
+        if (!await IsDurableSecretsAllowedAsync(caller, context, cancellationToken).ConfigureAwait(false))
         {
             return null;
         }
@@ -185,12 +231,43 @@ public sealed class LocalVaultPort(
                 : new SecretRef { Reference = reference, Label = name, Status = SecretStatus.Set }));
     }
 
-    // The stamped caller; a vault belongs to a person, so a caller acting for no person reaches none.
+    /// <summary>
+    /// Lists raw secret values for <paramref name="owner"/> in kernel scope. Used exclusively by
+    /// <see cref="CachingSecretValueSource"/> for secret redaction.
+    /// </summary>
+    internal async ValueTask<IReadOnlyList<string>> LoadValuesForRedactionAsync(string owner, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (edge is null || string.IsNullOrWhiteSpace(owner))
+        {
+            return [];
+        }
+
+        return await AsPlatform(() => Vault(owner).Values()).ConfigureAwait(false);
+    }
+
+    private async Task<bool> IsDurableSecretsAllowedAsync(Caller caller, string resource, CancellationToken cancellationToken)
+    {
+        if (_capabilityPolicy is null)
+        {
+            return true;
+        }
+
+        var brainId = caller.Brain.Value;
+        if (string.IsNullOrWhiteSpace(brainId) || string.Equals(brainId, BrainId.Kernel.Value, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var decision = await _capabilityPolicy.EvaluateAsync(brainId, BrainCapability.DurableSecrets, resource, cancellationToken).ConfigureAwait(false);
+        return decision.Allowed;
+    }
+
     private Caller Stamped()
         => callers?.Current ?? edge?.Current ?? throw new UnauthorizedAccessException("secrets@1: the call carries no caller.");
 
-    private IVault Vault(Caller caller)
-        => (IVault)_neuronResolver(typeof(IVault), IVault.Key(caller.For?.Principal ?? throw new UnauthorizedAccessException("secrets@1: only a person, or an agent or app acting for one, has a vault.")));
+    private IVault Vault(string owner)
+        => (IVault)_neuronResolver(typeof(IVault), IVault.Key(owner));
 
     // The port made its own owner check; it reaches the vault as platform code in the kernel scope, which the vault reads from the
     // stamped caller. Without an EdgeAuthority there is no kernel scope, and the vault refuses.
@@ -210,6 +287,14 @@ public sealed class LocalVaultPort(
             return null;
         }
 
-        return _configuration[ModuleConfiguration.ModuleSection(module) + ":Secrets:" + name];
+        var prefix = ModuleConfiguration.ModuleSection(module) + ":Secrets:";
+        var exact = _configuration[prefix + name];
+        if (!string.IsNullOrEmpty(exact))
+        {
+            return exact;
+        }
+
+        var colon = name.IndexOf(':', StringComparison.Ordinal);
+        return colon > 0 ? _configuration[prefix + name[..colon]] : null;
     }
 }

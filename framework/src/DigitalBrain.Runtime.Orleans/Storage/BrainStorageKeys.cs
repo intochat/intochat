@@ -68,6 +68,27 @@ public sealed class BrainStorageKeys(IBrainKeyCustody custody, IOptions<BrainSto
         return Path.Combine(Path.GetFullPath(options.Value.Directory), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(brainId))).ToLowerInvariant());
     }
 
+    /// <summary>
+    /// Read-only lookup for an existing persisted brain storage key. Returns <see langword="null"/> if the key
+    /// file does not exist and NEVER creates directories or generates a new key (safe for legacy dual-open unwrapping).
+    /// </summary>
+    public Task<byte[]?> TryGetExisting(string brainId, CancellationToken ct)
+    {
+        lock (gate)
+        {
+            ct.ThrowIfCancellationRequested();
+            var directory = DirectoryOf(brainId);
+            var path = Path.Combine(directory, "brain.key");
+            if (!File.Exists(path))
+            {
+                return Task.FromResult<byte[]?>(null);
+            }
+
+            var context = "brain-store-key|" + brainId;
+            return Task.FromResult<byte[]?>(custody.Unwrap(brainId, context, File.ReadAllBytes(path)));
+        }
+    }
+
     /// <summary>Loads or creates and persists the symmetric storage key for <paramref name="brainId"/>.</summary>
     public Task<byte[]> GetOrCreate(string brainId, CancellationToken ct)
     {

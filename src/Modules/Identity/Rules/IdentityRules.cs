@@ -89,20 +89,6 @@ internal sealed record ConnectionBelongsToBrain(string ConnectionBrainId, string
     public override string Message => "The connection belongs to another brain.";
 }
 
-internal sealed record CallerCanStoreSecret(Caller? Caller, string OwnerPrincipal) : Rule("identity.caller-can-store-secret")
-{
-    // A person, or an app or agent acting for one, stores only in that person's own vault.
-    public override bool Broken => Caller is null
-        || (CallerRules.ActsFor(Caller) is { } principal && !string.Equals(principal, OwnerPrincipal, StringComparison.Ordinal));
-    public override string Message => "Only the owner can store a secret.";
-}
-
-internal sealed record CallerCanRemoveSecret(Caller? Caller, string OwnerPrincipal) : Rule("identity.caller-can-remove-secret")
-{
-    public override bool Broken => !(CallerRules.IsDirectPerson(Caller, OwnerPrincipal) || CallerRules.IsKernel(Caller));
-    public override string Message => "Only the owner or trusted platform code can remove a secret.";
-}
-
 internal sealed record IssuerIsKnown(string Issuer, IReadOnlyList<TrustedIssuer> TrustedIssuers) : Rule("identity.issuer-known")
 {
     public override bool Broken => !TrustedIssuers.Any(item => string.Equals(item.Name, Issuer, StringComparison.Ordinal));

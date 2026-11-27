@@ -1,14 +1,15 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using System.Text;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Identity.Local.Vault;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Modules.Identity.Secrets;
 
 namespace IntoChat.OS.Tests.Unit.Framework.Callers;
 
-// The os vault decides from the caller the kernel stamped. A neuron that calls it directly cannot claim to be the owner, an app or the platform.
+// The unified vault decides from the caller the kernel stamped. A neuron that calls it directly cannot claim to be the owner, an app or the platform.
 public sealed class OsVaultCallerFacts : IAsyncLifetime
 {
     private static readonly BrainId Brain = new("system");
@@ -20,20 +21,15 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
 
     private EdgeAuthority Edge => _os.Edge;
 
-    private IOsVault Vault => _os.Get<IOsVault>(new NeuronId(Brain, IOsVault.Type, "alice"));
-
-    private sealed class PlainKeys : IKeyWrapper
-    {
-        public string Wrap(byte[] key) => Convert.ToBase64String(key);
-
-        public byte[] Unwrap(string wrapped) => Convert.FromBase64String(wrapped);
-    }
+    private IVault Vault => _os.Get<IVault>(new NeuronId(Brain, IVault.Type, "alice"));
 
     public ValueTask InitializeAsync()
     {
-        var services = new ServiceCollection().AddSingleton<IKeyWrapper, PlainKeys>().BuildServiceProvider();
+        var services = new ServiceCollection()
+            .AddSingleton<IMasterKeyCustody>(new ConfiguredMasterKeyCustody(Encoding.UTF8.GetBytes("test-master-key-for-os-vault-caller-facts")))
+            .BuildServiceProvider();
         _os = TestOS.Local(options => options.Services = services);
-        _os.Register<OsVaultNeuron>();
+        _os.Register<VaultNeuron>();
         return ValueTask.CompletedTask;
     }
 
@@ -41,7 +37,7 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
 
     private async Task<SecretRef> Stored()
     {
-        using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain))) { return await Vault.Set("pat", "PAT", "s3cret"); }
+        using (Edge.Enter(Edge.Person("alice", "acc-1", Brain))) { return await Vault.Set("pat", "PAT", "s3cret"); }
     }
 
     [Fact]
@@ -65,6 +61,7 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
     {
         await Stored();
         using (Edge.EnterKernel(Brain)) { Assert.Equal(["s3cret"], await Vault.Values()); }
+        using (Edge.Enter(Edge.Person("alice", "acc-1", Brain))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Vault.Values); }
         using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Vault.Values); }
         using (Edge.Enter(Edge.OnBehalfOf(Alice, Brain, viaApp: "assistant", via: Relay))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Vault.Values); }
     }
@@ -73,7 +70,7 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
     public async Task SetAndRemoveRefuseAnotherPerson()
     {
         await Stored();
-        using var _ = Edge.Enter(Edge.RelayedPerson("bob", "acc-2", Brain));
+        using var _ = Edge.Enter(Edge.Person("bob", "acc-2", Brain));
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Set("pat", "PAT", "x"));
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Remove("pat"));
     }

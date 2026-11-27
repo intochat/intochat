@@ -65,7 +65,7 @@ public sealed class IdentityNeuronState;
 
 // The module's secrets@1 neuron. The vault port authorizes the stamped caller.
 [Neuron("secrets")]
-internal sealed class SecretsNeuron(VaultPort vault) : Neuron<SecretsNeuronState>, ISecrets
+internal sealed class SecretsNeuron(ISecretVaultPort vault) : Neuron<SecretsNeuronState>, ISecrets
 {
     public async Task<SecretRef> Set(string name, string label, string value, CancellationToken cancellationToken = default)
     {

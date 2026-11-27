@@ -1,9 +1,10 @@
 using DigitalBrain.Access;
-using DigitalBrain.Neurons;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Contracts;
 using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Neurons;
 
 namespace DigitalBrain.Identity.Local.Vault;
 
@@ -26,7 +27,7 @@ public interface IVault
     /// <summary>Resolves the plaintext value behind <paramref name="secret"/>.</summary>
     Task<string> Resolve(SecretRef secret);
 
-    /// <summary>Lists all plaintext secret values in the vault for masking.</summary>
+    /// <summary>Lists all plaintext secret values in the vault for kernel masking only.</summary>
     Task<string[]> Values();
 }
 
@@ -41,7 +42,7 @@ public sealed class VaultState
     /// <summary>The owning principal identifier.</summary>
     public string Owner { get; set; } = "";
 
-    /// <summary>The wrapped owner key (`mk3:...`).</summary>
+    /// <summary>The wrapped owner key (<c>mk4:...</c>; dual-opens legacy <c>mk3:...</c>).</summary>
     public string WrappedOwnerKey { get; set; } = "";
 
     /// <summary>Stored fields by secret name.</summary>
@@ -74,40 +75,68 @@ public sealed class SecretRecord
     public string SealedSecret { get; set; } = "";
 }
 
-/// <summary>Plain neuron hosting one principal's secret vault.</summary>
+/// <summary>
+/// Plain neuron hosting one principal's secret vault. Serves as the single authorization gate,
+/// capability-policy gate, <see cref="VaultChanged"/> signal publisher, and redaction-cache
+/// write-through coordinator over either the default sealed <see cref="VaultState"/> or a
+/// pluggable <see cref="ISecretStoreBackend"/>.
+/// </summary>
 [Neuron(IVault.Type, State = "mydata.state")]
-public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>, IVault
+public sealed class VaultNeuron(
+    IMasterKeyCustody custody,
+    MasterKeyWrapper? keyWrapper = null,
+    ISecretStoreBackend? backend = null,
+    IBrainCapabilityPolicy? capabilityPolicy = null,
+    CachingSecretValueSource? redactionCache = null) : Neuron<VaultState>, IVault
 {
     private const int SecretFieldKind = 1;
-    private readonly MasterKeyWrapper _keys = new(custody);
+    private readonly MasterKeyWrapper _keys = keyWrapper ?? new MasterKeyWrapper(custody);
+    private readonly ISecretStoreBackend? _backend = backend;
+    private readonly IBrainCapabilityPolicy? _capabilityPolicy = capabilityPolicy;
+    private readonly CachingSecretValueSource? _redactionCache = redactionCache;
 
     /// <inheritdoc />
     public async Task<SecretRef> Set(string name, string label, string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        if (Context.Caller is not { } caller || (ActsFor(caller) is { } principal && principal != Principal()))
+        if (!VaultPolicy.CanStore(Context.Caller, Principal()))
         {
             throw new InvalidOperationException("Only the owner can store a secret.");
         }
 
-        var next = Copy(State);
-        next.Owner = Principal();
-        var ownerKey = OwnerKey(next);
-        next.Fields[name] = new SecretRecord
+        await EnforceDurableSecretsPolicyAsync(Context.Caller, name).ConfigureAwait(true);
+
+        var resolvedLabel = label ?? "";
+        if (_backend is not null)
         {
-            FieldPath = name,
-            Kind = SecretFieldKind,
-            IsSecret = true,
-            Label = label ?? "",
-            IsSet = true,
-            SealedSecret = SecretCipher.Seal(ownerKey, value),
-        };
-        await Save(next, new VaultChanged(name)).ConfigureAwait(true);
+            await _backend.SetAsync(Principal(), name, resolvedLabel, value).ConfigureAwait(true);
+            var nextExternal = Copy(State);
+            nextExternal.Owner = Principal();
+            await Save(nextExternal, new VaultChanged(name)).ConfigureAwait(true);
+        }
+        else
+        {
+            var next = Copy(State);
+            next.Owner = Principal();
+            var ownerKey = OwnerKey(next);
+            next.Fields[name] = new SecretRecord
+            {
+                FieldPath = name,
+                Kind = SecretFieldKind,
+                IsSecret = true,
+                Label = resolvedLabel,
+                IsSet = true,
+                SealedSecret = SecretCipher.Seal(ownerKey, value),
+            };
+            await Save(next, new VaultChanged(name)).ConfigureAwait(true);
+        }
+
+        _redactionCache?.NotifySet(Principal(), value);
         return new SecretRef
         {
             Reference = $"secret://{Principal()}/{name}",
-            Label = label ?? "",
+            Label = resolvedLabel,
             Status = SecretStatus.Set,
         };
     }
@@ -116,9 +145,24 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     public async Task Remove(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        if (!IsOwner(Context.Caller) && !IsKernel(Context.Caller))
+        if (!VaultPolicy.CanRemove(Context.Caller, Principal()))
         {
             throw new InvalidOperationException("Only the owner or platform can remove a secret.");
+        }
+
+        if (_backend is not null)
+        {
+            var removed = await _backend.RemoveAsync(Principal(), name).ConfigureAwait(true);
+            if (!removed)
+            {
+                return;
+            }
+
+            var nextExternal = Copy(State);
+            nextExternal.Owner = Principal();
+            await Save(nextExternal, new VaultChanged(name)).ConfigureAwait(true);
+            _redactionCache?.NotifyRemove(Principal());
+            return;
         }
 
         if (!State.Fields.ContainsKey(name))
@@ -129,13 +173,13 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
         var next = Copy(State);
         next.Fields.Remove(name);
         await Save(next, new VaultChanged(name)).ConfigureAwait(true);
+        _redactionCache?.NotifyRemove(Principal());
     }
 
     /// <inheritdoc />
-    public Task<string> Resolve(SecretRef secret)
+    public async Task<string> Resolve(SecretRef secret)
     {
-        // An outbound call: an app acting for a person (the app proxy stamps it), or platform code in the kernel scope.
-        if (!(Context.Caller?.Actor is Actor.App app && app.For.Principal == Principal()) && Context.Caller?.Actor is not Actor.Kernel)
+        if (!VaultPolicy.CanResolve(Context.Caller, Principal()))
         {
             throw new UnauthorizedAccessException("Only a trusted outbound call can resolve a secret.");
         }
@@ -148,33 +192,74 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
         }
 
         var name = secret.Reference[prefix.Length..];
-        if (string.IsNullOrEmpty(name) || !State.Fields.TryGetValue(name, out var record) || !record.IsSecret)
+        if (string.IsNullOrEmpty(name))
+        {
+            throw new InvalidOperationException("The secret is not present.");
+        }
+
+        if (_backend is not null)
+        {
+            var entry = await _backend.GetAsync(Principal(), name).ConfigureAwait(true)
+                ?? throw new InvalidOperationException("The secret is not present.");
+            return entry.Value;
+        }
+
+        if (!State.Fields.TryGetValue(name, out var record) || !record.IsSecret)
         {
             throw new InvalidOperationException("The secret is not present.");
         }
 
         var ownerKey = _keys.Unwrap(State.WrappedOwnerKey);
-        return Task.FromResult(SecretCipher.Open(ownerKey, record.SealedSecret));
+        return SecretCipher.Open(ownerKey, record.SealedSecret);
     }
 
     /// <inheritdoc />
-    public Task<string[]> Values()
+    public async Task<string[]> Values()
     {
-        if (!IsOwner(Context.Caller) && !IsKernel(Context.Caller))
+        // Strictly Kernel-only: used exclusively by SecretRedactor through the vault value source.
+        if (!VaultPolicy.CanReadValues(Context.Caller))
         {
-            throw new UnauthorizedAccessException("Only the vault's owner can list its values.");
+            throw new UnauthorizedAccessException("Only the platform's secret redactor lists a vault's values.");
+        }
+
+        if (_backend is not null)
+        {
+            var externalValues = await _backend.ListValuesAsync(Principal()).ConfigureAwait(true);
+            return [.. externalValues];
         }
 
         if (string.IsNullOrEmpty(State.WrappedOwnerKey))
         {
-            return Task.FromResult<string[]>([]);
+            return [];
         }
 
         var ownerKey = _keys.Unwrap(State.WrappedOwnerKey);
-        return Task.FromResult<string[]>(
-            [.. State.Fields.Values
+        return
+        [
+            .. State.Fields.Values
                 .Where(record => record.IsSecret && !string.IsNullOrEmpty(record.SealedSecret))
-                .Select(record => SecretCipher.Open(ownerKey, record.SealedSecret))]);
+                .Select(record => SecretCipher.Open(ownerKey, record.SealedSecret)),
+        ];
+    }
+
+    private async Task EnforceDurableSecretsPolicyAsync(Caller? caller, string secretName)
+    {
+        if (_capabilityPolicy is null || caller is null)
+        {
+            return;
+        }
+
+        var brainId = caller.Brain.Value;
+        if (string.IsNullOrWhiteSpace(brainId) || string.Equals(brainId, BrainId.Kernel.Value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var decision = await _capabilityPolicy.EvaluateAsync(brainId, BrainCapability.DurableSecrets, secretName).ConfigureAwait(true);
+        if (!decision.Allowed)
+        {
+            throw new ClaimRequiredException(decision);
+        }
     }
 
     private byte[] OwnerKey(VaultState state)
@@ -190,20 +275,6 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     }
 
     private string Principal() => Context.Id.Key;
-
-    // The owner calling for themselves, as the stamped caller says; an agent, an app or a relay acting for them is not the owner.
-    private bool IsOwner(Caller? caller) => caller is { Actor: Actor.Person person, Direct: true } && person.Principal == Principal();
-
-    private static bool IsKernel(Caller? caller) => caller?.Actor is Actor.Kernel;
-
-    // Whom the caller acts for: the person, or the person an app or agent acts for; null for the kernel, a module or the scheduler.
-    private static string? ActsFor(Caller caller) => caller.Actor switch
-    {
-        Actor.Person person => person.Principal,
-        Actor.App app => app.For.Principal,
-        Actor.Agent agent => agent.For.Principal,
-        _ => null,
-    };
 
     private static VaultState Copy(VaultState state) => new()
     {

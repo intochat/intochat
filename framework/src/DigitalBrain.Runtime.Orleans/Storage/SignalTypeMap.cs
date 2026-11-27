@@ -19,8 +19,14 @@ internal sealed class SignalTypeMap
 
     /// <exception cref="InvalidOperationException">Two types share one alias.</exception>
     public SignalTypeMap(IEnumerable<Assembly> assemblies)
+        : this(assemblies, [])
+    {
+    }
+
+    internal SignalTypeMap(IEnumerable<Assembly> assemblies, IEnumerable<Type> selectedModules)
     {
         ArgumentNullException.ThrowIfNull(assemblies);
+        ArgumentNullException.ThrowIfNull(selectedModules);
         Add(typeof(Gap));
         Add(typeof(DigitalBrain.Rules.Rejected));
         Add(typeof(StateChanged));
@@ -52,13 +58,10 @@ internal sealed class SignalTypeMap
         Add(typeof(Answered));
         Add(typeof(ViewChanged));
         Add(typeof(BuildRefused));
-        foreach (var assembly in assemblies.Distinct())
+        foreach (var type in Hosting.NeuronTypeRegistry.SelectedLoadable(assemblies.Distinct(), selectedModules))
         {
-            foreach (var type in Loadable(assembly))
-            {
-                if (type.IsAbstract || !typeof(Signal).IsAssignableFrom(type) || type.GetCustomAttribute<SignalAttribute>() is null) { continue; }
-                Add(type);
-            }
+            if (type.IsAbstract || !typeof(Signal).IsAssignableFrom(type) || type.GetCustomAttribute<SignalAttribute>() is null) { continue; }
+            Add(type);
         }
     }
 

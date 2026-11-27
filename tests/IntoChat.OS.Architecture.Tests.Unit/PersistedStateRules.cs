@@ -88,7 +88,6 @@ internal static class PersistedStateRules
     internal static readonly HashSet<string> UnmigratedConcreteCollections = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.Identity.Integrations.IntegrationState.Settings",
-        "IntoChat.OS.Modules.Identity.Secrets.SecretsState.Fields",
     };
 
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)

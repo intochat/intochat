@@ -47,7 +47,8 @@ public static class KernelCapabilities
         builder.ConfigureCapabilities(Configure);
         builder.Services.TryAddSingleton<ICapabilityConnections, KernelCapabilityConnections>();
         // secrets@1 and identity@1 (05-12): the runtime capabilities over ports to the Authority vault and directory.
-        builder.Services.AddSecretsCapability<VaultPort>();
+        IntoChat.OS.Modules.Identity.Secrets.MasterKeyServiceCollectionExtensions.AddOsSecretVaultPort(builder.Services);
+        builder.Services.AddSecretsCapability<DigitalBrain.Identity.Local.Vault.LocalVaultPort>();
         builder.Services.AddIdentityCapability<DirectoryPort>();
         builder.Services.TryAddSingleton<IntoChat.OS.Kernel.Composition.Registry.IRegistryBroker, IntoChat.OS.Kernel.Composition.Registry.RegistryBroker>();
         return builder;

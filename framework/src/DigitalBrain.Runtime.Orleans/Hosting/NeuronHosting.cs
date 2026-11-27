@@ -24,7 +24,9 @@ internal static class NeuronHosting
                 .Select(hosted => hosted.Assembly)
                 .Concat(Capabilities.CapabilityHosting.RegisteredPortAssemblies(sp))
                 .Distinct(),
-            TopologyHosting.ComposedModules(sp)));
+            TopologyHosting.ComposedModules(sp)
+                .Concat(Capabilities.CapabilityHosting.RegisteredPortModules(sp))
+                .Distinct()));
         silo.Services.TryAddSingleton<DigitalBrain.Components.IHostedNeuronTypes>(sp => sp.GetRequiredService<NeuronTypeRegistry>());
         return silo;
     }

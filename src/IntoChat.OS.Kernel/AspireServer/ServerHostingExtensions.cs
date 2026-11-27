@@ -87,6 +87,7 @@ public static class ServerHostingExtensions
         // The Authority's plain neurons (the connection index and requests, 06-08) are hosted on every silo, as its grains are.
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
             .Append(typeof(IntoChat.OS.Modules.Identity.AuthorityPlainNeurons))
+            .Append(typeof(DigitalBrain.Identity.Local.Vault.LocalVaultModule))
             // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
             .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
@@ -142,6 +143,9 @@ public static class ServerHostingExtensions
             // call to 4 spans (measured); it was removed so exactly one registration remains.
             if (definition.Dashboard) { Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
             silo.AddIntoChatOS(modules);
+            // Pluggable secrets backend (Default, LocalFile, AzureKeyVault, Bitwarden) wired unconditionally
+            // outside AzureModule so non-Azure backends and fail-closed startup validation run regardless of enabled modules.
+            IntoChat.OS.Modules.Infrastructure.Secrets.SecretsBackendHosting.AddSecretsBackend(silo.Services, silo.Configuration);
             // Identity-backed brain membership, connector types, secret redaction and connection bindings (D-18).
             silo.AddIntoChatOSConnections();
             foreach (var module in modules)
