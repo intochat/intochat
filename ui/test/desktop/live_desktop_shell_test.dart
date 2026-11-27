@@ -408,9 +408,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('Needs you · Approve Nordlys close date'),
+        find.byKey(const ValueKey('popover-notifications-empty')),
         findsOneWidget,
       );
+      expect(find.text('No notifications yet'), findsOneWidget);
       await tester.tap(
         find.byKey(const ValueKey('popover-notifications-mark-read')),
       );

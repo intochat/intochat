@@ -7,10 +7,7 @@ export 'src/components/browser/ui_web_browser.dart';
 export 'src/theme/ui_icon.dart'
     show uiIcon, uiIconSize, UiIconEntry, uiIconCatalog, uiIconCategories;
 export 'src/components/image/ui_image.dart';
-export 'src/entries/entries_client.dart';
-export 'src/entries/ui_entry_control.dart';
 export 'src/preferences/local_preferences.dart';
-export 'src/preferences/ui_preference_control.dart';
 export 'src/theme/neuron_icon.dart';
 export 'src/runtime/models/models.dart';
 export 'src/theme/brand_visuals.dart';

@@ -6,92 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-
-final class _FakeEntries extends EntriesClient {
-  _FakeEntries(this.entries, {this.failure})
-    : super(
-        IntoChatOSUiClient(baseUri: Uri.parse('http://localhost')),
-        'brain-1',
-      );
-  final List<EntrySummary> entries;
-  final Object? failure;
-
-  @override
-  Future<List<EntrySummary>> list() async {
-    if (failure case final error?) throw error;
-    return entries;
-  }
-}
-
-final class _FakeLocal implements LocalPreferences {
-  @override
-  String? read(PreferenceStore store) => 'auto';
-
-  @override
-  Future<void> write(PreferenceStore store, String value) async {}
-}
-
-const _brain = 'brain-1';
-
-Widget _entry(String scene) {
-  final collection = scene == 'collection';
-  final entries = switch (scene) {
-    'key_set' => _FakeEntries([
-      const EntrySummary(
-        name: 'provider:openai',
-        kind: EntryKind.secret,
-        tail: 'ab12',
-      ),
-    ]),
-    'member' => _FakeEntries(const [], failure: const SettingsForbidden()),
-    'collection' => _FakeEntries([
-      const EntrySummary(
-        name: 'API_BASE',
-        kind: EntryKind.variable,
-        value: 'https://example.test',
-      ),
-      const EntrySummary(name: 'WEBHOOK', kind: EntryKind.secret, tail: '0001'),
-    ]),
-    _ => _FakeEntries(const []),
-  };
-  final name = collection
-      ? '$_brain/settings/variables'
-      : '$_brain/settings/keys-openai';
-  return UiEntryControl(
-    key: ValueKey(name),
-    mode: collection ? EntryControlMode.collection : EntryControlMode.key,
-    label: collection ? 'Variables and secrets' : 'OpenAI',
-    entryName: collection ? null : 'provider:openai',
-    entries: entries,
-    onChanged: () async {},
-  );
-}
-
-Widget _preference(String scene) {
-  final toggle = scene == 'toggle';
-  return UiPreferenceControl(
-    store: PreferenceStore.parse(toggle ? 1 : 14)!,
-    label: toggle ? 'Notifications' : 'Default model',
-    kind: PreferenceKind.parse(toggle ? 0 : 1),
-    choices: toggle
-        ? const []
-        : const [
-            PreferenceChoiceItem('auto', 'Auto, cheapest model with tools'),
-            PreferenceChoiceItem(
-              'gpt',
-              'GPT',
-              enabled: false,
-              detail:
-                  'Not available. Add a key in API keys or pick another model.',
-            ),
-          ],
-    value: toggle ? 'on' : 'auto',
-    local: _FakeLocal(),
-    onSet: (value) async {},
-  );
-}
 
 // A copy button: the server answers its activation with a Copy intent the client performs.
 Widget _copy() => ViewHost(
@@ -145,15 +60,7 @@ void main() {
     'wide': const Size(1440, 900),
     'narrow': const Size(390, 844),
   };
-  final scenes = <String, Widget Function()>{
-    'entry_key_not_set': () => _entry('key_not_set'),
-    'entry_key_set': () => _entry('key_set'),
-    'entry_member': () => _entry('member'),
-    'entry_collection': () => _entry('collection'),
-    'preference_toggle': () => _preference('toggle'),
-    'preference_choice': () => _preference('choice'),
-    'copy_toast': _copy,
-  };
+  final scenes = <String, Widget Function()>{'copy_toast': _copy};
   for (final theme in themes.entries) {
     for (final size in sizes.entries) {
       for (final scene in scenes.entries) {
@@ -192,10 +99,6 @@ void main() {
               ),
             );
             await tester.pumpAndSettle();
-            if (scene.key == 'preference_choice') {
-              await tester.tap(find.byKey(const Key('preference-choice')));
-              await tester.pumpAndSettle();
-            }
             if (scene.key == 'copy_toast') {
               await tester.tap(find.widgetWithText(UiKitButton, 'Copy link'));
               await tester.pump();

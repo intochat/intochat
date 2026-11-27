@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ void main() {
     );
   }
 
-  BrainSessionController makeSession(IntoChatOSUiClient client) =>
+  BrainSessionController makeSession(IntoChatOSUiClient? client) =>
       BrainSessionController(
         brainId: 'brain-1',
         client: client,
@@ -47,6 +48,72 @@ void main() {
         onActivate: (_) {},
         knowsApp: (app) => app == 'ino' || app == 'tasks',
       );
+
+  testWidgets(
+    'Shows loading state while initial notifications fetch is in flight',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final completer = Completer<http.Response>();
+      final client = IntoChatOSUiClient(
+        baseUri: Uri.parse('http://localhost:5000'),
+        httpClient: MockClient((request) => completer.future),
+      );
+      final session = makeSession(client);
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(wrapShell(session));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('os-bar-notifications')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('desktop-popover-notifications')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('popover-notifications-loading')),
+        findsOneWidget,
+      );
+      expect(find.text('Loading notifications…'), findsOneWidget);
+      expect(find.textContaining('Tripletex'), findsNothing);
+
+      completer.complete(
+        http.Response(jsonEncode({'items': [], 'unreadCount': 0}), 200),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No notifications yet'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Shows empty state when notifications have not loaded yet', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final session = makeSession(null);
+    addTearDown(session.dispose);
+
+    await tester.pumpWidget(wrapShell(session));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('os-bar-notifications')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('desktop-popover-notifications')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('popover-notifications-empty')),
+      findsOneWidget,
+    );
+    expect(find.text('No notifications yet'), findsOneWidget);
+    expect(find.textContaining('Tripletex'), findsNothing);
+  });
 
   testWidgets('Shows empty state when connected inbox has no notifications', (
     tester,
