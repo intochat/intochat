@@ -213,6 +213,113 @@ void main() {
     },
   );
 
+  testWidgets(
+    'ChatThreadView submits staged voice note via IConversation.Say even when talkConversation is null',
+    (tester) async {
+      const stagedVoice = AttachmentNode(
+        id: 'cccccccccccccccccccccccccccccccc',
+        kind: 'voice-note',
+        fileName: 'voice-note.wav',
+        mediaType: 'audio/wav',
+        sizeBytes: 32044,
+        url: '/ai/attachments/cccccccccccccccccccccccccccccccc',
+        durationMs: 1000,
+        transcript: 'Check status',
+      );
+
+      final neuronCalls =
+          <
+            ({String contract, String key, String method, List<Object?> args})
+          >[];
+
+      final node = ChatThreadViewNode.fromJson({
+        'kind': 'chatThreadView',
+        'key': 'thread',
+        'messages': const [],
+        'composer': {
+          'key': 'composer',
+          'onSubmit': {'target': '.', 'signal': 'control.submitText'},
+          'placeholder': 'Message',
+          'enabled': true,
+          'dictation': false,
+        },
+        'stop': {'key': 'stop', 'label': 'Stop', 'enabled': false},
+        'retry': {'key': 'retry', 'label': 'Retry', 'enabled': false},
+      });
+
+      final ctx = NodeContext(
+        view: 'local/apps/ino/view',
+        send: (_) async => null,
+        childProps: const {
+          'conversation': 'conversations/main',
+          'canSend': true,
+          'isEnabled': true,
+          'talkConversation': null,
+        },
+        uploadAttachment: (
+          bytes,
+          fileName, {
+          required mediaType,
+          isVoiceNote = false,
+          durationMs,
+        }) async => stagedVoice,
+        callNeuron: (contract, key, method, args) async {
+          neuronCalls.add((
+            contract: contract,
+            key: key,
+            method: method,
+            args: List<Object?>.of(args),
+          ));
+          return null;
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light('intochat'),
+          home: Scaffold(body: NodeRenderer.render(node, ctx)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Stage a voice-note clip via the voice-note composer callback.
+      final voiceNoteInput = tester.widget<UiVoiceInput>(
+        find.byKey(const ValueKey('composer-voice-note')),
+      );
+      expect(voiceNoteInput.onAudio, isNotNull);
+      await voiceNoteInput.onAudio!(Uint8List(32044), 'audio/wav');
+      await tester.pumpAndSettle();
+
+      // Submit the staged voice note while talkConversation is null.
+      await tester.tap(find.byKey(const ValueKey('composer-send')));
+      await tester.pumpAndSettle();
+
+      expect(neuronCalls, hasLength(1));
+      final call = neuronCalls.single;
+      expect(
+        call.contract,
+        'IntoChat.OS.Modules.Flutter.Conversations.IConversation',
+      );
+      expect(call.key, 'conversations/main');
+      expect(call.method, 'Say');
+      expect(call.args, hasLength(3));
+      expect(call.args[0], '');
+      expect(call.args[1], isNull);
+      expect(call.args[2], [
+        {
+          'id': stagedVoice.id,
+          'kind': stagedVoice.kind,
+          'fileName': stagedVoice.fileName,
+          'mediaType': stagedVoice.mediaType,
+          'sizeBytes': stagedVoice.sizeBytes,
+          'url': stagedVoice.url,
+          'durationMs': stagedVoice.durationMs,
+          'transcript': stagedVoice.transcript,
+        },
+      ]);
+    },
+  );
+
   test('IntoChatOSUiClient.mintTalkTicket mints opaque ticket via POST /ai/talk/ticket with zero query bearer tokens', () async {
     http.Request? captured;
     final mockHttp = MockClient((request) async {

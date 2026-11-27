@@ -46,6 +46,7 @@ class ConversationView extends StatefulWidget {
     this.selectModel,
     this.pinModel,
     this.readAloud = false,
+    this.conversationKey,
     this.talkConversation,
     this.deltas,
     this.readConversation,
@@ -73,6 +74,10 @@ class ConversationView extends StatefulWidget {
   /// When true (and [NodeContext.speak] is available), completed assistant
   /// replies expose a read-aloud control beside the copy action.
   final bool readAloud;
+
+  /// Conversation key (e.g. `conversations/main`) used for submitting staged
+  /// attachments even when full-duplex voice mode is unconfigured.
+  final String? conversationKey;
 
   /// Conversation id that can open full-duplex voice mode when [NodeContext.talk]
   /// is available; null hides the voice-mode button.
@@ -415,11 +420,12 @@ class _ConversationViewState extends State<ConversationView> {
       if (staged.isNotEmpty) {
         final explicitSend = widget.ctx.sendWithAttachments;
         final callNeuron = widget.ctx.callNeuron;
-        final talkId = widget.talkConversation?.trim();
-        final convKey = (talkId != null && talkId.isNotEmpty)
-            ? (talkId.startsWith('conversations/')
-                  ? talkId
-                  : 'conversations/$talkId')
+        final rawConv = (widget.conversationKey ?? widget.talkConversation)
+            ?.trim();
+        final convKey = (rawConv != null && rawConv.isNotEmpty)
+            ? (rawConv.startsWith('conversations/')
+                  ? rawConv
+                  : 'conversations/$rawConv')
             : null;
         if (explicitSend != null) {
           await explicitSend(draft, staged);
