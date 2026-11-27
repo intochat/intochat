@@ -3,14 +3,13 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Modules.Identity.Neurons;
 
 // The module's identity@1 neuron. State lives in the directory neurons the port calls. This type is what the
 // module validator requires: a [Neuron] assignable to IIdentity. Gated members read the stamped caller.
 [Neuron("identity")]
-internal sealed class IdentityNeuron(DirectoryPort directory) : Neuron<IdentityNeuronState>, IIdentity
+internal sealed class IdentityNeuron(IIdentityDirectoryPort directory) : Neuron<IdentityNeuronState>, IIdentity
 {
     public Task<Account?> ReadAccount(string accountId, CancellationToken cancellationToken = default)
         => directory.ReadAccount(accountId, cancellationToken);

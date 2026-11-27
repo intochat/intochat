@@ -587,14 +587,23 @@ public sealed class BrainResidencyFacts
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
         services.AddSingleton<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>();
+        services.AddSingleton<DigitalBrain.Identity.Local.Directory.IDirectoryChangeObserver>(
+            sp => sp.GetRequiredService<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>());
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
-            .Register<IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain>()
+            .Register<DigitalBrain.Identity.Local.Directory.DirectoryNeuron>()
             .Register<IntoChat.OS.Modules.Identity.Grants.GrantsNeuron>();
 
-        var directoryId = new NeuronId(new BrainId("system"), IntoChat.OS.Modules.Identity.Directory.IDirectoryStore.Type, "main");
-        var directory = os.Get<IntoChat.OS.Modules.Identity.Directory.IDirectoryStore>(directoryId);
+        var directoryId = new NeuronId(new BrainId("system"), DigitalBrain.Identity.Local.Directory.IDirectory.Type, "main");
+        var directory = os.Get<DigitalBrain.Identity.Local.Directory.IDirectory>(directoryId);
         var identity = new IntoChat.OS.Authority.Identity.OwnerBootstrapFacts.TestIdentityClient(directory, os.Edge);
-        var port = new IntoChat.OS.Modules.Identity.Ports.DirectoryPort(identity, os.Callers);
+        var localPort = new DigitalBrain.Identity.Local.Directory.LocalDirectoryPort(
+            (contract, key) => contract == typeof(DigitalBrain.Identity.Local.Directory.IDirectory)
+                ? directory
+                : throw new InvalidOperationException($"Unexpected contract {contract.FullName}"),
+            TimeProvider.System,
+            os.Callers,
+            os.Edge);
+        var port = new IntoChat.OS.Modules.Identity.Directory.EphemeralDirectoryPort(localPort, os.Callers, os.Edge);
 
         var owner = new Member
         {

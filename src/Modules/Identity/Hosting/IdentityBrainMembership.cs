@@ -1,19 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
-using Orleans;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
-using IntoChat.OS.Modules.Identity.Directory;
 
 namespace IntoChat.OS.Modules.Identity.Hosting;
 
-// Kernel.Brains() over the identity directory grain the host names (IdentityHostOptions.DirectoryKey).
-internal sealed class IdentityBrainMembership(IGrainFactory grains, IOptions<IdentityHostOptions>? identity = null) : IntoChat.OS.Host.Brains.IBrainMembership
+// Kernel.Brains() over the unified identity directory client.
+internal sealed class IdentityBrainMembership(IIdentityClient identity) : IntoChat.OS.Host.Brains.IBrainMembership
 {
-    private static readonly IdentityHostOptions DefaultIdentity = new();
-
-    public Task<string[]> BrainsOf(string personId, CancellationToken cancellationToken = default)
-        => grains.GetGrain<IIdentityDirectory>((identity?.Value ?? DefaultIdentity).DirectoryKey).BrainsOfAsync(personId, cancellationToken);
+    public async Task<string[]> BrainsOf(string personId, CancellationToken cancellationToken = default)
+        => [.. (await identity.BrainsOf(personId).WaitAsync(cancellationToken).ConfigureAwait(false)).Select(brain => brain.Id)];
 }
 
 // How a host composes the membership above: the implementation stays the identity module's own.

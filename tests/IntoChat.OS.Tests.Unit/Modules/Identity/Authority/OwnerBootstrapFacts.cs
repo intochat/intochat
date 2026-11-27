@@ -3,13 +3,13 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Directory;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Authority;
-using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Grants;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
@@ -25,26 +25,24 @@ public sealed class OwnerBootstrapFacts
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
         services.AddSingleton<AuthorityMirror>();
+        services.AddSingleton<IDirectoryChangeObserver>(sp => sp.GetRequiredService<AuthorityMirror>());
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
-            .Register<IdentityDirectoryGrain>()
+            .Register<DirectoryNeuron>()
             .Register<GrantsNeuron>();
 
-        var directoryId = new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main");
-        var directory = os.Get<IDirectoryStore>(directoryId);
+        var directoryId = new NeuronId(new BrainId("system"), IDirectory.Type, "main");
+        // Seed an upgraded 0.11 home where "owner" account exists and "owner" brain has no members:
+        os.SeedStoredState(directoryId, """
+            {
+              "accounts": [{ "accountId": "owner", "ownerPrincipalId": "owner", "name": "owner" }],
+              "principals": [],
+              "brains": [{ "brainId": "owner", "accountId": "owner", "members": [], "grants": [], "ownerProvisioned": false, "kind": 0 }],
+              "operations": []
+            }
+            """);
+        var directory = os.Get<IDirectory>(directoryId);
 
         var identity = new TestIdentityClient(directory, os.Edge);
-
-        // Seed an upgraded 0.11 home where "owner" account exists and "owner" brain has no members:
-        await identity.EnsureAccount(new Account { AccountId = "owner", OwnerPrincipalId = "owner", Name = "owner" });
-        await identity.EnsureMember(new Member
-        {
-            PrincipalId = "temp",
-            AccountId = "owner",
-            BrainId = "owner",
-            Role = MemberRole.Member,
-            DisplayName = "temp",
-        });
-        await identity.RemovePrincipalMember("owner", "temp");
         Assert.Null(await identity.Membership("owner", "owner"));
 
         var births = new NoOpBrainBirths();
@@ -59,9 +57,9 @@ public sealed class OwnerBootstrapFacts
         await bootstrap.Execute(ct);
         var stateJson = await ((DigitalBrain.Kernel.IBrainObserver)os).State(directoryId, ct);
         Assert.NotNull(stateJson);
-        var state = stateJson.Value.Deserialize<IdentityDirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        var brain = Assert.Single(state.Brains, b => b.BrainId == "owner");
-        Assert.Single(brain.Members);
+        var state = stateJson.Value.Deserialize<DirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        Assert.Single(state.Brains, b => b.BrainId == "owner");
+        Assert.Single(state.Members, m => m.BrainId == "owner");
     }
 
     [Fact]
@@ -71,30 +69,31 @@ public sealed class OwnerBootstrapFacts
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
         services.AddSingleton<AuthorityMirror>();
+        services.AddSingleton<IDirectoryChangeObserver>(sp => sp.GetRequiredService<AuthorityMirror>());
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
-            .Register<IdentityDirectoryGrain>()
+            .Register<DirectoryNeuron>()
             .Register<GrantsNeuron>();
 
-        var directoryId = new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main");
-        var directory = os.Get<IDirectoryStore>(directoryId);
+        var directoryId = new NeuronId(new BrainId("system"), IDirectory.Type, "main");
+        var directory = os.Get<IDirectory>(directoryId);
         var identity = new TestIdentityClient(directory, os.Edge);
         var bootstrap = new OwnerBootstrap(identity, new NoOpBrainBirths(), Options.Create(new AuthOptions { Posture = IdentityPosture.Open }), TimeProvider.System);
 
         // Before OwnerBootstrap runs (no Owner membership row in the directory), Open posture alone does not admit:
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner"))))
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                directory.GrantAsOwner("owner", Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes")));
+            Assert.Null(await directory.GrantAsOwner("owner", Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes")));
         }
 
-        // After OwnerBootstrap writes the Owner membership row, RequireOwner admits:
+        // After OwnerBootstrap writes the Owner membership row, GrantAsOwner admits:
         await bootstrap.Execute(TestContext.Current.CancellationToken);
-        Grant grant;
+        Grant? grant;
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner"))))
         {
             grant = await directory.GrantAsOwner("owner", Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes"));
         }
-        Assert.Equal("os.notes", grant.Scope);
+        Assert.NotNull(grant);
+        Assert.Equal("os.notes", grant!.Scope);
 
         // The decision reads the directory's authority state over NeuronProxy and decides from the caller value:
         var appAllowed = await identity.Authorize(
@@ -125,18 +124,18 @@ public sealed class OwnerBootstrapFacts
         public Task<Member> Born(BrainProvision provision) => Task.FromResult(provision.Member);
     }
 
-    internal sealed class TestIdentityClient(IDirectoryStore directory, EdgeAuthority edge) : IIdentityClient
+    internal sealed class TestIdentityClient(IDirectory directory, EdgeAuthority edge) : IIdentityClient
     {
-        // As LocalIdentityClient: the directory is reached as its module, except the owner methods, which keep the stamped owner.
+        // As LocalIdentityClient: platform calls run as the kernel; owner methods keep the stamped owner.
         private async Task<T> AsDirectory<T>(Func<Task<T>> call)
         {
-            using var _ = edge.Enter(edge.Module("identity.directory", new BrainId("system")));
+            using var _ = edge.Enter(edge.Kernel(BrainId.Kernel));
             return await call();
         }
 
         private async Task AsDirectory(Func<Task> call)
         {
-            using var _ = edge.Enter(edge.Module("identity.directory", new BrainId("system")));
+            using var _ = edge.Enter(edge.Kernel(BrainId.Kernel));
             await call();
         }
 
@@ -154,20 +153,33 @@ public sealed class OwnerBootstrapFacts
         public Task<BrainKind> KindOf(string brainScopeId) => AsDirectory(() => directory.KindOf(brainScopeId));
         public Task<bool> BrainExists(string brainScopeId) => AsDirectory(() => directory.BrainExists(brainScopeId));
         public Task<Member?> Membership(string brainScopeId, string principalId) => AsDirectory(() => directory.Membership(brainScopeId, principalId));
-        public Task<Member?> EnsureMember(Member member) => AsDirectory(() => directory.EnsureMember(member));
-        public Task RemoveMember(string brainScopeId, string accountId) => AsDirectory(() => directory.RemoveMember(brainScopeId, accountId));
-        public Task RemovePrincipalMember(string brainScopeId, string principalId) => AsDirectory(() => directory.RemovePrincipalMember(brainScopeId, principalId));
+        public Task<Member?> EnsureMember(Member member) => directory.EnsureMember(member);
+        public Task RemoveMember(string brainScopeId, string accountId) => directory.RemoveMember(brainScopeId, accountId);
+        public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
         public Task<CallDecision?> Authorize(Caller? caller, CallRequest request)
-            => BrainAuthorityDecisions.Authorize(caller, request, (brain, grants) => AsDirectory(() => directory.AuthorityOf(brain, grants)),
-                (brain, grants, ids) => AsDirectory(() => directory.SpendOnce(brain, grants, ids)));
+            => BrainAuthorityDecisions.Authorize(
+                caller,
+                request,
+                (brain, _) => AsDirectory(() => directory.SnapshotOf(brain)),
+                (_, grantsBrain, ids) => AsDirectory(() => directory.SpendOnce(grantsBrain, ids)));
         public Task<Grant[]> ListGrants(string brainScopeId) => AsDirectory(() => directory.ListGrants(brainScopeId));
-        public Task<Grant> GrantAsOwner(string brainId, Grant grant) => directory.GrantAsOwner(brainId, grant);
+        public async Task<Grant> GrantAsOwner(string brainId, Grant grant)
+            => await directory.GrantAsOwner(brainId, grant) ?? throw new UnauthorizedAccessException("Only the current brain owner can manage grants.");
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => AsDirectory(() => directory.GrantShipped(brainScopeId, grants));
-        public Task RevokeAsOwner(string brainId, string grantId) => directory.RevokeAsOwner(brainId, grantId);
+        public async Task RevokeAsOwner(string brainId, string grantId)
+        {
+            if (!await directory.RevokeGrantAsOwner(brainId, grantId))
+            {
+                throw new UnauthorizedAccessException("Only the current brain owner can manage grants.");
+            }
+        }
         [Obsolete("Use RevokeAsOwner with grantId")]
-        public Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode)
-            => directory.RevokeAsOwner(brainId, appId, semanticTypeId, mode);
-        public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
-            => AsDirectory(() => directory.RedeemExternalTicket(issuer, email, displayName));
+        public async Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode)
+        {
+            if (!await directory.RevokeAsOwner(brainId, appId, semanticTypeId, mode))
+            {
+                throw new UnauthorizedAccessException("Only the current brain owner can manage grants.");
+            }
+        }
     }
 }

@@ -2,18 +2,30 @@ using System.Collections.Concurrent;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Directory;
 using IntoChat.OS.Modules.Identity.Grants;
-using IntoChat.OS.Modules.Identity.Directory;
 
 namespace IntoChat.OS.Modules.Identity.Authority;
 
 // Last authority state whose write succeeded in this process. A decision that would consume a Once
 // grant is never answered here: that spend stays a single turn on the grain. A miss falls back too.
-internal sealed class AuthorityMirror(IEdgeGrantsCache? edgeCache = null)
+internal sealed class AuthorityMirror(IEdgeGrantsCache? edgeCache = null) : IDirectoryChangeObserver
 {
-    private readonly ConcurrentDictionary<string, IdentityBrainRow> _states = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, DirectoryBrainSnapshot> _states = new(StringComparer.Ordinal);
 
-    public void Publish(string brainScopeId, IdentityBrainRow state)
+    public void OnDirectoryChanged(DirectoryState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        foreach (var brain in state.Brains)
+        {
+            if (brain.BrainId.Length > 0)
+            {
+                Publish(brain.BrainId, state.SnapshotOf(brain.BrainId));
+            }
+        }
+    }
+
+    public void Publish(string brainScopeId, DirectoryBrainSnapshot state)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainScopeId);
         ArgumentNullException.ThrowIfNull(state);

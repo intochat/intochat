@@ -1,9 +1,9 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Directory;
 using IntoChat.OS.Modules.Identity.Grants;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
-using IntoChat.OS.Modules.Identity.Directory;
 
 namespace IntoChat.OS.Modules.Identity.Authority;
 
@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Identity.Authority;
 internal static class BrainAuthorityDecisions
 {
     // Awaited, never blocked on: the expansion calls neurons, and a grain turn that blocks its scheduler on them deadlocks.
-    public static Task<CallDecision?> Decide(IdentityBrainRow state, Caller? caller, CallRequest request, IEdgeGrantsCache? edgeCache = null)
+    public static Task<CallDecision?> Decide(DirectoryBrainSnapshot state, Caller? caller, CallRequest request, IEdgeGrantsCache? edgeCache = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
@@ -31,7 +31,7 @@ internal static class BrainAuthorityDecisions
     }
 
     internal static async Task<CallDecision?> Decide(
-        IdentityBrainRow state,
+        DirectoryBrainSnapshot state,
         Caller caller,
         string targetNeuron,
         string operation,
@@ -60,7 +60,7 @@ internal static class BrainAuthorityDecisions
     // The directory's decision for a call, made from the caller value over the directory's authority state. A one-time grant
     // the decision consumes is spent in one directory turn; when another call spent it first, this call is refused.
     public static async Task<CallDecision?> Authorize(Caller? caller, CallRequest request,
-        Func<string, string, Task<IdentityBrainRow>> authorityOf, Func<string, string, string[], Task<bool>> spendOnce, IEdgeGrantsCache? edgeCache = null)
+        Func<string, string, Task<DirectoryBrainSnapshot>> authorityOf, Func<string, string, string[], Task<bool>> spendOnce, IEdgeGrantsCache? edgeCache = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(authorityOf);
@@ -75,6 +75,15 @@ internal static class BrainAuthorityDecisions
         return await spendOnce(caller.Brain.Value, grantsBrain, [.. consumed.Select(grant => grant.Id)])
             ? decision with { ConsumesOnce = true }
             : CallDecision.Deny(CallDenial.MissingGrant, "The one-time grant was already used.");
+    }
+
+    // A target names its brain first ({brain}/...) or, for a plain neuron, after its type ({type}/{brain}/...).
+    internal static bool InBrain(string target, string brainId)
+    {
+        if (string.Equals(target, "*", StringComparison.Ordinal)) { return true; }
+        if (EdgeGrantsCache.TryExtractBrain(target, out var extracted) && string.Equals(extracted.Value, brainId, StringComparison.Ordinal)) { return true; }
+        var slash = target.IndexOf('/', StringComparison.Ordinal);
+        return slash > 0 && EdgeGrantsCache.TryExtractBrain(target[(slash + 1)..], out extracted) && string.Equals(extracted.Value, brainId, StringComparison.Ordinal);
     }
 
     // Grants are owner-declared, so the brain whose grants decide a call is the target's, falling back to the
@@ -93,6 +102,6 @@ internal static class BrainAuthorityDecisions
         return EdgeGrantsCache.TryExtractBrain(targetNeuron, out var brain) ? brain.Value : callerBrain;
     }
 
-    private static Member? Member(IdentityBrainRow state, string principalId)
+    private static Member? Member(DirectoryBrainSnapshot state, string principalId)
         => state.Members.FirstOrDefault(member => member.PrincipalId == principalId);
 }

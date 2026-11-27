@@ -935,7 +935,6 @@ public sealed class HouseRules22Facts
             "FriendsApp",
             "CreatorApp",
             "AggregateScreenBase",
-            "IdentityDirectoryNeuron",
         };
 
         var offenders = new List<string>();
@@ -1453,7 +1452,6 @@ public sealed class HouseRules22Facts
             "IBrainEntries",
             "IBrainProviderKeys",
             "IIdentityClient",
-            "IIdentityDirectory",
             "ISecretRedactor",
             "ISecretValueSource",
             "IIntegration",
@@ -1521,7 +1519,6 @@ public sealed class HouseRules22Facts
             "ICandidateHost",
             "IAspireRuntimeBridge",
             "IGrantPolicySource",
-            "IDirectoryStore",
             "IPrincipalCredential",
             "IExternalTicketReplay",
             // App-internal UI seams & IntoChat.OS.UI root navigation lifecycle contracts

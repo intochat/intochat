@@ -88,6 +88,7 @@ public static class ServerHostingExtensions
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
             .Append(typeof(IntoChat.OS.Modules.Identity.AuthorityPlainNeurons))
             .Append(typeof(DigitalBrain.Identity.Local.Vault.LocalVaultModule))
+            .Append(typeof(DigitalBrain.Identity.Local.Directory.LocalDirectoryModule))
             // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
             .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).

@@ -3,9 +3,10 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Capabilities.Identity.Model;
+using DigitalBrain.Identity.Local.Directory;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Rules;
 
@@ -50,7 +51,7 @@ public sealed class IdentityRulesFacts
     {
         var ownerMember = MakeMember("alice", MemberRole.Owner);
         var regularMember = MakeMember("bob", MemberRole.Member);
-        var brain = new IdentityBrainRow
+        var brain = new DirectoryBrainSnapshot
         {
             BrainId = "brain-1",
             AccountId = "acct-1",
@@ -67,7 +68,7 @@ public sealed class IdentityRulesFacts
 
         Assert.False(new PrincipalIdIsAvailable("alice", ExistingPrincipal: null).Broken);
         Assert.True(new PrincipalIdIsAvailable("owner", ExistingPrincipal: null).Broken);
-        Assert.True(new PrincipalIdIsAvailable("alice", new PrincipalRow { PrincipalId = "alice", DefaultMembership = ownerMember }).Broken);
+        Assert.True(new PrincipalIdIsAvailable("alice", new PrincipalRecord("alice", ownerMember)).Broken);
 
         Assert.True(new BrainIsProvisioned("brain-1", Brain: null).Broken);
         Assert.False(new BrainIsProvisioned("brain-1", brain).Broken);

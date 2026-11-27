@@ -210,9 +210,8 @@ public sealed class WaveDBoundedContextFacts
     {
         (string AssemblyName, string TypeName, string? ExpectedNeuronId)[] expectedAggregateRoots =
         [
-            // Identity Bounded Context (strictly security-fenced; identity.vault unified on DigitalBrain.Identity.Local.Vault.VaultNeuron)
+            // Identity Bounded Context (strictly security-fenced; identity.vault and identity.directory unified on DigitalBrain.Identity.Local)
             ("IntoChat.OS.Modules.Identity", "BrainKeysNeuron", "identity.brain-keys"),
-            ("IntoChat.OS.Modules.Identity", "IdentityDirectoryGrain", "identity.directory"),
             ("IntoChat.OS.Modules.Identity", "GrantsNeuron", "grants.default"),
             ("IntoChat.OS.Modules.Identity", "HandleDirectoryNeuron", "identity.handles"),
 

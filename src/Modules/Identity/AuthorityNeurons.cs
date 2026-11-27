@@ -17,16 +17,13 @@ namespace IntoChat.OS.Modules.Identity;
 // brain-less (accounts, ledgers, integrations), or keyed by the brain id itself, so neither
 // IIntoChatOS.Neuron<T> nor a brain-relative id names them. This is the module's single place that
 // turns an id into a grain reference; key strings are exactly those callers composed before.
-internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider services, Microsoft.Extensions.Options.IOptions<IdentityHostOptions>? identity = null)
+internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider services)
 {
-    private static readonly IdentityHostOptions DefaultIdentity = new();
-
     public IBrain Brain(string brainId) => SiloNeurons.Get<IBrain>(services, IBrain.Key(brainId));
-    public IDirectoryStore Directory() => SiloNeurons.Get<IDirectoryStore>(services, IDirectoryStore.Key);
+    public DigitalBrain.Identity.Local.Directory.IDirectory Directory() => SiloNeurons.Get<DigitalBrain.Identity.Local.Directory.IDirectory>(services, DigitalBrain.Identity.Local.Directory.IDirectory.Key);
     public DigitalBrain.Identity.Local.Vault.IVault Vault(string owner) => SiloNeurons.Get<DigitalBrain.Identity.Local.Vault.IVault>(services, DigitalBrain.Identity.Local.Vault.IVault.Key(owner));
     public IPrincipalCredential Credential(string principalId) => Resolve<IPrincipalCredential>(principalId);
     public IntoChat.OS.Modules.Identity.External.IExternalTicketReplay ExternalTicketReplay(string issuer, string jti) => Resolve<IntoChat.OS.Modules.Identity.External.IExternalTicketReplay>(IntoChat.OS.Modules.Identity.External.IExternalTicketReplay.Key(issuer, jti));
-    public IIdentityDirectory Passwords() => Resolve<IIdentityDirectory>((identity?.Value ?? DefaultIdentity).DirectoryKey);
 
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
     public DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog Connections(string brainId) => SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog>(services, DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog.Key(brainId));
