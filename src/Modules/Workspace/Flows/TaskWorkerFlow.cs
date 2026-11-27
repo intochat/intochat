@@ -17,7 +17,7 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 /// <summary>
 /// Persisted state of a <see cref="TaskWorkerFlow"/> run.
 /// </summary>
-public sealed class TaskWorkerInner : AgentInner
+internal sealed class TaskWorkerInner : AgentInner
 {
     public string? TaskId { get; set; }
 
@@ -46,7 +46,7 @@ public sealed class TaskWorkerInner : AgentInner
 /// (<c>NeedsYou</c>), and keeps the linked <see cref="ITasks"/> item synchronized across its lifecycle.
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
-public sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFlow<TaskWorkerInner>(options), IFlowStarter
+internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFlow<TaskWorkerInner>(options), IFlowStarter
 {
     public const string Alias = "flow.task-worker";
     public const string AskConfirmationKind = "task.ask";
