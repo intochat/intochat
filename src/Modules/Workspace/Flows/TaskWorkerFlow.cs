@@ -58,10 +58,11 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
 
     /// <summary>
     /// Default least-privilege contracts equipped on a background task worker agent.
+    /// Excludes <see cref="ITasks"/> because <see cref="TaskWorkerFlow"/> itself synchronizes task state
+    /// from structured worker replies, preventing worker agents from bypassing <c>NeedsYou</c> gates.
     /// </summary>
     public static readonly string[] DefaultContracts =
     [
-        typeof(ITasks).FullName!,
         typeof(IFiles).FullName!,
         typeof(IEngineerRuns).FullName!,
         typeof(IRepository).FullName!,
@@ -73,6 +74,12 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
     private static readonly HashSet<string> AllowedContracts = new(DefaultContracts, StringComparer.Ordinal);
 
     protected override IReadOnlyList<string> Steps => StepNames;
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await Context.Wires.Ensure<TasksChanged>(ITasks.Key(Id.Brain)).ConfigureAwait(true);
+        await base.OnActivate(cancellationToken).ConfigureAwait(true);
+    }
 
     /// <summary>
     /// Resolves the effective least-privilege contract subset for a task worker. When <paramref name="requested"/>
@@ -154,7 +161,26 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
                         inner.AskPlanId ??= $"task-ask:{Id.Key}";
                         inner.AskExpires = Context.Time.GetUtcNow() + AskWindow;
                         await TryAskTaskAsync(inner.TaskId, parsed.Ask).ConfigureAwait(true);
-                        return inner.WaitApproval(step, inner.AskExpires);
+
+                        var plan = PlanFor(step, inner);
+                        var requests = Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
+                        var immediate = await requests.Request(plan).ConfigureAwait(true);
+                        if (immediate is { } answer)
+                        {
+                            inner.SelectedOptionIndex = answer.SelectedOptionIndex;
+                            inner.SelectedOption = answer.SelectedOption;
+                            if (answer.Approved)
+                            {
+                                return inner.Advance();
+                            }
+
+                            throw new FlowFailed(step, $"Ask {answer.Outcome}: {answer.Reason}");
+                        }
+
+                        return new StepResult<TaskWorkerInner>(
+                            inner,
+                            new Waiting(step, WaitReason.External, inner.AskExpires, inner.AskPlanId),
+                            Disposition: StepDisposition.Wait);
                     }
 
                 case "finalize":
@@ -204,9 +230,19 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         return base.PlanFor(step, inner);
     }
 
-    protected override async Task OnConfirmationAnswered(string step, ConfirmationResult answer)
+    [On]
+    public async Task OnTaskConfirmationResolved(ConfirmationResolved resolved)
     {
-        if (!string.Equals(step, "ask", StringComparison.Ordinal))
+        ArgumentNullException.ThrowIfNull(resolved);
+        if (State is not { Status: FlowStatus.Waiting, Waiting: { Step: "ask", Reason: WaitReason.External, ConfirmationPlanId: { } planId } }
+            || !string.Equals(planId, resolved.PlanId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var requests = Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
+        var outcome = await requests.Outcome(planId).ConfigureAwait(true);
+        if (outcome is not { } answer)
         {
             return;
         }
@@ -214,15 +250,65 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         State.Inner.SelectedOptionIndex = answer.SelectedOptionIndex;
         State.Inner.SelectedOption = answer.SelectedOption;
 
-        if (answer.Approved)
+        var waitOutcome = answer.Outcome switch
         {
-            var note = answer.SelectedOption is { Length: > 0 } chosen ? $"User chose: {chosen}" : "User approved";
-            await TryTransitionTaskAsync(State.Inner.TaskId, TaskStatus.InProgress, note).ConfigureAwait(true);
-        }
-        else
+            ConfirmationOutcome.Approved => WaitOutcome.Approved,
+            ConfirmationOutcome.Expired => WaitOutcome.Expired,
+            _ => WaitOutcome.Denied,
+        };
+        if (!answer.Approved)
         {
             await TryTransitionTaskAsync(State.Inner.TaskId, TaskStatus.Failed, $"Ask {answer.Outcome}: {answer.Reason}").ConfigureAwait(true);
         }
+
+        await Resume("ask", waitOutcome, answer.Approver?.Id ?? resolved.Approver?.Id).ConfigureAwait(true);
+    }
+
+    [On]
+    public async Task OnTasksChanged(TasksChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        if (State is not { Status: FlowStatus.Waiting, Waiting: { Step: "ask", Reason: WaitReason.External } waiting }
+            || string.IsNullOrWhiteSpace(State.Inner.TaskId)
+            || !string.Equals(changed.TaskId, State.Inner.TaskId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        TaskRecord? task;
+        try
+        {
+            task = await Context.Get<ITasks>(ITasks.Key(Id.Brain)).Read(State.Inner.TaskId).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            ConsoleLogger.LogSwallowed(error, $"TaskWorkerFlow could not read task '{State.Inner.TaskId}' on TasksChanged.");
+            return;
+        }
+
+        if (task is null || task.PendingAsk is not null || task.LastAnswer is not { } answer)
+        {
+            return;
+        }
+
+        State.Inner.SelectedOptionIndex = answer.SelectedOptionIndex;
+        State.Inner.SelectedOption = answer.SelectedOption;
+
+        if (!string.IsNullOrWhiteSpace(waiting.ConfirmationPlanId))
+        {
+            try
+            {
+                await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain))
+                    .Withdraw(waiting.ConfirmationPlanId)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+            {
+                ConsoleLogger.LogSwallowed(error, $"TaskWorkerFlow could not withdraw confirmation '{waiting.ConfirmationPlanId}' after ITasks.AnswerAsk.");
+            }
+        }
+
+        await Resume("ask", WaitOutcome.Approved, answer.AnsweredBy).ConfigureAwait(true);
     }
 
     private string BuildPrompt(TaskWorkerInner inner)

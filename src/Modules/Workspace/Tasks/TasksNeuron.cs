@@ -14,6 +14,11 @@ namespace IntoChat.OS.Modules.Apps.Tasks;
 [Neuron("tasks")]
 internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
 {
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
+    }
+
     public Task<TaskRecord[]> List(TaskStatus? status = null)
     {
         IEnumerable<TaskRecord> query = State.Tasks;
@@ -82,12 +87,28 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         string? summary = null)
     {
         var (index, current) = FindTask(taskId);
+        if ((current.Status == TaskStatus.NeedsYou || current.PendingAsk is not null)
+            && status is not (TaskStatus.NeedsYou or TaskStatus.Failed))
+        {
+            var caller = RequireSameBrain(() => new UnauthorizedAccessException("Only a signed-in person or the bound flow may exit NeedsYou."));
+            var isPerson = Answerer.Of(caller, Id.Brain).IsPerson;
+            var isKernel = caller.Actor is Actor.Kernel;
+            var isBoundFlow = caller.Via is { } via
+                && !string.IsNullOrWhiteSpace(current.FlowId)
+                && string.Equals(via.ToString(), current.FlowId, StringComparison.Ordinal);
+            if (!isPerson && !isKernel && !isBoundFlow)
+            {
+                throw new UnauthorizedAccessException("Cannot exit NeedsYou without a direct person answer (RequiresPerson = true).");
+            }
+        }
+
         var now = Context.Time.GetUtcNow();
         var updated = current with
         {
             Status = status,
             Summary = summary is null ? current.Summary : summary.Trim(),
             PendingAsk = status == TaskStatus.NeedsYou ? current.PendingAsk : null,
+            ConfirmationPlanId = status == TaskStatus.NeedsYou ? current.ConfirmationPlanId : null,
             UpdatedAt = now,
         };
 
@@ -112,10 +133,20 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
             normalizedOptions,
             prompt.RecommendedIndex);
 
+        var boundFlowId = current.FlowId;
+        var planId = current.ConfirmationPlanId;
+        if (Context.Caller?.Via is { } via && string.Equals(via.Type, Flows.TaskWorkerFlow.Alias, StringComparison.Ordinal))
+        {
+            boundFlowId ??= via.ToString();
+            planId ??= $"task-ask:{via.Key}";
+        }
+
         var updated = current with
         {
             Status = TaskStatus.NeedsYou,
             PendingAsk = normalizedPrompt,
+            FlowId = boundFlowId,
+            ConfirmationPlanId = planId,
             UpdatedAt = now,
         };
 
@@ -129,6 +160,61 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
                 new TasksChanged(updated.TaskId, updated.Status),
             ]).ConfigureAwait(true);
         return updated;
+    }
+
+    [On]
+    public async Task OnConfirmationResolved(ConfirmationResolved resolved)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+        var index = Array.FindIndex(
+            State.Tasks,
+            t => t.PendingAsk is not null && string.Equals(t.ConfirmationPlanId, resolved.PlanId, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return;
+        }
+
+        var current = State.Tasks[index];
+        var pending = current.PendingAsk!;
+        TaskRecord updated;
+        if (resolved.Outcome == ConfirmationOutcome.Approved)
+        {
+            var optionIndex = resolved.SelectedOptionIndex is { } idx && idx >= 0 && idx < pending.Options.Length
+                ? idx
+                : (pending.RecommendedIndex ?? 0);
+            var selectedOption = !string.IsNullOrWhiteSpace(resolved.SelectedOption)
+                ? resolved.SelectedOption!
+                : pending.Options[optionIndex];
+            var answer = new TaskAskAnswer(
+                SelectedOptionIndex: optionIndex,
+                SelectedOption: selectedOption,
+                AnsweredBy: resolved.Approver?.Id ?? "person",
+                AnsweredAt: resolved.At);
+            updated = current with
+            {
+                Status = TaskStatus.InProgress,
+                PendingAsk = null,
+                ConfirmationPlanId = null,
+                LastAnswer = answer,
+                UpdatedAt = resolved.At,
+            };
+        }
+        else
+        {
+            updated = current with
+            {
+                Status = TaskStatus.Failed,
+                PendingAsk = null,
+                ConfirmationPlanId = null,
+                Summary = $"Ask {resolved.Outcome}: {resolved.Reason}",
+                UpdatedAt = resolved.At,
+            };
+        }
+
+        var tasks = State.Tasks.ToArray();
+        tasks[index] = updated;
+        var revision = State.Revision + 1;
+        await Save(State with { Tasks = tasks, Revision = revision }, new TasksChanged(updated.TaskId, updated.Status)).ConfigureAwait(true);
     }
 
     public async Task<TaskRecord> AnswerAsk(
@@ -167,6 +253,7 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         {
             Status = TaskStatus.InProgress,
             PendingAsk = null,
+            ConfirmationPlanId = null,
             LastAnswer = answer,
             UpdatedAt = now,
         };

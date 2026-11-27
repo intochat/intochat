@@ -45,10 +45,11 @@ public sealed class TasksNeuronFacts
             Assert.Equal(0, needsYou.PendingAsk.RecommendedIndex);
         }
 
-        // 4. Non-person caller (Agent) CANNOT answer a task ask ([PersonOnly] / RequiresPerson = true)
+        // 4. Non-person caller (Agent) CANNOT answer a task ask OR bypass NeedsYou via Transition
         using (os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), Brain)))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tasks.AnswerAsk(created.TaskId, "Canary"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tasks.Transition(created.TaskId, TaskStatus.InProgress, "spoofed bypass"));
         }
 
         // 5. Direct Person answers "Full" -> transitions back to InProgress and records LastAnswer

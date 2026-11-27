@@ -66,16 +66,16 @@ public sealed class TaskWorkerFlowFacts
     {
         var defaults = TaskWorkerFlow.ResolveContracts(null);
         Assert.NotEmpty(defaults);
-        Assert.Contains(typeof(ITasks).FullName!, defaults);
+        Assert.DoesNotContain(typeof(ITasks).FullName!, defaults);
         Assert.Contains(typeof(IFiles).FullName!, defaults);
         Assert.Contains(typeof(IEngineerRuns).FullName!, defaults);
 
-        // Disallowed/privileged contracts are stripped while allowed subset is preserved.
-        var narrowed = TaskWorkerFlow.ResolveContracts([typeof(ITasks).FullName!, "IntoChat.OS.Modules.Apps.IUserSettings"]);
-        Assert.Equal([typeof(ITasks).FullName!], narrowed);
+        // Disallowed/privileged contracts (including ITasks) are stripped while allowed subset is preserved.
+        var narrowed = TaskWorkerFlow.ResolveContracts([typeof(IFiles).FullName!, typeof(ITasks).FullName!, "IntoChat.OS.Modules.Apps.IUserSettings"]);
+        Assert.Equal([typeof(IFiles).FullName!], narrowed);
 
         // Fail-closed: if all requested contracts are disallowed/unrecognized, return empty [] and NEVER widen to DefaultContracts.
-        var disallowed = TaskWorkerFlow.ResolveContracts(["*/*", "IntoChat.OS.Modules.Identity.Contracts.Keys.IBrainKeys"]);
+        var disallowed = TaskWorkerFlow.ResolveContracts(["*/*", "IntoChat.OS.Modules.Identity.Contracts.Keys.IBrainKeys", typeof(ITasks).FullName!]);
         Assert.Empty(disallowed);
     }
 
@@ -115,7 +115,7 @@ public sealed class TaskWorkerFlowFacts
             {
                 TaskId = task.TaskId,
                 Goal = "Run migration safely",
-                Contracts = [typeof(ITasks).FullName!, typeof(IFiles).FullName!],
+                Contracts = [typeof(IFiles).FullName!, typeof(IEngineerRuns).FullName!],
             },
             TaskWorkerFlow.Json);
 
@@ -126,13 +126,13 @@ public sealed class TaskWorkerFlowFacts
 
         await os.Idle();
 
-        // 1. Worker agent was seated with the requested least-privilege Contracts subset (NOT empty!).
+        // 1. Worker agent was seated with the requested least-privilege Contracts subset (NOT empty, and without ITasks!).
         var workerConv = os.Get<IScriptedWorkerConversation>(new NeuronId(Brain, IConversation.Type, "flow-conv/" + flowKey));
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
         {
             var seated = await workerConv.SeatedDefinition();
             Assert.NotNull(seated);
-            Assert.Equal([typeof(ITasks).FullName!, typeof(IFiles).FullName!], seated!.Contracts);
+            Assert.Equal([typeof(IFiles).FullName!, typeof(IEngineerRuns).FullName!], seated!.Contracts);
 
             // 2. Flow paused at "ask" with a person-only multi-option ConfirmationPlan, and linked ITasks transitioned to NeedsYou.
             var pausedHead = await starter.Head();
@@ -141,6 +141,7 @@ public sealed class TaskWorkerFlowFacts
             var pausedTask = await tasks.Read(task.TaskId);
             Assert.Equal(TaskStatus.NeedsYou, pausedTask?.Status);
             Assert.Equal("Which branch should we target?", pausedTask?.PendingAsk?.Question);
+            Assert.Equal($"task-ask:{flowKey}", pausedTask?.ConfirmationPlanId);
         }
 
         var waitingPlan = Assert.Single(os.Confirmations.Waiting);
@@ -153,7 +154,7 @@ public sealed class TaskWorkerFlowFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             os.Confirmations.ResolveOption(waitingPlan.PlanId, 0, ConfirmationPrincipal.Agent("spoof")));
 
-        // 4. Direct human Person chooses option 1 ("release/v2") -> flow resumes & completes, updating ITasks to Completed with artifact.
+        // 4. Path A: Direct human Person answers via IConfirmationInbox.ResolveOption -> populates LastAnswer AND completes flow!
         await os.Confirmations.ChooseOption(waitingPlan.PlanId, 1);
         await os.Idle();
 
@@ -164,8 +165,74 @@ public sealed class TaskWorkerFlowFacts
 
             var finalTask = await tasks.Read(task.TaskId);
             Assert.Equal(TaskStatus.Completed, finalTask?.Status);
-            Assert.Contains("release/v2", finalTask?.Summary ?? "", StringComparison.Ordinal);
-            Assert.Contains(finalTask!.Artifacts, a => a.Kind == "pr" && a.Uri == "https://github.com/intochat/intochat/pull/999" && a.CommitSha == "abc1234");
+            Assert.NotNull(finalTask?.LastAnswer);
+            Assert.Equal(1, finalTask!.LastAnswer!.SelectedOptionIndex);
+            Assert.Equal("release/v2", finalTask.LastAnswer.SelectedOption);
+            Assert.Contains("release/v2", finalTask.Summary ?? "", StringComparison.Ordinal);
+            Assert.Contains(finalTask.Artifacts, a => a.Kind == "pr" && a.Uri == "https://github.com/intochat/intochat/pull/999" && a.CommitSha == "abc1234");
+        }
+    }
+
+    [Fact]
+    public async Task TaskWorkerFlow_ResumesAndPopulatesLastAnswer_WhenAnsweredViaITasksAnswerAsk()
+    {
+        ScriptedWorkerConversation.NextReply = """
+            {
+              "ask": {
+                "question": "Which region should we deploy?",
+                "options": ["us-east", "eu-west"],
+                "recommendedIndex": 0
+              }
+            }
+            """;
+
+        await using var os = TestOS.Local();
+        os.Register<TasksNeuron>()
+            .Register<TaskWorkerFlow>()
+            .Register<ScriptedWorkerConversation>();
+
+        var tasks = os.Get<ITasks>(ITasks.Key(Brain));
+        TaskRecord task;
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
+        {
+            task = await tasks.Create("Deploy service", "Pick region");
+        }
+
+        const string flowKey = "worker-tasks-answer";
+        var starter = os.Get<IFlowStarter>(new NeuronId(Brain, TaskWorkerFlow.Alias, flowKey));
+        var innerJson = JsonSerializer.Serialize(
+            new TaskWorkerInner { TaskId = task.TaskId, Goal = "Deploy service" },
+            TaskWorkerFlow.Json);
+
+        using (os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), Brain)))
+        {
+            await starter.StartFromJson("Deploy service", "owner", null, innerJson);
+        }
+
+        await os.Idle();
+        Assert.Single(os.Confirmations.Waiting);
+
+        // Path B: Direct human Person answers via ITasks.AnswerAsk -> populates LastAnswer, withdraws confirmation, AND completes flow!
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
+        {
+            var answered = await tasks.AnswerAsk(task.TaskId, "eu-west");
+            Assert.Equal(TaskStatus.InProgress, answered.Status);
+            Assert.Equal("eu-west", answered.LastAnswer?.SelectedOption);
+        }
+
+        await os.Idle();
+
+        Assert.Empty(os.Confirmations.Waiting);
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
+        {
+            var completedHead = await starter.Head();
+            Assert.Equal(FlowStatus.Completed, completedHead.Status);
+
+            var finalTask = await tasks.Read(task.TaskId);
+            Assert.Equal(TaskStatus.Completed, finalTask?.Status);
+            Assert.Equal(1, finalTask?.LastAnswer?.SelectedOptionIndex);
+            Assert.Equal("eu-west", finalTask?.LastAnswer?.SelectedOption);
+            Assert.Contains("eu-west", finalTask?.Summary ?? "", StringComparison.Ordinal);
         }
     }
 }

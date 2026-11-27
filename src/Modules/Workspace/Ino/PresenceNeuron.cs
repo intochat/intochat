@@ -265,7 +265,7 @@ internal sealed class PresenceNeuron(
     public async Task OnFlowWaiting(FlowWaiting waiting)
     {
         ArgumentNullException.ThrowIfNull(waiting);
-        if (waiting.Reason != WaitReason.Approval) { return; }
+        if (waiting.Reason != WaitReason.Approval && string.IsNullOrWhiteSpace(waiting.ConfirmationPlanId)) { return; }
         FlowView? flow = null;
         await Quietly(async () => flow = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Read(waiting.FlowId), "flow");
         if (flow is null || !IsInoOwned(flow)) { return; }

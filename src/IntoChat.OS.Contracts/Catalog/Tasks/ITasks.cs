@@ -84,6 +84,9 @@ public sealed record TaskRecord(
 
     [Id(14)]
     public string[] AllowedContracts { get; init; } = AllowedContracts ?? [];
+
+    [Id(15)]
+    public string? ConfirmationPlanId { get; init; }
 }
 
 /// <summary>Published whenever a task is created, transitioned, answered, linked, or cleared.</summary>
