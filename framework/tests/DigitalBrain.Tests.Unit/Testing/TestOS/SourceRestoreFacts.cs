@@ -88,11 +88,11 @@ public sealed class SourceRestoreFacts
         using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr3");
-        var emits = ((DigitalBrain.Runtime.Synapses.UnitDeployer)os.Synapses).Compiles;
+        Assert.Equal(1, ((DigitalBrain.Runtime.Synapses.UnitDeployer)os.Synapses).Compiles);
 
         await RestartAndTouch(os, "sr3");
 
-        Assert.Equal(emits, ((DigitalBrain.Runtime.Synapses.UnitDeployer)os.Synapses).Compiles);
+        Assert.Equal(0, ((DigitalBrain.Runtime.Synapses.UnitDeployer)os.Synapses).Compiles);
         using var handle = await os.Resolver.Resolve(Brain("sr3"), "hs.week", UnitView.Live, Ct);
         Assert.NotNull(handle);
     }

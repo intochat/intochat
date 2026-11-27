@@ -29,19 +29,30 @@ public sealed class TestClock : TimeProvider
         ArgumentOutOfRangeException.ThrowIfLessThan(by, TimeSpan.Zero);
         DateTimeOffset end;
         lock (_gate) { end = _now + by; }
-        while (true)
+        while (Step(end)) { }
+    }
+
+    /// <summary>
+    /// Moves the clock to the next timer due at or before <paramref name="end"/> and fires it, or advances to <paramref name="end"/>
+    /// when no timer is due. Returns <see langword="true"/> if a timer fired.
+    /// </summary>
+    public bool Step(DateTimeOffset end)
+    {
+        ClockTimer? next;
+        lock (_gate)
         {
-            ClockTimer? next;
-            lock (_gate)
+            next = _timers.Where(timer => timer.Due <= end).OrderBy(timer => timer.Due).ThenBy(timer => timer.Order).FirstOrDefault();
+            if (next is null)
             {
-                next = _timers.Where(timer => timer.Due <= end).OrderBy(timer => timer.Due).ThenBy(timer => timer.Order).FirstOrDefault();
-                if (next is null) { _now = end; return; }
-                if (next.Due > _now) { _now = next.Due; }
-                if (next.Period is { } period) { next.Due += period; }
-                else { _timers.Remove(next); }
+                if (end > _now) { _now = end; }
+                return false;
             }
-            next.Fire();
+            if (next.Due > _now) { _now = next.Due; }
+            if (next.Period is { } period) { next.Due += period; }
+            else { _timers.Remove(next); }
         }
+        next.Fire();
+        return true;
     }
 
     /// <inheritdoc />

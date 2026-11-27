@@ -13,8 +13,10 @@ public sealed class UnitDeployer(
     Func<NeuronId, ISources> sources,
     Func<NeuronId, IUnitDeployment> deployments) : ISynapseHost
 {
-    /// <summary>The count of compiled assemblies emitted by this host's compiler.</summary>
-    public int Compiles => compiler.Emits;
+    private int _compiles;
+
+    /// <summary>The count of compilations initiated by this deployer.</summary>
+    public int Compiles => Volatile.Read(ref _compiles);
 
     /// <summary>The underlying compiler.</summary>
     public SynapseCompiler Compiler => compiler;
@@ -28,6 +30,7 @@ public sealed class UnitDeployer(
     {
         ArgumentNullException.ThrowIfNull(source);
 
+        Interlocked.Increment(ref _compiles);
         var build = compiler.Compile(source);
         if (!build.Success)
         {
