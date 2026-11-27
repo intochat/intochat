@@ -45,6 +45,9 @@ public sealed class GmailValidationFacts
     [InlineData("not-an-address")]
     [InlineData("secret-sentinel@example.test\r\nBcc: attacker@example.test")]
     [InlineData("one@example.test, two@example.test")]
+    [InlineData("<@bad domain:user@example.test>")]
+    [InlineData("<@:user@example.test>")]
+    [InlineData("user@")]
     public void InvalidRecipientHeadersProduceSafePreciseIssues(string recipient)
     {
         var failure = Assert.IsType<GmailFailure>(GmailValidation.Validate(new GmailDraftRequest([recipient], [], [], "", "")));

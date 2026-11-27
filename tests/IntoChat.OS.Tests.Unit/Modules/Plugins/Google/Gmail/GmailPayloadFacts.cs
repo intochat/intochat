@@ -52,7 +52,7 @@ public sealed class GmailPayloadFacts
         var bytes = await GmailDraftPayload.EncodeAsync(["Example Person <to@example.test>"], ["cc@example.test"], ["hidden@example.test"],
             "Résumé ✓", "Hello, κόσμε!\nSecond line.", TestContext.Current.CancellationToken);
         using var stream = new MemoryStream(bytes);
-        using var mime = await MimeMessage.LoadAsync(stream, TestContext.Current.CancellationToken);
+        using var mime = await MimeMessage.LoadAsync(stream, MimeContentStorage.Memory, TestContext.Current.CancellationToken);
         Assert.Equal("Résumé ✓", mime.Subject);
         Assert.Equal("to@example.test", Assert.Single(mime.To.Mailboxes).Address);
         Assert.Equal("cc@example.test", Assert.Single(mime.Cc.Mailboxes).Address);
@@ -68,7 +68,7 @@ public sealed class GmailPayloadFacts
     {
         var bytes = await GmailDraftPayload.EncodeAsync(["to@example.test"], [], [], "", "", TestContext.Current.CancellationToken);
         using var stream = new MemoryStream(bytes);
-        using var mime = await MimeMessage.LoadAsync(stream, TestContext.Current.CancellationToken);
+        using var mime = await MimeMessage.LoadAsync(stream, MimeContentStorage.Memory, TestContext.Current.CancellationToken);
         Assert.Equal("", mime.Subject);
         Assert.Equal("", mime.TextBody);
     }

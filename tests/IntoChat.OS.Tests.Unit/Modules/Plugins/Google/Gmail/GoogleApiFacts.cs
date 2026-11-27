@@ -87,6 +87,30 @@ public sealed class GoogleApiFacts
         Assert.Equal("hi", Assert.Single(result.Value!.BodyParts).Content);
     }
 
+    [Theory]
+    [InlineData("text/")]
+    [InlineData("/plain")]
+    [InlineData("tëxt/plain; charset=utf-8")]
+    [InlineData("not a valid content type")]
+    public async Task MalformedContentTypeHeaderFallsBackToUtf8WithoutThrowing(string contentType)
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            id = "m",
+            threadId = "t",
+            payload = new
+            {
+                mimeType = "text/plain",
+                headers = new[] { new { name = "Content-Type", value = contentType } },
+                body = new { data = "aGVsbG8" },
+            },
+        });
+        using var transport = new Transport(_ => Json(body));
+        var result = await Api(transport).ReadMessageAsync("token", Context, "m", TestContext.Current.CancellationToken);
+        Assert.Null(result.Failure);
+        Assert.Equal("hello", Assert.Single(result.Value!.BodyParts).Content);
+    }
+
     [Fact]
     public async Task ATraversalLimitReturnsAnExplicitOmissionRatherThanAnInvalidMessage()
     {
