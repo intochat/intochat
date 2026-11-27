@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.Infrastructure.Secrets.Contracts;
 
 /// <summary>A secret item returned by an Azure Key Vault client.</summary>
-public sealed record AzureKeyVaultSecretItem(string Name, string Value, IReadOnlyDictionary<string, string> Tags)
+internal sealed record AzureKeyVaultSecretItem(string Name, string Value, IReadOnlyDictionary<string, string> Tags)
 {
     /// <summary>Returns the secret name only; never prints the value.</summary>
     public override string ToString() => Name;
@@ -11,7 +11,7 @@ public sealed record AzureKeyVaultSecretItem(string Name, string Value, IReadOnl
 /// Thin asynchronous abstraction over <c>Azure.Security.KeyVault.Secrets.SecretClient</c>
 /// so <c>AzureKeyVaultSecretStoreBackend</c> is unit-testable without live Azure connectivity.
 /// </summary>
-public interface IAzureKeyVaultSecretClient
+internal interface IAzureKeyVaultSecretClient
 {
     /// <summary>Gets the secret with <paramref name="secretName"/>, or <see langword="null"/> if not found.</summary>
     ValueTask<AzureKeyVaultSecretItem?> GetSecretAsync(string secretName, CancellationToken cancellationToken = default);
@@ -27,7 +27,7 @@ public interface IAzureKeyVaultSecretClient
 }
 
 /// <summary>A secret record returned by a Bitwarden Secrets Manager client.</summary>
-public sealed record BitwardenSecretRecord(string Id, string Key, string Value, string Note)
+internal sealed record BitwardenSecretRecord(string Id, string Key, string Value, string Note)
 {
     /// <summary>Returns the secret key only; never prints the value.</summary>
     public override string ToString() => Key;
@@ -37,7 +37,7 @@ public sealed record BitwardenSecretRecord(string Id, string Key, string Value, 
 /// Thin asynchronous abstraction over Bitwarden Secrets Manager so <c>BitwardenSecretStoreBackend</c>
 /// runs deterministically in unit tests and NativeAOT builds without requiring the native FFI binary at test time.
 /// </summary>
-public interface IBitwardenSecretsClient
+internal interface IBitwardenSecretsClient
 {
     /// <summary>Gets the secret matching <paramref name="key"/>, or <see langword="null"/> if absent.</summary>
     ValueTask<BitwardenSecretRecord?> GetByKeyAsync(string key, CancellationToken cancellationToken = default);

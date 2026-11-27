@@ -5,8 +5,9 @@ namespace DigitalBrain.Identity.Local.Vault;
 
 /// <summary>
 /// Wraps and unwraps per-owner vault keys under the host master key.
-/// New writes always emit the authenticated <c>mk4:</c> envelope (AES-256-GCM with context AAD via
-/// <see cref="IMasterKeyCustody"/> or <see cref="SegmentSeal"/>).
+/// New writes always emit the authenticated <c>mk4:</c> envelope through <see cref="IMasterKeyCustody"/>
+/// (using <see cref="ConfiguredMasterKeyCustody"/> when constructed from raw master key bytes), guaranteeing
+/// identical <c>mk4:</c> wire compatibility regardless of constructor.
 /// <see cref="Unwrap"/> transparently dual-opens legacy <c>mk3:</c> envelopes produced by either
 /// <see cref="IMasterKeyCustody"/> (<c>SegmentSeal</c> with AAD) or legacy raw AES-GCM without AAD.
 /// </summary>
@@ -24,13 +25,11 @@ public sealed class MasterKeyWrapper
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
-    private readonly IMasterKeyCustody? _custody;
-    private readonly byte[]? _v4Key;
+    private readonly IMasterKeyCustody _custody;
     private readonly byte[]? _legacyV3Key;
 
-    // HKDF domain separators. Never rename: changing them makes existing sealed owner keys underivable.
+    // HKDF domain separator for legacy mk3: raw AES-GCM dual-open. Never rename: changing it makes existing sealed owner keys underivable.
     internal static ReadOnlySpan<byte> OwnerKeysContext => "DigitalBrain.OwnerKeys.v3"u8;
-    internal static ReadOnlySpan<byte> OwnerKeysContextV4 => "DigitalBrain.OwnerKeys.v4"u8;
 
     /// <summary>
     /// Creates a wrapper backed by <paramref name="custody"/>, with an optional <paramref name="legacyMasterKey"/>
@@ -46,7 +45,10 @@ public sealed class MasterKeyWrapper
         }
     }
 
-    /// <summary>Creates a wrapper from a raw <paramref name="masterKey"/>.</summary>
+    /// <summary>
+    /// Creates a wrapper from a raw <paramref name="masterKey"/> backed by <see cref="ConfiguredMasterKeyCustody"/>,
+    /// retaining legacy <c>mk3:</c> raw AES-GCM dual-open support.
+    /// </summary>
     public MasterKeyWrapper(ReadOnlySpan<byte> masterKey)
     {
         if (masterKey.IsEmpty)
@@ -55,21 +57,15 @@ public sealed class MasterKeyWrapper
         }
 
         var raw = masterKey.ToArray();
-        _v4Key = HKDF.DeriveKey(HashAlgorithmName.SHA256, raw, 32, info: OwnerKeysContextV4.ToArray());
-        _legacyV3Key = HKDF.DeriveKey(HashAlgorithmName.SHA256, raw, 32, info: OwnerKeysContext.ToArray());
         _custody = new ConfiguredMasterKeyCustody(raw);
+        _legacyV3Key = HKDF.DeriveKey(HashAlgorithmName.SHA256, raw, 32, info: OwnerKeysContext.ToArray());
     }
 
-    /// <summary>Wraps <paramref name="key"/> into an <c>mk4:</c>-prefixed base64 envelope with context AAD.</summary>
+    /// <summary>Wraps <paramref name="key"/> into an <c>mk4:</c>-prefixed base64 envelope via <see cref="IMasterKeyCustody"/>.</summary>
     public string Wrap(byte[] key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (_v4Key is not null)
-        {
-            return CurrentPrefix + Convert.ToBase64String(SegmentSeal.Close(_v4Key, ContextNameV4, key));
-        }
-
-        return CurrentPrefix + Convert.ToBase64String(_custody!.Wrap(CustodyAccount, ContextNameV4, key));
+        return CurrentPrefix + Convert.ToBase64String(_custody.Wrap(CustodyAccount, ContextNameV4, key));
     }
 
     /// <summary>
@@ -81,9 +77,7 @@ public sealed class MasterKeyWrapper
         if (wrapped.StartsWith(CurrentPrefix, StringComparison.Ordinal))
         {
             var payload = DecodeBase64(wrapped[CurrentPrefix.Length..]);
-            return _v4Key is not null
-                ? SegmentSeal.Open(_v4Key, ContextNameV4, payload)
-                : _custody!.Unwrap(CustodyAccount, ContextNameV4, payload);
+            return _custody.Unwrap(CustodyAccount, ContextNameV4, payload);
         }
 
         if (wrapped.StartsWith(LegacyPrefix, StringComparison.Ordinal))
@@ -97,22 +91,13 @@ public sealed class MasterKeyWrapper
 
     private byte[] UnwrapLegacyV3(byte[] payload)
     {
-        // Try custody SegmentSeal (AAD-bound mk3:) first when custody is available.
-        if (_custody is not null)
+        try
         {
-            try
-            {
-                return _custody.Unwrap(CustodyAccount, ContextNameV3, payload);
-            }
-            catch (CryptographicException) when (_legacyV3Key is not null)
-            {
-                // Fall through to legacy raw AES-GCM (no AAD) produced by ConfiguredKeyWrapper / raw MasterKeyWrapper.
-            }
+            return _custody.Unwrap(CustodyAccount, ContextNameV3, payload);
         }
-
-        if (_legacyV3Key is null)
+        catch (CryptographicException) when (_legacyV3Key is not null)
         {
-            throw new CryptographicException("Failed to unwrap legacy mk3: owner key.");
+            // Fall through to legacy raw AES-GCM (no AAD) produced by ConfiguredKeyWrapper / raw MasterKeyWrapper.
         }
 
         if (payload.Length < NonceSize + TagSize)
@@ -121,7 +106,7 @@ public sealed class MasterKeyWrapper
         }
 
         var key = new byte[payload.Length - NonceSize - TagSize];
-        using var aes = new AesGcm(_legacyV3Key, TagSize);
+        using var aes = new AesGcm(_legacyV3Key!, TagSize);
         aes.Decrypt(payload.AsSpan(0, NonceSize), payload.AsSpan(NonceSize + TagSize), payload.AsSpan(NonceSize, TagSize), key);
         return key;
     }

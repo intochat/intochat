@@ -53,11 +53,13 @@ public sealed class VaultDualOpenAndCacheFacts
         var legacyRawMk3 = MasterKeyWrapper.LegacyPrefix + Convert.ToBase64String(rawPayload);
         Assert.Equal(ownerKey, wrapper.Unwrap(legacyRawMk3));
 
-        // 4. Raw-key constructor also emits mk4: and dual-opens both mk3: layouts
+        // 4. Raw-key constructor and IMasterKeyCustody constructor produce mutually compatible mk4: envelopes
         var rawWrapper = new MasterKeyWrapper(TestMasterBytes);
         var rawMk4 = rawWrapper.Wrap(ownerKey);
         Assert.StartsWith(MasterKeyWrapper.CurrentPrefix, rawMk4, StringComparison.Ordinal);
         Assert.Equal(ownerKey, rawWrapper.Unwrap(rawMk4));
+        Assert.Equal(ownerKey, wrapper.Unwrap(rawMk4));
+        Assert.Equal(ownerKey, rawWrapper.Unwrap(mk4));
         Assert.Equal(ownerKey, rawWrapper.Unwrap(legacyCustodyMk3));
         Assert.Equal(ownerKey, rawWrapper.Unwrap(legacyRawMk3));
     }
@@ -187,7 +189,7 @@ public sealed class VaultDualOpenAndCacheFacts
         Assert.Equal(c1, c2);
         Assert.NotEqual(c1, c3);
         Assert.NotEqual(c1, c4);
-        Assert.StartsWith("ic-", c1, StringComparison.Ordinal);
+        Assert.StartsWith("db-", c1, StringComparison.Ordinal);
         Assert.StartsWith(SecretCoordinate.OwnerPrefix("prod-east", "alice", "person"), c1, StringComparison.Ordinal);
         Assert.All(c1, ch => Assert.True(char.IsAsciiLetterLower(ch) || char.IsAsciiDigit(ch) || ch == '-'));
 

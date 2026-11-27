@@ -16,12 +16,12 @@ namespace IntoChat.OS.Modules.Infrastructure.Secrets;
 /// <list type="bullet">
 /// <item><c>Default</c> / empty: built-in Orleans grain state (<c>mydata.state</c>).</item>
 /// <item><c>LocalFile</c>: encrypted local file backend (<see cref="LocalFileSecretStoreBackend"/>).</item>
-/// <item><c>AzureKeyVault</c>: <see cref="AzureKeyVaultSecretStoreBackend"/>.</item>
-/// <item><c>Bitwarden</c>: <see cref="BitwardenSecretStoreBackend"/>.</item>
+/// <item><c>AzureKeyVault</c>: <c>AzureKeyVaultSecretStoreBackend</c>.</item>
+/// <item><c>Bitwarden</c>: <c>BitwardenSecretStoreBackend</c>.</item>
 /// </list>
 /// Any unknown backend name fails closed at startup.
 /// </summary>
-internal static class SecretsBackendHosting
+public static class SecretsBackendHosting
 {
     public const string BackendConfigKey = "IntoChatOS:Secrets:Backend";
     public const string LocalFileDirectoryConfigKey = "IntoChatOS:Secrets:LocalFile:Directory";

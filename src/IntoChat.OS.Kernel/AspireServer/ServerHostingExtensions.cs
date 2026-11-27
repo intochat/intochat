@@ -143,6 +143,9 @@ public static class ServerHostingExtensions
             // call to 4 spans (measured); it was removed so exactly one registration remains.
             if (definition.Dashboard) { Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
             silo.AddIntoChatOS(modules);
+            // Pluggable secrets backend (Default, LocalFile, AzureKeyVault, Bitwarden) wired unconditionally
+            // outside AzureModule so non-Azure backends and fail-closed startup validation run regardless of enabled modules.
+            IntoChat.OS.Modules.Infrastructure.Secrets.SecretsBackendHosting.AddSecretsBackend(silo.Services, silo.Configuration);
             // Identity-backed brain membership, connector types, secret redaction and connection bindings (D-18).
             silo.AddIntoChatOSConnections();
             foreach (var module in modules)

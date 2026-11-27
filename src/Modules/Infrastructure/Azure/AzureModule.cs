@@ -34,6 +34,5 @@ public sealed class AzureModule : DigitalBrain.Modules.Module
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton<IAzureArm, ArmAzure>();
-        IntoChat.OS.Modules.Infrastructure.Secrets.SecretsBackendHosting.AddSecretsBackend(services, configuration);
     }
 }
