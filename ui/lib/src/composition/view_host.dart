@@ -235,11 +235,11 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   Stream<void> Function(String kind, String name)? get _effectiveWatch {
-    // A child has no watchable name of its own: it reloads with its parent's
-    // events and on the refresh timer.
-    if (widget.kind == 'child') return null;
     final explicit = widget.watch ?? widget.overrides?.watch;
     if (explicit != null) return explicit;
+    // A child has no watchable name of its own: it reloads with its parent's
+    // events and on the refresh timer rather than subscribing via session.watchNode.
+    if (widget.kind == 'child') return null;
     final session = _session;
     return session != null && session.hasNodeWatch ? session.watchNode : null;
   }
