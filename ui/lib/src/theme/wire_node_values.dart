@@ -227,18 +227,6 @@ ChartKind parseChartKind(String kind) => switch (kind.trim().toLowerCase()) {
       _ => ('M', TagTone.working),
     };
 
-/// Computes 1-2 letter uppercase initials from a human speaker display name.
-String speakerInitialsOf(String? name) {
-  final trimmed = name?.trim() ?? '';
-  if (trimmed.isEmpty) return '?';
-  final parts = trimmed.split(RegExp(r'\s+'));
-  if (parts.length == 1) {
-    final first = parts.first;
-    return first.substring(0, first.length >= 2 ? 2 : 1).toUpperCase();
-  }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-}
-
 final RegExp _hunkHeaderNumbers = RegExp(
   r'@@\s*-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s*@@',
 );
