@@ -1,3 +1,4 @@
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Conversations;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter.Conversations;
@@ -54,5 +55,28 @@ public sealed class ModelContextFacts
             Said("r2", "c")));
         Assert.Equal("earlier", window.Summary);
         Assert.Equal(["c"], window.Messages.Select(m => m.Content.OfType<AiText>().Single().Text));
+    }
+
+    [Fact]
+    public void MultiHumanTranscriptPreservesAuthenticatedSenderIdentity()
+    {
+        var alice = new Participant.Human(new AccountId("alice"));
+        var bob = new Participant.Human(new AccountId("bob"));
+        var aliceSender = new SenderIdentity("alice", "Alice", SenderKind.Self);
+        var bobSender = new SenderIdentity("bob", "Bob", SenderKind.Human);
+        var inoSender = new SenderIdentity("room-ino", "@Ino · Room only", SenderKind.Agent);
+
+        var window = ModelContext.From(Log(
+            new Said(EntryIds.Said("r1"), alice, At, "Let's plan dinner", Sender: aliceSender),
+            new Said(EntryIds.Said("r2"), bob, At.AddSeconds(5), "Sushi sounds great", Sender: bobSender),
+            new Said(EntryIds.Reply("r2"), Agent, At.AddSeconds(10), "Booked sushi!", Sender: inoSender)));
+
+        Assert.Equal(3, window.Messages.Length);
+        Assert.Equal(aliceSender, window.Messages[0].Sender);
+        Assert.Equal(bobSender, window.Messages[1].Sender);
+        Assert.Equal(inoSender, window.Messages[2].Sender);
+        Assert.Contains("Alice (alice)", window.Messages[0].Content.OfType<AiText>().Single().Text, StringComparison.Ordinal);
+        Assert.Contains("Bob (bob)", window.Messages[1].Content.OfType<AiText>().Single().Text, StringComparison.Ordinal);
+        Assert.Equal("Booked sushi!", window.Messages[2].Content.OfType<AiText>().Single().Text);
     }
 }

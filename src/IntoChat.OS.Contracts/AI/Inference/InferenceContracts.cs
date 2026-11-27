@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.AI.Inference;
@@ -10,6 +11,9 @@ public sealed record AiMessage(string Role, IReadOnlyList<AiContent> Content)
         get;
         init => field = value.ToArray();
     } = Content.ToArray();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SenderIdentity? Sender { get; init; }
 }
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$content")]
 [JsonDerivedType(typeof(AiText), "text")]

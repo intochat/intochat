@@ -181,10 +181,12 @@ public static class ConversationThreadProjection
                 continue;
             }
 
-            if (said.By is Participant.Human)
+            if (said.By is Participant.Human human)
             {
+                var sender = said.Sender ?? new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Self);
                 messages.Add(new ThreadMessage(said.Id.Value, "user", said.Text, "completed")
                 {
+                    Sender = sender,
                     Attachments = ProjectAttachments(said.Attachments),
                 });
 
@@ -546,12 +548,18 @@ public static class ConversationThreadProjection
             cards.AddRange(inlineSlots);
         }
 
+        var agentSender = said.Sender
+            ?? (said.By is Participant.Assistant assistant
+                ? new SenderIdentity(assistant.AgentId, assistant.AgentId, SenderKind.Agent)
+                : null);
+
         return new ThreadMessage(said.Id.Value, "assistant", displayText, "completed")
         {
             Model = displayModel,
             ProviderIcon = providerIcon,
             Activities = activities,
             Cards = cards,
+            Sender = agentSender,
             Attachments = ProjectAttachments(said.Attachments),
         };
     }

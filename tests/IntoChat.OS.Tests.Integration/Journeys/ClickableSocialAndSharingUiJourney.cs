@@ -64,19 +64,20 @@ public sealed class ClickableSocialAndSharingUiJourney
         await bobFriends.Click("btn:social-refresh-feed", ct);
         bobFriends.ShouldDisplayText("Hello from Alice!");
 
-        await aliceFriends.Click($"btn:open-room:{bob.Account}", ct);
+        await aliceFriends.Click($"btn:open-dm:{bob.Account}", ct);
         await aliceFriends.Type("input:room-message", "Grabbing coffee?", ct);
-        await aliceFriends.Click("btn:room-send", ct);
         aliceFriends.ShouldDisplayText("Grabbing coffee?");
 
-        await bobFriends.Click($"btn:join-room:{alice.Brain.Value}:chat", ct);
+        await os.Idle();
+        await bobFriends.Click("btn:social-refresh-feed", ct);
+        await bobFriends.Click($"btn:switch-room:{alice.Brain.Value}:dm-{bob.Account.ToLowerInvariant()}", ct);
         bobFriends.ShouldDisplayText("Grabbing coffee?");
         await bobFriends.Type("input:room-message", "On my way!", ct);
-        await bobFriends.Click("btn:room-send", ct);
         bobFriends.ShouldDisplayText("On my way!");
         bobFriends.ShouldDisplayText(bob.Account);
 
-        await aliceFriends.Click($"btn:open-room:{bob.Account}", ct);
+        await os.Idle();
+        await aliceFriends.Click($"btn:switch-room:{alice.Brain.Value}:dm-{bob.Account.ToLowerInvariant()}", ct);
         aliceFriends.ShouldDisplayText("Grabbing coffee?");
         aliceFriends.ShouldDisplayText("On my way!");
         aliceFriends.ShouldDisplayText(alice.Account);

@@ -94,8 +94,7 @@ public sealed class GroupPointersMoveFacts
         using (As(Ben)) { Assert.Equal(Both, (await Rooms(world, Ben).Conversations(Ct)).Select(Line)); }
     }
 
-    // An invitation made now still arrives through the roster (the conversation tells the roster, as before); the roster
-    // hands it on and its own record does not grow. An invitation to the same conversation replaces the earlier one.
+    // An invitation forwarded through the roster is kept by the rooms index and not by the roster.
     [Fact]
     public async Task ANewInvitationIsKeptByTheRoomsIndexAndNotByTheRoster()
     {
@@ -103,7 +102,10 @@ public sealed class GroupPointersMoveFacts
         await world.Befriend(Ada, Ben);
         await Rewrite(world, Ben, roster => roster.Groups = Earlier());
 
-        var invited = await world.InviteBen("Dinner");
+        var dinnerId = await world.NewConversation(Ada, "Dinner");
+        var fromAda = new NeuronId(new BrainId(Ada), IConversation.Type, IConversation.KeyOf(dinnerId));
+        var invited = new GroupInvite(new BrainId(Ada), dinnerId, "Dinner", new AccountId(Ada));
+        using (Relayed(Ada, fromAda)) { await world.Friends(Ben).Invited(invited); }
 
         var roster = await Stored(world, Ben, FriendsDefaults.TypeName, FriendsDefaults.KeyPart);
         Assert.Contains("\"groups\":[]", roster, StringComparison.Ordinal);
@@ -111,9 +113,6 @@ public sealed class GroupPointersMoveFacts
         using (As(Ben))
         {
             Assert.Equal([.. Both, $"ada|{invited.Conversation.Value}|Dinner|ada"], (await Rooms(world, Ben).Conversations(Ct)).Select(Line));
-            // The friend still reads and says through the roster's relay.
-            await world.Friends(Ben).GroupSay(invited, "on my way");
-            Assert.Contains((await world.Friends(Ben).GroupRead(invited)).Entries, static entry => entry is Said { Text: "on my way" });
         }
     }
 

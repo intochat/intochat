@@ -29,6 +29,7 @@ public sealed class RoomActAttributionFacts
         public List<Caller?> DispatchedCallers { get; } = [];
     }
 
+    [Shareable]
     [Neuron("test.room-probe")]
     private sealed class RoomProbeScreen(CallerRecorder recorder) : Screen<ProbeState>
     {

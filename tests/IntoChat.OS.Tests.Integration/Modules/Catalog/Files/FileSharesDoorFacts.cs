@@ -405,13 +405,6 @@ public sealed class FileSharesDoorFacts
             return id;
         }
 
-        public async Task<GroupInvite> InviteBen(string title, params ConversationEntry[] seedEntries)
-        {
-            var id = await NewConversation(Ada, title, seedEntries);
-            using (As(Ada)) { await Conversation(Ada, id).Invite(new AccountId(Ben)); }
-            using (As(Ben)) { return Assert.Single(await Friends(Ben).Groups(), g => g.Brain == new BrainId(Ada) && g.Conversation == id); }
-        }
-
         public async Task SeedConversationLog(string brain, ConversationId id, params ConversationEntry[] entries)
         {
             var journal = runtime.Services.GetRequiredService<IBrainJournalWriter>();

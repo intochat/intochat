@@ -366,5 +366,23 @@ public sealed class ShareableContractAnalyzerFacts
             Task<string> Read();
         }
         """);
+
+    [Fact]
+    public Task Shareable_attribute_on_concrete_screen_reports_nothing() => Verify<ShareableContractAnalyzer>.Diagnostics("""
+        using DigitalBrain;
+        using DigitalBrain.Access;
+
+        [Shareable]
+        public sealed class ShareableMiniApp : IScreen { }
+        """);
+
+    [Fact]
+    public Task Shareable_attribute_on_abstract_screen_reports_DB0031() => Verify<ShareableContractAnalyzer>.Diagnostics("""
+        using DigitalBrain;
+        using DigitalBrain.Access;
+
+        [Shareable]
+        public abstract class {|DB0031:AbstractMiniApp|} : IScreen { }
+        """);
 }
 

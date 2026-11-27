@@ -48,6 +48,7 @@ public sealed record MessageNode(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelLabel = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AttachmentNode>? Attachments = null)
 {
     /// <inheritdoc />
@@ -64,6 +65,7 @@ public sealed record MessageNode(
         && ProviderIcon == other.ProviderIcon
         && Equals(Retry, other.Retry)
         && Equals(Error, other.Error)
+        && Equals(Sender, other.Sender)
         && SequenceEquals(Attachments, other.Attachments);
 
     /// <inheritdoc />

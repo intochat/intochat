@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Attachments;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter.Conversations;
@@ -109,6 +110,21 @@ internal static class ModelContext
         var summary = summaryIndex >= 0 ? ((Summarized)log[summaryIndex].Entry).Summary : null;
         var startIndex = summaryIndex >= 0 ? ConversationLog.CoveredEndIndex(log, summaryIndex) + 1 : 0;
 
+        // Detect multi-human transcripts so authenticated speaker attribution is preserved in both Sender metadata and prompt text.
+        var humanAccounts = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = startIndex; i < log.Length; i++)
+        {
+            if (log[i].Entry is Said { By: Participant.Human human } said)
+            {
+                var id = said.Sender?.AccountId ?? human.Account.Value;
+                if (!string.IsNullOrWhiteSpace(id))
+                {
+                    humanAccounts.Add(id);
+                }
+            }
+        }
+        var multiHuman = humanAccounts.Count > 1;
+
         // Collect every superseded reply and its run, so both the old reply and its run's tool calls/results are excluded.
         var supersededReplies = new HashSet<EntryId>();
         var supersededRuns = new HashSet<string>(StringComparer.Ordinal);
@@ -172,8 +188,12 @@ internal static class ModelContext
                         continue;
                     }
                     FlushPendingCalls();
+                    var sender = ResolveSender(said);
                     var role = said.By is Participant.Human ? "user" : "assistant";
-                    messages.Add(new AiMessage(role, ProjectSaidContent(said)));
+                    var projectedSaid = multiHuman && said.By is Participant.Human
+                        ? said with { Text = FormatSpeakerAttributedText(sender, said.Text) }
+                        : said;
+                    messages.Add(new AiMessage(role, ProjectSaidContent(projectedSaid)) { Sender = sender });
                     sources.Add(said.Id);
                     break;
 
@@ -211,5 +231,38 @@ internal static class ModelContext
 
         FlushPendingCalls();
         return new ModelWindow([.. messages], [.. sources], summary);
+    }
+
+    private static SenderIdentity ResolveSender(Said said)
+    {
+        if (said.Sender is { } explicitSender)
+        {
+            return explicitSender;
+        }
+
+        return said.By switch
+        {
+            Participant.Human human => new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Human),
+            Participant.Assistant assistant => new SenderIdentity(assistant.AgentId, assistant.AgentId, SenderKind.Agent),
+            _ => new SenderIdentity("unknown", "Unknown", SenderKind.Human),
+        };
+    }
+
+    private static string FormatSpeakerAttributedText(SenderIdentity sender, string text)
+    {
+        var safeName = sender.DisplayName.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
+        var safeId = sender.AccountId.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
+        var framedBody = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Replace("\n", "\n  ", StringComparison.Ordinal);
+        return $"[{safeName} ({safeId})]: {framedBody}";
     }
 }

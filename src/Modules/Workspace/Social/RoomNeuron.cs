@@ -1,11 +1,17 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
+using DigitalBrain.Contracts;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.UI;
 
@@ -17,7 +23,9 @@ internal sealed record RoomState(
     long Revision,
     RoomMessage[] Messages,
     PinnedScreen[] PinnedScreens,
-    RoomParticipant[] Participants)
+    RoomParticipant[] Participants,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Title = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RoomKind? Kind = null)
 {
     public RoomState() : this(0, [], [], []) { }
 }
@@ -40,9 +48,12 @@ internal static class RoomFriends
 // A room of people talking, in its host's brain. The kernel admits a person of another brain who holds an offer on the
 // room; the room then admits only a person the host invited who is the host's friend at that moment.
 [Neuron(RoomFriends.RoomType)]
-internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<RoomState>, IRoom
+internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<RoomState>, IRoom, IRoomDriver
 {
+    internal const int MaxSayCharacters = 32_000;
+    private const int MaxAgentContextMessages = 30;
     private static readonly TimeSpan PresenceTtl = TimeSpan.FromMinutes(2);
+
     private static readonly string[] HostPrivatePrefixes =
     [
         "os.",
@@ -131,6 +142,15 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
         }).ConfigureAwait(true);
     }
 
+    public async Task Configure(string title, RoomKind kind, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        RequireOwner();
+
+        var cleanTitle = title.Trim();
+        await Store(State with { Title = cleanTitle, Kind = kind }).ConfigureAwait(true);
+    }
+
     public async Task Invite(string friendAccount, BrainId friendBrain, Role role = Role.Editor, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(friendAccount);
@@ -151,7 +171,7 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
             .ToArray();
 
         await Store(State with { Participants = updatedParticipants }).ConfigureAwait(true);
-        await RoomsOf(friendBrain).Invited(Id, ct).ConfigureAwait(true);
+        await RoomsOf(friendBrain).Invited(Id, ct, State.Title, State.Kind).ConfigureAwait(true);
     }
 
     public async Task Pin(string screenType, string screenKey = "default", CancellationToken ct = default)
@@ -169,14 +189,17 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
             return;
         }
 
+        var revision = State.Revision + 1;
         var nextPinned = State.PinnedScreens.Append(new PinnedScreen(type, key)).ToArray();
-        await Store(State with { PinnedScreens = nextPinned }).ConfigureAwait(true);
+        await Store(State with { Revision = revision, PinnedScreens = nextPinned }).ConfigureAwait(true);
 
         var screenId = new NeuronId(Id.Brain, type, key);
         foreach (var participant in State.Participants)
         {
             await Context.Offers.Offer(screenId, participant.Account, participant.Role, ct).ConfigureAwait(true);
         }
+
+        await NudgeAllAsync(revision, ct).ConfigureAwait(true);
     }
 
     public async Task Say(string text, CancellationToken ct = default)
@@ -184,8 +207,16 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
 
         var author = await RequireSeat(requireEditor: true).ConfigureAwait(true);
+        var trimmed = text.Trim();
+        if (trimmed.Length > MaxSayCharacters)
+        {
+            throw new ArgumentOutOfRangeException(nameof(text), $"Room message exceeds the {MaxSayCharacters}-character limit.");
+        }
+
+        trimmed = await RedactIfConfiguredAsync(trimmed, ct).ConfigureAwait(true);
         var revision = State.Revision + 1;
-        var message = new RoomMessage(revision, author, text.Trim(), Context.Time.GetUtcNow());
+        var sender = new SenderIdentity(author, author, SenderKind.Human);
+        var message = new RoomMessage(revision, author, trimmed, Context.Time.GetUtcNow(), sender);
 
         await Store(State with
         {
@@ -193,15 +224,27 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
             Messages = [.. State.Messages, message],
         }).ConfigureAwait(true);
 
-        await NudgeParticipantsAsync(revision, ct).ConfigureAwait(true);
+        await NudgeAllAsync(revision, ct).ConfigureAwait(true);
+
+        // Room-scoped @Ino triggers ONLY on explicit @Ino mention; normal human messages trigger 0 agent turns.
+        // Driven off the Say critical path via [OneWayCall, Interleaves] so inference never blocks room operations.
+        if (RoomAgentDefinition.IsMentioned(trimmed))
+        {
+            using var module = OwnModuleIfForeign();
+            _ = Context.Get<IRoomDriver>(Id).RespondAsRoomIno(revision);
+        }
     }
 
     public async Task<RoomView> Read(long? sinceRevision = null, CancellationToken ct = default)
     {
-        await RequireSeat().ConfigureAwait(true);
-        var messages = sinceRevision is { } since
+        var viewerAccount = await RequireSeat(requireEditor: false).ConfigureAwait(true);
+        var rawMessages = sinceRevision is { } since
             ? State.Messages.Where(m => m.Revision > since).ToArray()
             : State.Messages;
+
+        var messages = rawMessages
+            .Select(m => ResolveSenderForViewer(m, viewerAccount))
+            .ToArray();
 
         var now = Context.Time.GetUtcNow();
         var present = _presence
@@ -210,7 +253,19 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
             .OrderBy(static a => a, StringComparer.Ordinal)
             .ToArray();
 
-        return new RoomView(State.Revision, messages, State.PinnedScreens, present);
+        var participants = State.Participants
+            .Select(static p => p.Account)
+            .OrderBy(static a => a, StringComparer.Ordinal)
+            .ToArray();
+
+        return new RoomView(
+            State.Revision,
+            messages,
+            State.PinnedScreens,
+            present,
+            Title: State.Title,
+            Kind: State.Kind,
+            Participants: participants.Length > 0 ? participants : null);
     }
 
     public async Task<PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command, CancellationToken ct = default)
@@ -218,6 +273,7 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
         ArgumentException.ThrowIfNullOrWhiteSpace(screenType);
         ArgumentException.ThrowIfNullOrWhiteSpace(screenKey);
         ArgumentNullException.ThrowIfNull(command);
+
         await RequireSeat(requireEditor: true).ConfigureAwait(true);
 
         var type = screenType.Trim();
@@ -229,6 +285,8 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
                 $"Screen '{type}/{key}' is not pinned in room '{Id.Key}'.");
         }
 
+        RequirePinnableScreen(type);
+
         // Preserve the real authenticated caller (no module privilege elevation).
         var screen = Context.Get<IScreen>(new NeuronId(Id.Brain, type, key));
         await screen.Dispatch(command).ConfigureAwait(true);
@@ -237,14 +295,159 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
 
         var revision = State.Revision + 1;
         await Store(State with { Revision = revision }).ConfigureAwait(true);
-        await NudgeParticipantsAsync(revision, ct).ConfigureAwait(true);
+        await NudgeAllAsync(revision, ct).ConfigureAwait(true);
         return view;
     }
 
     public async Task Here(CancellationToken ct = default)
     {
-        var account = await RequireSeat().ConfigureAwait(true);
+        var account = await RequireSeat(requireEditor: false).ConfigureAwait(true);
         _presence[account] = Context.Time.GetUtcNow();
+    }
+
+    public async Task Leave(CancellationToken ct = default)
+    {
+        var account = await RequireSeat(requireEditor: false).ConfigureAwait(true);
+        _presence.Remove(account);
+        if (IsSameBrainCaller())
+        {
+            return;
+        }
+
+        using (OwnModuleIfForeign())
+        {
+            await Context.Offers.Revoke(Id, account, ct).ConfigureAwait(true);
+            foreach (var pinned in State.PinnedScreens)
+            {
+                await Context.Offers.Revoke(new NeuronId(Id.Brain, pinned.ScreenType, pinned.ScreenKey), account, ct).ConfigureAwait(true);
+            }
+        }
+
+        var updated = State.Participants
+            .Where(p => !string.Equals(p.Account, account, StringComparison.Ordinal))
+            .ToArray();
+        var revision = State.Revision + 1;
+        await Store(State with { Revision = revision, Participants = updated }).ConfigureAwait(true);
+        await NudgeAllAsync(revision, ct).ConfigureAwait(true);
+    }
+
+    public async Task RespondAsRoomIno(long triggerRevision)
+    {
+        if (Context.Caller is { } caller
+            && caller.Brain != Id.Brain
+            && !(caller.Inside && caller.Via == Id))
+        {
+            throw new UnauthorizedAccessException($"Room '{Id.Key}' refused direct driver invocation.");
+        }
+
+        var ct = CancellationToken.None;
+        var definition = RoomAgentDefinition.Create(State.Title);
+        // Defense-in-depth invariants: room agent never injects personal contexts or component operations.
+        if (definition.Contexts.Length != 0 || definition.IncludeComponentOperations)
+        {
+            throw new InvalidOperationException("RoomAgentDefinition violated private-brain isolation invariants.");
+        }
+
+        var snapshot = State.Messages.TakeLast(MaxAgentContextMessages).ToArray();
+        string? replyText = null;
+        if (services?.GetService(typeof(IModelInference)) is IModelInference inference)
+        {
+            var aiMessages = new List<AiMessage>(snapshot.Length + 1)
+            {
+                new("system", [new AiText(definition.Instructions)]),
+            };
+            foreach (var msg in snapshot)
+            {
+                var sender = msg.Sender ?? new SenderIdentity(msg.Author, msg.Author, SenderKind.Human);
+                var role = sender.Kind == SenderKind.Agent ? "assistant" : "user";
+                var attributed = sender.Kind == SenderKind.Agent
+                    ? msg.Text
+                    : FormatAttributedMessage(sender, msg.Text);
+                aiMessages.Add(new AiMessage(role, [new AiText(attributed)]) { Sender = sender });
+            }
+
+            try
+            {
+                var result = await inference.Generate(
+                    new InferenceRequest(aiMessages, definition.Model, definition.Options),
+                    model: null,
+                    ct,
+                    brainId: Id.Brain.Value).ConfigureAwait(true);
+                replyText = string.Concat(result.Messages
+                    .SelectMany(static m => m.Content)
+                    .OfType<AiText>()
+                    .Select(static t => t.Text)).Trim();
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<RoomNeuron>().LogSwallowed(error, "room-scoped @Ino inference failed");
+                replyText = "I could not reach a model right now. Try mentioning @Ino again in a moment.";
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(replyText))
+        {
+            return;
+        }
+
+        replyText = await RedactIfConfiguredAsync(replyText, ct).ConfigureAwait(true);
+        var revision = State.Revision + 1;
+        var reply = new RoomMessage(
+            revision,
+            RoomAgentDefinition.AgentId,
+            replyText,
+            Context.Time.GetUtcNow(),
+            RoomAgentDefinition.AgentSender);
+
+        await Store(State with
+        {
+            Revision = revision,
+            Messages = [.. State.Messages, reply],
+        }).ConfigureAwait(true);
+
+        await NudgeAllAsync(revision, ct).ConfigureAwait(true);
+    }
+
+    private async Task<string> RedactIfConfiguredAsync(string text, CancellationToken ct)
+    {
+        if (services?.GetService(typeof(ISecretRedactor)) is not ISecretRedactor redactor)
+        {
+            return text;
+        }
+
+        return (await redactor.Redact(text, ct).ConfigureAwait(true)) ?? text;
+    }
+
+    private static string FormatAttributedMessage(SenderIdentity sender, string text)
+    {
+        var safeName = SanitizeSpeakerToken(sender.DisplayName);
+        var safeId = SanitizeSpeakerToken(sender.AccountId);
+        var framedBody = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Replace("\n", "\n  ", StringComparison.Ordinal);
+        return $"[{safeName} ({safeId})]: {framedBody}";
+    }
+
+    private static string SanitizeSpeakerToken(string value)
+        => value.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
+
+    private static RoomMessage ResolveSenderForViewer(RoomMessage message, string viewerAccount)
+    {
+        if (message.Sender is { Kind: SenderKind.Agent })
+        {
+            return message;
+        }
+
+        var accountId = message.Sender?.AccountId ?? message.Author;
+        var displayName = message.Sender?.DisplayName ?? message.Author;
+        var kind = string.Equals(accountId, viewerAccount, StringComparison.Ordinal)
+            ? SenderKind.Self
+            : SenderKind.Human;
+        return message with { Sender = new SenderIdentity(accountId, displayName, kind) };
     }
 
     private bool IsPinned(string screenType, string screenKey)
@@ -266,6 +469,11 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
             throw new UnauthorizedAccessException($"Screen type '{screenType}' is not a registered pinnable screen in room '{Id.Key}'.");
         }
 
+        if (!screenClass.IsDefined(typeof(ShareableAttribute), inherit: false))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{screenType}' is not marked [Shareable] and cannot be pinned in room '{Id.Key}'.");
+        }
+
         if (screenClass.IsDefined(typeof(InternalAttribute), inherit: false))
         {
             throw new UnauthorizedAccessException($"Screen type '{screenType}' is internal and cannot be pinned in room '{Id.Key}'.");
@@ -278,6 +486,16 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
         }
     }
 
+    private IDisposable? OwnModuleIfForeign()
+    {
+        if (Context.Caller is { Brain: var brain } && brain == Id.Brain)
+        {
+            return null;
+        }
+        var edge = services?.GetService(typeof(EdgeAuthority)) as EdgeAuthority;
+        return edge?.Enter(edge.Module(RoomFriends.RoomType, Id.Brain));
+    }
+
     private void RequireOwner()
         => RequireSameBrain(() => new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may administer room '{Id.Key}'."));
 
@@ -287,7 +505,10 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
     private async Task<string> RequireSeat(bool requireEditor = false)
     {
         var caller = RequireCaller();
-        if (IsSameBrainCaller()) { return caller.For?.Account ?? Id.Brain.Value; }
+        if (IsSameBrainCaller())
+        {
+            return caller.For?.Account ?? Id.Brain.Value;
+        }
 
         var account = caller.For?.Account;
         if (string.IsNullOrEmpty(account))
@@ -312,12 +533,25 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
     }
 
     private IRooms RoomsOf(BrainId brain)
-        => Context.Get<IRooms>(new BindingTarget.Offered(brain, new NeuronId(brain, "social.rooms", IRooms.DefaultKey)));
+        => brain == Id.Brain
+            ? Context.Get<IRooms>(new NeuronId(brain, "social.rooms", IRooms.DefaultKey))
+            : Context.Get<IRooms>(new BindingTarget.Offered(brain, new NeuronId(brain, "social.rooms", IRooms.DefaultKey)));
 
-    // A participant's index refuses the notice when its owner no longer lists the host as a friend. That ends nothing
-    // here: the message is stored and the others are told.
-    private async Task NudgeParticipantsAsync(long revision, CancellationToken ct)
+    // Notifies both the host's own room index (when hosted) and every participant's room index.
+    private async Task NudgeAllAsync(long revision, CancellationToken ct)
     {
+        if (Context.ClassOf("social.rooms") is not null)
+        {
+            try
+            {
+                await RoomsOf(Id.Brain).Changed(Id, revision, ct).ConfigureAwait(true);
+            }
+            catch (UnauthorizedAccessException refused)
+            {
+                OsConsoleLog.For<RoomNeuron>().LogSwallowed(refused, "the host's room index refused the notice of a change");
+            }
+        }
+
         foreach (var participant in State.Participants)
         {
             try { await RoomsOf(participant.Brain).Changed(Id, revision, ct).ConfigureAwait(true); }

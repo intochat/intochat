@@ -33,7 +33,11 @@ public sealed record ActiveFriendRoom(
     string RoomKey,
     long Revision,
     RoomMessage[] Messages,
-    string[] PresentAccounts);
+    string[] PresentAccounts,
+    string Title = "",
+    RoomKind Kind = RoomKind.Group,
+    PinnedScreen[]? PinnedScreens = null,
+    string[]? Participants = null);
 
 // What is open from Shared with me: a folder's entries, or one file's text.
 public sealed record FriendsOpenedShare(
@@ -81,6 +85,8 @@ public sealed record FriendsAppState(
     public string SocialPostDraft { get; init; } = "";
     public SocialFeedItem[] SocialFeed { get; init; } = [];
     public string RoomMessageDraft { get; init; } = "";
+    public string NewRoomTitleDraft { get; init; } = "";
+    public RoomSummary[] Rooms { get; init; } = [];
     public ActiveFriendRoom? ActiveRoom { get; init; }
 
     [IgnoreExplore]
@@ -88,6 +94,9 @@ public sealed record FriendsAppState(
 
     [IgnoreExplore]
     public FriendsAppState SetRoomMessageDraft(string? draft) => this with { RoomMessageDraft = draft ?? "" };
+
+    [IgnoreExplore]
+    public FriendsAppState SetNewRoomTitleDraft(string? draft) => this with { NewRoomTitleDraft = draft ?? "" };
 
     // What the person typed into the friend-code, share-path and shared-text fields, kept until the request that uses it.
     public string CodeDraft { get; init; } = "";

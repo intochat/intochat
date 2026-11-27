@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Identity.Contracts;
 
@@ -62,7 +63,8 @@ public sealed record Said(
     string Text,
     ModelId? Model = null,
     EntryId? Replaces = null,
-    AttachmentRef[]? Attachments = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AttachmentRef[]? Attachments = null,
     Visibility Visible = Visibility.Everyone) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Called(
@@ -79,7 +81,8 @@ public sealed record Returned(
     string Tool,
     string ResultJson,
     bool Ok,
-    CardEntry? Card) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    CardEntry? Card,
+    Visibility Visible = Visibility.Owner) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Summarized(
     EntryId Id,

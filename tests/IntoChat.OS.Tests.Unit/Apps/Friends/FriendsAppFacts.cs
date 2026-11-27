@@ -71,6 +71,9 @@ public sealed class FriendsAppFacts
         Assert.Contains("share-viewer:ben-account", keys);
         Assert.Contains("share-editor:ben-account", keys);
         Assert.Contains("unfriend:ben-account", keys);
+        Assert.Contains("btn:open-dm:ben-account", keys);
+        Assert.Contains("btn:create-group-room", keys);
+        Assert.DoesNotContain(keys, key => key is not null && key.Contains(":chat", StringComparison.Ordinal));
         Assert.DoesNotContain(keys, key => key is not null && key.EndsWith(":", StringComparison.Ordinal));
         Assert.Contains("make-code", keys);
         Assert.Contains("redeem-code", keys);

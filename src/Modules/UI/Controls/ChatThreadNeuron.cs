@@ -168,6 +168,7 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
             ModelLabel: message.Model,
             ProviderIcon: message.ProviderIcon,
             Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? ChatThreadProps.NoAnswer : message.Failure) : null,
+            Sender: message.Sender,
             Attachments: message.Attachments.Count > 0 ? message.Attachments : null);
     }
 
