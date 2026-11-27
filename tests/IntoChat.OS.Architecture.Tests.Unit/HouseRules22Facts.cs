@@ -1422,7 +1422,6 @@ public sealed class HouseRules22Facts
             "IConfinedProcessRunner",
             "ILicenseCheck",
             "IPresenceProof",
-            "IKeyWrapper",
             // Framework/Kernel runtime core abstractions (not module contracts)
             "IKernel",
             "IHostedAppTypes",
@@ -1522,7 +1521,6 @@ public sealed class HouseRules22Facts
             "ICandidateHost",
             "IAspireRuntimeBridge",
             "IGrantPolicySource",
-            "IOsVault",
             "IDirectoryStore",
             "IPrincipalCredential",
             "IExternalTicketReplay",

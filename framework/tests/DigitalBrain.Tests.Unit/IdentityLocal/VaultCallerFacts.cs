@@ -59,10 +59,10 @@ public sealed class VaultCallerFacts : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ValuesAllowsTheOwnerAndTheKernel()
+    public async Task ValuesAllowsOnlyTheKernel()
     {
         await Stored();
-        using (Edge.Enter(Edge.Person("alice", "acc-1", Brain))) { Assert.Equal(["s3cret"], await Vault.Values()); }
+        using (Edge.Enter(Edge.Person("alice", "acc-1", Brain))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Vault.Values()); }
         using (Edge.EnterKernel(Brain)) { Assert.Equal(["s3cret"], await Vault.Values()); }
     }
 
@@ -99,17 +99,31 @@ public sealed class VaultCallerFacts : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => Vault.Set("pat", "PAT", "x"));
     }
 
-    // A vault belongs to a person: the kernel, a module or the scheduler acting for no person is refused, not mistaken for a bug.
+    // A vault belongs to a person or a module: the kernel or the scheduler acting for no owner is refused, not mistaken for a bug.
     [Fact]
-    public async Task A_caller_acting_for_no_person_is_refused_by_the_vault_port()
+    public async Task A_caller_with_no_vault_is_refused_by_the_vault_port()
     {
         var port = _provider.GetRequiredService<ISecretVaultPort>();
-        foreach (var caller in new[] { Edge.Kernel(Brain), Edge.Module("mod.x", Brain), Edge.Scheduler(Brain) })
+        foreach (var caller in new[] { Edge.Kernel(Brain), Edge.Scheduler(Brain) })
         {
             using (Edge.Enter(caller))
             {
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.Set("k", "K", "v", TestContext.Current.CancellationToken));
             }
+        }
+    }
+
+    [Fact]
+    public async Task Set_refuses_scheduler_and_relayed_person_fail_closed()
+    {
+        using (Edge.Enter(Edge.Scheduler(Brain)))
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Vault.Set("pat", "PAT", "x"));
+        }
+
+        using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain)))
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Vault.Set("pat", "PAT", "x"));
         }
     }
 }

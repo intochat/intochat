@@ -42,8 +42,6 @@ public static class PlatformHosting
         services.TryAddSingleton<EdgeGrantsCache>();
         services.TryAddSingleton<IEdgeGrantsCache>(sp => sp.GetRequiredService<EdgeGrantsCache>());
         services.AddSingleton<IConnectionBindings, IntoChat.OS.Modules.Identity.Connections.ConnectionBindings>();
-        services.TryAddSingleton<IBrainSecretSealer, IntoChat.OS.Modules.Identity.Secrets.BrainSecretSealer>();
-        services.TryAddSingleton<DigitalBrain.Capabilities.Secrets.ISecretValueSource, IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource>();
         services.TryAddSingleton<IIdentityClient, IntoChat.OS.Modules.Identity.Accounts.LocalIdentityClient>();
         services.TryAddSingleton<IBrainOwnerDispatch, IntoChat.OS.Modules.Identity.Accounts.BrainOwnerDispatch>();
         services.TryAddSingleton<AuthorityNeurons>();

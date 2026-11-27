@@ -18,6 +18,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Infrastructure` (`IAzureArm`, `IAzure`, `IClickHouse`, `IConsole`, `IFileSystem`, `ILocalDisk`, `INotificationsInbox`, `IPostgresServer`, `IPulumiEngine`, `IPulumi`, `IReminder`, `ITable`, `ITable`1`, `ITimer`, `IWindowsFolderGateway`, `IWindows`).
+Contracts: assembly `IntoChat.OS.Modules.Infrastructure` (`IAzureArm`, `IAzureKeyVaultSecretClient`, `IAzure`, `IBitwardenSecretsClient`, `IClickHouse`, `IConsole`, `IFileSystem`, `ILocalDisk`, `INotificationsInbox`, `IPostgresServer`, `IPulumiEngine`, `IPulumi`, `IReminder`, `ITable`, `ITable`1`, `ITimer`, `IWindowsFolderGateway`, `IWindows`).
 Hosting: runs in process.
 <!-- END GENERATED -->

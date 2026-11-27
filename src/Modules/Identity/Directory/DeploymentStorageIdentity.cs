@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using DigitalBrain.Identity.Local.Vault;
 using IntoChat.OS;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,7 @@ namespace IntoChat.OS.Modules.Identity.Directory;
 // Azure Blob grain keys do not contain Orleans ServiceId: the store is bound to one deployment's
 // service id and master key, so a misconfigured host cannot read or write another's state.
 internal sealed class DeploymentStorageIdentity(
-    IOptions<ClusterOptions> cluster, IKeyWrapper keys,
+    IOptions<ClusterOptions> cluster, MasterKeyWrapper keys,
     [FromKeyedServices(IntoChatOSNames.GrainState)] BlobContainerClient? storage = null)
 {
     private const string MarkerName = ".intochat-os-deployment.json";
@@ -62,7 +63,7 @@ internal sealed class DeploymentStorageIdentity(
         catch (RequestFailedException error) when (error.Status == 404) { return null; }
     }
 
-    internal static void Validate(StorageBinding binding, string serviceId, IKeyWrapper keys)
+    internal static void Validate(StorageBinding binding, string serviceId, MasterKeyWrapper keys)
     {
         if (binding.Version != 1) { throw new InvalidOperationException("Unsupported deployment binding version."); }
         if (binding.ServiceId != serviceId)

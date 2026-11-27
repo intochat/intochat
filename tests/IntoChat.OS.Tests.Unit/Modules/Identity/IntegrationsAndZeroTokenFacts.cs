@@ -147,7 +147,10 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         using (IntoChat.OS.Tests.TestEdge.Authority.Enter(appCaller))
         {
-            var source = new VaultSecretValueSource(new AuthorityNeurons(null!, new EmptyServiceProvider()), IntoChat.OS.Tests.TestEdge.Callers);
+            var source = new DigitalBrain.Identity.Local.Vault.CachingSecretValueSource(
+                (_, _) => ValueTask.FromResult<IReadOnlyList<string>>([]),
+                IntoChat.OS.Tests.TestEdge.Callers,
+                extraAppCheck: GrantRules.IsAppCaller);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
                 async () => await source.CurrentValues(TestContext.Current.CancellationToken));
         }

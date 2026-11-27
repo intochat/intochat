@@ -217,7 +217,7 @@
     "IntoChat.OS.Apps.Settings.SettingsSavePreferences": "SettingsSavePreferences",
     "IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged": "IdentityDirectoryChanged",
     "IntoChat.OS.Authority.Identity.Grants.GrantsChanged": "GrantsChanged",
-    "IntoChat.OS.Authority.Secrets.OsVaultChanged": "OsVaultChanged",
+    "IntoChat.OS.Authority.Secrets.OsVaultChanged": "VaultChanged",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected": "ConnectionConnected",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionDisconnected": "ConnectionDisconnected",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionExpired": "ConnectionExpired",

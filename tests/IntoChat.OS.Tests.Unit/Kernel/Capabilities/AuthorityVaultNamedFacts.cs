@@ -1,9 +1,11 @@
+using System.Text;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Identity.Local.Vault;
 using DigitalBrain.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
 
@@ -11,8 +13,13 @@ namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
 // the variable the installer renders (ManifestEnvironment.SecretVariable). The runtime has already checked the manifest declares it.
 public sealed class AuthorityVaultNamedFacts
 {
-    private static VaultPort Port(params (string Key, string Value)[] values) => new(null!, null,
-        new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build(), callers: TestOS.Callers);
+    private static readonly IMasterKeyCustody TestCustody = new ConfiguredMasterKeyCustody(Encoding.UTF8.GetBytes("test-master-key-authority-vault-named"));
+
+    private static LocalVaultPort Port(params (string Key, string Value)[] values) => new(
+        (_, _) => throw new InvalidOperationException("Not used."),
+        TestCustody,
+        new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build(),
+        callers: TestOS.Callers);
 
     // The variable the installer renders for a module's declared secret (ManifestEnvironment.SecretVariable).
     private static string Key(string module, string secret) => DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleSection(module) + ":Secrets:" + secret;

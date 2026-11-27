@@ -71,6 +71,9 @@ public sealed class StampedCallerAuthorityFacts
         Assert.Equal(CallDenial.OutsideWorkspace, decision?.Denial);
     }
 
+    private static readonly DigitalBrain.Identity.Local.Custody.IMasterKeyCustody TestCustody =
+        new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(System.Text.Encoding.UTF8.GetBytes("test-master-key-stamped-caller"));
+
     // Review Focus 3: an app reaching the vault through the app proxy acts for its person, and only that person's secret
     // gets past the owner check (here to the unhosted vault, which answers NotFound); another person's is Denied.
     [Fact]
@@ -78,7 +81,7 @@ public sealed class StampedCallerAuthorityFacts
     {
         await using var os = TestOS.Local();
         var app = os.Edge.App("notes", new Actor.Person("alice", "alice"), new BrainId(Brain));
-        var port = new VaultPort(services: null, edge: os.Edge, callers: new Ambient(app));
+        var port = new DigitalBrain.Identity.Local.Vault.LocalVaultPort((_, _) => throw new InvalidOperationException("Not hosted."), TestCustody, edge: os.Edge, callers: new Ambient(app));
 
         var own = await port.Resolve(SecretReferences.For("alice", "token", "token", isSet: true), CancellationToken.None);
         var other = await port.Resolve(SecretReferences.For("bob", "token", "token", isSet: true), CancellationToken.None);
@@ -91,7 +94,7 @@ public sealed class StampedCallerAuthorityFacts
     public async Task TheSchedulerResolvesNoPersonsSecret()
     {
         await using var os = TestOS.Local();
-        var port = new VaultPort(services: null, edge: os.Edge, callers: new Ambient(os.Edge.Scheduler(new BrainId(Brain))));
+        var port = new DigitalBrain.Identity.Local.Vault.LocalVaultPort((_, _) => throw new InvalidOperationException("Not hosted."), TestCustody, edge: os.Edge, callers: new Ambient(os.Edge.Scheduler(new BrainId(Brain))));
 
         var result = await port.Resolve(SecretReferences.For("alice", "token", "token", isSet: true), CancellationToken.None);
 
@@ -105,10 +108,10 @@ public sealed class StampedCallerAuthorityFacts
         await using var os = TestOS.Local();
         var brain = new BrainId(Brain);
 
-        Assert.Equal("files", IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Module("files", brain)));
-        Assert.Equal(Brain, IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Kernel(brain)));
-        Assert.Equal("alice", IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Agent(new Actor.Person("alice", "alice"), brain)));
-        Assert.Null(IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Scheduler(brain)));
+        Assert.Equal("files", DigitalBrain.Identity.Local.Vault.VaultPolicy.RedactionOwner(os.Edge.Module("files", brain)));
+        Assert.Equal(Brain, DigitalBrain.Identity.Local.Vault.VaultPolicy.RedactionOwner(os.Edge.Kernel(brain)));
+        Assert.Equal("alice", DigitalBrain.Identity.Local.Vault.VaultPolicy.RedactionOwner(os.Edge.Agent(new Actor.Person("alice", "alice"), brain)));
+        Assert.Null(DigitalBrain.Identity.Local.Vault.VaultPolicy.RedactionOwner(os.Edge.Scheduler(brain)));
     }
 
     [Fact]

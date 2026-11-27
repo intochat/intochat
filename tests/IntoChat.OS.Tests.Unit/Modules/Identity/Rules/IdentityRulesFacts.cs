@@ -24,7 +24,7 @@ public sealed class IdentityRulesFacts
             .Select(CreateDefault)
             .ToArray();
 
-        Assert.Equal(17, rules.Length);
+        Assert.Equal(15, rules.Length);
         Assert.All(rules, r => Assert.True(
             r.Name.StartsWith("identity.", StringComparison.Ordinal) || r.Name.StartsWith("circles.", StringComparison.Ordinal),
             $"Unexpected rule prefix: {r.Name}"));
@@ -57,21 +57,15 @@ public sealed class IdentityRulesFacts
     }
 
     [Fact]
-    public async Task VaultNeuronRefusesNonOwnerStoreWithRule()
+    public async Task VaultNeuronRefusesNonOwnerStore()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IKeyWrapper, PassThroughKeyWrapper>();
-        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<OsVaultNeuron>();
-        var vault = os.Get<IOsVault>(new NeuronId(new BrainId("system"), IOsVault.Type, "alice"));
+        services.AddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(
+            new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(System.Text.Encoding.UTF8.GetBytes("test-master-key-rules")));
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<DigitalBrain.Identity.Local.Vault.VaultNeuron>();
+        var vault = os.Get<DigitalBrain.Identity.Local.Vault.IVault>(new NeuronId(new BrainId("system"), DigitalBrain.Identity.Local.Vault.IVault.Type, "alice"));
 
         using var bob = os.Edge.Enter(os.Edge.RelayedPerson("bob", "bob", new BrainId("system")));
-        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => vault.Set("api", "API", "secret"));
-        Assert.Contains("identity.caller-can-store-secret", ex.Rejected.Rules);
-    }
-
-    private sealed class PassThroughKeyWrapper : IKeyWrapper
-    {
-        public string Wrap(byte[] key) => Convert.ToBase64String(key);
-        public byte[] Unwrap(string wrappedKey) => Convert.FromBase64String(wrappedKey);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vault.Set("api", "API", "secret"));
     }
 }
