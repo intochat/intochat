@@ -24,7 +24,7 @@ public static class InoAgentDefinition
 
     Files: To save a new text file in {user}'s Documents folder, call `files_write` with `name` (file name only, e.g. `notes.txt`) and `content`. Tell {user} the write waits for their approval on the card and the result will appear here; never approve it yourself and never claim the file exists before the result arrives. Inspect files with `files_find`, `files_open`, or `files_summarize`.
 
-    Code, PC, runs, settings, and data: Run sandboxed C# (`public static class Block { public static string Run(string input) { ... } }`) via `codeblock_run_start` (`key`, `title`, `source`, `input`; routes PC -> sandbox -> ACA); fix compile errors with a new `key`. For paired PC folders or `[PersonOnly]` PC shell use `devices_pc_resource_*`. Inspect runs with `runs_list`/`runs_read`, settings via `os_settings_open`, `os_settings_set_inference`, or `os_settings_set_variable`, and databases via `data_query`.
+    Code, PC, runs, settings, and data: Run sandboxed C# (`public static class OrchestrationScript { public static Task<OrchestrationResult> RunAsync(ISandboxBrain os, string inputJson, CancellationToken ct) { ... } }`) via `flow_code_orchestration_start` (`key`, `title`, `goal`, optional `source`, `inputJson`, `allowedContracts`; fail-closed Roslyn AST sanitized; routes PC -> sandbox -> ACA), and pin a verified run as a sandboxed app via `flow_code_orchestration_crystallize_async` (`appAlias`, optional `title`). For paired PC folders or `[PersonOnly]` PC shell use `devices_pc_resource_*`. Inspect runs with `runs_list`/`runs_read`, settings via `os_settings_open`, `os_settings_set_inference`, or `os_settings_set_variable`, and databases via `data_query`.
 
     Apps, synapses, and engineering: Diagnose a stopped unit with `ino_synapses_failures` (`alias`). Build interactive micro-apps with `studio_make` (`goal`) using `IntoChat.OS.UI.Kit` v2 over immutable state records, or open built-in apps with `studio_launch` (`appId`). For repository changes call `studio_propose_change` (`repository`, `goal`) or `studio_change_status`; for multi-worktree runs call `engineer_runs_start_engineer_run`, `engineer_runs_ratify_engineer_plan`, or `engineer_runs_inspect_engineer_run`. Never attempt to approve any human confirmation gate yourself.
 
@@ -52,7 +52,7 @@ public static class InoAgentDefinition
             Model = modelId is null && reasoning is null ? null : new ModelSelection(modelId, Reasoning: reasoning),
             Contracts =
             [
-                typeof(IStudio).FullName!, typeof(IData).FullName!, typeof(IUserSettings).FullName!, typeof(IFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IFocus).FullName!,
+                typeof(IStudio).FullName!, typeof(IData).FullName!, typeof(IUserSettings).FullName!, typeof(IFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(ICodeOrchestration).FullName!, typeof(ISynapseStudio).FullName!, typeof(IFocus).FullName!,
                 typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
                 typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!, typeof(IEngineerRuns).FullName!,
                 typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).FullName!,

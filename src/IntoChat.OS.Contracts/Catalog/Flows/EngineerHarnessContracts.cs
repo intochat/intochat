@@ -88,6 +88,33 @@ public interface ILiveVerifier
         CancellationToken ct = default);
 }
 
+/// <summary>Request sent by <c>EngineerLiveVerifier</c> to verify a candidate worktree through an <c>ICandidateHost</c>.</summary>
+public sealed record CandidateLiveVerificationRequest(
+    string WorktreePath,
+    string Goal,
+    IReadOnlyList<string> ChangedFiles,
+    string? CommitSha = null,
+    string HealthPath = "/health",
+    bool TouchesUi = false,
+    string? TraceId = null);
+
+/// <summary>
+/// DI bridge implemented by the Aspire component over <c>ICandidateHost</c> (<c>ProcessCandidateHost</c> and
+/// <c>AgentDevSlotsCandidateHost</c>) so <c>EngineerLiveVerifier</c> executes real isolated candidates.
+/// </summary>
+public interface IEngineerCandidateHostVerifier
+{
+    /// <summary>True when a candidate host backend is configured and ready to isolate candidate runs.</summary>
+    bool IsConfigured { get; }
+
+    /// <summary>Name of the active candidate host backend (e.g. <c>ProcessCandidateHost</c> or <c>AgentDevSlotsCandidateHost</c>).</summary>
+    string HostKind { get; }
+
+    Task<EngineerLiveReport> VerifyCandidateAsync(
+        CandidateLiveVerificationRequest request,
+        CancellationToken ct = default);
+}
+
 // Whether this installation has a live environment that live-verify can check a change against. The registered ILiveVerifier
 // answers by implementing it. A registered verifier that does not implement it is an environment someone wired, and counts as
 // configured. Where none is configured, an engineering run records live-verify as not available and goes on to the approval;

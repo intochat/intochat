@@ -1,7 +1,7 @@
 using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Workflows;
 using IntoChat.OS.Modules.Apps.AppRuns;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Runs;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -48,11 +48,11 @@ public sealed class RunsStateFacts
     }
 
     [Fact]
-    public void ACodeBlockDeniedWhileWaitingNoLongerWaits()
+    public void AWorkflowDeniedWhileWaitingNoLongerWaits()
     {
-        var state = new RunsState().Fold(new CodeBlockRunStarted("cb-1", "count"), T0)
-            .Fold(new CodeBlockRunWaiting("cb-1", "plan-1", ["IRuns"]), T0)
-            .Fold(new CodeBlockRunDone("cb-1", false, null, "denied"), T0.AddSeconds(1));
+        var state = new RunsState().Fold(new WorkflowRunStarted("wf-1", "triage", "count"), T0)
+            .Fold(new WorkflowRunWaiting("wf-1", "plan-1", "approve?"), T0)
+            .Fold(new WorkflowRunDone("wf-1", false, null, "denied"), T0.AddSeconds(1));
         Assert.Equal(RunState.Failed, state.Runs[0].State);
         Assert.Null(state.Runs[0].Waiting);
     }
@@ -60,9 +60,9 @@ public sealed class RunsStateFacts
     [Fact]
     public void ACancelledRunIsCancelledNotFailed()
     {
-        var state = new RunsState().Fold(new CodeBlockRunStarted("cb-2", "count"), T0)
-            .Fold(new CodeBlockRunWaiting("cb-2", "plan-2", ["IRuns"]), T0)
-            .Fold(new CodeBlockRunDone("cb-2", false, null, "stop", Cancelled: true), T0.AddSeconds(1));
+        var state = new RunsState().Fold(new WorkflowRunStarted("wf-2", "triage", "count"), T0)
+            .Fold(new WorkflowRunWaiting("wf-2", "plan-2", "approve?"), T0)
+            .Fold(new WorkflowRunDone("wf-2", false, null, "stop", Cancelled: true), T0.AddSeconds(1));
         Assert.Equal(RunState.Cancelled, state.Runs[0].State);
         Assert.Null(state.Runs[0].Waiting);
     }

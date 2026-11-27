@@ -10,7 +10,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Apps.Engineer;
+using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
@@ -1635,24 +1635,24 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         var srcRoot = "s" + "rc";
         string[] uiTouchedFiles =
         [
-            $"{srcRoot}/IntoChat.OS.Apps/Engineer/EngineerApp.cs",
+            $"{srcRoot}/IntoChat.OS.Apps/Tasks/TasksApp.cs",
             "ui/lib/desktop/live_desktop_shell.dart",
         ];
 
         Assert.True(EngineerLiveVerifier.TouchesUiSurface(uiTouchedFiles));
         Assert.False(EngineerLiveVerifier.TouchesUiSurface([$"{srcRoot}/Modules/Catalog/Flows/EngineerFlow.cs"]));
 
-        // Host the real EngineerApp AggregateScreen on TestOS to verify valid live View tree + AppShellNode + AutomationName invariants!
+        // Host the real TasksApp AggregateScreen on TestOS to verify valid live View tree + AppShellNode + AutomationName invariants!
         await using var os = TestOS.Local();
         var brain = new BrainId("owner");
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
         os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
-        os.Register(typeof(EngineerApp).Assembly);
+        os.Register(typeof(IntoChat.OS.Apps.Tasks.TasksApp).Assembly);
 
-        var liveEngineerScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
-        var openedEngineerView = await liveEngineerScreen.Open();
-        Assert.NotNull(openedEngineerView);
+        var liveTasksScreen = os.Get<IScreen>(new NeuronId(brain, "app.tasks", "default"));
+        var openedTasksView = await liveTasksScreen.Open();
+        Assert.NotNull(openedTasksView);
 
         var healthyConfig = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -1666,7 +1666,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         });
         var healthyPageSession = new FakeBrowserPageSession(
             connected: true,
-            new BrowserObservation("http://127.0.0.1:19876/engineer", "IntoChat Studio", "Engineer shell ready", []));
+            new BrowserObservation("http://127.0.0.1:19876/tasks", "IntoChat Tasks", "Tasks shell ready", []));
 
         await using var healthySp = new ServiceCollection()
             .AddSingleton<IConfiguration>(healthyConfig)
@@ -1679,7 +1679,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             treeDir,
             "Verify valid AggregateScreen view, Playwright DOM session, and loopback health",
             uiTouchedFiles,
-            new EngineerLiveContext("trace-ui-ok", null, [("app.engineer", liveEngineerScreen)]),
+            new EngineerLiveContext("trace-ui-ok", null, [("app.tasks", liveTasksScreen)]),
             Ct);
 
         Assert.True(passingReport.Succeeded, passingReport.Summary);
@@ -1752,7 +1752,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             treeDir,
             "Detect HTTP 503 loopback failure",
             uiTouchedFiles,
-            new EngineerLiveContext("trace-ui-503", null, [("app.engineer", liveEngineerScreen)]),
+            new EngineerLiveContext("trace-ui-503", null, [("app.tasks", liveTasksScreen)]),
             Ct);
 
         Assert.False(http503Report.Succeeded);

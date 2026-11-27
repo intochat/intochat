@@ -1,11 +1,13 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Flows;
 using DigitalBrain.Testing;
 using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
+using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Devices.Link;
+using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -17,19 +19,37 @@ public sealed class CodeBlockConnectedComputeFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private const string SimpleBlockSource = """
-        public static class Block
+    private const string SimpleOrchestrationScript = """
+        using System.Collections.Generic;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using IntoChat.Sdk;
+
+        public static class OrchestrationScript
         {
-            public static string Run(string input) => $"echo:{input}";
+            public static Task<OrchestrationResult> RunAsync(ISandboxBrain os, string inputJson, CancellationToken ct)
+                => Task.FromResult(new OrchestrationResult(
+                    Status: "succeeded",
+                    Summary: $"echo:{inputJson}",
+                    Artifacts: [],
+                    Metrics: new Dictionary<string, double>()));
         }
         """;
 
     [Fact]
-    public async Task CodeBlockRunRoutesToTier1ConnectedPcWhenOnlineAndFallsBackWhenOffline()
+    public async Task CodeOrchestrationRoutesToTier1ConnectedPcWhenOnlineAndFallsBackWhenOffline()
     {
         var brain = new BrainId("owner");
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 10, 0, 0, TimeSpan.Zero));
         var pcCalls = 0;
+
+        var pcResultJson = JsonSerializer.Serialize(new
+        {
+            status = "succeeded",
+            summary = "from-connected-pc",
+            artifacts = Array.Empty<object>(),
+            metrics = new Dictionary<string, double>(),
+        });
 
         var transport = new ScriptedComputeTransport(
             probe: (_, _, _) => Task.FromResult(true),
@@ -39,7 +59,7 @@ public sealed class CodeBlockConnectedComputeFacts
                 return Task.FromResult<ConnectedSandboxResponse?>(
                     new ConnectedSandboxResponse(
                         Handled: true,
-                        ResultJson: JsonSerializer.Serialize("from-connected-pc"),
+                        ResultJson: pcResultJson,
                         UpdatedStateJson: null,
                         Error: null,
                         ExecutedByMachineId: node.MachineId));
@@ -82,23 +102,26 @@ public sealed class CodeBlockConnectedComputeFacts
 
         var osServices = new ServiceCollection()
             .AddSingleton(new AppPackageCompiler())
+            .AddSingleton<ICodeOrchestrationAstSanitizer>(new CodeOrchestrationAstSanitizer())
             .AddSingleton<ISandboxRuntimeBridge>(bridge)
+            .AddSingleton<IConnectedComputeRouter>(router)
             .BuildServiceProvider();
 
         await using var os = TestOS.Local(o => o.Services = osServices)
-            .Register<CodeBlockRunNeuron>()
-            .Register<ClientGrantsNeuron>();
+            .Register<CodeOrchestrationSynapse>();
 
         // 1. Tier 1 Connected PC online -> routes to connected-client
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
         {
-            var run1 = os.Get<ICodeBlockRun>(new NeuronId(brain, "codeblock.run", "codeblocks/tier1-test"));
-            var view1 = await run1.Start("Tier 1 test", SimpleBlockSource, "hello");
-            Assert.Equal(CodeBlockStatus.Completed, view1.Status);
-            Assert.Equal("from-connected-pc", view1.Output);
+            var run1 = os.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/tier1-test"));
+            _ = await run1.Start("Tier 1 test", "Run on connected PC", SimpleOrchestrationScript, "{\"msg\":\"hello\"}");
+            await os.Idle();
+            var view1 = await run1.Read();
+            Assert.NotNull(view1);
+            Assert.Equal(FlowStatus.Completed, view1!.Status);
+            Assert.Equal("from-connected-pc", view1.Result?.Summary);
             Assert.Equal("connected-client", view1.ExecutionTarget);
             Assert.Equal("win-pc-tier1", view1.ExecutedByMachineId);
-            Assert.Contains("tier:connected-client", view1.Steps);
             Assert.Equal(1, pcCalls);
         }
 
@@ -107,22 +130,25 @@ public sealed class CodeBlockConnectedComputeFacts
         var fallbackBridge = new FallbackSandboxBridge();
         var fallbackServices = new ServiceCollection()
             .AddSingleton(new AppPackageCompiler())
+            .AddSingleton<ICodeOrchestrationAstSanitizer>(new CodeOrchestrationAstSanitizer())
             .AddSingleton<ISandboxRuntimeBridge>(fallbackBridge)
+            .AddSingleton<IConnectedComputeRouter>(router)
             .BuildServiceProvider();
 
         await using var fallbackOs = TestOS.Local(o => o.Services = fallbackServices)
-            .Register<CodeBlockRunNeuron>()
-            .Register<ClientGrantsNeuron>();
+            .Register<CodeOrchestrationSynapse>();
 
         using (fallbackOs.Edge.Enter(fallbackOs.Edge.Person("owner", "owner", brain)))
         {
-            var run2 = fallbackOs.Get<ICodeBlockRun>(new NeuronId(brain, "codeblock.run", "codeblocks/tier2-test"));
-            var view2 = await run2.Start("Tier 2 fallback test", SimpleBlockSource, "hello");
-            Assert.Equal(CodeBlockStatus.Completed, view2.Status);
-            Assert.Equal("from-tier2-fallback", view2.Output);
-            Assert.Equal("cloud-sandbox", view2.ExecutionTarget);
+            var run2 = fallbackOs.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/tier2-test"));
+            _ = await run2.Start("Tier 2 fallback test", "Run on fallback sandbox", SimpleOrchestrationScript, "{\"msg\":\"hello\"}");
+            await fallbackOs.Idle();
+            var view2 = await run2.Read();
+            Assert.NotNull(view2);
+            Assert.Equal(FlowStatus.Completed, view2!.Status);
+            Assert.Equal("from-local-unit-host", view2.Result?.Summary);
+            Assert.Equal("local-unit-host", view2.ExecutionTarget);
             Assert.Null(view2.ExecutedByMachineId);
-            Assert.Contains("tier:cloud-sandbox", view2.Steps);
         }
     }
 
@@ -141,19 +167,32 @@ public sealed class CodeBlockConnectedComputeFacts
     private sealed class FallbackSandboxBridge : ISandboxRuntimeBridge
     {
         public Task<SandboxDeploymentResult> DeployPackageAsync(string brainId, AppPackage package, byte[] assemblyBytes, string? stateJson, string? settingsJson, CancellationToken cancellationToken = default)
-            => Task.FromResult(new SandboxDeploymentResult(true, null, [], [], ["run"], null));
+            => Task.FromResult(new SandboxDeploymentResult(true, null, [], [], [CodeOrchestrationScriptWrapper.Command], null));
 
         public Task<SandboxDispatchResult> ExecuteScopedCommandAsync(BrainId brainId, AppPackage package, byte[] assemblyBytes, string command, string? payloadJson, IReadOnlyList<string> allowedContracts, CancellationToken cancellationToken = default)
-            => Task.FromResult(new SandboxDispatchResult(true, JsonSerializer.Serialize("from-tier2-fallback"), null, null, null, ExecutionTarget: "cloud-sandbox", ExecutedByMachineId: null));
+            => Task.FromResult(new SandboxDispatchResult(
+                true,
+                JsonSerializer.Serialize(new
+                {
+                    status = "succeeded",
+                    summary = "from-local-unit-host",
+                    artifacts = Array.Empty<object>(),
+                    metrics = new Dictionary<string, double>(),
+                }),
+                null,
+                null,
+                null,
+                ExecutionTarget: "local-unit-host",
+                ExecutedByMachineId: null));
 
         public Task<SandboxDispatchResult> DispatchSignalAsync(string brainId, string appKey, string signalName, string payloadJson, CancellationToken cancellationToken = default)
-            => Task.FromResult(new SandboxDispatchResult(true, null, null, null, null));
+            => throw new NotSupportedException();
 
         public Task<SandboxDispatchResult> DispatchScheduleAsync(string brainId, string appKey, string cron, CancellationToken cancellationToken = default)
-            => Task.FromResult(new SandboxDispatchResult(true, null, null, null, null));
+            => throw new NotSupportedException();
 
         public Task<SandboxDispatchResult> DispatchCommandAsync(string brainId, string appKey, string command, string? payloadJson = null, CancellationToken cancellationToken = default)
-            => Task.FromResult(new SandboxDispatchResult(true, null, null, null, null));
+            => throw new NotSupportedException();
 
         public Task<DigitalBrain.UI.View?> RenderAsync(string brainId, string appKey, CancellationToken cancellationToken = default)
             => Task.FromResult<DigitalBrain.UI.View?>(null);

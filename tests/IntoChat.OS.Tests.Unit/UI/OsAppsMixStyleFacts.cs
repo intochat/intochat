@@ -9,7 +9,6 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Settings;
@@ -67,11 +66,7 @@ public sealed class OsAppsMixStyleFacts
                 1)).Root;
         AssertStructuredMixStyles("Ino", inoNode, expectedMinStyles: 3);
 
-        // 2. Engineer (top bar, workspace actions, inspector, links)
-        var engineerNode = EngineerViewRenderer.RenderRoot(new EngineerWorkspaceState(), lastRejection: null);
-        AssertStructuredMixStyles("Engineer", engineerNode, expectedMinStyles: 5);
-
-        // 3. Settings (all 13 sections + no monospace regression)
+        // 2. Settings (all 13 sections + no monospace regression)
         foreach (var entry in SettingsApp.SearchIndex)
         {
             var settingsNode = AggregateExplorer<SettingsAppState>.PreviewNode<SettingsApp>(new SettingsAppState().Navigate(entry.SectionId));

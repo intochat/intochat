@@ -3,7 +3,6 @@ using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Workflows;
 using IntoChat.OS.Modules.Apps.AppRuns;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Runs;
@@ -39,17 +38,6 @@ internal sealed record RunsState(RunView[] Runs)
             State = done.Cancelled ? RunState.Cancelled : done.Succeeded ? RunState.Succeeded : RunState.Failed,
             Waiting = null,
             Ended = at,
-            Detail = done.Error ?? Title(done.Output),
-        }),
-        CodeBlockRunStarted started => Put(new RunView(started.RunId, RunKind.CodeBlock, started.Title, RunState.Running, null,
-            "sandbox", null, at, null, [], "compile, deploy, run", null, "code block")),
-        CodeBlockRunWaiting waiting => Update(waiting.RunId, run => run with { State = RunState.Waiting, Waiting = $"approval {waiting.PlanId}", Detail = "needs: " + string.Join(", ", waiting.Needs) }),
-        CodeBlockRunDone done => Update(done.RunId, run => run with
-        {
-            State = done.Cancelled ? RunState.Cancelled : done.Succeeded ? RunState.Succeeded : RunState.Failed,
-            Waiting = null,
-            Ended = at,
-            Current = null,
             Detail = done.Error ?? Title(done.Output),
         }),
         AppRunStarted started => Put(new RunView(started.RunId, RunKind.App, started.Trigger == AppTrigger.Schedule ? $"{started.App}: every {started.Name}" : $"{started.App}: {started.Name}",

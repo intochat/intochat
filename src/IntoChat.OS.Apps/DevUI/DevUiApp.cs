@@ -84,6 +84,11 @@ public sealed class DevUiApp : EmbeddedWebApp<DevUiAppState>
             Space.Xs,
             StatusPill(StatusKind.Done, "/devui/ · Co-Hosted"),
             FlexSpacer(),
+            new Button("devui:open-creator", "3D Brain Inspector (Creator) ↗", Intent: AppSignals.OpenApp(Creator.CreatorApp.AppName))
+            {
+                Small = true,
+                Icon = "cpu",
+            },
             Button("Reload", Icons.RefreshCw)
                 .Key("devui:reload")
                 .Small()

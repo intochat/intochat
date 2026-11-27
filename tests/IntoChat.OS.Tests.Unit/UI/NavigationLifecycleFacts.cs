@@ -7,7 +7,7 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Engineer;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
 using IntoChat.OS.UI.Dispatch;
@@ -397,54 +397,52 @@ public sealed class NavigationLifecycleFacts
         Assert.Equal("conv-8", inoProbe.Received?.Args.ConversationId);
         Assert.Equal("node:app.aspire", inoProbe.Received?.Args.FocusTarget);
 
-        // 3. Live EngineerApp deep-link via os://window/open query parameters & plain input + Dispatch departure guard
+        // 3. Live CreatorApp deep-link via os://window/open query parameters & plain input + Dispatch departure guard
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
             IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.RegisterCatalog();
-        // Engineer mounts the UI module's control neurons as its children and follows their signals.
         os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
-        os.Register(typeof(EngineerApp).Assembly);
+        os.Register(typeof(CreatorApp).Assembly);
         os.Register<NavSampleScreen>();
 
         var brain = new BrainId("test");
-        var engineerScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
-        _ = await engineerScreen.Open();
+        var creatorScreen = os.Get<IScreen>(new NeuronId(brain, "app.creator", "default"));
+        _ = await creatorScreen.Open();
 
-        var engineerTypedIntent = AppSignals.OpenApp(
-            "engineer",
-            new StudioNavArgs(Lens: "plan", CandidateId: "w2"),
+        var creatorTypedIntent = AppSignals.OpenApp(
+            "creator",
+            new StudioNavArgs(Lens: "brain", TargetId: "node:test/apps/ino"),
             transition: ViewTransition.SharedAxisX,
             fromNeuron: "app.tasks");
-        var engQuery = ParseQuery(new Uri(engineerTypedIntent.Arg!).Query);
-        await engineerScreen.Dispatch(new Command(
+        var creatorQuery = ParseQuery(new Uri(creatorTypedIntent.Arg!).Query);
+        await creatorScreen.Dispatch(new Command(
             ".",
             UiNavigateTo.SignalAlias,
             RuntimeProtocol.SerializeToElement(
                 new UiNavigateTo(
-                    ArgsJson: engQuery["args"],
-                    FromNeuron: engQuery["from"],
-                    Transition: engQuery["transition"]),
+                    ArgsJson: creatorQuery["args"],
+                    FromNeuron: creatorQuery["from"],
+                    Transition: creatorQuery["transition"]),
                 typeof(UiNavigateTo))));
         await os.Idle();
 
-        var engViewJson = (await engineerScreen.Open())!.View.GetRawText();
-        Assert.Contains("Winning candidate: w2", engViewJson, StringComparison.Ordinal);
-        Assert.Contains("\"transition\":\"shared-axis-x\"", engViewJson, StringComparison.Ordinal);
+        var creatorViewJson = (await creatorScreen.Open())!.View.GetRawText();
+        Assert.Contains("\"transition\":\"shared-axis-x\"", creatorViewJson, StringComparison.Ordinal);
 
-        var engineerPlainIntent = AppSignals.OpenApp("engineer", "w1");
-        var engPlainQuery = ParseQuery(new Uri(engineerPlainIntent.Arg!).Query);
-        await engineerScreen.Dispatch(new Command(
+        var creatorPlainIntent = AppSignals.OpenApp("creator", "trace/tr-1");
+        var creatorPlainQuery = ParseQuery(new Uri(creatorPlainIntent.Arg!).Query);
+        await creatorScreen.Dispatch(new Command(
             ".",
             UiNavigateTo.SignalAlias,
             RuntimeProtocol.SerializeToElement(
                 new UiNavigateTo(
-                    FromNeuron: "app.creator",
+                    FromNeuron: "app.tasks",
                     Transition: ViewTransition.FadeThrough,
-                    Input: engPlainQuery["input"]),
+                    Input: creatorPlainQuery["input"]),
                 typeof(UiNavigateTo))));
         await os.Idle();
-        Assert.Contains("Winning candidate: w1", (await engineerScreen.Open())!.View.GetRawText(), StringComparison.Ordinal);
+        Assert.NotNull(await creatorScreen.Open());
 
         // 4. IScreen.Dispatch("ui.navigate-from") surfaces ActivationRefusedException with Rule:<code >: <message> when blocked
         var guarded = os.Get<IScreen>(new NeuronId(brain, "app.test.nav-sample", "guard-check"));
@@ -542,16 +540,6 @@ public sealed class NavigationLifecycleFacts
         Assert.Equal("github", probe.Received?.Args.SubPage);
         Assert.Equal("pat", probe.Received?.Args.Sheet);
         Assert.Equal("webhook", probe.Received?.Args.SearchQuery);
-
-        // 4. EngineerViewRenderer renders compact Configure GitHub ↗ and Ask Ino ↗ deep-links in PR Review header area
-        var engineerRoot = EngineerViewRenderer.RenderRoot(new EngineerWorkspaceState(), lastRejection: null);
-        var engineerWire = JsonSerializer.Serialize(engineerRoot, RuntimeProtocol.OptionsFor(typeof(Node)));
-        Assert.Contains("engineer:open-github-settings", engineerWire, StringComparison.Ordinal);
-        Assert.Contains("Configure GitHub", engineerWire, StringComparison.Ordinal);
-        Assert.Contains("os://window/open?app=settings", engineerWire, StringComparison.Ordinal);
-        Assert.Contains("connections%2Fgithub", engineerWire, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("engineer:ask-ino", engineerWire, StringComparison.Ordinal);
-        Assert.Contains("Ask Ino", engineerWire, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> ParseQuery(string rawQuery)

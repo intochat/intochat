@@ -82,6 +82,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
 
         services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Apps.Flows.IEngineerCandidateHostVerifier, Candidates.CandidateHostLiveVerifier>();
         // The Aspire app (Screens/AspireApp) ships with this component.
         services.AddSingleton(new CompiledAppsRegistration(typeof(AspireModule).Assembly));
     }

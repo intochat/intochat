@@ -1,10 +1,10 @@
 /*
 # Creator
-Role: Default
+Role: Developer
 Shipped: true
 Operations: open, select, trace, replay, scenario, share, run, approve, reject
 
-Topology, Accordant state-space, scenario & 1-event-at-a-time time-travel debugger for the DigitalBrain OS.
+Opt-in DevUI topology, Accordant state-space, scenario & 1-event-at-a-time time-travel debugger for the DigitalBrain OS.
 Left: catalog units, installed apps, active build/engineer flows, and studio launchers.
 Center: live BrainScene topology (with causal replay pulses and Flame camera HUD), embedded Live Studio preview,
 Accordant StateGraphView, and the time-travel transport bar with a control.slider child.
@@ -64,7 +64,7 @@ public sealed record CreatorApprove(string? ApprovalId = null) : DigitalBrain.Si
 [DigitalBrain.Signal("creator.reject")]
 public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Signal;
 
-[Neuron("app.creator"), Screen("app.creator", Title = "Creator", Icon = "cpu", Category = "Studio", Dock = 7)]
+[Neuron("app.creator"), Screen("app.creator", Title = "Creator", Icon = "cpu", Category = "Developer")]
 public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
 {
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Host.Logging.OsConsoleLog.For<CreatorApp>();

@@ -50,7 +50,7 @@ public sealed record DesktopAppState(
         "floating-glass",
         10,
         "Smart Desktop Ready",
-        ["ino", "creator"],
+        ["ino"],
         [],
         null,
         [],
@@ -211,7 +211,7 @@ public sealed record DesktopAppState(
 
     public DesktopAppState AutoArrange()
     {
-        var pinnedList = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino", "creator"];
+        var pinnedList = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino"];
         return this with
         {
             LayoutMode = "whiteboard-auto-arranged",
@@ -383,7 +383,7 @@ public sealed record DesktopAppState(
             return refused;
         }
 
-        var existingPins = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino", "creator"];
+        var existingPins = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino"];
         var nextPinnedApps = existingPins.Contains(normalized, StringComparer.OrdinalIgnoreCase)
             ? existingPins
             : [.. existingPins, normalized];
@@ -402,7 +402,7 @@ public sealed record DesktopAppState(
             return refused;
         }
 
-        var existingPins = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino", "creator"];
+        var existingPins = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino"];
         var nextPinnedApps = existingPins
             .Where(p => !string.Equals(p, normalized, StringComparison.OrdinalIgnoreCase))
             .ToArray();
@@ -426,7 +426,7 @@ public sealed record DesktopAppState(
             return capped;
         }
 
-        var existingPins = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino", "creator"];
+        var existingPins = PinnedApps is { Length: > 0 } ? PinnedApps : ["ino"];
         var nextPinnedApps = pinned
             ? (existingPins.Contains(appId, StringComparer.OrdinalIgnoreCase) ? existingPins : [.. existingPins, appId])
             : existingPins.Where(p => !string.Equals(p, appId, StringComparison.OrdinalIgnoreCase)).ToArray();

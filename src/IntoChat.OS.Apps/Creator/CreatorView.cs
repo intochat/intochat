@@ -138,7 +138,7 @@ public static class CreatorView
                 .Sends(new CreatorReplay("toggle")),
             // A zero spacer keeps the extents' indexes when the view is drawn without the screen.
             children?.Slider(ReplaySliderKey, ReplaySliderOf(state, steps.Length)) ?? new Spacer(0),
-            new Button("open-engineer-studio", "Open Studio (Engineer) ↗", Intent: AppSignals.OpenApp("engineer", state.ActiveRunId))
+            new Button("open-tasks-studio", "Open Tasks ↗", Intent: AppSignals.OpenApp("tasks", state.ActiveRunId))
             {
                 Small = true,
                 Icon = Icons.Sparkles,
