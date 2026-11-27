@@ -72,7 +72,7 @@ public static class MasterKeyServiceCollectionExtensions
             sp.GetService<EdgeAuthority>(),
             sp.GetService<ICallerAmbient>(),
             sp.GetService<IBrainSecretSealer>(),
-            sp.GetService<IBrainCapabilityPolicy>(),
+            new LazyBrainCapabilityPolicy(sp),
             sp.GetService<CachingSecretValueSource>()));
         services.TryAddSingleton<ISecretVaultPort>(sp => sp.GetRequiredService<LocalVaultPort>());
         services.TryAddSingleton(sp =>
@@ -122,5 +122,20 @@ public static class MasterKeyServiceCollectionExtensions
     private sealed class EdgeCallerAmbient(EdgeAuthority edge) : ICallerAmbient
     {
         public Caller? Current => edge.Current;
+    }
+
+    // Defers resolving IBrainCapabilityPolicy (which depends on EphemeralBrainRegistry -> AuthorityMirror)
+    // until an actual Set/Seal call executes, avoiding eager startup DI cycles.
+    private sealed class LazyBrainCapabilityPolicy(IServiceProvider services) : IBrainCapabilityPolicy
+    {
+        public CapabilityDecision Evaluate(BrainResidency residency, BrainCapability capability, string? resource = null, int usedTurns = 0)
+            => services.GetService<IBrainCapabilityPolicy>() is { } policy
+                ? policy.Evaluate(residency, capability, resource, usedTurns)
+                : CapabilityDecision.Allow(capability, resource);
+
+        public ValueTask<CapabilityDecision> EvaluateAsync(string brainId, BrainCapability capability, string? resource = null, CancellationToken cancellationToken = default)
+            => services.GetService<IBrainCapabilityPolicy>() is { } policy
+                ? policy.EvaluateAsync(brainId, capability, resource, cancellationToken)
+                : ValueTask.FromResult(CapabilityDecision.Allow(capability, resource));
     }
 }

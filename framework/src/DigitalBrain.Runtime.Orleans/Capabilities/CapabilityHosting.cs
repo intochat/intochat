@@ -128,19 +128,114 @@ public static class CapabilityHosting
         }
     }
 
+    /// <summary>
+    /// Lightweight metadata recorded at <see cref="IServiceCollection"/> registration time for a host capability port,
+    /// allowing <see cref="Hosting.NeuronTypeRegistry"/> and <see cref="SignalTypeMap"/> to discover port assemblies and
+    /// scoping modules without instantiating live port singletons during DI graph startup (preventing circular dependencies).
+    /// </summary>
+    internal sealed record RegisteredPortDescriptor(Type ServiceType, Type PortType);
+
+    internal static void CapturePortDescriptors(IServiceCollection services)
+    {
+        for (var i = 0; i < services.Count; i++)
+        {
+            var descriptor = services[i];
+            if (descriptor.IsKeyedService)
+            {
+                continue;
+            }
+
+            if (descriptor.ServiceType != typeof(ISecretVaultPort)
+                && descriptor.ServiceType != typeof(IIdentityDirectoryPort)
+                && descriptor.ServiceType != typeof(ICapabilityConnections))
+            {
+                continue;
+            }
+
+            var portType = ResolvePortType(descriptor);
+            if (portType is null)
+            {
+                continue;
+            }
+
+            var exists = services.Any(existing =>
+                existing.ServiceType == typeof(RegisteredPortDescriptor)
+                && existing.ImplementationInstance is RegisteredPortDescriptor r
+                && r.ServiceType == descriptor.ServiceType
+                && r.PortType == portType);
+            if (!exists)
+            {
+                services.AddSingleton(new RegisteredPortDescriptor(descriptor.ServiceType, portType));
+            }
+        }
+    }
+
+    private static Type? ResolvePortType(ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationType is { IsInterface: false, IsAbstract: false } implType)
+        {
+            return implType;
+        }
+
+        if (descriptor.ImplementationInstance is { } instance)
+        {
+            return instance.GetType();
+        }
+
+        if (descriptor.ImplementationFactory?.Method.ReturnType is { IsInterface: false, IsAbstract: false } retType
+            && retType != typeof(object))
+        {
+            return retType;
+        }
+
+        return null;
+    }
+
     internal static IEnumerable<Assembly> RegisteredPortAssemblies(IServiceProvider services)
     {
-        if (services.GetService<IIdentityDirectoryPort>() is { } directory && !ReferenceEquals(directory, DeniedIdentityDirectoryPort.Instance))
+        var descriptors = services.GetServices<RegisteredPortDescriptor>().ToArray();
+        var hasDirectoryDescriptor = false;
+        var hasVaultDescriptor = false;
+        var hasConnectionsDescriptor = false;
+
+        foreach (var descriptor in descriptors)
+        {
+            if (descriptor.ServiceType == typeof(IIdentityDirectoryPort))
+            {
+                hasDirectoryDescriptor = true;
+                yield return descriptor.PortType.Assembly;
+                yield return typeof(IIdentity).Assembly;
+            }
+            else if (descriptor.ServiceType == typeof(ISecretVaultPort))
+            {
+                hasVaultDescriptor = true;
+                yield return descriptor.PortType.Assembly;
+            }
+            else if (descriptor.ServiceType == typeof(ICapabilityConnections))
+            {
+                hasConnectionsDescriptor = true;
+                yield return descriptor.PortType.Assembly;
+                yield return typeof(ICapabilityConnections).Assembly;
+            }
+        }
+
+        if (!hasDirectoryDescriptor
+            && services.GetService<IIdentityDirectoryPort>() is { } directory
+            && !ReferenceEquals(directory, DeniedIdentityDirectoryPort.Instance))
         {
             var unwrapped = directory is PlatformIdentityDirectoryPort platform ? platform.Inner : directory;
             yield return unwrapped.GetType().Assembly;
             yield return typeof(IIdentity).Assembly;
         }
-        if (services.GetService<ISecretVaultPort>() is { } vault && !ReferenceEquals(vault, DeniedSecretVaultPort.Instance))
+        if (!hasVaultDescriptor
+            && services.GetService<ISecretVaultPort>() is { } vault
+            && !ReferenceEquals(vault, DeniedSecretVaultPort.Instance))
         {
             yield return vault.GetType().Assembly;
         }
-        if (services.GetService<ICapabilityConnections>() is { } connections && !ReferenceEquals(connections, DeniedCapabilityConnections.Instance))
+        if (!hasConnectionsDescriptor
+            && services.GetService<ICapabilityConnections>() is { } connections
+            && !ReferenceEquals(connections, DeniedCapabilityConnections.Instance))
         {
             yield return connections.GetType().Assembly;
             yield return typeof(ICapabilityConnections).Assembly;
@@ -149,12 +244,39 @@ public static class CapabilityHosting
 
     /// <summary>
     /// Returns any <see cref="DigitalBrain.Modules.Module"/> types declared in the same namespace as a registered host port,
-    /// so <see cref="Hosting.NeuronTypeRegistry"/> scopes multi-module port assemblies (such as <c>DigitalBrain.Identity.Local</c>)
-    /// to only the backing neurons of the ports actually registered on this host.
+    /// so <see cref="Hosting.NeuronTypeRegistry"/> and <see cref="SignalTypeMap"/> scope multi-module port assemblies
+    /// (such as <c>DigitalBrain.Identity.Local</c>) to only the backing neurons/signals of the ports actually registered on this host.
+    /// Uses registration-time <see cref="RegisteredPortDescriptor"/> metadata first to avoid instantiating live port singletons.
     /// </summary>
     internal static IEnumerable<Type> RegisteredPortModules(IServiceProvider services)
     {
-        if (services.GetService<IIdentityDirectoryPort>() is { } directory && !ReferenceEquals(directory, DeniedIdentityDirectoryPort.Instance))
+        var descriptors = services.GetServices<RegisteredPortDescriptor>().ToArray();
+        var hasDirectoryDescriptor = false;
+        var hasVaultDescriptor = false;
+
+        foreach (var descriptor in descriptors)
+        {
+            if (descriptor.ServiceType == typeof(IIdentityDirectoryPort))
+            {
+                hasDirectoryDescriptor = true;
+                foreach (var module in SameNamespaceModules(descriptor.PortType))
+                {
+                    yield return module;
+                }
+            }
+            else if (descriptor.ServiceType == typeof(ISecretVaultPort))
+            {
+                hasVaultDescriptor = true;
+                foreach (var module in SameNamespaceModules(descriptor.PortType))
+                {
+                    yield return module;
+                }
+            }
+        }
+
+        if (!hasDirectoryDescriptor
+            && services.GetService<IIdentityDirectoryPort>() is { } directory
+            && !ReferenceEquals(directory, DeniedIdentityDirectoryPort.Instance))
         {
             var unwrapped = directory is PlatformIdentityDirectoryPort platform ? platform.Inner : directory;
             foreach (var module in SameNamespaceModules(unwrapped.GetType()))
@@ -163,7 +285,9 @@ public static class CapabilityHosting
             }
         }
 
-        if (services.GetService<ISecretVaultPort>() is { } vault && !ReferenceEquals(vault, DeniedSecretVaultPort.Instance))
+        if (!hasVaultDescriptor
+            && services.GetService<ISecretVaultPort>() is { } vault
+            && !ReferenceEquals(vault, DeniedSecretVaultPort.Instance))
         {
             foreach (var module in SameNamespaceModules(vault.GetType()))
             {
@@ -199,6 +323,7 @@ public static class CapabilityHosting
     /// <summary>Registers the broker over the host's <see cref="ICapabilityConnections"/> and the single-registration startup check.</summary>
     internal static void AddCapabilityBroker(this IServiceCollection services)
     {
+        CapturePortDescriptors(services);
         var registry = Registry(services);
         services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageAccessLog>();
         if (!services.Any(descriptor => descriptor.IsKeyedService && descriptor.ServiceType == typeof(IIdentity) && Capability.Identity.V1Id.Equals(descriptor.ServiceKey as string, StringComparison.Ordinal)))

@@ -26,6 +26,7 @@ public static class CapabilityRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         CapabilityHosting.RemoveDeniedSecretsFallbacks(services);
+        services.AddSingleton(new CapabilityHosting.RegisteredPortDescriptor(typeof(ISecretVaultPort), typeof(TPort)));
         services.TryAddSingleton<TPort>();
         services.AddKeyedSingleton<ISecrets>(Capability.Secrets.V1Id, (sp, _) => new SecretsCapability(sp.GetRequiredService<TPort>(), sp.GetService<ILogger<SecretsCapability>>()) { Declarations = TopologyHosting.ComposedDeclarations(sp) });
         return services;
@@ -36,6 +37,7 @@ public static class CapabilityRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         CapabilityHosting.RemoveDeniedIdentityFallbacks(services);
+        services.AddSingleton(new CapabilityHosting.RegisteredPortDescriptor(typeof(IIdentityDirectoryPort), typeof(TPort)));
         services.TryAddSingleton<TPort>();
         services.AddKeyedSingleton<IIdentity>(Capability.Identity.V1Id, (sp, _) => new BoundIdentity(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), sp.GetService<ICallerAmbient>() ?? OrleansCallerAmbient.Instance));
         services.AddKeyedSingleton<IGrants>(Capability.Identity.V1Id, (sp, _) => new BoundIdentity(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), sp.GetService<ICallerAmbient>() ?? OrleansCallerAmbient.Instance));
