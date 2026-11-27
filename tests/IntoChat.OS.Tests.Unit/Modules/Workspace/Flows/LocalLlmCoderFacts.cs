@@ -355,6 +355,88 @@ public sealed class LocalLlmCoderFacts : IDisposable
         Assert.Equal(24576, options.ContextWindowTokens);
     }
 
+    [Fact]
+    public void RoslynBatchEditTool_DeclaresTypedArrayAndItemSchema()
+    {
+        var sandbox = new LocalLlmCoder.ConfinedWorkTreeSandbox(
+            _treePath,
+            batchOrchestrator: new InoCodeOrchestrator());
+
+        var tools = sandbox.CreateAIFunctions();
+        var batchTool = Assert.IsAssignableFrom<AIFunction>(
+            Assert.Single(tools, t => string.Equals(t.Name, "roslyn_batch_edit", StringComparison.Ordinal)));
+
+        var schema = batchTool.JsonSchema;
+        var editsProp = schema.GetProperty("properties").GetProperty("edits");
+        Assert.Equal("array", editsProp.GetProperty("type").GetString());
+
+        var items = editsProp.GetProperty("items");
+        Assert.Equal("object", items.GetProperty("type").GetString());
+
+        var itemProps = items.GetProperty("properties");
+        foreach (var expectedField in new[]
+        {
+            "kind",
+            "path",
+            "type_name",
+            "member_name",
+            "namespace_name",
+            "source",
+            "type_kind",
+            "base_types",
+        })
+        {
+            Assert.True(itemProps.TryGetProperty(expectedField, out _), $"Expected roslyn_batch_edit item schema to declare '{expectedField}'. Schema: {schema.GetRawText()}");
+        }
+
+        var required = items.GetProperty("required")
+            .EnumerateArray()
+            .Select(static e => e.GetString())
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.Contains("kind", required);
+        Assert.Contains("path", required);
+    }
+
+    [Fact]
+    public async Task ExecuteToolCallingSessionAsync_NeverExceedsMaxModelCalls()
+    {
+        var modelCalls = 0;
+        var chatClient = new EndlessToolCallChatClient(() =>
+        {
+            modelCalls++;
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant,
+            [
+                new FunctionCallContent($"call-{modelCalls}", "list_files", new Dictionary<string, object?>()),
+            ]));
+        });
+
+        var resolved = new ModelCatalog.ResolvedRoleClient(
+            chatClient,
+            new ResolvedModel(AiProvider.Ollama, "qwen2.5-coder:14b", Endpoint: null, Profile: "default", Revision: "local", Abilities.Tools, Reasoning: null, MaxOutputTokens: null),
+            new ModelDescriptor("Ollama", "qwen2.5-coder:14b", "default", "local", CapabilitySupport.Supported, CapabilitySupport.Unsupported, CapabilitySupport.Supported),
+            Selection: null);
+
+        var sandbox = new LocalLlmCoder.ConfinedWorkTreeSandbox(_treePath);
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.System, "You are a coder."),
+            new(ChatRole.User, "Inspect files."),
+        };
+
+        await LocalLlmCoder.ExecuteToolCallingSessionAsync(
+            resolved,
+            messages,
+            sandbox.CreateAIFunctions(),
+            maxModelCalls: 2,
+            isWorkDone: () => false,
+            defaultSummary: "fallback",
+            nudgeMessage: "Continue.",
+            loggerFactory: null,
+            ct: Ct);
+
+        Assert.Equal(2, modelCalls);
+    }
+
     private WorkTreeLease CreateLease(string runId) => new(
         RunId: runId,
         RepositoryId: "os",
@@ -423,6 +505,18 @@ public sealed class LocalLlmCoderFacts : IDisposable
 
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
             => Task.FromResult(_turns.Dequeue()(messages, options));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
+    private sealed class EndlessToolCallChatClient(Func<ChatResponse> onCall) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(onCall());
 
         public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

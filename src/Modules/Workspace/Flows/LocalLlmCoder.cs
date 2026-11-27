@@ -153,7 +153,7 @@ internal sealed class LocalLlmCoder : ICoder
 
         try
         {
-            return await RunToolLoopAsync(_services, request with { ExplicitClient = explicitClient }, sandbox, onModelResolved, _logger, timeoutCts.Token).ConfigureAwait(false);
+            return await RunToolLoopAsync(_services, request with { ExplicitClient = explicitClient }, sandbox, onModelResolved, timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -166,7 +166,6 @@ internal sealed class LocalLlmCoder : ICoder
         ToolLoopRequest request,
         ConfinedWorkTreeSandbox? existingSandbox = null,
         Action<string>? onModelResolved = null,
-        ILogger? logger = null,
         CancellationToken ct = default)
     {
         var ownedClient = request.ExplicitClient is null;

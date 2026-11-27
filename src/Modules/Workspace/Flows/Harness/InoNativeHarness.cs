@@ -744,7 +744,6 @@ internal sealed partial class InoNativeHarness(
                 SliceOwnedPaths: slice.OwnedPaths,
                 BatchOrchestrator: _orchestrator,
                 ExplicitClient: resolvedClient),
-            logger: _logger,
             ct: ct);
     }
 

@@ -377,6 +377,7 @@ internal sealed class AgentTurnLoop(
         }
 
         var runTask = RunInvokingLoopAsync();
+        var runTaskAwaited = false;
         TaskCompletionSource? pendingAck = null;
         try
         {
@@ -391,22 +392,26 @@ internal sealed class AgentTurnLoop(
                 }
             }
 
+            runTaskAwaited = true;
             await runTask;
         }
         finally
         {
             pendingAck?.TrySetCanceled(CancellationToken.None);
             await pumpCts.CancelAsync();
-            try
+            if (!runTaskAwaited)
             {
-                await runTask;
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception error)
-            {
-                OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent turn background loop cleanup");
+                try
+                {
+                    await runTask;
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception error)
+                {
+                    OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent turn background loop cleanup");
+                }
             }
         }
     }

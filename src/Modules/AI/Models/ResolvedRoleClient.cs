@@ -43,7 +43,7 @@ public sealed partial class ModelCatalog
                     .Select(static tool => (AITool)AIFunctionFactory.CreateDeclaration(
                         tool.Name,
                         tool.Description,
-                        JsonSerializer.Deserialize<JsonElement>(tool.ParametersJson)))
+                        ParseParametersSchema(tool.ParametersJson)))
                     .ToList();
             }
 
@@ -55,6 +55,12 @@ public sealed partial class ModelCatalog
                 InferenceMapping.Usage(result.Usage),
                 result.ResponseId,
                 result.ModelId ?? Model.Model);
+        }
+
+        private static JsonElement ParseParametersSchema(string parametersJson)
+        {
+            using var doc = JsonDocument.Parse(parametersJson);
+            return doc.RootElement.Clone();
         }
     }
 }
