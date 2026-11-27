@@ -119,6 +119,20 @@ abstract final class BrandVisuals {
     'app:brain': LucideIcons.brain,
   };
 
+  /// Returns the allowlisted PNG asset path for an unprefixed app/brand/ArtCraft
+  /// identifier (checking `artcraft:<id>` then `brand:<id>`), or `null`.
+  static String? pngAssetForId(String id) {
+    final norm = id.trim().toLowerCase();
+    return pngAssetPaths['artcraft:$norm'] ?? pngAssetPaths['brand:$norm'];
+  }
+
+  /// Returns the allowlisted SVG asset path for an unprefixed brand/provider
+  /// identifier (checking `brand:<id>` then `provider:<id>`), or `null`.
+  static String? svgAssetForId(String id) {
+    final norm = id.trim().toLowerCase();
+    return svgAssetPaths['brand:$norm'] ?? svgAssetPaths['provider:$norm'];
+  }
+
   /// Looks up a bundled asset or capability glyph by canonical C# `iconKey`.
   /// Returns `null` for unrecognized or untrusted external keys.
   static BrandVisualSpec? tryForIconKey(

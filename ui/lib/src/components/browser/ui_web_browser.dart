@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import 'package:intochat_os_flutter_shell/intochat_os_ui.dart' show IcAppIcon;
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart'
+    show resolveArtCraftWebUrl;
 
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
@@ -56,7 +57,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
         : widget.part.uri;
     if (kIsWeb) {
       final baseOrigin = IntoChatOSHostEnv.resolveUiBaseRaw();
-      url = IcAppIcon.resolveArtCraftWebUrl(
+      url = resolveArtCraftWebUrl(
         url,
         hint: '${widget.part.name} ${widget.part.title}',
         isWeb: kIsWeb,

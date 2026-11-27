@@ -230,7 +230,7 @@ class _AllAppsLauncherCardState extends State<_AllAppsLauncherCard> {
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
-    final isArtCraft = IcAppIcon.isArtCraftApp(widget.spec.id);
+    final isArtCraft = isArtCraftApp(widget.spec.id);
     final runtimeBadge = isArtCraft ? 'WASM · MCP · CLI' : 'Orleans Grain';
 
     return MouseRegion(
