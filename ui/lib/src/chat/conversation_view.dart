@@ -831,6 +831,27 @@ class _ConversationViewState extends State<ConversationView> {
                         enabled: stop.enabled && widget.ctx.interactive,
                         onTap: _activateStop,
                       ),
+                    if (composer.activeContextLabel case final ctxLabel?
+                        when ctxLabel.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _ActiveContextChip(
+                            label: ctxLabel.trim(),
+                            onClear:
+                                widget.ctx.interactive &&
+                                    composer.onClearContext != null
+                                ? () => pressCommand(
+                                    'composer-clear-context',
+                                    composer.onClearContext,
+                                    widget.ctx,
+                                    null,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ),
                     if (_stagedAttachments.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
@@ -1772,6 +1793,65 @@ class _SendIconButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveContextChip extends StatelessWidget {
+  const _ActiveContextChip({required this.label, this.onClear});
+
+  final String label;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
+    return Container(
+      key: const ValueKey('composer-active-context-chip'),
+      height: 28,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: c.accentTint,
+        borderRadius: BorderRadius.circular(tokens.sm),
+        border: Border.all(color: c.accent.withValues(alpha: 0.40)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              'Editing: $label',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: UiType.textStyle(
+                12,
+                weight: FontWeight.w600,
+                color: c.accent,
+              ),
+            ),
+          ),
+          if (onClear != null) ...[
+            const SizedBox(width: 6),
+            Semantics(
+              button: true,
+              label: 'Clear active editing context',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  key: const ValueKey('composer-clear-context'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onClear,
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(LucideIcons.x, size: 14, color: c.accent),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

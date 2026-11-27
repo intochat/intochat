@@ -546,12 +546,18 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
   bool _compactDrawerOpen = false;
   bool _hoverDrawerToggle = false;
   bool _focusDrawerToggle = false;
+  bool _trailingOverlayOpen = true;
 
   @override
   void didUpdateWidget(covariant _SplitPaneWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.node.leadingExtent != widget.node.leadingExtent) {
+    if (oldWidget.node.leadingExtent != widget.node.leadingExtent ||
+        oldWidget.node.trailingFraction != widget.node.trailingFraction) {
       _draggedExtent = null;
+    }
+    if (oldWidget.node.trailingDrawer != widget.node.trailingDrawer &&
+        widget.node.trailingDrawer == true) {
+      _trailingOverlayOpen = true;
     }
   }
 
@@ -606,10 +612,25 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
         }
 
         final availWidth = constraints.maxWidth;
+        final isTrailingDrawer = node.trailingDrawer == true;
+        final collapseAt =
+            node.collapseBreakpoint ??
+            (isTrailingDrawer ? 1024.0 : kCompactSplitPaneBreakpoint);
+
+        if (isTrailingDrawer && availWidth < collapseAt) {
+          return _buildTrailingOverlay(
+            context,
+            c: c,
+            availWidth: availWidth,
+            leading: leadingPane,
+            trailing: trailingPane,
+            interactive: ctx.interactive,
+          );
+        }
 
         // Compact responsive collapse (< 640px): render a crisp sidebar toggle
         // bar + collapsible sunken drawer above/over the main trailing pane.
-        if (availWidth < kCompactSplitPaneBreakpoint) {
+        if (availWidth < collapseAt) {
           return _buildCompact(
             context,
             c: c,
@@ -621,14 +642,21 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
         }
 
         final sashWidth = math.max(8.0, gap);
-        final minLeading = math.min(120.0, availWidth * 0.22);
+        final minLeading = math.min(
+          isTrailingDrawer ? 280.0 : 120.0,
+          availWidth * 0.28,
+        );
         final maxLeading = math.max(
           minLeading,
           availWidth - sashWidth - math.min(200.0, availWidth * 0.30),
         );
+        final defaultLeading = isTrailingDrawer && node.trailingFraction != null
+            ? (availWidth - sashWidth) *
+                  (1.0 - node.trailingFraction!.clamp(0.35, 0.72))
+            : requested;
         final effectiveLeading = availWidth <= sashWidth + 24
             ? math.max(0.0, (availWidth - sashWidth) * 0.5)
-            : requested.clamp(minLeading, maxLeading);
+            : (_draggedExtent ?? defaultLeading).clamp(minLeading, maxLeading);
 
         void nudge(double delta) {
           if (!ctx.interactive) return;
@@ -845,6 +873,83 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
         headerBar,
         drawerPanel,
         if (stretch) Expanded(child: trailing) else trailing,
+      ],
+    );
+  }
+
+  Widget _buildTrailingOverlay(
+    BuildContext context, {
+    required UiColors c,
+    required double availWidth,
+    required Widget leading,
+    required Widget trailing,
+    required bool interactive,
+  }) {
+    final panelWidth = math.min(availWidth * 0.92, 560.0);
+    return Stack(
+      children: [
+        Positioned.fill(child: leading),
+        if (!_trailingOverlayOpen)
+          Positioned(
+            top: 10,
+            right: 12,
+            child: GestureDetector(
+              key: const ValueKey('split_pane_trailing_toggle'),
+              onTap: interactive
+                  ? () => setState(() => _trailingOverlayOpen = true)
+                  : null,
+              child: Container(
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
+                  border: Border.all(color: c.accent.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.panelRight, size: 14, color: c.accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Artifact',
+                      style: UiType.textStyle(
+                        12,
+                        weight: FontWeight.w600,
+                        color: c.accent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        if (_trailingOverlayOpen) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              key: const ValueKey('split_pane_trailing_scrim'),
+              behavior: HitTestBehavior.opaque,
+              onTap: interactive
+                  ? () => setState(() => _trailingOverlayOpen = false)
+                  : null,
+              child: ColoredBox(color: c.textStrong.withValues(alpha: 0.18)),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: panelWidth,
+            child: Container(
+              key: const ValueKey('split_pane_trailing_overlay'),
+              decoration: BoxDecoration(
+                color: c.surfaceElevated,
+                border: Border(left: BorderSide(color: c.borderHairline)),
+              ),
+              child: trailing,
+            ),
+          ),
+        ],
       ],
     );
   }

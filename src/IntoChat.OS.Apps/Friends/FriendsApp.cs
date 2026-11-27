@@ -119,7 +119,7 @@ public sealed record FriendsEditDraft(string? Field = null, string? Value = null
 [Signal("friends.send-room-message")]
 public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey = "", string Text = "", string Value = "") : Signal;
 
-[Neuron("app.friends"), Screen("app.friends", Title = "Friends", Icon = "users", Category = "Social", Dock = 9)]
+[Neuron("app.friends"), Screen("app.friends", Title = "Friends", Icon = "users", Category = "Social", Dock = 2)]
 public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 {
     /// <summary>The key of the tab strip child that picks the section.</summary>

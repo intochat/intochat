@@ -508,10 +508,14 @@ public sealed record ModelChoice(
 /// <param name="Conversation">The conversation neuron key (e.g. "conversations/c-...") to watch for streaming deltas; null disables delta watching.</param>
 /// <param name="ReadAloud">True draws a read-aloud action on replies.</param>
 /// <param name="TalkConversation">The conversation voice mode talks to; null hides the voice-mode button.</param>
+/// <param name="ActiveContextLabel">Optional active artifact/app context name rendered as a 28px chip above the composer; null hides the chip.</param>
+/// <param name="Waiting">Optional docked waiting prompt node (e.g., a ChoiceCardNode) rendered above the composer.</param>
 public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null,
     bool Dictation = false, string Status = "ready", bool Working = false, string? EmptyText = null, ChatThreadError? Error = null,
     bool IsEnabled = true, string? AutomationName = null, IReadOnlyList<ModelChoice>? Models = null, string? ActiveModelId = null,
-    string? Conversation = null, bool ReadAloud = false, string? TalkConversation = null)
+    string? Conversation = null, bool ReadAloud = false, string? TalkConversation = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? ActiveContextLabel = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] Node? Waiting = null)
     : ControlProps(IsEnabled, AutomationName)
 {
     /// <summary>The reason a failed message draws when it carries none.</summary>
@@ -561,6 +565,8 @@ public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSen
         && Conversation == other.Conversation
         && ReadAloud == other.ReadAloud
         && TalkConversation == other.TalkConversation
+        && ActiveContextLabel == other.ActiveContextLabel
+        && Equals(Waiting, other.Waiting)
         && SequenceEquals(Models, other.Models);
 
     /// <inheritdoc />
@@ -582,6 +588,8 @@ public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSen
         hash.Add(Conversation);
         hash.Add(ReadAloud);
         hash.Add(TalkConversation);
+        hash.Add(ActiveContextLabel);
+        hash.Add(Waiting);
         if (Models is not null) { hash.Add(SequenceHash.Of(Models)); }
         return hash.ToHashCode();
     }

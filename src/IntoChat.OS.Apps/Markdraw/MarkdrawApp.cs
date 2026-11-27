@@ -57,7 +57,7 @@ public sealed record MarkdrawSelectLayer(int Layer = 1) : Signal;
 [Signal("markdraw.switch-template")]
 public sealed record MarkdrawSwitchTemplate(string? Template = null) : Signal;
 
-[Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw", Icon = "pen-tool", Category = "Studio", Dock = 4)]
+[Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw", Icon = "pen-tool", Category = "Studio")]
 public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
 {
     // The brain's workspace files: a saved scene and an export are written there, and an existing document is opened from it.

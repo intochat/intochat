@@ -130,7 +130,8 @@ public sealed record JobCardNode(
     double Progress = 0,
     string Status = "running",
     string? ResultText = null,
-    Button? Cancel = null) : Node
+    Button? Cancel = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Button? OpenArtifact = null) : Node
 {
     /// <inheritdoc />
     public bool Equals(JobCardNode? other) =>
@@ -140,6 +141,7 @@ public sealed record JobCardNode(
         Status == other.Status &&
         ResultText == other.ResultText &&
         Equals(Cancel, other.Cancel) &&
+        Equals(OpenArtifact, other.OpenArtifact) &&
         Steps.SequenceEqual(other.Steps);
 
     /// <inheritdoc />

@@ -68,6 +68,7 @@ internal static class NodeOwnerNormalizer
             JobCardNode job => job with
             {
                 Cancel = job.Cancel is null ? null : (DigitalBrain.UI.Button)Normalize(job.Cancel, owner),
+                OpenArtifact = job.OpenArtifact is null ? null : (DigitalBrain.UI.Button)Normalize(job.OpenArtifact, owner),
             },
             ErrorLineNode error => error with
             {

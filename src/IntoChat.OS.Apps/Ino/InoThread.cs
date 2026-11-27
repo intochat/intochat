@@ -45,6 +45,11 @@ public static class InoThread
                 {
                     cards.AddRange(InoView.RenderCardNodes(legacyCard));
                 }
+                else if (IsCodeOrchestrationTool(returned.Tool)
+                    && InoCards.FromCodeOrchestrationResult(returned.ResultJson) is { } artifact)
+                {
+                    cards.Add(InoView.RenderCodeOrchestrationJobCard(artifact));
+                }
             },
             AppendRunCards = (runId, returns, toolArgs, cards) =>
             {
@@ -89,6 +94,25 @@ public static class InoThread
 
     internal static bool HasLinkPosts(ConversationView view)
         => view.Entries.OfType<Said>().Any(static s => InoLinkCard.TryReadLinkPost(s.Id.Value, out _));
+
+    internal static bool IsCodeOrchestrationTool(string? toolName)
+        => string.Equals(toolName, "code_orchestration_run_async", StringComparison.Ordinal)
+            || string.Equals(toolName, "code_orchestration_read_async", StringComparison.Ordinal);
+
+    internal static InoDrawerArtifact? LatestCodeOrchestrationArtifact(ConversationView view)
+    {
+        for (var i = view.Entries.Length - 1; i >= 0; i--)
+        {
+            if (view.Entries[i] is Returned { Ok: true, ResultJson.Length: > 0 } returned
+                && IsCodeOrchestrationTool(returned.Tool)
+                && InoCards.FromCodeOrchestrationResult(returned.ResultJson) is { } artifact)
+            {
+                return artifact;
+            }
+        }
+
+        return null;
+    }
 
     internal static HashSet<string> ReferencedAppNames(ConversationView view, string? links)
     {

@@ -44,6 +44,8 @@ public sealed record ConversationThreadPropsOptions
     public bool Dictation { get; init; }
     public bool ReadAloud { get; init; }
     public string? TalkConversation { get; init; }
+    public string? ActiveContextLabel { get; init; }
+    public Node? Waiting { get; init; }
     public bool IsEnabled { get; init; } = true;
     public string? AutomationName { get; init; }
 }
@@ -359,7 +361,9 @@ public static class ConversationThreadProjection
             ActiveModelId: activeModelId,
             Conversation: opts.ConversationKey ?? (view is not null ? IConversation.KeyOf(view.Id) : null),
             ReadAloud: opts.ReadAloud,
-            TalkConversation: opts.TalkConversation);
+            TalkConversation: opts.TalkConversation,
+            ActiveContextLabel: opts.ActiveContextLabel,
+            Waiting: opts.Waiting);
     }
 
     /// <summary>Formats a raw model identifier or device-qualified model reference into display label and provider icon.</summary>

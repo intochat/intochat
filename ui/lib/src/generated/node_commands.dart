@@ -11,6 +11,12 @@ Future<ActivationOutcome> actChatThreadAppendMessage(
   required Map<String, Object?> message,
 }) => ctx.act(address, 'control.appendMessage', {'message': message});
 
+/// Sends `ClearContext` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadClearContext(
+  NodeContext ctx,
+  String address,
+) => ctx.act(address, 'control.clearContext', {});
+
 /// Sends `ImportMessages` to the `chatThread` neuron at [address].
 Future<ActivationOutcome> actChatThreadImportMessages(
   NodeContext ctx,

@@ -19,6 +19,11 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.smart")] public sealed record InoSmart(bool On = true) : Signal;
 [Signal("ino.connect-db")] public sealed record InoConnectDb(string? ConnectionString = null, string? Alias = null) : Signal;
 [Signal("ino.query-db")] public sealed record InoQueryDb(string? Sql = null) : Signal;
+[Signal("ino.open-drawer")] public sealed record InoOpenDrawer(string? ArtifactId = null, string? FlowId = null, string? Title = null, string? LiveViewPath = null, string? Kind = null) : Signal;
+[Signal("ino.close-drawer")] public sealed record InoCloseDrawer : Signal;
+[Signal("ino.drawer-tab")] public sealed record InoSelectDrawerTab(string? Tab = null) : Signal;
+[Signal("ino.pin-artifact")] public sealed record InoPinArtifact(string? FlowId = null, string? Alias = null, string? Title = null) : Signal;
+[Signal("ino.clear-context")] public sealed record InoClearContext : Signal;
 
 [Signal("ino.send")]
 public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : Signal

@@ -58,7 +58,14 @@ public sealed record Grid(int Columns, IReadOnlyList<Node> Children, double Gap 
 
 /// <summary>Two-pane desktop split view.</summary>
 [ViewNode("splitPane")]
-public sealed record SplitPane(Node Leading, Node Trailing, double LeadingExtent = 280, double Gap = 16) : Node;
+public sealed record SplitPane(
+    Node Leading,
+    Node Trailing,
+    double LeadingExtent = 280,
+    double Gap = 16,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? TrailingDrawer = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? CollapseBreakpoint = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? TrailingFraction = null) : Node;
 
 /// <summary>Known surface materiality kinds.</summary>
 public static class SurfaceKind

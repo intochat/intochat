@@ -381,7 +381,76 @@ public static class InoModel
     }
 
     private static bool HasPersonSaid(ConversationView view, string text)
-        => view.Entries.OfType<Said>().Any(e => e.By is Participant.Human && string.Equals(e.Text, text, StringComparison.Ordinal));
+        => view.Entries.OfType<Said>().Any(e => e.By is Participant.Human
+            && (string.Equals(e.Text, text, StringComparison.Ordinal)
+                || e.Text.EndsWith("\n" + text, StringComparison.Ordinal)));
+
+    /// <summary>
+    /// Attaches the active inline drawer artifact/app context to a plain-English follow-up prompt so users
+    /// never need legacy <c>"change &lt;alias&gt;:"</c> magic prefixes (while preserving backwards compatibility if typed).
+    /// </summary>
+    public static string AttachActiveContext(string prompt, InoAppState state)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        ArgumentNullException.ThrowIfNull(state);
+
+        var trimmed = prompt.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return trimmed;
+        }
+
+        // Preserve legacy "change <alias>:" prefix if manually typed by a user.
+        if (trimmed.StartsWith("change ", StringComparison.OrdinalIgnoreCase) && trimmed.Contains(':', StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        var name = state.ActiveContextName?.Trim();
+        var target = state.ActiveContextTarget?.Trim();
+        if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(target))
+        {
+            return trimmed;
+        }
+
+        var contextHeader = !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(target) && !string.Equals(name, target, StringComparison.OrdinalIgnoreCase)
+            ? $"[Active context: {name} ({target})]"
+            : $"[Active context: {name ?? target}]";
+        return $"{contextHeader}\n{trimmed}";
+    }
+
+    /// <summary>Derives a valid sandbox unit alias slug for <c>ICodeOrchestration.CrystallizeAsync</c>.</summary>
+    public static string SlugifyAlias(string? raw, string fallback = "pinned-app")
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return fallback;
+        }
+
+        var sb = new System.Text.StringBuilder(raw.Length);
+        var lastDash = false;
+        foreach (var ch in raw.Trim().ToLowerInvariant())
+        {
+            if (char.IsAsciiLetterOrDigit(ch))
+            {
+                sb.Append(ch);
+                lastDash = false;
+            }
+            else if (!lastDash && sb.Length > 0)
+            {
+                sb.Append('-');
+                lastDash = true;
+            }
+        }
+
+        var slug = sb.ToString().Trim('-');
+        if (slug.Length == 0 || !char.IsAsciiLetter(slug[0]))
+        {
+            slug = slug.Length == 0 ? fallback : $"app-{slug}";
+        }
+
+        return slug.Length <= 32 ? slug : slug[..32].TrimEnd('-');
+    }
 
     private static string? LatestTurnModel(ConversationView view, HashSet<EntryId> superseded)
     {
@@ -501,11 +570,20 @@ public static class InoModel
     {
         ArgumentNullException.ThrowIfNull(s);
         var cardId = $"app-{target}";
-        return s with
+        var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), target).Key;
+        var next = s with
         {
             Status = $"Applied '{sentence}' to {target}",
-            Cards = [.. s.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), target).Key}", "running", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), "ino").Key}#{cardId}")],
+            Cards = [.. s.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://{appKey}", "running", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), "ino").Key}#{cardId}")],
         };
+        return next.OpenArtifactDrawer(new InoDrawerArtifact(
+            Id: cardId,
+            Title: target,
+            Kind: "app",
+            Status: "done",
+            LiveViewPath: $"apps/{target}/view",
+            Summary: sentence,
+            PinnedAppAlias: target));
     }
 
     public static InoAppState DecideConnectDb(InoAppState s, string? newConnectedDb, string message, InoCard? card)

@@ -40,6 +40,32 @@ public sealed record InoError(
     string Code,
     string? Detail = null);
 
+public sealed record InoDrawerArtifact(
+    string Id,
+    string Title,
+    string Kind,
+    string Status,
+    string? FlowId = null,
+    string? LiveViewPath = null,
+    string? CompiledScript = null,
+    string? Summary = null,
+    string? DiffText = null,
+    string? LogsText = null,
+    string[]? ScopedContracts = null,
+    string? PinnedAppAlias = null,
+    string? PinError = null,
+    string? ExecutionTarget = null)
+{
+    private readonly string[] _scopedContracts = ScopedContracts ?? [];
+
+    [AllowNull]
+    public string[] ScopedContracts
+    {
+        get => _scopedContracts;
+        init => _scopedContracts = value ?? [];
+    }
+}
+
 /// <summary>
 /// Pure DDD Aggregate state for <see cref="InoApp"/> (<c>app.ino</c>).
 /// Enforces active thread and section validity, bounded 64-thread history, non-null collections,
@@ -66,6 +92,7 @@ public sealed record InoAppState(
     public const int MinProviderCredentialLength = 4;
 
     public static readonly string[] SupportedSections = ["chat", "chats", "approvals", "setup", "data"];
+    public static readonly string[] SupportedDrawerTabs = ["preview", "diff", "logs"];
     public static readonly string[] SupportedProviders = ["openai", "anthropic", "google", "openrouter", "ollama"];
 
     private readonly InoTurn[] _turns = Turns ?? [];
@@ -147,8 +174,17 @@ public sealed record InoAppState(
     public string? ActiveFocusTarget { get; init; }
     public string? DraftPrompt { get; init; }
     public bool HasUnsavedProviderDraft { get; init; }
+    public InoDrawerArtifact? ActiveArtifact { get; init; }
+    public bool DrawerOpen { get; init; }
+    public string DrawerTab { get; init; } = "preview";
+    public string? ActiveContextName { get; init; }
+    public string? ActiveContextTarget { get; init; }
 
     // ── Domain Invariants ────────────────────────────────────────────────────
+
+    [Invariant("DrawerTab is always preview, diff, or logs."), JsonIgnore]
+    public bool ValidDrawerTabInvariant =>
+        SupportedDrawerTabs.Contains(DrawerTab, StringComparer.Ordinal);
 
     [Invariant("Active ConversationId and Title are never blank."), JsonIgnore]
     public bool ValidActiveThreadInvariant =>
@@ -424,6 +460,53 @@ public sealed record InoAppState(
     {
         DraftPrompt = null,
         ActiveFocusTarget = null,
+    };
+
+    public static Rule SupportedDrawerTabRule(string? tab) => Decision.Rule(
+        "invalid_drawer_tab",
+        tab,
+        static t => string.IsNullOrWhiteSpace(t) || !SupportedDrawerTabs.Contains(t.Trim().ToLowerInvariant(), StringComparer.Ordinal),
+        "Drawer tab must be preview, diff, or logs.");
+
+    public Decision<InoAppState> SelectDrawerTab(
+        [Sample("preview", "diff", "logs", "invalid-tab")] string tab)
+    {
+        if (Decision.Check("drawer-tab", SupportedDrawerTabRule(tab)) is { } refused)
+        {
+            return refused;
+        }
+
+        return Decision.Accept(this with { DrawerTab = tab.Trim().ToLowerInvariant() });
+    }
+
+    [IgnoreExplore]
+    public InoAppState OpenArtifactDrawer(InoDrawerArtifact artifact)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        var contextTarget = !string.IsNullOrWhiteSpace(artifact.PinnedAppAlias)
+            ? artifact.PinnedAppAlias
+            : !string.IsNullOrWhiteSpace(artifact.FlowId)
+                ? artifact.FlowId
+                : artifact.Id;
+        return this with
+        {
+            ActiveArtifact = artifact,
+            DrawerOpen = true,
+            DrawerTab = SupportedDrawerTabs.Contains(DrawerTab, StringComparer.Ordinal) ? DrawerTab : "preview",
+            ActiveContextName = string.IsNullOrWhiteSpace(artifact.Title) ? contextTarget : artifact.Title.Trim(),
+            ActiveContextTarget = contextTarget,
+        };
+    }
+
+    public InoAppState CloseArtifactDrawer() => this with
+    {
+        DrawerOpen = false,
+    };
+
+    public InoAppState ClearActiveContext() => this with
+    {
+        ActiveContextName = null,
+        ActiveContextTarget = null,
     };
 
     [IgnoreExplore]

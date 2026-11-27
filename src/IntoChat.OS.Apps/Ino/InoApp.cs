@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context
 */
 using IntoChat.OS.Host.Apps;
 using System.Text.Json;
@@ -55,6 +55,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot] private partial SlotCollection<IConversation> Conversations { get; }
     [Slot(Required = false)] private partial SlotCollection<IApp> Apps { get; }
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
+    [Slot(Required = false)] private partial SlotCollection<ICodeOrchestration> CodeOrchestrations { get; }
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
@@ -229,6 +230,12 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             : Task.CompletedTask;
 
     [On]
+    public Task OnThreadContextCleared(ContextCleared? cleared)
+        => cleared is not null && SignalChild == InoView.ConversationKey
+            ? ClearContext(new InoClearContext())
+            : Task.CompletedTask;
+
+    [On]
     public Task OnConversationChanged(ConversationChanged? changed)
         => IsCurrentConversation(changed) ? RefreshConversationAsync(full: ConversationView is null) : Task.CompletedTask;
 
@@ -309,6 +316,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             await FollowChild<IChatThreadControl, Submitted>(InoView.ConversationKey);
             await FollowChild<IChatThreadControl, StopRequested>(InoView.ConversationKey);
             await FollowChild<IChatThreadControl, ChatModelSelected>(InoView.ConversationKey);
+            await FollowChild<IChatThreadControl, ContextCleared>(InoView.ConversationKey);
         });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         if (ThisMachine is { Value.Length: > 0 } machine)
@@ -366,6 +374,121 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [On] public Task OnConfirmationRequested(ConfirmationRequested? requested) => requested is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnConfirmationResolved(ConfirmationResolved? resolved) => resolved is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnFlowsChanged(FlowsChanged? changed) => changed is { FlowId.Length: > 0 } ? RefreshApprovalsAsync(skipWhenBothEmpty: true) : Task.CompletedTask;
+
+    [On]
+    public async Task OpenDrawer(InoOpenDrawer request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        InoDrawerArtifact? artifact = null;
+        if (!string.IsNullOrWhiteSpace(request.FlowId) && CurrentBrain.Value is { Length: > 0 })
+        {
+            var flowId = request.FlowId.Trim();
+            var live = await ReadOptionalAsync<CodeOrchestrationView?>(
+                "code-orchestration-read",
+                null,
+                () => CodeOrchestrations[new NeuronId(CurrentBrain, "flow.code-orchestration", flowId)].ReadAsync());
+            if (live is not null)
+            {
+                artifact = InoCards.FromCodeOrchestrationView(live);
+            }
+        }
+
+        artifact ??= State.ActiveArtifact is { } current
+            && ((!string.IsNullOrWhiteSpace(request.ArtifactId) && string.Equals(current.Id, request.ArtifactId, StringComparison.Ordinal))
+                || (!string.IsNullOrWhiteSpace(request.FlowId) && string.Equals(current.FlowId, request.FlowId, StringComparison.Ordinal)))
+            ? current
+            : new InoDrawerArtifact(
+                Id: !string.IsNullOrWhiteSpace(request.ArtifactId) ? request.ArtifactId.Trim() : (request.FlowId?.Trim() ?? "artifact"),
+                Title: !string.IsNullOrWhiteSpace(request.Title) ? request.Title.Trim() : (request.FlowId?.Trim() ?? "Live Artifact"),
+                Kind: !string.IsNullOrWhiteSpace(request.Kind) ? request.Kind.Trim() : "artifact",
+                Status: "done",
+                FlowId: string.IsNullOrWhiteSpace(request.FlowId) ? null : request.FlowId.Trim(),
+                LiveViewPath: string.IsNullOrWhiteSpace(request.LiveViewPath) ? null : request.LiveViewPath.Trim());
+
+        await Commit(State.OpenArtifactDrawer(artifact));
+    }
+
+    [On]
+    public Task CloseDrawer(InoCloseDrawer request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Commit(State.CloseArtifactDrawer());
+    }
+
+    [On]
+    public async Task SelectDrawerTab(InoSelectDrawerTab request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var decision = State.SelectDrawerTab(request.Tab ?? string.Empty);
+        if (decision.IsRefused)
+        {
+            await RecordRejectionAsync(decision.Rejection);
+            return;
+        }
+
+        await Commit(decision.Next);
+    }
+
+    [On]
+    public Task ClearContext(InoClearContext request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Commit(State.ClearActiveContext());
+    }
+
+    [On]
+    public async Task PinArtifact(InoPinArtifact request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var flowId = !string.IsNullOrWhiteSpace(request.FlowId)
+            ? request.FlowId.Trim()
+            : State.ActiveArtifact?.FlowId;
+        if (string.IsNullOrWhiteSpace(flowId))
+        {
+            if (State.ActiveArtifact is { } missingFlow)
+            {
+                await Commit(State with { ActiveArtifact = missingFlow with { PinError = "No active code orchestration flow to pin." } });
+            }
+            return;
+        }
+
+        var title = !string.IsNullOrWhiteSpace(request.Title)
+            ? request.Title.Trim()
+            : State.ActiveArtifact?.Title ?? flowId;
+        var alias = InoModel.SlugifyAlias(request.Alias ?? title, "pinned-app");
+
+        try
+        {
+            var grain = CodeOrchestrations[new NeuronId(CurrentBrain, "flow.code-orchestration", flowId)];
+            var receipt = await grain.CrystallizeAsync(alias, title);
+            var baseArtifact = State.ActiveArtifact ?? new InoDrawerArtifact($"code-orch:{flowId}", title, "code-orchestration", "done", FlowId: flowId);
+            if (receipt.Succeeded)
+            {
+                var updated = baseArtifact with
+                {
+                    Title = string.IsNullOrWhiteSpace(receipt.Title) ? baseArtifact.Title : receipt.Title,
+                    PinnedAppAlias = receipt.Alias,
+                    LiveViewPath = string.IsNullOrWhiteSpace(receipt.LiveViewPath) ? baseArtifact.LiveViewPath : receipt.LiveViewPath,
+                    ScopedContracts = receipt.ScopedContracts ?? baseArtifact.ScopedContracts,
+                    PinError = null,
+                    ExecutionTarget = receipt.ExecutionTarget ?? baseArtifact.ExecutionTarget,
+                };
+                await Commit(State.OpenArtifactDrawer(updated) with { Status = $"Pinned '{updated.Title}' as app '{receipt.Alias}'" });
+            }
+            else
+            {
+                await Commit(State with { ActiveArtifact = baseArtifact with { PinError = receipt.Error ?? "Could not pin app." } });
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            LogOptional(error, "code-orchestration-crystallize");
+            if (State.ActiveArtifact is { } current)
+            {
+                await Commit(State with { ActiveArtifact = current with { PinError = error.Message } });
+            }
+        }
+    }
 
     [On]
     public async Task Link(InoPasteLink request)
@@ -596,6 +719,26 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
                 var tokens = ComputeRunTokens(lastCompleted);
                 if (Compute is { } compute) { await TryOptionalAsync("compute-record", () => compute.Record("ino", tokens)); }
                 next = next with { Approvals = await InoModelSetup.ReadApprovalsAsync(Setup, next.Approvals) };
+            }
+        }
+
+        if (InoThread.LatestCodeOrchestrationArtifact(merged) is { } latestArtifact)
+        {
+            var isNewFlow = !string.Equals(next.ActiveArtifact?.FlowId, latestArtifact.FlowId, StringComparison.Ordinal);
+            if (isNewFlow)
+            {
+                next = next.OpenArtifactDrawer(latestArtifact);
+            }
+            else if (next.ActiveArtifact is { } existing && existing != latestArtifact)
+            {
+                next = next with
+                {
+                    ActiveArtifact = latestArtifact with
+                    {
+                        PinnedAppAlias = existing.PinnedAppAlias ?? latestArtifact.PinnedAppAlias,
+                        PinError = existing.PinError,
+                    },
+                };
             }
         }
 

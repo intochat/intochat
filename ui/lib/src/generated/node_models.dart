@@ -697,6 +697,8 @@ final class ChatThreadProps {
     required this.conversation,
     required this.readAloud,
     required this.talkConversation,
+    required this.activeContextLabel,
+    required this.waiting,
   });
 
   final bool isEnabled;
@@ -715,6 +717,8 @@ final class ChatThreadProps {
   final String? conversation;
   final bool readAloud;
   final String? talkConversation;
+  final String? activeContextLabel;
+  final Node? waiting;
 
   factory ChatThreadProps.fromJson(Map<String, dynamic> json) =>
       ChatThreadProps(
@@ -741,6 +745,10 @@ final class ChatThreadProps {
         conversation: _stringOrNull(json['conversation']),
         readAloud: _bool(json['readAloud']),
         talkConversation: _stringOrNull(json['talkConversation']),
+        activeContextLabel: _stringOrNull(json['activeContextLabel']),
+        waiting: json['waiting'] is Map
+            ? Node.fromJson(_map(json['waiting']))
+            : null,
       );
 }
 
@@ -1005,6 +1013,8 @@ final class ComposerNode {
     required this.activeModelLabel,
     required this.activeProviderIcon,
     required this.dictation,
+    required this.activeContextLabel,
+    required this.onClearContext,
   });
 
   final String key;
@@ -1014,6 +1024,8 @@ final class ComposerNode {
   final String? activeModelLabel;
   final String? activeProviderIcon;
   final bool dictation;
+  final String? activeContextLabel;
+  final Command? onClearContext;
 
   factory ComposerNode.fromJson(Map<String, dynamic> json) => ComposerNode(
     key: _string(json['key']),
@@ -1023,6 +1035,10 @@ final class ComposerNode {
     activeModelLabel: _stringOrNull(json['activeModelLabel']),
     activeProviderIcon: _stringOrNull(json['activeProviderIcon']),
     dictation: _bool(json['dictation']),
+    activeContextLabel: _stringOrNull(json['activeContextLabel']),
+    onClearContext: json['onClearContext'] is Map
+        ? Command.fromJson(_map(json['onClearContext']))
+        : null,
   );
 }
 
@@ -1633,6 +1649,7 @@ final class JobCardNode extends Node {
     required this.status,
     required this.resultText,
     required this.cancel,
+    required this.openArtifact,
   });
 
   @override
@@ -1644,6 +1661,7 @@ final class JobCardNode extends Node {
   final String status;
   final String? resultText;
   final ButtonNode? cancel;
+  final ButtonNode? openArtifact;
 
   factory JobCardNode.fromJson(Map<String, dynamic> json) => JobCardNode(
     title: _string(json['title']),
@@ -1655,6 +1673,9 @@ final class JobCardNode extends Node {
     resultText: _stringOrNull(json['resultText']),
     cancel: json['cancel'] is Map
         ? ButtonNode.fromJson(_map(json['cancel']))
+        : null,
+    openArtifact: json['openArtifact'] is Map
+        ? ButtonNode.fromJson(_map(json['openArtifact']))
         : null,
   );
 }
@@ -2484,6 +2505,9 @@ final class SplitPaneNode extends Node {
     required this.trailing,
     required this.leadingExtent,
     required this.gap,
+    required this.trailingDrawer,
+    required this.collapseBreakpoint,
+    required this.trailingFraction,
   });
 
   @override
@@ -2493,12 +2517,18 @@ final class SplitPaneNode extends Node {
   final Node trailing;
   final double leadingExtent;
   final double gap;
+  final bool? trailingDrawer;
+  final double? collapseBreakpoint;
+  final double? trailingFraction;
 
   factory SplitPaneNode.fromJson(Map<String, dynamic> json) => SplitPaneNode(
     leading: Node.fromJson(_map(json['leading'])),
     trailing: Node.fromJson(_map(json['trailing'])),
     leadingExtent: _double(json['leadingExtent'], 280.0),
     gap: _double(json['gap'], 16.0),
+    trailingDrawer: _boolOrNull(json['trailingDrawer']),
+    collapseBreakpoint: _doubleOrNull(json['collapseBreakpoint']),
+    trailingFraction: _doubleOrNull(json['trailingFraction']),
   );
 }
 

@@ -1,8 +1,11 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DigitalBrain.Flows;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Flows;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Ino;
@@ -76,6 +79,103 @@ internal static partial class InoCards
                 : null;
         }
         catch (JsonException) { return null; }
+    }
+
+    internal static InoDrawerArtifact? FromCodeOrchestrationResult(string? resultJson)
+    {
+        if (string.IsNullOrWhiteSpace(resultJson)) { return null; }
+        try
+        {
+            var view = JsonSerializer.Deserialize<CodeOrchestrationView>(resultJson, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            return view is { FlowId.Length: > 0 } ? FromCodeOrchestrationView(view) : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    internal static InoDrawerArtifact FromCodeOrchestrationView(CodeOrchestrationView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        var status = view.Status switch
+        {
+            FlowStatus.Completed => "done",
+            FlowStatus.Failed or FlowStatus.Cancelled => "failed",
+            _ => "running",
+        };
+
+        var diffSb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(view.Result?.Summary))
+        {
+            diffSb.AppendLine(view.Result.Summary);
+        }
+
+        if (view.Result?.Artifacts is { Length: > 0 } artifacts)
+        {
+            foreach (var item in artifacts)
+            {
+                diffSb.AppendLine();
+                diffSb.Append(item.Name).Append(" (").Append(item.Kind).AppendLine(")");
+                if (!string.IsNullOrWhiteSpace(item.Content))
+                {
+                    diffSb.AppendLine(item.Content);
+                }
+                else if (!string.IsNullOrWhiteSpace(item.Uri))
+                {
+                    diffSb.AppendLine(item.Uri);
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(view.CompiledScript))
+        {
+            if (diffSb.Length > 0) { diffSb.AppendLine(); }
+            diffSb.AppendLine(view.CompiledScript);
+        }
+
+        var logsSb = new StringBuilder();
+        logsSb.Append("Status: ").AppendLine(view.Status.ToString());
+        if (!string.IsNullOrWhiteSpace(view.ExecutionTarget))
+        {
+            logsSb.Append("Execution target: ").AppendLine(view.ExecutionTarget);
+        }
+
+        if (!string.IsNullOrWhiteSpace(view.ExecutedByMachineId))
+        {
+            logsSb.Append("Machine: ").AppendLine(view.ExecutedByMachineId);
+        }
+
+        if (view.ScopedContracts is { Length: > 0 })
+        {
+            logsSb.Append("Scoped contracts: ").AppendLine(string.Join(", ", view.ScopedContracts));
+        }
+
+        if (view.Result?.Metrics is { Length: > 0 } metrics)
+        {
+            foreach (var metric in metrics)
+            {
+                var unit = string.IsNullOrWhiteSpace(metric.Unit) ? "" : $" {metric.Unit}";
+                logsSb.Append("Metric · ").Append(metric.Name).Append(": ").Append(metric.Value).AppendLine(unit);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(view.Error))
+        {
+            logsSb.Append("Error: ").AppendLine(view.Error);
+        }
+
+        return new InoDrawerArtifact(
+            Id: $"code-orch:{view.FlowId}",
+            Title: string.IsNullOrWhiteSpace(view.Title) ? "Code Orchestration" : view.Title,
+            Kind: "code-orchestration",
+            Status: status,
+            FlowId: view.FlowId,
+            LiveViewPath: view.LiveViewPath,
+            CompiledScript: view.CompiledScript,
+            Summary: view.Result?.Summary ?? view.Error,
+            DiffText: diffSb.Length > 0 ? diffSb.ToString().Trim() : null,
+            LogsText: logsSb.Length > 0 ? logsSb.ToString().Trim() : null,
+            ScopedContracts: view.ScopedContracts ?? [],
+            PinnedAppAlias: view.PinnedAppAlias,
+            ExecutionTarget: view.ExecutionTarget);
     }
 
     [GeneratedRegex(@"\[slot:(?<target>[^\]\s]+)\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
