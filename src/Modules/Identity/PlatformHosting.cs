@@ -34,6 +34,7 @@ public static class PlatformHosting
         DigitalBrain.Invocation.RuntimeProtocol.Register(IntoChat.OS.Modules.Identity.Keys.BrainKeysJson.Default);
         services.AddIdentity();
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Codes.ICodeBook, IntoChat.OS.Modules.Identity.Codes.CodeBook>();
+        services.TryAddSingleton<DigitalBrain.Invocation.IBrainKeySigner, IntoChat.OS.Modules.Identity.Keys.IdentityBrainKeySigner>();
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();

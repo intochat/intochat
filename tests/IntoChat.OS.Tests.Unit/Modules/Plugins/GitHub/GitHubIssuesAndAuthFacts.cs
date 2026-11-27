@@ -481,7 +481,8 @@ public sealed class GitHubIssuesAndAuthFacts
         Assert.Contains(typeof(IRepository).FullName!, definition.Contracts);
         Assert.Contains("`github_repository_preview_issue_comment`", definition.Instructions, StringComparison.Ordinal);
         Assert.Contains("`github_repository_comment_on_issue`", definition.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`studio_create_issue_triage_synapse`", definition.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("`studio_create_issue_triage_synapse`", definition.Instructions, StringComparison.Ordinal);
+        Assert.Contains("GitHub MCP tools", definition.Instructions, StringComparison.Ordinal);
         Assert.Contains(IssueRead.UntrustedEvidenceHeader, definition.Instructions, StringComparison.Ordinal);
 
         Assert.Contains("github.issue-changed", AgentPrompts.AuthorUnit, StringComparison.Ordinal);

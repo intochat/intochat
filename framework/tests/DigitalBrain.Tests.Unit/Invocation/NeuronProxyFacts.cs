@@ -21,6 +21,7 @@ public sealed class NeuronProxyFacts
         [OneWayCall] Task Ping(string text);
         IAsyncEnumerable<Item> Items(CancellationToken cancellationToken);
         [CallTimeout(1000)] Task<int> Slow(CancellationToken cancellationToken);
+        [CallTimeout(60_000)] Task<int> SlowForCancel(CancellationToken cancellationToken);
         Task<Item> Find(string name);
         ValueTask Clear();
     }
@@ -160,10 +161,23 @@ public sealed class NeuronProxyFacts
     [Fact]
     public async Task Caller_cancellation_stays_cancellation()
     {
-        var sink = new Sink { Answer = async (_, token) => { await Task.Delay(Timeout.Infinite, token); return null; } };
-        using var source = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sink = new Sink
+        {
+            Answer = async (_, token) =>
+            {
+                entered.TrySetResult();
+                await Task.Delay(Timeout.Infinite, token);
+                return null;
+            },
+        };
+        using var source = new CancellationTokenSource();
+        var call = NeuronProxy.Create<IProbe>(Id, sink).SlowForCancel(source.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => NeuronProxy.Create<IProbe>(Id, sink).Slow(source.Token));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
     }
 
     [Fact]

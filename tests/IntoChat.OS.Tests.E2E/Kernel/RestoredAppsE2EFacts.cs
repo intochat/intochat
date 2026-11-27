@@ -115,7 +115,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await settingsApp.RefreshConnections(new SettingsRefreshConnections(
             ConnectionKey: "neuron://local/connection/postgres/analytics",
             FriendApp: "app:local/apps/datavisualizer"));
-        Assert.Contains("neuron://local/connection/postgres/analytics", settingsApp.State.ConnectionKeys!);
+        Assert.Contains(settingsApp.State.ActiveConnections, c => c.Key == "neuron://local/connection/postgres/analytics");
 
         await fixture.PublishAppViewToSiloAsync(brain, "settings", null, settingsApp.Render());
         var settingsView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/settings/view").Read();

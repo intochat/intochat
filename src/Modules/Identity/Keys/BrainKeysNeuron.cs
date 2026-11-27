@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Invocation;
@@ -28,7 +29,7 @@ internal sealed class BrainKeysState
 internal sealed partial class BrainKeysJson : JsonSerializerContext;
 
 [Neuron(IBrainKeys.Type)]
-internal sealed class BrainKeysNeuron(IServiceProvider services) : Neuron<BrainKeysState>, IBrainKeys
+internal sealed class BrainKeysNeuron(IServiceProvider services) : Neuron<BrainKeysState>, IBrainKeys, IBrainKeysCrypto
 {
     internal const string SigningName = "brain-keys/signing";
     internal const string ExchangeName = "brain-keys/exchange";
@@ -60,6 +61,67 @@ internal sealed class BrainKeysNeuron(IServiceProvider services) : Neuron<BrainK
         if (Held() is { } held) { return held; }
 
         return await Keep(signingKeyPkcs8, exchangeKeyPkcs8);
+    }
+
+    async Task<BrainPublicKeys> IBrainKeysCrypto.EnsurePublicKeys(CancellationToken ct)
+    {
+        RequireIdentityAuthority();
+        return await EnsureInternal();
+    }
+
+    async Task<byte[]> IBrainKeysCrypto.SignData(byte[] data, CancellationToken ct)
+    {
+        RequireIdentityAuthority();
+        ArgumentNullException.ThrowIfNull(data);
+        await EnsureInternal();
+
+        var sealedSigning = State.SigningKey
+            ?? throw new CryptographicException($"Brain '{Id.Brain.Value}' holds no sealed signing key.");
+        byte[]? signingPkcs8 = null;
+        try
+        {
+            signingPkcs8 = Convert.FromBase64String(await Sealer.Open(Id.Brain.Value, sealedSigning));
+            using var signing = ECDsa.Create();
+            signing.ImportPkcs8PrivateKey(signingPkcs8, out _);
+            return signing.SignData(data, HashAlgorithmName.SHA256);
+        }
+        finally
+        {
+            if (signingPkcs8 is not null) { CryptographicOperations.ZeroMemory(signingPkcs8); }
+        }
+    }
+
+    async Task<byte[]> IBrainKeysCrypto.DeriveSharedSecret(byte[] peerEphemeralPublicKeySpki, CancellationToken ct)
+    {
+        RequireIdentityAuthority();
+        ArgumentNullException.ThrowIfNull(peerEphemeralPublicKeySpki);
+        BrainPublicKeyValidation.ValidateNistP256ExchangeKey(peerEphemeralPublicKeySpki);
+        await EnsureInternal();
+
+        var sealedExchange = State.ExchangeKey
+            ?? throw new CryptographicException($"Brain '{Id.Brain.Value}' holds no sealed exchange key.");
+        byte[]? exchangePkcs8 = null;
+        try
+        {
+            exchangePkcs8 = Convert.FromBase64String(await Sealer.Open(Id.Brain.Value, sealedExchange));
+            using var exchange = ECDiffieHellman.Create();
+            exchange.ImportPkcs8PrivateKey(exchangePkcs8, out _);
+            using var peer = ECDiffieHellman.Create();
+            peer.ImportSubjectPublicKeyInfo(peerEphemeralPublicKeySpki, out _);
+            return exchange.DeriveRawSecretAgreement(peer.PublicKey);
+        }
+        finally
+        {
+            if (exchangePkcs8 is not null) { CryptographicOperations.ZeroMemory(exchangePkcs8); }
+        }
+    }
+
+    private async Task<BrainPublicKeys> EnsureInternal()
+    {
+        if (Held() is { } held) { return held; }
+
+        using var generated = BrainKeyPair.Generate();
+        return await Keep(generated.SigningKey.ExportPkcs8PrivateKey(), generated.ExchangeKey.ExportPkcs8PrivateKey());
     }
 
     private BrainPublicKeys? Held()
@@ -116,5 +178,17 @@ internal sealed class BrainKeysNeuron(IServiceProvider services) : Neuron<BrainK
         }
 
         throw new UnauthorizedAccessException("Only the brain's own friend roster uses the brain's keys.");
+    }
+
+    private void RequireIdentityAuthority()
+    {
+        if (Context.Caller is { Inside: true, Actor: Actor.Module module }
+            && string.Equals(module.Id, IdentityModule.Id, StringComparison.Ordinal)
+            && Context.Caller.Brain == Id.Brain)
+        {
+            return;
+        }
+
+        throw new UnauthorizedAccessException("Only the Identity module authority may perform cryptographic operations on the brain's keys.");
     }
 }

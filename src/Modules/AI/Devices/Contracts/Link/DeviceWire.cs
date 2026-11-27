@@ -20,6 +20,7 @@ public static class CircleRoutes
     // The files route takes the rest of the path after the brain id.
     public const string Files = Prefix + "/files/{brainId}/{**path}";
     public const string MachineProofHeader = "X-Machine-Proof";
+    public const string InstallIdHeader = "X-IntoChat-Install-Id";
 
     public static string JournalFor(string brainId) => Prefix + "/journal/" + Uri.EscapeDataString(brainId);
 
@@ -76,7 +77,13 @@ public static class DeviceRoutes
 }
 
 // MachinePublicKeySpki is the base64url SubjectPublicKeyInfo of the machine P-256 key.
-public sealed record EnrollRequest(string Code, string MachinePublicKeySpki, string MachineId, string MachineName, string OsDescription);
+public sealed record EnrollRequest(
+    string Code,
+    string MachinePublicKeySpki,
+    string MachineId,
+    string MachineName,
+    string OsDescription,
+    string? InstallId = null);
 
 public sealed record CircleInfo(string Id, string Name, string Role);
 

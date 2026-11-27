@@ -52,6 +52,7 @@ internal static class SettingsControls
     public const string ApiKeys = "api-keys";
     public const string GitHubPat = "github-pat";
     public const string PairDevice = "pair-device";
+    public const string MunclyConnect = "muncly-connect";
     public const string ReasoningEffort = "reasoning-effort";
     public const string VoicePersona = "voice-persona";
     public const string WebSearchProviderVariable = "web.search.provider";
@@ -269,6 +270,7 @@ internal static class SettingsControls
             [
                 new FormInput("name", "Server name", Value: "", Placeholder: "docs", MaxLength: 32),
                 new FormInput("url", "Server URL", Value: "", Placeholder: "https://example.org/mcp", MaxLength: 512),
+                new FormInput("token", "Bearer token (optional)", FormFieldKind.Secret, Placeholder: "Bearer token…"),
             ],
             "Add MCP server",
             IsEnabled: !managed,
@@ -300,10 +302,10 @@ internal static class SettingsControls
             [
                 new FormInput("Repository", "Repository (owner/repo)", Placeholder: "owner/repo", MaxLength: 140),
                 new FormInput("PersonalAccessToken", "Personal access token", FormFieldKind.Secret, Placeholder: "github_pat_…"),
-                new FormInput("WebhookSecret", "Webhook secret", FormFieldKind.Secret, Placeholder: "whsec_…"),
-                new FormInput("ConnectionSlug", "Connection slug", Value: state.GitHubConnectionSlug, Placeholder: "main", MaxLength: 64),
+                new FormInput("WebhookSecret", "Webhook secret (optional)", FormFieldKind.Secret, Placeholder: "whsec_…"),
+                new FormInput("ConnectionSlug", "Connection slug", Value: "main", Placeholder: "main", MaxLength: 64),
             ],
-            "Seal & connect repository",
+            "Seal & connect GitHub",
             IsEnabled: !managed,
             AutomationName: "Connect GitHub repository"));
     }
@@ -319,5 +321,18 @@ internal static class SettingsControls
             "Link this PC",
             IsEnabled: !managed,
             AutomationName: "Enter pairing code"));
+    }
+
+    public static Node MunclyConnectForm(SettingsChildren children, SettingsAppState state)
+    {
+        var managed = IsManaged(state, MunclyConnect);
+        return children.Form(MunclyConnect, new FormProps(
+            [
+                new FormInput("Url", "CRM URL", Value: SettingsApp.DefaultMunclyCrmUrl, Placeholder: SettingsApp.DefaultMunclyCrmUrl, MaxLength: 512),
+                new FormInput("BearerToken", "MCP Bearer Token", FormFieldKind.Secret, Placeholder: "crm_…"),
+            ],
+            "Connect Muncly CRM",
+            IsEnabled: !managed,
+            AutomationName: "Connect Muncly CRM"));
     }
 }
