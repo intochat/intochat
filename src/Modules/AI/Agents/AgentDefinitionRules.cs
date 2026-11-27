@@ -25,9 +25,11 @@ internal static class AgentDefinitionRules
             || (definition.ToolSources is { } toolSources
                 && (toolSources.Length > 64
                     || toolSources.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
-                    || toolSources.Distinct(StringComparer.Ordinal).Count() != toolSources.Length)))
+                    || toolSources.Distinct(StringComparer.Ordinal).Count() != toolSources.Length))
+            || (definition.MemoryScopeKey is not null
+                && !IntoChat.OS.Modules.Apps.BotMemoryScope.IsValidBotMemoryKey(definition.MemoryScopeKey)))
         {
-            throw new ArgumentException("Instructions, contracts, operation apps, tool sources or contexts are invalid.", nameof(definition));
+            throw new ArgumentException("Instructions, contracts, operation apps, tool sources, memory scope or contexts are invalid.", nameof(definition));
         }
     }
 
@@ -39,6 +41,7 @@ internal static class AgentDefinitionRules
         Contexts = [.. definition.Contexts],
         OperationApps = definition.OperationApps is null ? null : [.. definition.OperationApps],
         ToolSources = definition.ToolSources is null ? null : [.. definition.ToolSources],
+        MemoryScopeKey = definition.MemoryScopeKey?.Trim(),
     };
 
     public static bool AreEqual(AgentDefinition a, AgentDefinition b)
@@ -59,7 +62,8 @@ internal static class AgentDefinitionRules
             && a.RoutingExamples.SequenceEqual(b.RoutingExamples, StringComparer.Ordinal)
             && a.Contexts.SequenceEqual(b.Contexts, StringComparer.Ordinal)
             && SameOptionalSequence(a.OperationApps, b.OperationApps)
-            && SameOptionalSequence(a.ToolSources, b.ToolSources);
+            && SameOptionalSequence(a.ToolSources, b.ToolSources)
+            && string.Equals(a.MemoryScopeKey, b.MemoryScopeKey, StringComparison.Ordinal);
 
     private static bool SameOptionalSequence(string[]? left, string[]? right)
         => (left, right) switch

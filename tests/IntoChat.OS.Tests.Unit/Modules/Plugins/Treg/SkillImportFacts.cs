@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Neurons;
+using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
@@ -201,7 +202,49 @@ public sealed class SkillImportFacts
     }
 
     [Fact]
-    public async Task ImportedSkillRunsEndToEndThroughAppNeuronAndAgentAppScreen()
+    public void SkillImportParsesSpecialistHandleContractsToolSourcesAndMemoryScopeAndRejectsMalformedInput()
+    {
+        const string validSkill = """
+            ---
+            name: "sql-analyst"
+            handle: "@sql-analyst"
+            description: "Analyzes warehouse SQL tables."
+            memory_scope: isolated
+            allowed_contracts:
+              - "IntoChat.OS.Modules.Apps.IData"
+            tool_sources: ["local/connection/mcp/sql"]
+            ---
+
+            # SQL Analyst
+
+            Run read-only analytical queries and explain findings clearly.
+            """;
+
+        var manifest = SkillImport.ToApp(new SkillFile("skills/sql-analyst/SKILL.md", validSkill), includeTregSlot: false);
+        Assert.Equal("@sql-analyst", manifest.Agent!.Handle);
+        Assert.Equal(MemoryScope.IsolatedBotScope, manifest.Agent.MemoryScope);
+        Assert.Equal(["IntoChat.OS.Modules.Apps.IData"], manifest.Agent.AllowedContracts ?? []);
+        Assert.Equal(["local/connection/mcp/sql"], manifest.Agent.ToolSources ?? []);
+
+        // Unclosed frontmatter fence fails cleanly.
+        Assert.Throws<InvalidDataException>(() =>
+            SkillImport.ToApp(new SkillFile("broken/SKILL.md", "---\nname: broken\n# Body without closing fence")));
+
+        // Reserved @ino handle fails cleanly.
+        Assert.Throws<InvalidDataException>(() =>
+            SkillImport.ToApp(new SkillFile("ino/SKILL.md", "---\nhandle: @ino\n---\nInstructions.")));
+
+        // Disallowed secret contract fails closed.
+        Assert.Throws<InvalidDataException>(() =>
+            SkillImport.ToApp(new SkillFile("bad/SKILL.md", "---\nhandle: @bad-bot\nallowed_contracts: [\"DigitalBrain.Capabilities.Secrets.ISecretVault\"]\n---\nInstructions.")));
+
+        // Unknown memory_scope fails cleanly.
+        Assert.Throws<InvalidDataException>(() =>
+            SkillImport.ToApp(new SkillFile("bad/SKILL.md", "---\nhandle: @bad-bot\nmemory_scope: host-secrets\n---\nInstructions.")));
+    }
+
+    [Fact]
+    public async Task ImportedSkillRunsEndToEndThroughAppNeuronAndUnifiedMessengerInoApp()
     {
         RecordingConversation.Reset();
 
@@ -209,10 +252,12 @@ public sealed class SkillImportFacts
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
+        os.RegisterCatalog();
         os.Register<AppNeuron>();
         os.Register<RecordingConversation>();
         os.Register<ChatThreadNeuron>();
-        os.Register<AgentAppScreen>();
+        os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
+        os.Register<IntoChat.OS.Apps.Ino.InoApp>();
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
 
@@ -230,28 +275,31 @@ public sealed class SkillImportFacts
             TestContext.Current.CancellationToken);
         Assert.Equal(SlotBindingStatus.Ok, bound.Status);
 
-        var screen = os.Get<IScreen>(new NeuronId(Brain, "agentapp", appId));
-        var published = await screen.Read();
+        var ino = os.Get<IScreen>(new NeuronId(Brain, "app.ino", "default"));
+        var openArgs = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+            new IntoChat.OS.Apps.Ino.InoOpenSpecialist(appId),
+            typeof(IntoChat.OS.Apps.Ino.InoOpenSpecialist));
+        await ino.Dispatch(new Command(".", "ino.open-specialist", openArgs));
+        var published = await ino.Read();
 
         Assert.NotNull(published);
-        Assert.Equal("agentapp", published.Alias);
+        Assert.Equal("app.ino", published.Alias);
         var rawView = published.View.GetRawText();
         Assert.Contains("Reverse Engineer Holiday Marketing", rawView, StringComparison.Ordinal);
         Assert.Contains("Compare Glossier vs Rhode holiday landing pages", rawView, StringComparison.Ordinal);
         Assert.Contains("Reverse engineer Nike\\u0027s Black Friday campaign", rawView, StringComparison.Ordinal);
 
-        var seated = Assert.Single(RecordingConversation.SeatedCalls);
-        Assert.Equal($"agent-{appId}", seated.AgentId);
+        var seated = Assert.Single(RecordingConversation.SeatedCalls, s => s.AgentId == $"agent-{appId}");
         Assert.Equal(manifest.Agent!.Instructions, seated.Definition.Instructions);
         Assert.Empty(seated.Definition.Contracts);
         Assert.False(seated.Definition.IncludeComponentOperations);
         Assert.Equal([tregConnectionKey], seated.Definition.ToolSources ?? []);
 
-        await screen.Click("starter:0");
+        await ino.Click("starter:0");
 
         Assert.Equal(["Reverse engineer Nike's Black Friday campaign"], RecordingConversation.SaidTexts);
 
-        var childView = await screen.ReadChild(AgentAppScreen.ConversationSlotKey);
+        var childView = await ino.ReadChild(IntoChat.OS.Apps.Ino.InoView.ConversationKey);
         Assert.NotNull(childView);
         var threadView = Assert.IsType<ChatThreadView>(
             childView.View.GetProperty("root").Deserialize<Node>(JsonSerializerOptions.Web));

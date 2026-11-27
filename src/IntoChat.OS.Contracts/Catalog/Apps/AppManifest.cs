@@ -182,6 +182,25 @@ public sealed record AppManifest(
             Launch: manifest.Face?.Maximized == true ? AppLaunch.Maximized : AppLaunch.Windowed);
     }
 
+    /// <summary>Creates a validated Rung-1 specialist bot manifest (pure-data agent app).</summary>
+    public static AppManifest ForSpecialist(
+        string title,
+        string? description,
+        AppAgent agent,
+        AppSlot[]? slots = null,
+        string category = "Specialists")
+    {
+        ArgumentNullException.ThrowIfNull(agent);
+        return new AppManifest(
+            Title: title,
+            Description: description ?? string.Empty,
+            Operations: [],
+            Settings: [],
+            Slots: slots ?? [],
+            Category: category,
+            Agent: agent).Validated();
+    }
+
     private static string ContractIdOf(Type contract)
         => contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
             ?? contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
@@ -355,8 +374,64 @@ public sealed record AppManifest(
             }
         }
 
-        return ReferenceEquals(starters, agent.Starters) && ReferenceEquals(tools, agent.Tools)
+        if (!Enum.IsDefined(agent.MemoryScope))
+        {
+            throw new InvalidDataException($"Agent memory scope '{agent.MemoryScope}' is not supported.");
+        }
+
+        string? normalizedHandle = null;
+        if (agent.Handle is not null)
+        {
+            normalizedHandle = AppAgentHandle.Normalize(agent.Handle);
+        }
+
+        var validatedContracts = agent.AllowedContracts is null
+            ? null
+            : AppAgentContractPolicy.ValidateForManifest(agent.AllowedContracts);
+
+        string[]? validatedToolSources = null;
+        if (agent.ToolSources is { } rawSources)
+        {
+            if (rawSources.Length > 64)
+            {
+                throw new InvalidDataException("Agent tool sources cannot exceed 64 entries.");
+            }
+
+            var seenSources = new HashSet<string>(StringComparer.Ordinal);
+            var cleanSources = new string[rawSources.Length];
+            for (var i = 0; i < rawSources.Length; i++)
+            {
+                var entry = rawSources[i];
+                if (string.IsNullOrWhiteSpace(entry) || entry.Length > 512 || entry.Any(char.IsControl))
+                {
+                    throw new InvalidDataException("Every agent tool source must be a non-empty MCP connection key.");
+                }
+
+                var trimmed = entry.Trim();
+                if (!seenSources.Add(trimmed))
+                {
+                    throw new InvalidDataException($"Agent tool source '{trimmed}' is listed more than once.");
+                }
+
+                cleanSources[i] = trimmed;
+            }
+
+            validatedToolSources = cleanSources;
+        }
+
+        return ReferenceEquals(starters, agent.Starters)
+            && ReferenceEquals(tools, agent.Tools)
+            && string.Equals(normalizedHandle, agent.Handle, StringComparison.Ordinal)
+            && ReferenceEquals(validatedContracts, agent.AllowedContracts)
+            && ReferenceEquals(validatedToolSources, agent.ToolSources)
             ? agent
-            : agent with { Starters = starters, Tools = tools };
+            : agent with
+            {
+                Starters = starters,
+                Tools = tools,
+                Handle = normalizedHandle,
+                AllowedContracts = validatedContracts,
+                ToolSources = validatedToolSources,
+            };
     }
 }

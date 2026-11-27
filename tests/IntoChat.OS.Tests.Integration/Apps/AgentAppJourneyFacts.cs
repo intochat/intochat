@@ -101,14 +101,14 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
         Assert.Equal(SlotBindingStatus.Ok, bindOutcome.Status);
         Assert.Equal(canonicalKey, bindOutcome.App!.Connections["treg"]);
 
-        // Unified IScreenTargetResolver from DI resolves pure-data agent app to agentapp/<name>.
+        // Unified IScreenTargetResolver from DI resolves pure-data agent app directly into Unified Messenger (app.ino).
         var resolver = fixture.Services.GetRequiredService<IScreenTargetResolver>();
         var target = await resolver.ResolveAsync(brainId, "treg", ct);
         Assert.NotNull(target);
         Assert.Equal(IScreenTargetResolver.AgentAppKind, target.Kind);
-        Assert.Equal(new NeuronId(brainId, "agentapp", "treg"), target.ScreenId);
+        Assert.Equal(new NeuronId(brainId, "app.ino", "default"), target.ScreenId);
 
-        // Path 1: IScreenDirectory Read + Act.
+        // Path 1: IScreenDirectory Read + Act routes into Unified Messenger (InoApp).
         var directory = SiloNeurons.Get<IScreenDirectory>(fixture.Services, new NeuronId(brainId, IScreenDirectory.TypeName, "main"));
         var snapshot = await directory.Read("treg");
         Assert.NotNull(snapshot);
@@ -121,7 +121,7 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
         var actResult = await directory.Act("treg", "starter:0");
         Assert.True(actResult.Accepted, actResult.Message);
 
-        // Wait for the real ConversationNeuron run to finish and AgentAppScreen to project into ChatThreadNeuron.
+        // Wait for the real ConversationNeuron run to finish and InoApp to project into ChatThreadNeuron.
         var proxies = fixture.Services.GetRequiredService<INeuronProxies>();
         var hosted = fixture.Services.GetService<IHostedAppTypes>();
         var caller = fixture.Edge.Current;
@@ -130,7 +130,7 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
             async () =>
             {
                 var (status, body) = await ExecuteResultAsync(
-                    await AppUiEndpoints.ReadChild("treg", AgentAppScreen.ConversationSlotKey, proxies, brain, ct, caller, hosted, resolver: resolver));
+                    await AppUiEndpoints.ReadChild("treg", IntoChat.OS.Apps.Ino.InoView.ConversationKey, proxies, brain, ct, caller, hosted, resolver: resolver));
                 return status == 200 && body.Contains("Treg reply!", StringComparison.Ordinal) ? body : null;
             },
             Within,
@@ -154,7 +154,7 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
         var submitArgs = JsonSerializer.SerializeToElement(new { value = "Follow-up via Act" });
         var (actStatus, _) = await ExecuteResultAsync(
             await AppUiEndpoints.Act(
-                new AppUiEndpoints.ActRequest($"{brain}/apps/treg", AgentAppScreen.ConversationSlotKey, "control.submitText", submitArgs),
+                new AppUiEndpoints.ActRequest($"{brain}/apps/treg", IntoChat.OS.Apps.Ino.InoView.ConversationKey, "control.submitText", submitArgs),
                 proxies,
                 brain,
                 ct,
@@ -167,7 +167,7 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
             async () =>
             {
                 var (status, body) = await ExecuteResultAsync(
-                    await AppUiEndpoints.ReadChild("treg", AgentAppScreen.ConversationSlotKey, proxies, brain, ct, caller, hosted, resolver: resolver));
+                    await AppUiEndpoints.ReadChild("treg", IntoChat.OS.Apps.Ino.InoView.ConversationKey, proxies, brain, ct, caller, hosted, resolver: resolver));
                 return status == 200 && body.Contains("Second reply via AppUiEndpoints!", StringComparison.Ordinal) ? body : null;
             },
             Within,
@@ -175,6 +175,112 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
 
         Assert.Contains("Follow-up via Act", updatedChildBody, StringComparison.Ordinal);
         Assert.Contains("Second reply via AppUiEndpoints!", updatedChildBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SpecialistCreationAndSkillImportIsolateMemoryAcrossBotsAndHost()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = fixture.NewBrain("speciso");
+        var brainId = new BrainId(brain);
+        using var person = fixture.AsPerson(brain);
+
+        fixture.Model.ClearRequests();
+        var ino = SiloNeurons.Get<IScreen>(fixture.Services, new NeuronId(brainId, "app.ino", "default"));
+
+        // 1. Create specialist @alpha with IsolatedBotScope via InoApp.
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.new-specialist", JsonSerializer.SerializeToElement(new
+        {
+            title = "Alpha Reviewer",
+            handle = "@alpha",
+            instructions = "You are @alpha, a code reviewer.",
+            memoryScope = "isolated",
+            allowedContracts = new[] { "IntoChat.OS.Modules.Apps.IData" },
+        })));
+        fixture.ObserveInstance(AppGrainType.Name, $"{brain}/apps/alpha");
+
+        // 2. Import specialist @beta from SKILL.md with IsolatedBotScope via InoApp.
+        const string betaSkill = """
+            ---
+            name: "beta"
+            handle: "@beta"
+            description: "Release planner specialist."
+            memory_scope: isolated
+            ---
+
+            # Beta Planner
+
+            Plan release milestones carefully.
+            """;
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.import-skill", JsonSerializer.SerializeToElement(new
+        {
+            fileName = "beta/SKILL.md",
+            content = betaSkill,
+        })));
+        fixture.ObserveInstance(AppGrainType.Name, $"{brain}/apps/beta");
+
+        // 3. Disallowed contract & duplicate handle fail cleanly with zero partial writes.
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.new-specialist", JsonSerializer.SerializeToElement(new
+        {
+            title = "Evil Escalator",
+            handle = "@evil",
+            instructions = "Read secrets.",
+            allowedContracts = new[] { "DigitalBrain.Capabilities.Secrets.ISecretVault" },
+        })));
+        var evilSnapshot = await SiloNeurons.Get<IApp>(fixture.Services, new NeuronId(brainId, AppGrainType.Name, "apps/evil")).Read();
+        Assert.True(string.IsNullOrEmpty(evilSnapshot.Manifest.Title));
+
+        // 4. Run a real turn on agent-alpha and verify isolated memory at memory/bots/alpha.
+        fixture.Model.Reply("Alpha remembered token ALPHA_SECRET_42.");
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = "alpha" })));
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.send", JsonSerializer.SerializeToElement(new { message = "Remember ALPHA_SECRET_42 for alpha." })));
+
+        var alphaConv = SiloNeurons.Get<IConversation>(fixture.Services, new NeuronId(brainId, IConversation.Type, IConversation.KeyOf(AgentAppPolicy.ConversationOf("alpha"))));
+        await WaitUntilAsync(
+            async () =>
+            {
+                var view = await alphaConv.Read();
+                return view.Active is null && view.Runs.Length >= 1 ? view : null;
+            },
+            Within,
+            ct);
+
+        // 5. Run a real turn on agent-beta and verify isolated memory at memory/bots/beta.
+        fixture.Model.Reply("Beta remembered token BETA_PLAN_99.");
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = "beta" })));
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.send", JsonSerializer.SerializeToElement(new { message = "Remember BETA_PLAN_99 for beta." })));
+
+        var betaConv = SiloNeurons.Get<IConversation>(fixture.Services, new NeuronId(brainId, IConversation.Type, IConversation.KeyOf(AgentAppPolicy.ConversationOf("beta"))));
+        await WaitUntilAsync(
+            async () =>
+            {
+                var view = await betaConv.Read();
+                return view.Active is null && view.Runs.Length >= 1 ? view : null;
+            },
+            Within,
+            ct);
+
+        // 6. Verify strict cross-bot & host memory isolation.
+        var alphaMemory = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", BotMemoryScope.RootFor("alpha"))).Read();
+        var betaMemory = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", BotMemoryScope.RootFor("beta"))).Read();
+        var hostMemory = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", "memory")).Read();
+
+        Assert.Contains(alphaMemory.Episodes, e => e.Summary.Contains("ALPHA_SECRET_42", StringComparison.Ordinal));
+        Assert.DoesNotContain(alphaMemory.Episodes, e => e.Summary.Contains("BETA_PLAN_99", StringComparison.Ordinal));
+
+        Assert.Contains(betaMemory.Episodes, e => e.Summary.Contains("BETA_PLAN_99", StringComparison.Ordinal));
+        Assert.DoesNotContain(betaMemory.Episodes, e => e.Summary.Contains("ALPHA_SECRET_42", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(hostMemory.Episodes, e => e.Summary.Contains("ALPHA_SECRET_42", StringComparison.Ordinal) || e.Summary.Contains("BETA_PLAN_99", StringComparison.Ordinal));
+
+        // 7. Verify ThreadDirectory indexed both specialist threads with ThreadTrustPosture.OwnerTrusted.
+        var threads = SiloNeurons.Get<IThreadDirectory>(fixture.Services, new NeuronId(brainId, Threads.Type, IThreadDirectory.DefaultKey));
+        var alphaThread = await threads.Get("agent-alpha");
+        var betaThread = await threads.Get("agent-beta");
+        Assert.NotNull(alphaThread);
+        Assert.Equal(ThreadTrustPosture.OwnerTrusted, alphaThread.TrustPosture);
+        Assert.NotNull(betaThread);
+        Assert.Equal(ThreadTrustPosture.OwnerTrusted, betaThread.TrustPosture);
     }
 
     [Fact]

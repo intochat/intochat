@@ -20,7 +20,12 @@ public static class SkillImport
     public static AppManifest ToApp(
         SkillFile file,
         IReadOnlyList<string>? starters = null,
-        ModelSelection? model = null)
+        ModelSelection? model = null,
+        string? handle = null,
+        string[]? allowedContracts = null,
+        string[]? toolSources = null,
+        MemoryScope? memoryScope = null,
+        bool includeTregSlot = true)
     {
         ArgumentNullException.ThrowIfNull(file);
 
@@ -38,13 +43,25 @@ public static class SkillImport
 
         var description = ResolveDescription(parsed, title);
         var resolvedStarters = ResolveStarters(starters, parsed.FrontmatterStarters, parsed.BodyStarters);
+        var resolvedHandle = !string.IsNullOrWhiteSpace(handle) ? handle : parsed.Handle;
+        var resolvedContracts = allowedContracts is not null
+            ? allowedContracts
+            : parsed.AllowedContracts.Length > 0
+                ? parsed.AllowedContracts
+                : null;
+        var resolvedToolSources = toolSources is not null
+            ? toolSources
+            : parsed.ToolSources.Length > 0
+                ? parsed.ToolSources
+                : null;
+        var resolvedMemoryScope = memoryScope ?? parsed.MemoryScope;
 
         var manifest = new AppManifest(
             Title: title,
             Description: description,
             Operations: [],
             Settings: [],
-            Slots: [TregPreset.Slot(required: true)],
+            Slots: includeTregSlot ? [TregPreset.Slot(required: true)] : [],
             Icon: parsed.Icon,
             Category: parsed.Category ?? "Skills",
             Launch: parsed.Launch,
@@ -52,7 +69,11 @@ public static class SkillImport
                 Instructions: parsed.Instructions,
                 Model: model,
                 Starters: resolvedStarters,
-                Tools: [TregPreset.SlotName]));
+                Tools: includeTregSlot ? [TregPreset.SlotName] : [],
+                Handle: resolvedHandle,
+                AllowedContracts: resolvedContracts,
+                ToolSources: resolvedToolSources,
+                MemoryScope: resolvedMemoryScope));
 
         return manifest.Validated();
     }
@@ -83,6 +104,10 @@ public static class SkillImport
         string? Icon,
         string? Category,
         AppLaunch Launch,
+        string? Handle,
+        string[] AllowedContracts,
+        string[] ToolSources,
+        MemoryScope MemoryScope,
         string[] FrontmatterStarters,
         string[] BodyStarters,
         string? FirstHeading,
@@ -97,12 +122,21 @@ public static class SkillImport
         string? description = null;
         string? icon = null;
         string? category = null;
+        string? handle = null;
         var launch = AppLaunch.Windowed;
+        var memoryScope = MemoryScope.None;
         var frontmatterStarters = new List<string>();
+        var allowedContracts = new List<string>();
+        var toolSources = new List<string>();
         var body = normalized;
 
-        if (TrySplitFrontmatter(normalized, out var frontmatter, out var remainder))
+        if (normalized.StartsWith("---\n", StringComparison.Ordinal))
         {
+            if (!TrySplitFrontmatter(normalized, out var frontmatter, out var remainder))
+            {
+                throw new InvalidDataException("Skill file frontmatter is missing a closing '---' fence.");
+            }
+
             body = remainder;
             ParseFrontmatter(
                 frontmatter,
@@ -112,7 +146,11 @@ public static class SkillImport
                 ref icon,
                 ref category,
                 ref launch,
-                frontmatterStarters);
+                ref handle,
+                ref memoryScope,
+                frontmatterStarters,
+                allowedContracts,
+                toolSources);
         }
 
         var instructions = body.Trim();
@@ -125,6 +163,10 @@ public static class SkillImport
             Icon: icon,
             Category: category,
             Launch: launch,
+            Handle: handle,
+            AllowedContracts: [.. allowedContracts],
+            ToolSources: [.. toolSources],
+            MemoryScope: memoryScope,
             FrontmatterStarters: [.. frontmatterStarters],
             BodyStarters: bodyStarters,
             FirstHeading: firstHeading,
@@ -184,7 +226,11 @@ public static class SkillImport
         ref string? icon,
         ref string? category,
         ref AppLaunch launch,
-        List<string> starters)
+        ref string? handle,
+        ref MemoryScope memoryScope,
+        List<string> starters,
+        List<string> allowedContracts,
+        List<string> toolSources)
     {
         var lines = frontmatter.Split('\n');
         var i = 0;
@@ -208,49 +254,14 @@ public static class SkillImport
             var key = trimmed[..colon].Trim().ToLowerInvariant();
             var rawValue = trimmed[(colon + 1)..].Trim();
 
-            if (key == "starters")
+            if (key is "starters" or "allowed_contracts" or "allowedcontracts" or "contracts" or "tool_sources" or "toolsources")
             {
-                if (rawValue.Length == 0)
-                {
-                    while (i < lines.Length)
-                    {
-                        var itemTrimmed = lines[i].Trim();
-                        if (itemTrimmed.Length == 0 || itemTrimmed.StartsWith('#'))
-                        {
-                            i++;
-                            continue;
-                        }
-
-                        if (!itemTrimmed.StartsWith("- ", StringComparison.Ordinal))
-                        {
-                            break;
-                        }
-
-                        var item = Unquote(itemTrimmed[2..].Trim());
-                        if (item.Length > 0)
-                        {
-                            starters.Add(item);
-                        }
-
-                        i++;
-                    }
-                }
-                else if (rawValue.StartsWith('[') && rawValue.EndsWith(']'))
-                {
-                    foreach (var item in ParseInlineArray(rawValue[1..^1]))
-                    {
-                        starters.Add(item);
-                    }
-                }
-                else
-                {
-                    var single = Unquote(rawValue);
-                    if (single.Length > 0)
-                    {
-                        starters.Add(single);
-                    }
-                }
-
+                var target = key == "starters"
+                    ? starters
+                    : key is "tool_sources" or "toolsources"
+                        ? toolSources
+                        : allowedContracts;
+                ReadListValues(lines, ref i, rawValue, target);
                 continue;
             }
 
@@ -287,6 +298,13 @@ public static class SkillImport
                 case "category":
                     category = value;
                     break;
+                case "handle":
+                    handle = value;
+                    break;
+                case "memory_scope":
+                case "memoryscope":
+                    memoryScope = ParseMemoryScope(value);
+                    break;
                 case "launch":
                     if (string.Equals(value, "maximized", StringComparison.OrdinalIgnoreCase))
                     {
@@ -301,6 +319,58 @@ public static class SkillImport
             }
         }
     }
+
+    private static void ReadListValues(string[] lines, ref int i, string rawValue, List<string> target)
+    {
+        if (rawValue.Length == 0)
+        {
+            while (i < lines.Length)
+            {
+                var itemTrimmed = lines[i].Trim();
+                if (itemTrimmed.Length == 0 || itemTrimmed.StartsWith('#'))
+                {
+                    i++;
+                    continue;
+                }
+
+                if (!itemTrimmed.StartsWith("- ", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                var item = Unquote(itemTrimmed[2..].Trim());
+                if (item.Length > 0)
+                {
+                    target.Add(item);
+                }
+
+                i++;
+            }
+        }
+        else if (rawValue.StartsWith('[') && rawValue.EndsWith(']'))
+        {
+            foreach (var item in ParseInlineArray(rawValue[1..^1]))
+            {
+                target.Add(item);
+            }
+        }
+        else
+        {
+            var single = Unquote(rawValue);
+            if (single.Length > 0)
+            {
+                target.Add(single);
+            }
+        }
+    }
+
+    private static MemoryScope ParseMemoryScope(string value)
+        => value.Trim().ToLowerInvariant() switch
+        {
+            "none" => MemoryScope.None,
+            "isolated" or "isolatedbotscope" or "isolated-bot-scope" or "isolated_bot_scope" => MemoryScope.IsolatedBotScope,
+            _ => throw new InvalidDataException($"Unknown memory_scope '{value}'. Expected 'none' or 'isolated'."),
+        };
 
     private static string ReadBlockScalar(string[] lines, ref int index, bool fold)
     {

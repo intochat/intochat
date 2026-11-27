@@ -42,7 +42,8 @@ internal sealed record InoSetupHost(
     Func<string, InoCatalogSnapshot?, Func<Task<InoCatalogSnapshot?>>, Task<InoCatalogSnapshot?>> ReadCatalogOptional,
     Func<string, ThreadPage?, Func<Task<ThreadPage?>>, Task<ThreadPage?>> ReadSessionPageOptional,
     Action<Exception, string> LogOptional,
-    ILogger? Logger);
+    ILogger? Logger,
+    Func<string, IApp?>? GetApp = null);
 
 internal static class InoModelSetup
 {
@@ -117,10 +118,24 @@ internal static class InoModelSetup
             return [.. page.Entries.Select(static e => e.Id)];
         });
 
-    public static Task OpenSessionAsync(InoSetupHost host, string conversationId)
-        => Threads.IsLocalId(conversationId)
-            ? host.TryOptional("session-open", () => host.GetSessions().Open(conversationId))
-            : Task.CompletedTask;
+    public static async Task OpenSessionAsync(InoSetupHost host, string conversationId, string? specialistTitle = null)
+    {
+        if (Threads.IsLocalId(conversationId))
+        {
+            await host.TryOptional("session-open", () => host.GetSessions().Open(conversationId));
+            return;
+        }
+
+        if (IntoChat.OS.Apps.AgentApp.AgentAppPolicy.TryAppIdOf(conversationId, out var appId))
+        {
+            var title = string.IsNullOrWhiteSpace(specialistTitle) ? appId : specialistTitle.Trim();
+            await host.TryOptional("session-open", async () =>
+            {
+                await host.GetSessions().Create(conversationId, title, ThreadTrustPosture.OwnerTrusted, ThreadKind.DirectAssistant);
+                await host.GetSessions().Open(conversationId);
+            });
+        }
+    }
 
     public static Task EnsureProfileContextAsync(InoSetupHost host)
         => host.TryOptional("profile-context", () => host.GetProfileWriter().Ensure());
@@ -250,7 +265,7 @@ internal static class InoModelSetup
         }
 
         await ReseatConversationAsync(host, modelId.Value, state.ConversationId);
-        if (Threads.IsLocalId(state.ConversationId))
+        if (Threads.IsLocalId(state.ConversationId) || IntoChat.OS.Apps.AgentApp.AgentAppPolicy.IsSpecialistConversationId(state.ConversationId))
         {
             await host.TryOptional("session-model", () => host.GetSessions().SetModel(state.ConversationId, modelId.Value));
         }
@@ -501,17 +516,56 @@ internal static class InoModelSetup
         return !readyIds.Contains(picked.Value);
     }
 
-    public static Task EnsureSeatedAsync(
+    public static async Task EnsureSeatedAsync(
         InoSetupHost host,
         string conversationId,
         UserSettingsState settings,
         string? effectiveModel)
     {
+        if (IntoChat.OS.Apps.AgentApp.AgentAppPolicy.TryAppIdOf(conversationId, out var specialistAppId))
+        {
+            await EnsureSpecialistSeatedAsync(host, conversationId, specialistAppId, effectiveModel);
+            return;
+        }
+
         var effectiveSettings = string.IsNullOrWhiteSpace(effectiveModel)
             ? settings
             : settings with { DefaultModel = effectiveModel.Trim() };
         var definition = InoAgentDefinition.For(effectiveSettings);
-        return host.TryOptional("conversation-seat", () => host.GetConversation(InoModel.ConversationKeyOf(conversationId)).Seat("ino", definition));
+        await host.TryOptional("conversation-seat", () => host.GetConversation(InoModel.ConversationKeyOf(conversationId)).Seat("ino", definition));
+    }
+
+    private static async Task EnsureSpecialistSeatedAsync(
+        InoSetupHost host,
+        string conversationId,
+        string specialistAppId,
+        string? effectiveModel)
+    {
+        var app = host.GetApp?.Invoke(specialistAppId);
+        if (app is null)
+        {
+            return;
+        }
+
+        AppSnapshot? snapshot = null;
+        await host.TryOptional("specialist-app-read", async () => snapshot = await app.Read());
+        if (snapshot?.Manifest is not { Agent: not null } manifest)
+        {
+            return;
+        }
+
+        var definition = IntoChat.OS.Apps.AgentApp.AgentAppPolicy.Definition(manifest, snapshot.Connections, specialistAppId);
+        if (definition.Model is null && !string.IsNullOrWhiteSpace(effectiveModel))
+        {
+            definition = definition with { Model = new ModelSelection(effectiveModel.Trim()) };
+        }
+
+        var conversation = host.GetConversation(InoModel.ConversationKeyOf(conversationId));
+        var agentId = IntoChat.OS.Apps.AgentApp.AgentAppPolicy.AgentIdOf(specialistAppId);
+        await host.TryOptional("specialist-conversation-configure", () =>
+            conversation.Configure(ThreadTrustPosture.OwnerTrusted, ThreadKind.DirectAssistant, manifest.Title, agentId));
+        await host.TryOptional("specialist-conversation-seat", () =>
+            conversation.Seat(agentId, definition));
     }
 
     private static async Task SetChatRoleAsync(InoSetupHost host, ModelId model)
@@ -581,6 +635,10 @@ internal static class InoModelSetup
             new("pin-artifact", "Pin the active code orchestration run as a sandboxed app via CrystallizeAsync."),
             new("clear-context", "Clear the active editing context chip above the composer."),
             new("answer-task-ask", "Answer a pending multi-option ITasks Ask prompt from the docked ChoiceCard."),
+            new("new-specialist", "Create a new custom specialist bot with handle, least-privilege contracts, and memory scope."),
+            new("import-skill", "Import a SKILL.md specialist bot and open its thread in Unified Messenger."),
+            new("open-specialist", "Open a custom specialist bot thread (agent-{appId}) inside Unified Messenger."),
+            new("specialist-panel", "Show or hide the New Specialist / Import SKILL.md authoring panel."),
         ]) with
     {
         CompiledType = compiledType.AssemblyQualifiedName,

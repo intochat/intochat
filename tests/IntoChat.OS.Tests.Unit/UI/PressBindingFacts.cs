@@ -134,8 +134,6 @@ public sealed class PressBindingFacts
         new[] { typeof(IntoChat.OS.Apps.Tasks.TasksApp).Assembly, typeof(IntoChat.Aspire.Screens.AspireApp).Assembly, typeof(IntoChat.Muncly.Screens.MunclyApp).Assembly }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsAbstract: false, IsGenericTypeDefinition: false } && type.GetConstructor(Type.EmptyTypes) is not null)
-            // An agent app draws only from its manifest at activation and has no Kit binding of its own to check.
-            .Where(type => type != typeof(IntoChat.OS.Apps.AgentApp.AgentAppScreen))
             .Where(IsAggregateScreen)
             .OrderBy(type => type.FullName, StringComparer.Ordinal);
 

@@ -223,6 +223,7 @@ internal sealed partial class AppNeuron(
         ArgumentNullException.ThrowIfNull(manifest);
         await Check("Create", new AppNameIsFree(Name(), State.Manifest));
         var validated = manifest.Validated();
+        await EnsureAgentHandleUniqueAsync(validated.Agent?.Handle);
         var next = State.Clone();
         next.Manifest = validated;
         next.BrainScopeId = BrainId();
@@ -260,6 +261,7 @@ internal sealed partial class AppNeuron(
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(State); }
         var validated = manifest.Validated();
+        await EnsureAgentHandleUniqueAsync(validated.Agent?.Handle);
         var next = State.Clone();
         next.Edited = true;
         next.Manifest = validated;
@@ -271,6 +273,36 @@ internal sealed partial class AppNeuron(
         Receipt(next, operationId);
         await Persist(next);
         return Describe(State);
+    }
+
+    private async Task EnsureAgentHandleUniqueAsync(string? handle)
+    {
+        if (string.IsNullOrWhiteSpace(handle))
+        {
+            return;
+        }
+
+        var proxies = services?.GetService<DigitalBrain.Neurons.INeuronProxies>();
+        var observer = services?.GetService<DigitalBrain.Kernel.IBrainObserver>();
+        if (proxies is null || observer is null)
+        {
+            return;
+        }
+
+        var normalized = AppAgentHandle.Normalize(handle);
+        var selfName = Name();
+        var skip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { selfName };
+        var others = await InstalledApps.Read(proxies, observer, BrainId(), CancellationToken.None, skipNames: skip);
+        foreach (var (otherName, snapshot) in others)
+        {
+            if (snapshot.Manifest?.Agent?.Handle is { Length: > 0 } existingHandle
+                && AppAgentHandle.TryNormalize(existingHandle, out var otherNormalized, out _)
+                && string.Equals(otherNormalized, normalized, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"Handle '{normalized}' is already assigned to specialist '{otherName}'. Choose a unique handle.");
+            }
+        }
     }
 
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)

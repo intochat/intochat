@@ -61,7 +61,7 @@ public sealed class ScreenTargetResolverFacts
         var agent = await resolver.ResolveAsync(Brain, "treg", ct);
         Assert.NotNull(agent);
         Assert.Equal(IScreenTargetResolver.AgentAppKind, agent.Kind);
-        Assert.Equal(new NeuronId(Brain, "agentapp", "treg"), agent.ScreenId);
+        Assert.Equal(new NeuronId(Brain, "app.ino", "default"), agent.ScreenId);
 
         var agentByFullKey = await resolver.ResolveAsync(Brain, "b1/apps/treg/view", ct);
         Assert.Equal(agent, agentByFullKey);

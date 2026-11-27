@@ -143,9 +143,9 @@ internal sealed class TurnRunner(
 
     // Recall and structured memory/UI context slices run before the turn is planned, so the loop's read sees what they wrote.
     // Independent slices (recall, session+working-memory, ui-state) overlap via Task.WhenAll while preserving deterministic writes.
-    public Task Hydrate(string[] contexts, string query)
+    public Task Hydrate(string[] contexts, string query, string? memoryScopeKey = null)
     {
-        var recall = WriteRecall(contexts, query);
+        var recall = WriteRecall(contexts, query, memoryScopeKey);
         var sessionAndWorkingMemory = WriteSessionAndWorkingMemory(contexts);
         var uiState = WriteUiState(contexts);
         return Task.WhenAll(recall, sessionAndWorkingMemory, uiState);
@@ -178,13 +178,61 @@ internal sealed class TurnRunner(
         catch (Exception error) { logger.LogWarning(error, "Session journal milestone could not be recorded."); }
     }
 
-    private async Task WriteRecall(string[] keys, string query)
+    public async Task RecordIsolatedEpisode(string? memoryScopeKey, string agentId, string? userText, string? replyText)
+    {
+        if (string.IsNullOrWhiteSpace(memoryScopeKey))
+        {
+            return;
+        }
+
+        if (!IntoChat.OS.Modules.Apps.BotMemoryScope.IsValidBotMemoryKey(memoryScopeKey))
+        {
+            throw new UnauthorizedAccessException($"Isolated memory key '{memoryScopeKey}' is outside memory/bots/{{appId}}.");
+        }
+
+        var prompt = userText?.Trim() ?? string.Empty;
+        var reply = replyText?.Trim() ?? string.Empty;
+        if (prompt.Length == 0 && reply.Length == 0)
+        {
+            return;
+        }
+
+        var summary = prompt.Length > 0 && reply.Length > 0
+            ? $"User: {TruncateEpisode(prompt, 400)} | Reply: {TruncateEpisode(reply, 400)}"
+            : TruncateEpisode(prompt.Length > 0 ? prompt : reply, 600);
+        try
+        {
+            await context.Get<IMemory>(new NeuronId(owner.Brain, "ai.memory", memoryScopeKey))
+                .CaptureEpisode(string.IsNullOrWhiteSpace(agentId) ? "specialist" : agentId.Trim(), summary, importance: 6);
+        }
+        catch (Exception error)
+        {
+            logger.LogWarning(error, "Isolated bot memory episode could not be recorded for {MemoryScopeKey}.", memoryScopeKey);
+        }
+    }
+
+    private static string TruncateEpisode(string text, int maxLength)
+        => text.Length <= maxLength ? text : text[..maxLength];
+
+    private async Task WriteRecall(string[] keys, string query, string? memoryScopeKey)
     {
         var ids = ContextsNamed(keys, "memory.recall");
         if (ids.Length == 0) { return; }
+
+        var targetMemoryKey = "memory";
+        if (memoryScopeKey is not null)
+        {
+            if (!IntoChat.OS.Modules.Apps.BotMemoryScope.IsValidBotMemoryKey(memoryScopeKey))
+            {
+                logger.LogWarning("Rejected invalid isolated memory scope key '{MemoryScopeKey}'; skipping recall.", memoryScopeKey);
+                return;
+            }
+            targetMemoryKey = memoryScopeKey;
+        }
+
         try
         {
-            var pack = await context.Get<IMemory>(new NeuronId(owner.Brain, "ai.memory", "memory")).RecallPack(query, null, 5);
+            var pack = await context.Get<IMemory>(new NeuronId(owner.Brain, "ai.memory", targetMemoryKey)).RecallPack(query, null, 5);
             foreach (var id in ids)
             {
                 var ctx = context.Get<IAgentContext>(id);

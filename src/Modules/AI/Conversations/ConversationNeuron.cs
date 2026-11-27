@@ -1425,7 +1425,7 @@ internal sealed class ConversationNeuron(
                     return;
                 }
 
-                await Runner.Hydrate(definition.Contexts, turnState.Run.UserText);
+                await Runner.Hydrate(definition.Contexts, turnState.Run.UserText, definition.MemoryScopeKey);
                 var bounded = BoundPreTurnHistory(window.Messages, definition, input, window.Summary);
                 var turnModel = !string.IsNullOrWhiteSpace(model)
                     ? (definition.Model is not null ? definition.Model with { Model = model } : new ModelSelection(model))
@@ -1516,6 +1516,7 @@ internal sealed class ConversationNeuron(
                                 });
                                 if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
                                 await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
+                                await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, turnState.Run.UserText, turnState.Visible);
                                 committed = true;
 
                                 // Multi-agent Squad handoff with strict maxDepth = 3 loop guard.

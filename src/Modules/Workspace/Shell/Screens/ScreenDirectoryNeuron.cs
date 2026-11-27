@@ -220,6 +220,11 @@ internal sealed partial class ScreenDirectoryNeuron(
             try
             {
                 var screen = ResolveNeuron<IScreen>(resolvedScreenId);
+                if (resolved.IsAgentApp)
+                {
+                    var openArgs = JsonSerializer.SerializeToElement(new { appId = normalizedApp });
+                    await screen.Dispatch(new Command(".", "ino.open-specialist", openArgs));
+                }
                 var pub = await screen.Read();
                 if (pub is null && !resolved.IsAgentApp)
                 {
