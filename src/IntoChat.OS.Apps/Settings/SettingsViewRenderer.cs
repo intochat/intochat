@@ -586,7 +586,7 @@ internal static class SettingsViewRenderer
             ? state.AvailableConnectors
             :
             [
-                new SettingsConnectorOffer("github", "GitHub", ["device-flow", "oauth", "pat"], "GitHub"),
+                new SettingsConnectorOffer("github", "GitHub", ["device", "oauth", "pat"], "GitHub"),
                 new SettingsConnectorOffer("muncly", "Muncly CRM", ["bearer-token"], "Muncly CRM"),
                 new SettingsConnectorOffer("google-drive", "Google Drive", ["oauth"], "Google Drive"),
                 new SettingsConnectorOffer("gmail", "Gmail", ["oauth"], "Gmail"),
@@ -690,7 +690,7 @@ internal static class SettingsViewRenderer
                             PrimaryButton("Sign in with GitHub (Device Flow)", "log-in")
                                 .Key("settings:github:device-flow-start")
                                 .Small()
-                                .Sends(new SettingsStartDeviceFlow("github", "main", "device-flow")),
+                                .Sends(new SettingsStartDeviceFlow("github", "main")),
                             FlexSpacer(),
                             Button("Copy webhook URL", "copy")
                                 .Key("settings:github:copy-webhook-url")

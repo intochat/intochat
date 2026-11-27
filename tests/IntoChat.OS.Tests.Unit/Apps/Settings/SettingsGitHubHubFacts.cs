@@ -231,8 +231,9 @@ public sealed class SettingsGitHubHubFacts
         FakeGitHubConnectionNeuron.CurrentAccount = "intochat/os";
         FakeSettingsConnectionCatalog.Rows =
         [
-            new CatalogRow("connection/github/main", "github", "main", ConnectionStatus.Connected, "intochat/os", DateTimeOffset.UtcNow),
-            new CatalogRow("connection/google-drive/primary", "google-drive", "primary", ConnectionStatus.Expired, "ada@example.com", DateTimeOffset.UtcNow),
+            new CatalogRow(ConnectionKeys.For("local", "github", "main"), "github", "main", ConnectionStatus.Connected, "intochat/os", DateTimeOffset.UtcNow),
+            new CatalogRow(ConnectionKeys.For("local", "google-drive", "primary"), "google-drive", "primary", ConnectionStatus.Expired, "ada@example.com", DateTimeOffset.UtcNow),
+            new CatalogRow(ConnectionKeys.For("local", "mcp", "muncly-crm"), "mcp", "muncly-crm", ConnectionStatus.Connected, "https://mcpdemo-crm.munc.ly/api/mcp", DateTimeOffset.UtcNow),
         ];
 
         try
@@ -259,8 +260,14 @@ public sealed class SettingsGitHubHubFacts
 
             Assert.Equal("connections", settings.App.State.Section);
             Assert.Equal(ViewTransition.SharedAxisX, settings.App.ActiveTransition);
-            Assert.Contains(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main" && c.Status == ConnectionStatus.Connected);
-            Assert.Contains(settings.App.State.ActiveConnections, c => c.Key == "connection/google-drive/primary" && c.Status == ConnectionStatus.Expired);
+            Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main" && c.Status == ConnectionStatus.Connected);
+            Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/google-drive/primary" && c.Status == ConnectionStatus.Expired);
+            Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/mcp/muncly-crm" && c.Status == ConnectionStatus.Connected);
+            Assert.DoesNotContain(settings.App.State.ActiveConnections, c => c.Key.StartsWith("local/", StringComparison.Ordinal));
+
+            // 4-part MCP CatalogRow deduplicates cleanly with MCP server rows and removes cleanly on McpRemove
+            await settings.App.McpRemove(new SettingsMcpRemove("muncly-crm"));
+            Assert.DoesNotContain(settings.App.State.ActiveConnections, c => c.Key == "connection/mcp/muncly-crm");
 
             var wire = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
             Assert.Contains("http://localhost:5080/integrations/github/webhook", wire, StringComparison.Ordinal);
@@ -482,6 +489,21 @@ public sealed class SettingsGitHubHubFacts
 
         var settings = await os.Install<SettingsApp>();
         settings.App.OAuthDeviceFlow = flow;
+        settings.App.Connectors =
+        [
+            new ConnectorDefinition("github", "GitHub", ["device", "oauth", "pat"], [])
+            {
+                DeviceMethods =
+                [
+                    new OAuthDeviceMethod(
+                        "device",
+                        "https://github.com/login/device/code",
+                        "https://github.com/login/oauth/access_token",
+                        ["repo"],
+                        DefaultClientId: "test-client-id"),
+                ],
+            },
+        ];
         await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
         await os.Idle();
 
@@ -490,6 +512,7 @@ public sealed class SettingsGitHubHubFacts
 
         Assert.Equal("flow-gh-1", settings.App.State.DeviceFlowId);
         Assert.Equal("ABCD-1234", settings.App.State.DeviceFlowUserCode);
+        Assert.Equal("device", flow.LastAuthMethodId);
         Assert.NotNull(flow.LastConnectionKey);
         var parsedDeviceKey = ConnectionKeys.Parse(flow.LastConnectionKey!);
         Assert.Equal("local", parsedDeviceKey.BrainId);
@@ -665,10 +688,12 @@ public sealed class SettingsGitHubHubFacts
     private sealed class FakeOAuthDeviceFlow : IOAuthDeviceFlow
     {
         public string? LastConnectionKey { get; private set; }
+        public string? LastAuthMethodId { get; private set; }
 
         public Task<OAuthDeviceStartResult> StartAsync(BrainId brainId, string connectionKey, string authMethodId, string? target = null, CancellationToken ct = default)
         {
             LastConnectionKey = connectionKey;
+            LastAuthMethodId = authMethodId;
             return Task.FromResult(new OAuthDeviceStartResult(
                 FlowId: "flow-gh-1",
                 UserCode: "ABCD-1234",
@@ -682,7 +707,7 @@ public sealed class SettingsGitHubHubFacts
             => Task.FromResult(new OAuthDevicePollResult(
                 Status: OAuthDevicePollStatus.Connected,
                 IntervalSeconds: 5,
-                Connection: new ConnectionView("github", "main", "device-flow", ConnectionStatus.Connected, "octocat", null, DateTimeOffset.UtcNow, null),
+                Connection: new ConnectionView("github", "main", "device", ConnectionStatus.Connected, "octocat", null, DateTimeOffset.UtcNow, null),
                 Error: null));
     }
 

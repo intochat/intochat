@@ -21,7 +21,7 @@ public sealed partial class SettingsApp
 
     private static readonly SettingsConnectorOffer[] DefaultConnectorOffers =
     [
-        new("github", "GitHub", ["device-flow", "oauth", "pat"], "GitHub"),
+        new("github", "GitHub", ["device", "oauth", "pat"], "GitHub"),
         new("muncly", "Muncly CRM", ["bearer-token"], "Muncly CRM"),
         new("google-drive", "Google Drive", ["oauth"], "Google Drive"),
         new("gmail", "Gmail", ["oauth"], "Gmail"),
@@ -161,7 +161,7 @@ public sealed partial class SettingsApp
 
         var connectorId = string.IsNullOrWhiteSpace(request.ConnectorId) ? "github" : request.ConnectorId.Trim().ToLowerInvariant();
         var connectionId = SettingsAppState.NormalizeConnectionSlug(request.ConnectionId, fallback: "main");
-        var authMethodId = string.IsNullOrWhiteSpace(request.AuthMethodId) ? "device-flow" : request.AuthMethodId.Trim();
+        var authMethodId = ResolveDeviceFlowMethodId(connectorId, request.AuthMethodId);
         var connectionKey = ConnectionKeys.For(brain.Value, connectorId, connectionId);
 
         try
@@ -725,12 +725,12 @@ public sealed partial class SettingsApp
                 var snapshot = await catalog.Read();
                 foreach (var row in snapshot.Rows)
                 {
-                    if (string.IsNullOrWhiteSpace(row.Key))
+                    if (string.IsNullOrWhiteSpace(row.Key) && (string.IsNullOrWhiteSpace(row.ConnectorId) || string.IsNullOrWhiteSpace(row.ConnectionId)))
                     {
                         continue;
                     }
 
-                    var key = row.Key.Trim();
+                    var key = NormalizeRelativeConnectionKey(row.ConnectorId, row.ConnectionId, row.Key);
                     byKey.TryGetValue(key, out var prev);
                     byKey[key] = new SettingsConnectionRow(
                         Key: key,
@@ -802,6 +802,37 @@ public sealed partial class SettingsApp
             .ToArray();
 
         return offers.Length > 0 ? offers : DefaultConnectorOffers;
+    }
+
+    private string ResolveDeviceFlowMethodId(string connectorId, string? requestedMethodId)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedMethodId))
+        {
+            return requestedMethodId.Trim();
+        }
+
+        var deviceMethod = Connectors?
+            .FirstOrDefault(c => string.Equals(c.Id, connectorId, StringComparison.OrdinalIgnoreCase))
+            ?.DeviceMethods
+            ?.FirstOrDefault(static d => !string.IsNullOrWhiteSpace(d.Id));
+
+        return deviceMethod is not null ? deviceMethod.Id.Trim() : "device";
+    }
+
+    private static string NormalizeRelativeConnectionKey(string? connectorId, string? connectionId, string? rawKey)
+    {
+        if (!string.IsNullOrWhiteSpace(connectorId) && !string.IsNullOrWhiteSpace(connectionId))
+        {
+            return $"connection/{connectorId.Trim().ToLowerInvariant()}/{connectionId.Trim()}";
+        }
+
+        var trimmed = (rawKey ?? string.Empty).Trim();
+        if (ConnectionKeys.TryParse(trimmed, out var parsed))
+        {
+            return $"connection/{parsed.ConnectorId.Trim().ToLowerInvariant()}/{parsed.ConnectionId.Trim()}";
+        }
+
+        return trimmed;
     }
 
     private static string SerializeMcpBearerPayload(string url, string title, string token)

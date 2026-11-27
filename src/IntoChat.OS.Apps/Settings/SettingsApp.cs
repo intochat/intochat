@@ -100,7 +100,7 @@ public sealed record SettingsProbeConnection(string ConnectorId = "", string Con
 public sealed record SettingsDisconnectConnection(string ConnectorId = "", string ConnectionId = "") : Signal;
 
 [Signal("settings.device-flow-start")]
-public sealed record SettingsStartDeviceFlow(string ConnectorId = "github", string ConnectionId = "main", string AuthMethodId = "device-flow", string? Target = null) : Signal;
+public sealed record SettingsStartDeviceFlow(string ConnectorId = "github", string ConnectionId = "main", string AuthMethodId = "", string? Target = null) : Signal;
 
 [Signal("settings.device-flow-complete")]
 public sealed record SettingsCompleteDeviceFlow(string FlowId = "") : Signal;
