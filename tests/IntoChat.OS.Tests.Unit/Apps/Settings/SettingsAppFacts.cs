@@ -502,6 +502,13 @@ public sealed class SettingsAppFacts
         {
             if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
+                if (TryGetPropertyIgnoreCase(element, "neuronUri", out var uriProp)
+                    && uriProp.GetString() is { } uri
+                    && !uri.Contains("/role-", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 if (TryGetPropertyIgnoreCase(element, "options", out var options)
                     && options.ValueKind == System.Text.Json.JsonValueKind.Array)
                 {

@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
+using DigitalBrain.Neurons;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Voice;
 
@@ -54,6 +56,13 @@ internal static class SpeechEndpoint
             {
                 return Results.Problem("Voice name must contain at most 128 printable characters.", statusCode: StatusCodes.Status400BadRequest);
             }
+        }
+        else
+        {
+            voiceId = await VoiceSettings.ReadVoicePersonaAsync(
+                http.RequestServices.GetService<INeuronProxies>(),
+                caller.Brain,
+                ct).ConfigureAwait(false);
         }
 
         var resolved = await clients.Speak(caller.Brain.Value, ct).ConfigureAwait(false);

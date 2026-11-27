@@ -645,6 +645,8 @@ internal static class SettingsViewRenderer
                     AiProvider.OpenAI when HasVaultEntry(state, "OPENAI_API_KEY", "openai") => "Ready",
                     AiProvider.Anthropic when HasVaultEntry(state, "ANTHROPIC_API_KEY", "anthropic") => "Ready",
                     AiProvider.Google when HasVaultEntry(state, "GOOGLE_API_KEY", "google") => "Ready",
+                    AiProvider.OpenRouter when HasVaultEntry(state, "OPENROUTER_API_KEY", "openrouter") => "Ready",
+                    AiProvider.XAI when HasVaultEntry(state, "XAI_API_KEY", "xai") => "Ready",
                     _ => "Add a key in API keys",
                 };
             }
@@ -870,6 +872,34 @@ internal static class SettingsViewRenderer
                     .Style(OsMixStyles.Card())[
                     VStack(Space.Sm, roleControls)
                 ],
+                Card("Inference & Voice", "Tune reasoning effort for reasoning-capable models and choose your spoken voice persona")
+                    .Style(OsMixStyles.Card())[
+                    VStack(Space.Sm)[
+                        SettingsControls.ComboBox(children, state, SettingsControls.ReasoningEffort, "Reasoning effort",
+                        [
+                            new ComboBoxOption("default", "Default"),
+                            new ComboBoxOption("none", "None"),
+                            new ComboBoxOption("low", "Low"),
+                            new ComboBoxOption("medium", "Medium"),
+                            new ComboBoxOption("high", "High"),
+                        ]),
+                        SettingsControls.ComboBox(children, state, SettingsControls.VoicePersona, "Voice persona",
+                        [
+                            new ComboBoxOption("default", "Default"),
+                            new ComboBoxOption("marin", "Marin (OpenAI)"),
+                            new ComboBoxOption("cedar", "Cedar (OpenAI)"),
+                            new ComboBoxOption("coral", "Coral (OpenAI)"),
+                            new ComboBoxOption("sage", "Sage (OpenAI)"),
+                            new ComboBoxOption("alloy", "Alloy (OpenAI)"),
+                            new ComboBoxOption("verse", "Verse (OpenAI)"),
+                            new ComboBoxOption("Kore", "Kore (Gemini)"),
+                            new ComboBoxOption("Puck", "Puck (Gemini)"),
+                            new ComboBoxOption("Aoede", "Aoede (Gemini)"),
+                            new ComboBoxOption("Charon", "Charon (Gemini)"),
+                            new ComboBoxOption("Fenrir", "Fenrir (Gemini)"),
+                        ])
+                    ]
+                ],
                 HStack(Space.Sm)[
                     PrimaryButton("Local server (Ollama)", "cpu")
                         .Key("models:local-server")
@@ -1010,7 +1040,9 @@ internal static class SettingsViewRenderer
         [
             ("Anthropic", "Used for Claude Sonnet & Opus models", "ANTHROPIC_API_KEY", "anthropic", "seal-anthropic-key", "Seal Anthropic key"),
             ("OpenAI", "Used for GPT-5 & reasoning models", "OPENAI_API_KEY", "openai", "seal-openai-key", "Seal OpenAI key"),
-            ("Google Gemini", "Used for Gemini 2.5 Pro & Flash", "GOOGLE_API_KEY", "google", "seal-google-key", "Seal Google key"),
+            ("Google Gemini", "Used for Gemini Pro, Flash, TTS & Live models", "GOOGLE_API_KEY", "google", "seal-google-key", "Seal Google key"),
+            ("OpenRouter", "Used for DeepSeek, Qwen, GLM, Kimi & MiniMax models", "OPENROUTER_API_KEY", "openrouter", "seal-openrouter-key", "Seal OpenRouter key"),
+            ("xAI", "Used for Grok models", "XAI_API_KEY", "xai", "seal-xai-key", "Seal xAI key"),
             ("Brave Search", "Web search for agents · ≈ $5 per 1 000 searches", "BRAVE_API_KEY", "brave", "seal-brave-key", "Seal Brave key"),
             ("Tavily", "Web search for agents · 1 000 free per month", "TAVILY_API_KEY", "tavily", "seal-tavily-key", "Seal Tavily key"),
         ];

@@ -35,11 +35,79 @@ namespace IntoChat.OS.Apps.Settings;
 
 public sealed partial class SettingsApp
 {
-    // The API keys form's client stores each typed key in the person's vault; only the references arrive here, and nothing reads them yet.
-    private Task SealApiKeysAsync(IReadOnlyDictionary<string, string>? secretRefs)
+    private static string? MapApiKeyFieldToProvider(string field) => field.Trim().ToUpperInvariant() switch
     {
-        var count = secretRefs?.Count ?? 0;
-        return UpdateAsync(State with { Status = $"Sealed {count} API key{(count == 1 ? "" : "s")} in your vault." });
+        "ANTHROPIC_API_KEY" => "anthropic",
+        "OPENAI_API_KEY" => "openai",
+        "GOOGLE_API_KEY" => "google",
+        "OPENROUTER_API_KEY" => "openrouter",
+        "XAI_API_KEY" => "xai",
+        _ => null,
+    };
+
+    // The API keys form's client stores each typed key in the person's vault; only SecretRef handles arrive here.
+    // Unseal each submitted ref via ISecretVault and persist AI provider credentials directly to ModelCatalog
+    // without ever storing raw keys in SettingsAppState, logs, or snapshots.
+    private async Task SealApiKeysAsync(IReadOnlyDictionary<string, string>? secretRefs)
+    {
+        var vault = SecretVault ?? Vault;
+        var hasBrain = TryBrainOrNull() is { Value.Length: > 0 };
+        var catalog = hasBrain ? ModelCatalog : null;
+        var sealedCount = 0;
+
+        if (secretRefs is { Count: > 0 })
+        {
+            foreach (var (field, secretRef) in secretRefs)
+            {
+                if (string.IsNullOrWhiteSpace(field) || string.IsNullOrWhiteSpace(secretRef))
+                {
+                    continue;
+                }
+
+                sealedCount++;
+                var trimmedRef = secretRef.Trim();
+                if (MapApiKeyFieldToProvider(field) is not { } provider || vault is null || catalog is null)
+                {
+                    continue;
+                }
+
+                string? unsealed = null;
+                try
+                {
+                    unsealed = await vault.TryOpenSecretAsync(trimmedRef);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    Log.LogDebug(error, "Failed opening vault reference for {Field}.", field);
+                }
+
+                if (string.IsNullOrWhiteSpace(unsealed))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await catalog.SaveProviderCredential(provider, unsealed.Trim());
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    Log.LogDebug(error, "IModelCatalog.SaveProviderCredential failed for provider '{Provider}'.", provider);
+                }
+            }
+        }
+
+        var secrets = await InspectSecretStatusesAsync(State.Variables ?? []);
+        var modelInfo = await TryReadModelCatalogAsync(State.DefaultModel);
+        await UpdateAsync(State with
+        {
+            SecretStatuses = secrets,
+            Roles = modelInfo.Roles.Length > 0 ? modelInfo.Roles : State.Roles,
+            Providers = modelInfo.Providers.Length > 0 ? modelInfo.Providers : State.Providers,
+            LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+            Device = modelInfo.Device ?? State.Device,
+            Status = $"Sealed {sealedCount} API key{(sealedCount == 1 ? "" : "s")} in your vault.",
+        });
     }
 
     // The PAT form's secret fields arrive as vault references (secret://{owner}/{name}); the typed token never reaches this screen.
