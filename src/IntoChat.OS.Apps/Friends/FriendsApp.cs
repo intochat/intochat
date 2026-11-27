@@ -109,7 +109,7 @@ public sealed record FriendsEditDraft(string? Field = null, string? Value = null
 }
 
 [Signal("friends.send-room-message")]
-public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey = "", string Text = "") : Signal;
+public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey = "", string Text = "", string Value = "") : Signal;
 
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends", Icon = "users", Category = "Social", Dock = 9)]
 public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
@@ -641,12 +641,14 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         return Attempt("refresh social feed", async () =>
         {
             var roster = await TryReadRosterAsync();
+            var rooms = await TryReadRoomsAsync();
             var feed = await LoadSocialFeedAsync(roster);
             return State with
             {
                 Roster = roster,
+                Rooms = rooms,
                 SocialFeed = feed,
-                Status = $"Refreshed social feed ({feed.Length} post(s)).",
+                Status = $"Refreshed social feed ({feed.Length} post(s), {rooms.Length} room(s)).",
             };
         });
     }
@@ -1012,7 +1014,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             var roomKey = string.IsNullOrWhiteSpace(request.RoomKey)
                 ? State.ActiveRoom?.RoomKey ?? ""
                 : request.RoomKey.Trim();
-            var text = string.IsNullOrWhiteSpace(request.Text) ? State.RoomMessageDraft : request.Text;
+            var text = !string.IsNullOrWhiteSpace(request.Text)
+                ? request.Text
+                : !string.IsNullOrWhiteSpace(request.Value)
+                    ? request.Value
+                    : State.RoomMessageDraft;
 
             if (string.IsNullOrWhiteSpace(roomKey))
             {

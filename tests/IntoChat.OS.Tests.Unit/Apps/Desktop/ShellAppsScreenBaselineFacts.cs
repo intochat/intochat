@@ -103,7 +103,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(35, concreteScreens.Count);
+        Assert.Equal(36, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);

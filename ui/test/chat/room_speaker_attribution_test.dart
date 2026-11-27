@@ -79,7 +79,10 @@ void main() {
       expect(find.byKey(const ValueKey('msg-human:room-msg-1')), findsNothing);
 
       // Other human message is left-aligned with initials avatar and display name.
-      expect(find.byKey(const ValueKey('msg-human:room-msg-2')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('msg-human:room-msg-2')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('msg-avatar:room-msg-2')),
         findsOneWidget,
