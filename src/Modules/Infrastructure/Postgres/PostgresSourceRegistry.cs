@@ -57,7 +57,10 @@ internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule>
                 ?? throw new PostgresUnavailableException("This table's database is not reachable from this deployment.");
             var connection = new NpgsqlConnectionStringBuilder(settings.ConnectionString);
             if (placement.Kind == TablePlacementKind.BrainDatabase) { connection.Database = placement.Name; }
-            return _sources.GetOrAdd((_revision, placement), _ => NpgsqlDataSource.Create(connection.ConnectionString));
+            var poolName = placement.Kind == TablePlacementKind.Shared
+                ? "intochat.postgres.shared"
+                : $"intochat.postgres.brain.{placement.Name}";
+            return _sources.GetOrAdd((_revision, placement), _ => PostgresConnectionSettings.BuildDataSource(connection.ConnectionString, poolName));
         }
         catch (Exception ex) when (ex is not PostgresUnavailableException and not ArgumentException and not InvalidOperationException)
         {

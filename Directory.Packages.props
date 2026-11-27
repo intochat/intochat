@@ -46,7 +46,7 @@
     <PackageVersion Include="Azure.Storage.Queues" Version="12.28.2" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
     <PackageVersion Include="ClickHouse.Driver" Version="1.5.0" />
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="11.0.0" />
     <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="17.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0" />

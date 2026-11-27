@@ -28,6 +28,9 @@ internal static class PostgresConnectionSettings
         }
     }
 
+    public static NpgsqlDataSource BuildDataSource(string connectionString, string name)
+        => new NpgsqlDataSourceBuilder(connectionString) { Name = name }.Build();
+
     private static NpgsqlConnectionStringBuilder FromUri(Uri uri)
     {
         var credentials = uri.UserInfo.Split(':', 2);

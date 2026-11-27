@@ -42,4 +42,13 @@ public sealed class PostgresConnectionSettingsFacts
         Assert.DoesNotContain("very-secret", error.Message, StringComparison.Ordinal);
         Assert.Null(error.InnerException);
     }
+
+    [Fact]
+    public async Task BuildDataSourceCreatesNamedSourceEvenWhenApplicationNameIsSet()
+    {
+        var settings = PostgresConnectionSettings.Parse("postgresql://user:pass@db.example.test:5432/app?application_name=custom-app");
+        await using var source = PostgresConnectionSettings.BuildDataSource(settings.ConnectionString, "intochat.postgres.connection");
+
+        Assert.Equal("custom-app", new NpgsqlConnectionStringBuilder(source.ConnectionString).ApplicationName);
+    }
 }

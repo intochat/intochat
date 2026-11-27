@@ -12,7 +12,9 @@ internal sealed class ConnectionPostgresProvider(string connectionString) : IPos
 {
     private async Task<T> Execute<T>(Func<PostgresProvider, Task<T>> operation)
     {
-        await using var source = NpgsqlDataSource.Create(PostgresConnectionSettings.Parse(connectionString).ConnectionString);
+        await using var source = PostgresConnectionSettings.BuildDataSource(
+            PostgresConnectionSettings.Parse(connectionString).ConnectionString,
+            "intochat.postgres.connection");
         return await operation(new PostgresProvider(source));
     }
     public Task<PostgresQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<PostgresParameter> parameters, CancellationToken cancellationToken)
