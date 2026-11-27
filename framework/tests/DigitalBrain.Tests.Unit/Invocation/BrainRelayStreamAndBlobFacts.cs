@@ -315,10 +315,18 @@ public sealed class BrainRelayStreamAndBlobFacts
         Assert.Equal("msg-ws-oneway-1", ackFrame.MessageId);
         Assert.Equal("lease-42", ackFrame.LeaseId);
 
-        // 3. Local neuron state reflects the delivered one-way write.
+        // 3. Local neuron state reflects the delivered one-way write (PostLocalAsync dispatches on a background turn).
         using (aliceOS.Edge.Enter(aliceOS.Edge.Person("alice", "alice", aliceBrain)))
         {
-            Assert.Equal("from-ws-stream", await aliceOS.Get<IRemoteSecretNote>(noteId).Read());
+            var note = aliceOS.Get<IRemoteSecretNote>(noteId);
+            var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5);
+            var actual = await note.Read();
+            while (actual != "from-ws-stream" && DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(20, ct);
+                actual = await note.Read();
+            }
+            Assert.Equal("from-ws-stream", actual);
         }
     }
 
