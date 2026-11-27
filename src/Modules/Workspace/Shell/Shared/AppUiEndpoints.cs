@@ -308,20 +308,12 @@ internal static class AppUiEndpoints
                     new TargetedViewportResponse(viewport.Revision, viewport.Target, Root: null, Error: "This app is not available in this runtime."),
                     ShellUiJsonContext.Default.TargetedViewportResponse);
             }
-            if (viewportResolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } viewportScreenId })
+            if (viewportResolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } viewportScreenId }
+                && await ScreenViewResolver.TryReadScreenAsync(brain, viewportScreenId, log, "Screen view could not be read.", ct, hostedNeurons) is not null)
             {
-                if (await ScreenViewResolver.TryReadScreenAsync(brain, viewportScreenId, log, "Screen view could not be read.", ct, hostedNeurons) is not null)
-                {
-                    return OkJson(
-                        new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, HostAppRef.Of(brainId, appName).ViewKey), Error: null),
-                        ShellUiJsonContext.Default.TargetedViewportResponse);
-                }
-                if (!viewportResolved.IsAgentApp)
-                {
-                    return OkJson(
-                        new TargetedViewportResponse(viewport.Revision, viewport.Target, Root: null, Error: "This app has not published this view."),
-                        ShellUiJsonContext.Default.TargetedViewportResponse);
-                }
+                return OkJson(
+                    new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, HostAppRef.Of(brainId, appName).ViewKey), Error: null),
+                    ShellUiJsonContext.Default.TargetedViewportResponse);
             }
             if (appRef != default && await brain.Get<IView>(appRef.ViewKey).Read().WaitAsync(ct) is not null)
             {
@@ -329,7 +321,8 @@ internal static class AppUiEndpoints
                     new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, appRef.ViewKey), Error: null),
                     ShellUiJsonContext.Default.TargetedViewportResponse);
             }
-            if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, appName, log, "Unit view could not be read for viewport.", ct) is not null)
+            if (viewportResolved is not { Kind: ScreenResolutionKind.Screen, IsAgentApp: false }
+                && await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, appName, log, "Unit view could not be read for viewport.", ct) is not null)
             {
                 return OkJson(
                     new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, new NeuronId(brainId, "unit", appName).FullKey()), Error: null),
@@ -373,20 +366,19 @@ internal static class AppUiEndpoints
                 {
                     return OkJson(ChildKeys.Screen(published), ShellUiJsonContext.Default.PublishedView);
                 }
-                if (!resolved.IsAgentApp)
-                {
-                    return OkJson(null, ShellUiJsonContext.Default.PublishedView);
-                }
             }
             else if (await brain.Get<IView>(name).Read().WaitAsync(ct) is { } directAppView)
             {
                 return OkJson(ChildKeys.Hide(directAppView), ShellUiJsonContext.Default.PublishedView);
             }
 
-            var candidateUnit = screenAlias["app.".Length..];
-            if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, candidateUnit, log, "Unit view fallback could not be read.", ct) is { } unitFallback)
+            if (resolved is not { Kind: ScreenResolutionKind.Screen, IsAgentApp: false })
             {
-                return OkJson(ChildKeys.Hide(unitFallback), ShellUiJsonContext.Default.PublishedView);
+                var candidateUnit = screenAlias["app.".Length..];
+                if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, candidateUnit, log, "Unit view fallback could not be read.", ct) is { } unitFallback)
+                {
+                    return OkJson(ChildKeys.Hide(unitFallback), ShellUiJsonContext.Default.PublishedView);
+                }
             }
         }
 

@@ -16,7 +16,9 @@ public sealed class LegacyVolumeFacts
     {
         var os = topology == "local"
             ? ComposeLocalWithOllama()
-            : AppHostChainFacts.Compose(topology);
+            : resourceName is "Modules-postgres-server" or "Modules-clickhouse-server"
+                ? ComposeCloudWithDatabases()
+                : AppHostChainFacts.Compose(topology);
         var builder = os.ApplicationBuilder;
 
         var source = VolumeSource(builder, resourceName);
@@ -48,6 +50,25 @@ public sealed class LegacyVolumeFacts
         });
         var silos = builder.AddIntoChatOS("Modules")
             .WithAI(ai => ai.Device(d => d.Ollama()))
+            .AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
+        return silos[0].Resource.Annotations.OfType<BrainSiloAnnotation>().Single().Brain;
+    }
+
+    private static IntoChatOSBuilder ComposeCloudWithDatabases()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
+        {
+            Args =
+            [
+                "--IntoChatOS:Topology=cloud",
+                "--IntoChatOS:Shell:Enabled=false",
+            ],
+            DisableDashboard = true,
+        });
+        var silos = builder.AddIntoChatOS("Modules")
+            .WithInfrastructure(infra => infra
+                .Postgres(ResourceBacking.LocalContainer)
+                .ClickHouse(ResourceBacking.LocalContainer))
             .AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
         return silos[0].Resource.Annotations.OfType<BrainSiloAnnotation>().Single().Brain;
     }
