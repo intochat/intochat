@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Components;
@@ -37,8 +38,11 @@ internal sealed class FriendsRecord
     public byte[]? ExchangeKeyPkcs8 { get; set; }
 }
 
-// Only the hash of a code is kept.
-internal sealed record PendingFriendCode(string Hash, DateTimeOffset ExpiresAt);
+// Only the hash of a code is kept (local HMAC hash plus optional SHA-256 cloud rendezvous hash).
+internal sealed record PendingFriendCode(
+    string Hash,
+    DateTimeOffset ExpiresAt,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CloudCodeHash = null);
 
 // A brain's friend roster and single-use code door, at "{brain}/friends" (stored neuron type "friends.links").
 [Neuron(FriendsDefaults.TypeName)]
@@ -56,6 +60,13 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private bool RoomsHosted => Context.ClassOf(Threads.Type) is not null;
     private IOffers Offers => Context.Offers;
 
+    private IBrainRelayClient? TryGetRelayClient()
+        => services.GetService<IBrainRelayClientProvider>()?.TryGetClient()
+            ?? services.GetService<IBrainRelayClient>();
+
+    private string? ResolveRelayHint()
+        => services.GetService<IBrainRelayClientProvider>()?.RelayBaseUri?.GetLeftPart(UriPartial.Authority);
+
     public async Task<Code> Mint()
     {
         await Owner();
@@ -66,9 +77,51 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var code = Code.New();
         var expires = now + Code.Validity;
         var hash = await Book.Bind(code, CodePurpose.Friend, Id.Brain, "", expires);
+
+        string? cloudCodeHash = null;
+        if (TryGetRelayClient() is { } relay && services.GetService<IBrainKeySigner>() is { } signer)
+        {
+            cloudCodeHash = FriendCodeBundleSigner.ComputeCodeHash(code.Value);
+            var bundle = await FriendCodeBundleSigner.SignAsync(
+                cloudCodeHash,
+                Id.Brain,
+                signer,
+                expires,
+                ResolveRelayHint()).ConfigureAwait(true);
+            await relay.PublishFriendCodeAsync(bundle).ConfigureAwait(true);
+        }
+
         var live = State.Pending.Where(existing => existing.ExpiresAt > now).TakeLast(KeptCodes - 1);
-        await Store(With(pending: [.. live, new PendingFriendCode(hash, expires)]));
+        await Store(With(pending: [.. live, new PendingFriendCode(hash, expires, cloudCodeHash)]));
         return code;
+    }
+
+    public async Task Revoke(Code code)
+    {
+        await Owner();
+        await EnsureImported();
+        if (!Code.TryParse(code.Value, out var normalized))
+        {
+            return;
+        }
+
+        var localHash = await Book.HashOf(normalized);
+        var cloudHash = FriendCodeBundleSigner.ComputeCodeHash(normalized.Value);
+        var remaining = State.Pending
+            .Where(pending =>
+                !Code.HashesEqual(pending.Hash, localHash)
+                && (pending.CloudCodeHash is null || !Code.HashesEqual(pending.CloudCodeHash, cloudHash)))
+            .ToArray();
+        if (remaining.Length != State.Pending.Length)
+        {
+            await Store(With(pending: remaining));
+        }
+
+        await Book.Spend(localHash);
+        if (TryGetRelayClient() is { } relay)
+        {
+            await relay.RevokeFriendCodeAsync(cloudHash).ConfigureAwait(true);
+        }
     }
 
     public async Task<Friend> Redeem(Code code)
@@ -89,7 +142,51 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
         var hash = await Book.HashOf(normalized);
         var target = await Book.Find(CodePurpose.Friend, hash);
-        if (target is null || target.Brain == Id.Brain)
+
+        BrainId targetBrain;
+        string acceptedHash;
+        BrainPublicKeys? bundlePublicKeys = null;
+        string? bundleRelayHint = null;
+
+        if (target is not null && target.Brain != Id.Brain)
+        {
+            targetBrain = target.Brain;
+            acceptedHash = hash;
+        }
+        else if (target is null && TryGetRelayClient() is { } relay)
+        {
+            var cloudHash = FriendCodeBundleSigner.ComputeCodeHash(normalized.Value);
+            FriendCodeBundle? bundle;
+            try
+            {
+                bundle = await relay.ResolveFriendCodeAsync(cloudHash).ConfigureAwait(true);
+            }
+            catch (CryptographicException)
+            {
+                await Store(With(misses: misses + 1, missesSince: missesSince));
+                throw PersonActs.Refused();
+            }
+
+            if (bundle is null
+                || !string.Equals(bundle.CodeHash, cloudHash, StringComparison.Ordinal)
+                || bundle.BrainId == Id.Brain
+                || !FriendCodeBundleSigner.Verify(bundle, now))
+            {
+                await Store(With(misses: misses + 1, missesSince: missesSince));
+                throw PersonActs.Refused();
+            }
+
+            targetBrain = bundle.BrainId;
+            acceptedHash = cloudHash;
+            bundlePublicKeys = bundle.ToPublicKeys();
+            bundleRelayHint = string.IsNullOrWhiteSpace(bundle.RelayOrigin) ? null : bundle.RelayOrigin.Trim();
+
+            if (services.GetService<IBrainKeyDirectory>() is { } directory)
+            {
+                await directory.PinAsync(targetBrain, bundlePublicKeys).ConfigureAwait(true);
+            }
+        }
+        else
         {
             await Store(With(misses: misses + 1, missesSince: missesSince));
             throw PersonActs.Refused();
@@ -99,11 +196,13 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var myName = !string.IsNullOrWhiteSpace(me.DisplayName) ? me.DisplayName
             : !string.IsNullOrWhiteSpace(me.Handle) ? me.Handle : owner;
         var myPublicKeys = await EnsurePublicKeys();
+        var myRelayHint = ResolveRelayHint();
 
         Friend theirs;
         try
         {
-            theirs = await Context.Get<IFriends>(new BindingTarget.Offered(target.Brain, FriendsDefaults.Id(target.Brain.Value))).Accepted(hash, myName, myPublicKeys);
+            theirs = await Context.Get<IFriends>(new BindingTarget.Offered(targetBrain, FriendsDefaults.Id(targetBrain.Value)))
+                .Accepted(acceptedHash, myName, myPublicKeys, myRelayHint);
         }
         catch (UnauthorizedAccessException)
         {
@@ -111,10 +210,36 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             throw;
         }
 
-        var account = await Owners.OwnerAccount(target.Brain) ?? throw PersonActs.Refused();
+        if (theirs.PublicKeys is not null)
+        {
+            BrainPublicKeyValidation.ValidateNistP256(theirs.PublicKeys);
+            if (bundlePublicKeys is not null && !bundlePublicKeys.Matches(theirs.PublicKeys))
+            {
+                throw new CryptographicException($"Accepted friend keys from '{targetBrain.Value}' did not match the signed rendezvous bundle.");
+            }
+        }
+
+        var account = await Owners.OwnerAccount(targetBrain);
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            account = theirs.Account.Value;
+        }
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            throw PersonActs.Refused();
+        }
+
+        var persistedKeys = theirs.PublicKeys ?? bundlePublicKeys;
+        var persistedRelayHint = !string.IsNullOrWhiteSpace(theirs.RelayHint) ? theirs.RelayHint.Trim() : bundleRelayHint;
         var name = !string.IsNullOrWhiteSpace(theirs.Name) ? theirs.Name : account;
-        var added = new Friend(new AccountId(account), target.Brain, name, now, theirs.PublicKeys);
+        var added = new Friend(new AccountId(account), targetBrain, name, now, persistedKeys, persistedRelayHint);
         await Save(With(friends: UpsertFriend(State.Friends ?? [], added)), new FriendAdded(added.Account));
+
+        if (persistedKeys is not null && services.GetService<IBrainKeyDirectory>() is { } keyDir)
+        {
+            await keyDir.PinAsync(targetBrain, persistedKeys).ConfigureAwait(true);
+        }
+
         return added;
     }
 
@@ -153,14 +278,35 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         return (State.Friends ?? []).Any(friend => friend.Account == account);
     }
 
-    public async Task<Friend> Accepted(string codeHash, string name, BrainPublicKeys? publicKeys = null)
+    [ReadOnlyCall]
+    public async Task<AccountId?> AccountOf(BrainId brain)
     {
-        var (account, brain) = await FriendRelay.Require(Context.Caller, FriendsDefaults.TypeName, Owners);
-        if (brain == Id.Brain) { throw PersonActs.Refused(); }
+        RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
+        return (State.Friends ?? []).FirstOrDefault(friend => friend.Brain == brain)?.Account;
+    }
+
+    public async Task<Friend> Accepted(string codeHash, string name, BrainPublicKeys? publicKeys = null, string? relayHint = null)
+    {
+        await EnsureImported();
+        var (account, brain) = await FriendRelay.Require(
+            Context.Caller,
+            FriendsDefaults.TypeName,
+            Owners,
+            ResolveFriendAccountAsync,
+            allowVerifiedRemoteHandshake: true);
+        if (brain == Id.Brain) { throw PersonActs.Refused(); }
+
+        if (publicKeys is not null)
+        {
+            BrainPublicKeyValidation.ValidateNistP256(publicKeys);
+        }
 
         var now = Context.Time.GetUtcNow();
-        var match = State.Pending.FirstOrDefault(pending => pending.ExpiresAt > now && Code.HashesEqual(pending.Hash, codeHash));
+        var match = State.Pending.FirstOrDefault(pending =>
+            pending.ExpiresAt > now
+            && (Code.HashesEqual(pending.Hash, codeHash)
+                || (pending.CloudCodeHash is not null && Code.HashesEqual(pending.CloudCodeHash, codeHash))));
         if (match is null)
         {
             var refused = State.Refused + 1;
@@ -173,14 +319,35 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var myPublicKeys = await EnsurePublicKeys();
         var remaining = State.Pending.Where(pending => pending != match && pending.ExpiresAt > now).ToArray();
         var redeemerName = !string.IsNullOrWhiteSpace(name) ? name : account;
-        var added = new Friend(new AccountId(account), brain, redeemerName, now, publicKeys);
+        var normalizedHint = string.IsNullOrWhiteSpace(relayHint) ? null : relayHint.Trim();
+        var added = new Friend(new AccountId(account), brain, redeemerName, now, publicKeys, normalizedHint);
         // The caller is a person of another brain. The fact is published as this brain's own module: the silo refuses a
         // nudge to a subscriber of this brain that carries a caller of another brain, and drops it without a word.
         using (PersonActs.AsFilesModule(services, Id.Brain))
         {
             await Save(With(pending: remaining, refused: 0, friends: UpsertFriend(State.Friends ?? [], added)), new FriendAdded(added.Account));
         }
+
+        if (publicKeys is not null && services.GetService<IBrainKeyDirectory>() is { } keyDir)
+        {
+            using (PersonActs.AsFilesModule(services, Id.Brain))
+            {
+                await keyDir.PinAsync(brain, publicKeys).ConfigureAwait(true);
+            }
+        }
+
         await Book.Spend(match.Hash);
+        if (match.CloudCodeHash is not null && TryGetRelayClient() is { } relay)
+        {
+            try
+            {
+                await relay.RevokeFriendCodeAsync(match.CloudCodeHash).ConfigureAwait(true);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<FriendsNeuron>().LogSwallowed(error, "best-effort cloud friend-code consume after acceptance failed");
+            }
+        }
 
         string myName;
         using (PersonActs.AsFilesModule(services, Id.Brain))
@@ -190,14 +357,14 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
                 : !string.IsNullOrWhiteSpace(mine.Handle) ? mine.Handle : Id.Brain.Value;
         }
         var myAccount = await Owners.OwnerAccount(Id.Brain) ?? Id.Brain.Value;
-        return new Friend(new AccountId(myAccount), Id.Brain, myName, now, myPublicKeys);
+        return new Friend(new AccountId(myAccount), Id.Brain, myName, now, myPublicKeys, ResolveRelayHint());
     }
 
     public async Task Unfriended()
     {
-        var (account, brain) = await FriendRelay.Require(Context.Caller, FriendsDefaults.TypeName, Owners);
-        if (brain == Id.Brain) { throw PersonActs.Refused(); }
         await EnsureImported();
+        var (account, brain) = await FriendRelay.Require(Context.Caller, FriendsDefaults.TypeName, Owners, ResolveFriendAccountAsync);
+        if (brain == Id.Brain) { throw PersonActs.Refused(); }
 
         var target = new AccountId(account);
         // As this brain's own module, for the offers and for the fact (see Accepted).
@@ -245,12 +412,12 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     public async Task Invited(GroupInvite group)
     {
         ArgumentNullException.ThrowIfNull(group);
-        var (account, brain) = await FriendRelay.Require(Context.Caller, IConversation.Type, Owners);
+        await EnsureImported();
+        var (account, brain) = await FriendRelay.Require(Context.Caller, IConversation.Type, Owners, ResolveFriendAccountAsync);
         if (brain == Id.Brain || group.Brain != brain || !string.Equals(group.By.Value, account, StringComparison.Ordinal))
         {
             throw FriendRelay.Refused();
         }
-        await EnsureImported();
         var inviter = new AccountId(account);
         if (!(State.Friends ?? []).Any(friend => friend.Account == inviter))
         {
@@ -386,6 +553,13 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         await Store(With(friends: imported));
     }
 
+    private ValueTask<string?> ResolveFriendAccountAsync(BrainId peerBrain, CancellationToken ct)
+    {
+        _ = ct;
+        var match = (State.Friends ?? []).FirstOrDefault(friend => friend.Brain == peerBrain);
+        return ValueTask.FromResult(match?.Account.Value);
+    }
+
     private async Task<string> Owner()
     {
         var (account, brain) = await PersonActs.Require(Context.Caller, Owners);
@@ -424,6 +598,11 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
                     added = added with { PublicKeys = pinned };
                 }
             }
+
+            if (string.IsNullOrWhiteSpace(added.RelayHint) && !string.IsNullOrWhiteSpace(prior.RelayHint))
+            {
+                added = added with { RelayHint = prior.RelayHint };
+            }
         }
 
         return [.. existing.Where(row => row.Account != added.Account && row.Brain != added.Brain), added];
@@ -461,8 +640,11 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         };
 }
 
-internal sealed class FriendsFriendCheck(INeuronProxies proxies) : IFriendCheck
+internal sealed class FriendsFriendCheck(INeuronProxies proxies) : IFriendCheck, IFriendPeerDirectory
 {
     public Task<bool> IsFriend(BrainId owner, string account, CancellationToken ct = default)
         => proxies.Get<IFriends>(FriendsDefaults.Id(owner.Value)).IsFriend(new AccountId(account));
+
+    public Task<AccountId?> AccountOf(BrainId owner, BrainId peerBrain, CancellationToken ct = default)
+        => proxies.Get<IFriends>(FriendsDefaults.Id(owner.Value)).AccountOf(peerBrain);
 }

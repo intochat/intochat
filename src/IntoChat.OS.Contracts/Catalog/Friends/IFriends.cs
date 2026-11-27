@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Contracts;
@@ -7,7 +8,13 @@ using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public sealed record Friend(AccountId Account, BrainId Brain, string Name, DateTimeOffset Since, BrainPublicKeys? PublicKeys = null);
+public sealed record Friend(
+    AccountId Account,
+    BrainId Brain,
+    string Name,
+    DateTimeOffset Since,
+    BrainPublicKeys? PublicKeys = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RelayHint = null);
 
 public sealed record GroupInvite(BrainId Brain, ConversationId Conversation, string Title, AccountId By);
 
@@ -34,10 +41,12 @@ public interface IFriends
 {
     Task<Code> Mint();
     Task<Friend> Redeem(Code code);
+    Task Revoke(Code code);
     Task Unfriend(AccountId friend);
     Task<Friend[]> List();
     [Shared, Interleaves] Task<bool> IsFriend(AccountId account);
-    [Shared] Task<Friend> Accepted(string codeHash, string name, BrainPublicKeys? publicKeys = null);
+    [Interleaves, ReadOnlyCall] Task<AccountId?> AccountOf(BrainId brain);
+    [Shared] Task<Friend> Accepted(string codeHash, string name, BrainPublicKeys? publicKeys = null, string? relayHint = null);
     [Shared] Task Unfriended();
     // The invitations to friends' conversations are kept by the rooms index (IRooms.Conversations, "social.rooms"); the
     // roster hands on what it is told and answers from there (OWED.md).
@@ -48,4 +57,12 @@ public interface IFriends
     Task<ConversationView> GroupRead(GroupInvite group, long? sinceRevision = null);
     [Shared] Task Invited(GroupInvite group);
     [ReadOnlyCall] Task<BrainPublicKeys> PublicKeys(CancellationToken ct = default);
+}
+
+/// <summary>
+/// Non-reentrant-safe lookup of persisted remote peer metadata from a brain's <see cref="IFriends"/> roster.
+/// </summary>
+public interface IFriendPeerDirectory
+{
+    Task<AccountId?> AccountOf(BrainId owner, BrainId peerBrain, CancellationToken ct = default);
 }

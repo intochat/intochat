@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace DigitalBrain.Invocation;
 
@@ -33,7 +34,8 @@ public sealed record BrainEnvelope(
     byte[]? Nonce = null,
     byte[]? Tag = null,
     DateTimeOffset? SentAtUtc = null,
-    bool OneWay = false);
+    bool OneWay = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BrainPublicKeys? SenderPublicKeys = null);
 
 /// <summary>
 /// Self-signed friend-code rendezvous bundle published to <c>POST /circle/v1/friends/codes</c>.

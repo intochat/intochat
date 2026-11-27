@@ -125,6 +125,12 @@ public sealed class BrainRelayClientOptions
     public Func<Uri, CancellationToken, ValueTask<BrainStreamFrame?>>? CreateAuthRefreshFrameAsync { get; set; }
 
     /// <summary>
+    /// Optional async delegate invoked when a WebSocket handshake fails with HTTP <c>401</c>/<c>403</c>
+    /// so the credential provider can force-refresh tokens before the next reconnect attempt.
+    /// </summary>
+    public Func<Uri, CancellationToken, ValueTask>? RefreshAuthOnHandshakeFailureAsync { get; set; }
+
+    /// <summary>
     /// Optional custom WebSocket connector (primarily for deterministic unit testing).
     /// Receives the <c>ws://</c>/<c>wss://</c> URI and the upgrade request headers.
     /// </summary>
@@ -188,6 +194,22 @@ public interface IBrainRelayClient
         string blobId,
         string? expectedSha256 = null,
         CancellationToken ct = default);
+}
+
+/// <summary>
+/// Resolves a configured <see cref="IBrainRelayClient"/> when cross-cluster relay transport is enabled,
+/// or returns <see langword="null"/> on local-only hosts.
+/// </summary>
+public interface IBrainRelayClientProvider
+{
+    /// <summary>True when a remote relay endpoint is currently configured.</summary>
+    bool IsConfigured { get; }
+
+    /// <summary>The configured relay base URI, or <see langword="null"/> when running local-only.</summary>
+    Uri? RelayBaseUri { get; }
+
+    /// <summary>Returns a configured <see cref="IBrainRelayClient"/>, or <see langword="null"/> when unconfigured.</summary>
+    IBrainRelayClient? TryGetClient();
 }
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]

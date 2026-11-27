@@ -750,6 +750,154 @@ public sealed class BrainRelayStreamAndBlobFacts
     }
 
     [Fact]
+    public async Task HealthyWebSocketSessionResetsConsecutiveFailuresBefore1008ReconnectBackoff()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 11, 27, 14, 0, 0, TimeSpan.Zero));
+        var aliceBrain = new BrainId("alice");
+        using var aliceKeys = BrainKeyPair.Generate();
+        await using var aliceOS = TestOS.Local();
+        var receiver = new BrainEnvelopeReceiver(
+            aliceBrain,
+            aliceKeys,
+            _ => null,
+            aliceOS.Edge,
+            aliceOS.InvokeLocalAsync,
+            aliceOS.PostLocalAsync,
+            clock: clock);
+
+        var attempt = 0;
+        var thirdAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fourthAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var http = new HttpClient(new StubHttpHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent))));
+        using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var client = new HttpBrainRelayClient(
+            http,
+            new Uri("https://relay.example"),
+            timeProvider: clock,
+            options: new BrainRelayClientOptions
+            {
+                InitialReconnectDelay = TimeSpan.FromSeconds(2),
+                MaxReconnectDelay = TimeSpan.FromSeconds(30),
+                JitterFactor = 0.0,
+                WebSocketConnectAsync = (_, _, _) =>
+                {
+                    var current = Interlocked.Increment(ref attempt);
+                    if (current <= 2)
+                    {
+                        return Task.FromException<WebSocket>(new WebSocketException(WebSocketError.Faulted));
+                    }
+
+                    if (current == 3)
+                    {
+                        var ws = new FakeWebSocket();
+                        // Healthy frame delivered before 1008 close must reset consecutiveFailures to 0.
+                        ws.EnqueueText(JsonSerializer.Serialize(new BrainStreamFrame(BrainStreamFrameTypes.AuthOk), BrainStreamJsonContext.Default.BrainStreamFrame));
+                        ws.EnqueueClose(WebSocketCloseStatus.PolicyViolation, "policy");
+                        thirdAttempt.TrySetResult();
+                        return Task.FromResult<WebSocket>(ws);
+                    }
+
+                    fourthAttempt.TrySetResult();
+                    return Task.FromResult<WebSocket>(new FakeWebSocket());
+                },
+            });
+
+        var loopTask = client.RunStreamLoopAsync(receiver, loopCts.Token);
+
+        // Attempt 1 fails -> 2s backoff; Attempt 2 fails -> 4s backoff.
+        await Task.Delay(50, ct);
+        clock.Advance(TimeSpan.FromSeconds(2));
+        await Task.Delay(50, ct);
+        clock.Advance(TimeSpan.FromSeconds(4));
+        await thirdAttempt.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        // Attempt 3 received AuthOk then closed with 1008 -> backoff MUST be reset to 2s (attempt 1), NOT 8s (attempt 3).
+        await Task.Delay(50, ct);
+        Assert.Equal(3, Volatile.Read(ref attempt));
+        clock.Advance(TimeSpan.FromSeconds(2));
+        await fourthAttempt.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        Assert.Equal(4, Volatile.Read(ref attempt));
+
+        await loopCts.CancelAsync();
+        await loopTask;
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task WebSocket401And403TriggerForcedAuthRefreshAndExponentialBackoffWithoutHttpFallback(HttpStatusCode statusCode)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 11, 27, 14, 0, 0, TimeSpan.Zero));
+        var aliceBrain = new BrainId("alice");
+        using var aliceKeys = BrainKeyPair.Generate();
+        await using var aliceOS = TestOS.Local();
+        var receiver = new BrainEnvelopeReceiver(
+            aliceBrain,
+            aliceKeys,
+            _ => null,
+            aliceOS.Edge,
+            aliceOS.InvokeLocalAsync,
+            aliceOS.PostLocalAsync,
+            clock: clock);
+
+        var httpPollCount = 0;
+        var refreshCalls = 0;
+        var wsAttempts = 0;
+        var secondAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var http = new HttpClient(new StubHttpHandler((req, _) =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/circle/v1/brains/next")
+            {
+                Interlocked.Increment(ref httpPollCount);
+            }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+        }));
+
+        using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var client = new HttpBrainRelayClient(
+            http,
+            new Uri("https://relay.example"),
+            timeProvider: clock,
+            options: new BrainRelayClientOptions
+            {
+                InitialReconnectDelay = TimeSpan.FromSeconds(2),
+                MaxReconnectDelay = TimeSpan.FromSeconds(16),
+                JitterFactor = 0.0,
+                RefreshAuthOnHandshakeFailureAsync = (_, _) =>
+                {
+                    Interlocked.Increment(ref refreshCalls);
+                    return ValueTask.CompletedTask;
+                },
+                WebSocketConnectAsync = (_, _, _) =>
+                {
+                    var current = Interlocked.Increment(ref wsAttempts);
+                    if (current == 2)
+                    {
+                        secondAttempt.TrySetResult();
+                    }
+                    return Task.FromException<WebSocket>(new HttpRequestException($"HTTP {(int)statusCode}", null, statusCode));
+                },
+            });
+
+        var loopTask = client.RunStreamLoopAsync(receiver, loopCts.Token);
+        await Task.Delay(50, ct);
+        Assert.Equal(1, Volatile.Read(ref wsAttempts));
+
+        clock.Advance(TimeSpan.FromSeconds(2));
+        await secondAttempt.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        Assert.True(Volatile.Read(ref refreshCalls) >= 1);
+        Assert.Equal(0, Volatile.Read(ref httpPollCount));
+
+        await loopCts.CancelAsync();
+        await loopTask;
+    }
+
+    [Fact]
     public async Task BlobUploadAndDownloadSendExpectedHeadersVerifySha256AndHandleUniform404()
     {
         var ct = TestContext.Current.CancellationToken;

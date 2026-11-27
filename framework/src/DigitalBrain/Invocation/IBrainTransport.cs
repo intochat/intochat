@@ -1,5 +1,8 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Access;
 
 namespace DigitalBrain.Invocation;
@@ -20,6 +23,184 @@ public interface IBrainTransport
     Task PostRemoteAsync(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Cryptographically signed provenance attesting that <see cref="Via"/> in <see cref="SenderBrain"/>
+/// initiated a cross-brain relay call to <see cref="Target"/> on behalf of <see cref="CallerAccount"/>.
+/// Carried strictly inside the E2EE <see cref="RemoteInvocationRequest"/> ciphertext (zero plaintext relay headers).
+/// </summary>
+public sealed record RemoteViaProvenance(
+    NeuronId Via,
+    BrainId SenderBrain,
+    NeuronId Target,
+    string CallerAccount,
+    DateTimeOffset IssuedAtUtc,
+    DateTimeOffset ExpiresAtUtc,
+    byte[] Signature);
+
+/// <summary>
+/// Signs and verifies <see cref="RemoteViaProvenance"/> attestations with NIST P-256 ECDSA over a length-prefixed
+/// domain-separated canonical layout bound to sender brain, Via neuron, target neuron, caller account, and expiry.
+/// </summary>
+public static class RemoteViaProvenanceSigner
+{
+    /// <summary>Maximum permitted lifetime for a signed <see cref="RemoteViaProvenance"/> attestation (10 minutes).</summary>
+    public static readonly TimeSpan MaxLifetime = TimeSpan.FromMinutes(10);
+
+    private static ReadOnlySpan<byte> DomainSeparator => "DigitalBrain.RemoteViaProvenance.v1"u8;
+
+    /// <summary>Signs a <see cref="RemoteViaProvenance"/> using an in-memory <see cref="BrainKeyPair"/>.</summary>
+    public static RemoteViaProvenance Sign(
+        NeuronId via,
+        BrainId senderBrain,
+        NeuronId target,
+        string callerAccount,
+        DateTimeOffset issuedAtUtc,
+        DateTimeOffset expiresAtUtc,
+        BrainKeyPair keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        ValidateSignArgs(via, senderBrain, callerAccount, issuedAtUtc, expiresAtUtc);
+        var canonical = BuildCanonicalBytes(via, senderBrain, target, callerAccount, issuedAtUtc, expiresAtUtc);
+        var signature = keys.SigningKey.SignData(canonical, HashAlgorithmName.SHA256);
+        return new RemoteViaProvenance(via, senderBrain, target, callerAccount, issuedAtUtc.ToUniversalTime(), expiresAtUtc.ToUniversalTime(), signature);
+    }
+
+    /// <summary>Signs a <see cref="RemoteViaProvenance"/> inside the non-exportable <see cref="IBrainKeySigner"/> boundary.</summary>
+    public static async ValueTask<RemoteViaProvenance> SignAsync(
+        NeuronId via,
+        BrainId senderBrain,
+        NeuronId target,
+        string callerAccount,
+        DateTimeOffset issuedAtUtc,
+        DateTimeOffset expiresAtUtc,
+        IBrainKeySigner signer,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(signer);
+        ValidateSignArgs(via, senderBrain, callerAccount, issuedAtUtc, expiresAtUtc);
+        var canonical = BuildCanonicalBytes(via, senderBrain, target, callerAccount, issuedAtUtc, expiresAtUtc);
+        var signature = await signer.SignDataAsync(senderBrain, canonical, ct).ConfigureAwait(false);
+        return new RemoteViaProvenance(via, senderBrain, target, callerAccount, issuedAtUtc.ToUniversalTime(), expiresAtUtc.ToUniversalTime(), signature);
+    }
+
+    /// <summary>
+    /// Verifies that <paramref name="provenance"/> is cryptographically valid under <paramref name="expectedSenderPublicKeys"/>,
+    /// bound to <paramref name="expectedSenderBrain"/>, <paramref name="expectedTarget"/>, and <paramref name="expectedCallerAccount"/>,
+    /// has <see cref="RemoteViaProvenance.Via"/> hosted in <paramref name="expectedSenderBrain"/>, and is within its freshness window.
+    /// </summary>
+    public static bool Verify(
+        RemoteViaProvenance? provenance,
+        BrainId expectedSenderBrain,
+        NeuronId expectedTarget,
+        string expectedCallerAccount,
+        BrainPublicKeys expectedSenderPublicKeys,
+        DateTimeOffset nowUtc,
+        TimeSpan maxClockSkew)
+    {
+        if (provenance is null
+            || expectedSenderPublicKeys is null
+            || string.IsNullOrWhiteSpace(expectedSenderBrain.Value)
+            || string.IsNullOrWhiteSpace(expectedCallerAccount)
+            || provenance.SenderBrain != expectedSenderBrain
+            || provenance.Via.Brain != expectedSenderBrain
+            || string.IsNullOrWhiteSpace(provenance.Via.Type)
+            || string.IsNullOrWhiteSpace(provenance.Via.Key)
+            || provenance.Target != expectedTarget
+            || !string.Equals(provenance.CallerAccount, expectedCallerAccount, StringComparison.Ordinal)
+            || provenance.Signature is not { Length: > 0 })
+        {
+            return false;
+        }
+
+        var issued = provenance.IssuedAtUtc.ToUniversalTime();
+        var expires = provenance.ExpiresAtUtc.ToUniversalTime();
+        var now = nowUtc.ToUniversalTime();
+        var lifetime = expires - issued;
+        if (lifetime <= TimeSpan.Zero || lifetime > MaxLifetime)
+        {
+            return false;
+        }
+
+        if (expires <= now || issued > now + maxClockSkew)
+        {
+            return false;
+        }
+
+        try
+        {
+            BrainPublicKeyValidation.ValidateNistP256SigningKey(expectedSenderPublicKeys.SigningKey);
+            var canonical = BuildCanonicalBytes(provenance.Via, provenance.SenderBrain, provenance.Target, provenance.CallerAccount, issued, expires);
+            using var verifier = ECDsa.Create();
+            verifier.ImportSubjectPublicKeyInfo(expectedSenderPublicKeys.SigningKey, out _);
+            return verifier.VerifyData(canonical, provenance.Signature, HashAlgorithmName.SHA256);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    private static void ValidateSignArgs(
+        NeuronId via,
+        BrainId senderBrain,
+        string callerAccount,
+        DateTimeOffset issuedAtUtc,
+        DateTimeOffset expiresAtUtc)
+    {
+        if (via.Brain != senderBrain)
+        {
+            throw new UnauthorizedAccessException($"Cannot attest Via neuron '{via}' outside sender brain '{senderBrain.Value}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(via.Type) || string.IsNullOrWhiteSpace(via.Key))
+        {
+            throw new ArgumentException("Via neuron must have a non-empty type and key.", nameof(via));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(callerAccount);
+
+        var lifetime = expiresAtUtc - issuedAtUtc;
+        if (lifetime <= TimeSpan.Zero || lifetime > MaxLifetime)
+        {
+            throw new ArgumentOutOfRangeException(nameof(expiresAtUtc), $"Via provenance lifetime must be between 1 tick and {MaxLifetime}.");
+        }
+    }
+
+    private static byte[] BuildCanonicalBytes(
+        NeuronId via,
+        BrainId senderBrain,
+        NeuronId target,
+        string callerAccount,
+        DateTimeOffset issuedAtUtc,
+        DateTimeOffset expiresAtUtc)
+    {
+        var viaBytes = Encoding.UTF8.GetBytes(via.ToString());
+        var senderBytes = Encoding.UTF8.GetBytes(senderBrain.Value ?? string.Empty);
+        var targetBytes = Encoding.UTF8.GetBytes(target.ToString());
+        var accountBytes = Encoding.UTF8.GetBytes(callerAccount);
+
+        var total =
+            4 + DomainSeparator.Length +
+            4 + viaBytes.Length +
+            4 + senderBytes.Length +
+            4 + targetBytes.Length +
+            4 + accountBytes.Length +
+            8 + 8;
+
+        var buffer = new byte[total];
+        var offset = 0;
+        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, DomainSeparator);
+        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, viaBytes);
+        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, senderBytes);
+        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, targetBytes);
+        BrainEnvelopeSealer.WriteLengthPrefixed(buffer, ref offset, accountBytes);
+        BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(offset, 8), issuedAtUtc.ToUniversalTime().ToUnixTimeMilliseconds());
+        offset += 8;
+        BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(offset, 8), expiresAtUtc.ToUniversalTime().ToUnixTimeMilliseconds());
+        return buffer;
+    }
+}
+
 /// <summary>Wire payload sealed inside a request <see cref="BrainEnvelope"/>.</summary>
 public sealed record RemoteInvocationRequest(
     NeuronId Target,
@@ -27,7 +208,8 @@ public sealed record RemoteInvocationRequest(
     string CallerAccount,
     string CallerPrincipal,
     BrainId CallerBrain,
-    bool OneWay = false);
+    bool OneWay = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RemoteViaProvenance? ViaProvenance = null);
 
 /// <summary>Wire payload sealed inside a reply <see cref="BrainEnvelope"/>.</summary>
 public sealed record RemoteInvocationResponse(
@@ -54,6 +236,7 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
     private readonly TimeProvider _clock;
     private readonly TimeSpan _maxClockSkew;
     private readonly BrainEnvelopeReplayCache _replayCache;
+    private readonly Func<NeuronId, RuntimeInvocation, Caller, bool>? _includeSenderPublicKeys;
 
     /// <summary>Creates a sealed relay transport for <paramref name="localBrain"/> using an in-memory <see cref="BrainKeyPair"/>.</summary>
     public SealedRelayBrainTransport(
@@ -66,7 +249,8 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         TimeProvider? clock = null,
         TimeSpan? maxClockSkew = null,
         Func<BrainEnvelope, CancellationToken, Task>? postRelay = null,
-        BrainEnvelopeReplayCache? replayCache = null)
+        BrainEnvelopeReplayCache? replayCache = null,
+        Func<NeuronId, RuntimeInvocation, Caller, bool>? includeSenderPublicKeys = null)
         : this(
             new BrainKeyPairSigner(localKeys),
             (brain, _) => ValueTask.FromResult(keyLookup(brain)),
@@ -77,7 +261,8 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
             localBrain: localBrain,
             timeProvider: clock,
             maxClockSkew: maxClockSkew,
-            replayCache: replayCache)
+            replayCache: replayCache,
+            includeSenderPublicKeys: includeSenderPublicKeys)
     {
         ArgumentNullException.ThrowIfNull(keyLookup);
     }
@@ -96,7 +281,8 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         BrainId? localBrain = null,
         TimeProvider? timeProvider = null,
         TimeSpan? maxClockSkew = null,
-        BrainEnvelopeReplayCache? replayCache = null)
+        BrainEnvelopeReplayCache? replayCache = null,
+        Func<NeuronId, RuntimeInvocation, Caller, bool>? includeSenderPublicKeys = null)
     {
         ArgumentNullException.ThrowIfNull(signer);
         ArgumentNullException.ThrowIfNull(keyLookup);
@@ -120,6 +306,7 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         _maxClockSkew = skew;
         var retention = skew > TimeSpan.Zero ? skew + skew : TimeSpan.FromMinutes(1);
         _replayCache = replayCache ?? new BrainEnvelopeReplayCache(retentionWindow: retention);
+        _includeSenderPublicKeys = includeSenderPublicKeys;
     }
 
     /// <inheritdoc />
@@ -151,10 +338,30 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         var recipientKeys = await _keyLookup(target.Brain, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"No public keys are known for remote brain '{target.Brain.Value}'.");
 
-        var request = new RemoteInvocationRequest(target, call, person.Account, person.Principal, caller.Brain, oneWay);
+        var sentAtUtc = _clock.GetUtcNow();
+        RemoteViaProvenance? viaProvenance = null;
+        if (caller.Via is { } via)
+        {
+            var viaLifetime = _maxClockSkew > TimeSpan.Zero ? _maxClockSkew : TimeSpan.FromMinutes(1);
+            if (viaLifetime > RemoteViaProvenanceSigner.MaxLifetime)
+            {
+                viaLifetime = RemoteViaProvenanceSigner.MaxLifetime;
+            }
+
+            viaProvenance = await RemoteViaProvenanceSigner.SignAsync(
+                via,
+                senderBrain,
+                target,
+                person.Account,
+                sentAtUtc,
+                sentAtUtc + viaLifetime,
+                _signer,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var request = new RemoteInvocationRequest(target, call, person.Account, person.Principal, caller.Brain, oneWay, viaProvenance);
         var plaintext = JsonSerializer.SerializeToUtf8Bytes(request, RuntimeProtocol.Json);
         var messageId = Guid.NewGuid().ToString("N");
-        var sentAtUtc = _clock.GetUtcNow();
 
         var requestEnvelope = await BrainEnvelopeSealer.SealAsync(
             senderBrain,
@@ -166,6 +373,12 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
             sentAtUtc: sentAtUtc,
             oneWay: oneWay,
             ct: cancellationToken).ConfigureAwait(false);
+
+        if (_includeSenderPublicKeys is not null && _includeSenderPublicKeys(target, call, caller))
+        {
+            var myPublicKeys = await _signer.GetPublicKeysAsync(senderBrain, cancellationToken).ConfigureAwait(false);
+            requestEnvelope = requestEnvelope with { SenderPublicKeys = myPublicKeys };
+        }
 
         if (oneWay && _postRelay is not null)
         {
@@ -254,6 +467,8 @@ public sealed class BrainEnvelopeReceiver
     private readonly TimeSpan _maxClockSkew;
     private readonly BrainEnvelopeReplayCache _replayCache;
     private readonly Func<BrainId, BrainId, string, CancellationToken, ValueTask<bool>>? _verifyCallerAccount;
+    private readonly Func<BrainId, BrainId, RemoteViaProvenance, RuntimeInvocation, CancellationToken, ValueTask<bool>>? _verifyViaOffer;
+    private readonly Func<BrainEnvelope, RemoteInvocationRequest, BrainPublicKeys, bool>? _allowUnpinnedHandshake;
 
     /// <summary>Creates a receiver for <paramref name="localBrain"/> using an in-memory <see cref="BrainKeyPair"/>.</summary>
     public BrainEnvelopeReceiver(
@@ -266,7 +481,9 @@ public sealed class BrainEnvelopeReceiver
         TimeProvider? clock = null,
         TimeSpan? maxClockSkew = null,
         Func<BrainId, string, CancellationToken, ValueTask<bool>>? verifyCallerAccount = null,
-        BrainEnvelopeReplayCache? replayCache = null)
+        BrainEnvelopeReplayCache? replayCache = null,
+        Func<BrainId, BrainId, RemoteViaProvenance, RuntimeInvocation, CancellationToken, ValueTask<bool>>? verifyViaOffer = null,
+        Func<BrainEnvelope, RemoteInvocationRequest, BrainPublicKeys, bool>? allowUnpinnedHandshake = null)
         : this(
             brain => brain == localBrain,
             new BrainKeyPairSigner(localKeys),
@@ -279,7 +496,9 @@ public sealed class BrainEnvelopeReceiver
             scopedVerifyCallerAccount: verifyCallerAccount is not null
                 ? (_, sender, account, ct) => verifyCallerAccount(sender, account, ct)
                 : null,
-            replayCache: replayCache)
+            replayCache: replayCache,
+            verifyViaOffer: verifyViaOffer,
+            allowUnpinnedHandshake: allowUnpinnedHandshake)
     {
         ArgumentNullException.ThrowIfNull(keyLookup);
     }
@@ -295,7 +514,9 @@ public sealed class BrainEnvelopeReceiver
         TimeProvider? timeProvider = null,
         TimeSpan? maxClockSkew = null,
         Func<BrainId, string, CancellationToken, ValueTask<bool>>? verifyCallerAccount = null,
-        BrainEnvelopeReplayCache? replayCache = null)
+        BrainEnvelopeReplayCache? replayCache = null,
+        Func<BrainId, BrainId, RemoteViaProvenance, RuntimeInvocation, CancellationToken, ValueTask<bool>>? verifyViaOffer = null,
+        Func<BrainEnvelope, RemoteInvocationRequest, BrainPublicKeys, bool>? allowUnpinnedHandshake = null)
         : this(
             isLocalBrain,
             signer,
@@ -308,7 +529,9 @@ public sealed class BrainEnvelopeReceiver
             scopedVerifyCallerAccount: verifyCallerAccount is not null
                 ? (_, sender, account, ct) => verifyCallerAccount(sender, account, ct)
                 : null,
-            replayCache: replayCache)
+            replayCache: replayCache,
+            verifyViaOffer: verifyViaOffer,
+            allowUnpinnedHandshake: allowUnpinnedHandshake)
     {
         ArgumentNullException.ThrowIfNull(keyLookup);
     }
@@ -328,7 +551,9 @@ public sealed class BrainEnvelopeReceiver
         TimeProvider? timeProvider = null,
         TimeSpan? maxClockSkew = null,
         Func<BrainId, BrainId, string, CancellationToken, ValueTask<bool>>? scopedVerifyCallerAccount = null,
-        BrainEnvelopeReplayCache? replayCache = null)
+        BrainEnvelopeReplayCache? replayCache = null,
+        Func<BrainId, BrainId, RemoteViaProvenance, RuntimeInvocation, CancellationToken, ValueTask<bool>>? verifyViaOffer = null,
+        Func<BrainEnvelope, RemoteInvocationRequest, BrainPublicKeys, bool>? allowUnpinnedHandshake = null)
     {
         ArgumentNullException.ThrowIfNull(isLocalBrain);
         ArgumentNullException.ThrowIfNull(signer);
@@ -351,6 +576,8 @@ public sealed class BrainEnvelopeReceiver
         _clock = timeProvider ?? TimeProvider.System;
         _maxClockSkew = skew;
         _verifyCallerAccount = scopedVerifyCallerAccount;
+        _verifyViaOffer = verifyViaOffer;
+        _allowUnpinnedHandshake = allowUnpinnedHandshake;
         var retention = skew > TimeSpan.Zero ? skew + skew : TimeSpan.FromMinutes(1);
         _replayCache = replayCache ?? new BrainEnvelopeReplayCache(retentionWindow: retention);
     }
@@ -378,8 +605,23 @@ public sealed class BrainEnvelopeReceiver
         var now = _clock.GetUtcNow();
         SealedRelayBrainTransport.ValidateFreshnessAndReplayPrecheck(envelope, now, _maxClockSkew, _replayCache);
 
-        var senderKeys = await _keyLookup(envelope.To, envelope.From, cancellationToken).ConfigureAwait(false)
-            ?? throw new CryptographicException($"No public keys are known for sender brain '{envelope.From.Value}'.");
+        var pinnedSenderKeys = await _keyLookup(envelope.To, envelope.From, cancellationToken).ConfigureAwait(false);
+        var isUnpinnedHandshake = false;
+        BrainPublicKeys senderKeys;
+        if (pinnedSenderKeys is not null)
+        {
+            senderKeys = pinnedSenderKeys;
+        }
+        else if (_allowUnpinnedHandshake is not null && envelope.SenderPublicKeys is { } candidateKeys)
+        {
+            BrainPublicKeyValidation.ValidateNistP256(candidateKeys);
+            senderKeys = candidateKeys;
+            isUnpinnedHandshake = true;
+        }
+        else
+        {
+            throw new CryptographicException($"No public keys are known for sender brain '{envelope.From.Value}'.");
+        }
 
         var plaintext = await BrainEnvelopeSealer.OpenAsync(envelope, _signer, senderKeys, cancellationToken).ConfigureAwait(false);
         if (!_replayCache.TryAccept(envelope.From, envelope.MessageId, now))
@@ -389,6 +631,11 @@ public sealed class BrainEnvelopeReceiver
 
         var request = JsonSerializer.Deserialize<RemoteInvocationRequest>(plaintext, RuntimeProtocol.Json)
             ?? throw new InvalidDataException("Remote invocation payload was null.");
+
+        if (isUnpinnedHandshake && !_allowUnpinnedHandshake!(envelope, request, senderKeys))
+        {
+            throw new CryptographicException($"Unpinned sender brain '{envelope.From.Value}' is not permitted to invoke '{request.Target}.{request.Call.Method}'.");
+        }
 
         RemoteInvocationResponse response;
         if (request.CallerBrain != envelope.From || request.Target.Brain != envelope.To)
@@ -403,15 +650,37 @@ public sealed class BrainEnvelopeReceiver
                 ErrorType: nameof(UnauthorizedAccessException),
                 ErrorMessage: "Remote invocation caller account and principal must be non-empty.");
         }
-        else if (_verifyCallerAccount is not null && !await _verifyCallerAccount(envelope.To, envelope.From, request.CallerAccount, cancellationToken).ConfigureAwait(false))
+        else if (!isUnpinnedHandshake
+            && _verifyCallerAccount is not null
+            && !await _verifyCallerAccount(envelope.To, envelope.From, request.CallerAccount, cancellationToken).ConfigureAwait(false))
         {
             response = new RemoteInvocationResponse(
                 ErrorType: nameof(UnauthorizedAccessException),
                 ErrorMessage: $"Caller account '{request.CallerAccount}' is not authorized for sender brain '{envelope.From.Value}'.");
         }
+        else if (request.ViaProvenance is { } viaProof
+            && !RemoteViaProvenanceSigner.Verify(viaProof, envelope.From, request.Target, request.CallerAccount, senderKeys, now, _maxClockSkew))
+        {
+            response = new RemoteInvocationResponse(
+                ErrorType: nameof(UnauthorizedAccessException),
+                ErrorMessage: "Remote invocation Via provenance failed cryptographic verification, binding, or freshness checks.");
+        }
+        else if (request.ViaProvenance is { } verifiedViaProof
+            && _verifyViaOffer is not null
+            && !await _verifyViaOffer(envelope.To, envelope.From, verifiedViaProof, request.Call, cancellationToken).ConfigureAwait(false))
+        {
+            response = new RemoteInvocationResponse(
+                ErrorType: nameof(UnauthorizedAccessException),
+                ErrorMessage: "Remote invocation Via provenance was refused by offer policy.");
+        }
         else
         {
-            using var _ = _edge.Enter(_edge.Person(request.CallerPrincipal, request.CallerAccount, envelope.From));
+            var verifiedCaller = _edge.VerifiedRemotePerson(
+                request.CallerPrincipal,
+                request.CallerAccount,
+                envelope.From,
+                via: request.ViaProvenance?.Via);
+            using var _ = _edge.Enter(verifiedCaller);
             try
             {
                 if ((request.OneWay || envelope.OneWay) && _post is not null)
