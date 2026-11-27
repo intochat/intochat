@@ -53,10 +53,14 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     };
 
     private readonly ConcurrentDictionary<string, DeployedAppEntry> _deployments = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, string> _remoteCallbackUrls = new(StringComparer.Ordinal);
+    private readonly Lock _remoteCallbackLock = new();
+    private readonly Dictionary<string, List<RemoteCallbackRegistration>> _remoteCallbacks = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _unitHostLock = new(1, 1);
+    private HttpClient? _remoteCallbackClient;
     private UnitHostChildSession? _unitHost;
     private int _disposed;
+
+    private sealed record RemoteCallbackRegistration(Guid Id, string? CanonicalOrigin, string? RejectionReason);
 
     internal ConfinementMode? ActiveUnitHostConfinementMode => _unitHost?.EffectiveMode;
 
@@ -248,12 +252,28 @@ internal sealed partial class HttpSandboxRuntimeBridge(
 
         var machineId = services.GetService<MachineId>()?.Value;
         var deploymentKey = DeploymentKey(request.BrainId, request.AppKey);
-        var hasRemoteHttpCallback = !string.IsNullOrWhiteSpace(request.KernelCallbackUrl)
-            && Uri.TryCreate(request.KernelCallbackUrl, UriKind.Absolute, out var callbackUri)
-            && (callbackUri.Scheme == Uri.UriSchemeHttp || callbackUri.Scheme == Uri.UriSchemeHttps);
-        if (hasRemoteHttpCallback)
+        Guid? remoteCallbackRegistrationId = null;
+        if (!string.IsNullOrWhiteSpace(request.KernelCallbackUrl)
+            && !request.KernelCallbackUrl.TrimStart().StartsWith("pipe://", StringComparison.OrdinalIgnoreCase))
         {
-            _remoteCallbackUrls[deploymentKey] = request.KernelCallbackUrl!.TrimEnd('/');
+            if (SandboxCallbackUrlPolicy.TryValidateAndNormalize(
+                request.KernelCallbackUrl,
+                options.Value.AllowLoopbackKernelCallback,
+                out var canonicalOrigin,
+                out var rejectionReason))
+            {
+                remoteCallbackRegistrationId = RegisterRemoteCallback(deploymentKey, canonicalOrigin, rejectionReason: null);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Rejected remote KernelCallbackUrl for connected sandbox job '{JobId}' ({BrainId}/{AppKey}): {Reason}",
+                    request.JobId,
+                    request.BrainId,
+                    request.AppKey,
+                    rejectionReason);
+                remoteCallbackRegistrationId = RegisterRemoteCallback(deploymentKey, canonicalOrigin: null, rejectionReason: rejectionReason ?? "Rejected KernelCallbackUrl.");
+            }
         }
 
         // Always route callbacks from the confined --unit-host child over its stdio pipe so the
@@ -344,9 +364,9 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         }
         finally
         {
-            if (hasRemoteHttpCallback)
+            if (remoteCallbackRegistrationId is { } registrationId)
             {
-                _remoteCallbackUrls.TryRemove(deploymentKey, out _);
+                UnregisterRemoteCallback(deploymentKey, registrationId);
             }
         }
     }
@@ -579,6 +599,8 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         }
         finally
         {
+            var callbackClient = Interlocked.Exchange(ref _remoteCallbackClient, null);
+            callbackClient?.Dispose();
             _unitHostLock.Release();
             _unitHostLock.Dispose();
         }
@@ -737,9 +759,29 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         var kind = frame.CallbackKind ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(frame.BrainId)
             && !string.IsNullOrWhiteSpace(frame.AppKey)
-            && _remoteCallbackUrls.TryGetValue(DeploymentKey(frame.BrainId, frame.AppKey), out var remoteBaseUrl))
+            && TryGetActiveRemoteCallback(DeploymentKey(frame.BrainId, frame.AppKey), out var registration))
         {
-            return await ForwardPipeCallbackToRemoteEdgeAsync(remoteBaseUrl, kind, frame, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(registration.CanonicalOrigin))
+            {
+                var reason = registration.RejectionReason ?? "Remote KernelCallbackUrl was rejected by SSRF policy.";
+                logger.LogWarning(
+                    "Blocked sandbox callback '{CallbackKind}' for '{BrainId}/{AppKey}': {Reason}",
+                    kind,
+                    frame.BrainId,
+                    frame.AppKey,
+                    reason);
+                return new UnitHostFrameRequest(
+                    frame.Id,
+                    "callback-reply",
+                    Ok: false,
+                    StatusCode: StatusCodes.Status403Forbidden,
+                    InvokeResult: string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase)
+                        ? new SandboxEdgeEndpoints.EdgeInvokeResponse(null, reason)
+                        : null,
+                    Error: reason);
+            }
+
+            return await ForwardPipeCallbackToRemoteEdgeAsync(registration.CanonicalOrigin, kind, frame, cancellationToken).ConfigureAwait(false);
         }
         if (string.Equals(kind, "log", StringComparison.OrdinalIgnoreCase))
         {
@@ -811,28 +853,114 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         return new UnitHostFrameRequest(frame.Id, "callback-reply", Ok: false, StatusCode: StatusCodes.Status404NotFound, Error: $"Unsupported callback '{kind}'.");
     }
 
+    internal Guid RegisterRemoteCallback(string deploymentKey, string? canonicalOrigin, string? rejectionReason)
+    {
+        var id = Guid.NewGuid();
+        var registration = new RemoteCallbackRegistration(id, canonicalOrigin, rejectionReason);
+        lock (_remoteCallbackLock)
+        {
+            if (!_remoteCallbacks.TryGetValue(deploymentKey, out var list))
+            {
+                list = [];
+                _remoteCallbacks[deploymentKey] = list;
+            }
+
+            list.Add(registration);
+        }
+
+        return id;
+    }
+
+    internal void UnregisterRemoteCallback(string deploymentKey, Guid registrationId)
+    {
+        lock (_remoteCallbackLock)
+        {
+            if (!_remoteCallbacks.TryGetValue(deploymentKey, out var list))
+            {
+                return;
+            }
+
+            for (var i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i].Id == registrationId)
+                {
+                    list.RemoveAt(i);
+                    break;
+                }
+            }
+
+            if (list.Count == 0)
+            {
+                _remoteCallbacks.Remove(deploymentKey);
+            }
+        }
+    }
+
+    internal bool TryGetActiveRemoteCallback(string deploymentKey, out (string? CanonicalOrigin, string? RejectionReason) active)
+    {
+        lock (_remoteCallbackLock)
+        {
+            if (_remoteCallbacks.TryGetValue(deploymentKey, out var list) && list.Count > 0)
+            {
+                var latest = list[^1];
+                active = (latest.CanonicalOrigin, latest.RejectionReason);
+                return true;
+            }
+        }
+
+        active = default;
+        return false;
+    }
+
+    private HttpClient GetOrCreateRemoteCallbackClient()
+    {
+        var existing = Volatile.Read(ref _remoteCallbackClient);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var created = new HttpClient(
+            SandboxCallbackUrlPolicy.CreateRemoteCallbackHandler(options.Value.AllowLoopbackKernelCallback),
+            disposeHandler: true);
+        var prior = Interlocked.CompareExchange(ref _remoteCallbackClient, created, null);
+        if (prior is not null)
+        {
+            created.Dispose();
+            return prior;
+        }
+
+        return created;
+    }
+
     private async Task<UnitHostFrameRequest> ForwardPipeCallbackToRemoteEdgeAsync(
-        string remoteBaseUrl,
+        string remoteCanonicalOrigin,
         string kind,
         UnitHostFrameResponse frame,
         CancellationToken cancellationToken)
     {
         string path;
-        object? payload;
+        HttpContent? content;
         if (string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase))
         {
             path = "/edge/sandbox/invoke";
-            payload = frame.Invoke;
+            content = frame.Invoke is not null
+                ? JsonContent.Create(frame.Invoke, SandboxEdgeJsonContext.Default.EdgeInvokeRequest)
+                : null;
         }
         else if (string.Equals(kind, "signal", StringComparison.OrdinalIgnoreCase))
         {
             path = "/edge/sandbox/signals";
-            payload = frame.Signal;
+            content = frame.Signal is not null
+                ? JsonContent.Create(frame.Signal, SandboxEdgeJsonContext.Default.EdgeSignalRequest)
+                : null;
         }
         else if (string.Equals(kind, "log", StringComparison.OrdinalIgnoreCase))
         {
             path = "/edge/sandbox/logs";
-            payload = frame.Log;
+            content = frame.Log is not null
+                ? JsonContent.Create(frame.Log, SandboxEdgeJsonContext.Default.EdgeLogRequest)
+                : null;
         }
         else
         {
@@ -844,7 +972,7 @@ internal sealed partial class HttpSandboxRuntimeBridge(
                 Error: $"Unsupported callback '{kind}'.");
         }
 
-        if (payload is null)
+        if (content is null)
         {
             return new UnitHostFrameRequest(
                 frame.Id,
@@ -854,11 +982,36 @@ internal sealed partial class HttpSandboxRuntimeBridge(
                 Error: $"Callback '{kind}' payload is required.");
         }
 
-        var endpoint = new Uri(remoteBaseUrl.TrimEnd('/') + path, UriKind.Absolute);
-        var client = httpClientFactory.CreateClient("SandboxWorker");
+        if (!SandboxCallbackUrlPolicy.TryValidateAndNormalize(
+            remoteCanonicalOrigin,
+            options.Value.AllowLoopbackKernelCallback,
+            out var verifiedOrigin,
+            out var rejectionReason))
+        {
+            content.Dispose();
+            var reason = rejectionReason ?? "Remote KernelCallbackUrl rejected by SSRF policy.";
+            logger.LogWarning(
+                "Blocked sandbox callback '{CallbackKind}' for '{BrainId}/{AppKey}': {Reason}",
+                kind,
+                frame.BrainId,
+                frame.AppKey,
+                reason);
+            return new UnitHostFrameRequest(
+                frame.Id,
+                "callback-reply",
+                Ok: false,
+                StatusCode: StatusCodes.Status403Forbidden,
+                InvokeResult: string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase)
+                    ? new SandboxEdgeEndpoints.EdgeInvokeResponse(null, reason)
+                    : null,
+                Error: reason);
+        }
+
+        var endpoint = new Uri(verifiedOrigin + path, UriKind.Absolute);
+        var client = GetOrCreateRemoteCallbackClient();
         using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
-            Content = JsonContent.Create(payload, options: JsonSerializerOptions.Web),
+            Content = content,
         };
         if (!string.IsNullOrWhiteSpace(frame.AppToken))
         {
@@ -875,44 +1028,73 @@ internal sealed partial class HttpSandboxRuntimeBridge(
             message.Headers.TryAddWithoutValidation("X-App-Key", frame.AppKey);
         }
 
-        using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
-        var statusCode = (int)response.StatusCode;
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        if (string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase))
+        HttpResponseMessage response;
+        try
         {
-            SandboxEdgeEndpoints.EdgeInvokeResponse? invokeResult = null;
-            if (!string.IsNullOrWhiteSpace(body))
-            {
-                try
-                {
-                    invokeResult = JsonSerializer.Deserialize<SandboxEdgeEndpoints.EdgeInvokeResponse>(body, JsonSerializerOptions.Web);
-                }
-                catch (JsonException)
-                {
-                    invokeResult = new SandboxEdgeEndpoints.EdgeInvokeResponse(null, body);
-                }
-            }
+            response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is DigitalBrain.Capabilities.Http.HostNotAllowedException
+            || ex is HttpRequestException { InnerException: DigitalBrain.Capabilities.Http.HostNotAllowedException })
+        {
+            var blocked = ex as DigitalBrain.Capabilities.Http.HostNotAllowedException
+                ?? (DigitalBrain.Capabilities.Http.HostNotAllowedException)ex.InnerException!;
+            logger.LogWarning(
+                blocked,
+                "Blocked sandbox callback '{CallbackKind}' for '{BrainId}/{AppKey}' at DNS/connect vetting.",
+                kind,
+                frame.BrainId,
+                frame.AppKey);
+            return new UnitHostFrameRequest(
+                frame.Id,
+                "callback-reply",
+                Ok: false,
+                StatusCode: StatusCodes.Status403Forbidden,
+                InvokeResult: string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase)
+                    ? new SandboxEdgeEndpoints.EdgeInvokeResponse(null, blocked.Message)
+                    : null,
+                Error: blocked.Message);
+        }
 
-            invokeResult ??= new SandboxEdgeEndpoints.EdgeInvokeResponse(
-                null,
-                response.IsSuccessStatusCode ? null : $"Remote edge returned HTTP {statusCode}.");
+        using (response)
+        {
+            var statusCode = (int)response.StatusCode;
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase))
+            {
+                SandboxEdgeEndpoints.EdgeInvokeResponse? invokeResult = null;
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    try
+                    {
+                        invokeResult = JsonSerializer.Deserialize(body, SandboxEdgeJsonContext.Default.EdgeInvokeResponse);
+                    }
+                    catch (JsonException)
+                    {
+                        invokeResult = new SandboxEdgeEndpoints.EdgeInvokeResponse(null, body);
+                    }
+                }
+
+                invokeResult ??= new SandboxEdgeEndpoints.EdgeInvokeResponse(
+                    null,
+                    response.IsSuccessStatusCode ? null : $"Remote edge returned HTTP {statusCode}.");
+
+                return new UnitHostFrameRequest(
+                    frame.Id,
+                    "callback-reply",
+                    Ok: response.IsSuccessStatusCode,
+                    StatusCode: statusCode,
+                    InvokeResult: invokeResult,
+                    Error: response.IsSuccessStatusCode ? null : invokeResult.Error);
+            }
 
             return new UnitHostFrameRequest(
                 frame.Id,
                 "callback-reply",
                 Ok: response.IsSuccessStatusCode,
                 StatusCode: statusCode,
-                InvokeResult: invokeResult,
-                Error: response.IsSuccessStatusCode ? null : invokeResult.Error);
+                Error: response.IsSuccessStatusCode ? null : (string.IsNullOrWhiteSpace(body) ? $"Remote edge returned HTTP {statusCode}." : body));
         }
-
-        return new UnitHostFrameRequest(
-            frame.Id,
-            "callback-reply",
-            Ok: response.IsSuccessStatusCode,
-            StatusCode: statusCode,
-            Error: response.IsSuccessStatusCode ? null : (string.IsNullOrWhiteSpace(body) ? $"Remote edge returned HTTP {statusCode}." : body));
     }
 
     internal string? ResolveKernelCallbackUrl()

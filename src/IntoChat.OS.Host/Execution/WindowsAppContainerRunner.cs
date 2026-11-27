@@ -366,7 +366,7 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             // Paper 19 invariant: always terminate & drain the entire Job Object BEFORE revoking any temporary ACLs.
             TerminateAndDrainJob(job, iocp);
 
-            _ = Native.GetExitCodeProcess(processHandle.DangerousGetHandle(), out var rawExitCode);
+            _ = Native.GetExitCodeProcess(processHandle, out var rawExitCode);
 
             var stdout = await stdoutTask.ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
@@ -1102,6 +1102,7 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         private readonly WindowsAppContainerRunner _owner;
         private readonly SafeProcessHandle _processHandle;
         private readonly List<(string Folder, SecurityIdentifier Sid)> _grantedWorkDirs;
+        private readonly Lock _jobLock = new();
         private IntPtr _job;
         private IntPtr _iocp;
         private int _disposed;
@@ -1153,7 +1154,14 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
                     return true;
                 }
 
-                return Native.WaitForSingleObject(_processHandle.DangerousGetHandle(), 0) == Native.WAIT_OBJECT_0;
+                try
+                {
+                    return Native.WaitForSingleObject(_processHandle, 0) == Native.WAIT_OBJECT_0;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return true;
+                }
             }
         }
 
@@ -1166,16 +1174,26 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
                     return -1;
                 }
 
-                return Native.GetExitCodeProcess(_processHandle.DangerousGetHandle(), out var raw)
-                    ? unchecked((int)raw)
-                    : -1;
+                try
+                {
+                    return Native.GetExitCodeProcess(_processHandle, out var raw)
+                        ? unchecked((int)raw)
+                        : -1;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return -1;
+                }
             }
         }
 
         internal WindowsJobLimitSummary QueryJobLimits()
         {
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0 || _job == IntPtr.Zero, this);
-            return WindowsAppContainerRunner.QueryJobLimits(_job);
+            lock (_jobLock)
+            {
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0 || _job == IntPtr.Zero, this);
+                return WindowsAppContainerRunner.QueryJobLimits(_job);
+            }
         }
 
         public override Task WaitForExitAsync(CancellationToken cancellationToken = default)
@@ -1190,12 +1208,15 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
 
         public override void Kill()
         {
-            if (Volatile.Read(ref _disposed) != 0)
+            lock (_jobLock)
             {
-                return;
-            }
+                if (Volatile.Read(ref _disposed) != 0 || _job == IntPtr.Zero)
+                {
+                    return;
+                }
 
-            TerminateAndDrainJob(_job, _iocp);
+                TerminateAndDrainJob(_job, _iocp);
+            }
         }
 
         public override ValueTask DisposeAsync()
@@ -1209,12 +1230,18 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             TryDisposeStream(StandardOutput, "StandardOutput");
             TryDisposeStream(StandardError, "StandardError");
 
-            var job = Interlocked.Exchange(ref _job, IntPtr.Zero);
-            var iocp = Interlocked.Exchange(ref _iocp, IntPtr.Zero);
+            lock (_jobLock)
+            {
+                var job = _job;
+                var iocp = _iocp;
+                _job = IntPtr.Zero;
+                _iocp = IntPtr.Zero;
 
-            TerminateAndDrainJob(job, iocp);
-            if (job != IntPtr.Zero) { _ = Native.CloseHandle(job); }
-            if (iocp != IntPtr.Zero) { _ = Native.CloseHandle(iocp); }
+                TerminateAndDrainJob(job, iocp);
+                if (job != IntPtr.Zero) { _ = Native.CloseHandle(job); }
+                if (iocp != IntPtr.Zero) { _ = Native.CloseHandle(iocp); }
+            }
+
             _processHandle.Dispose();
 
             _owner.RevokeGrantedAccess(_grantedWorkDirs);

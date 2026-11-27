@@ -11,9 +11,24 @@ public sealed partial class WindowsAppContainerRunner
 {
     private sealed class ProcessWaitHandle : WaitHandle
     {
+        private readonly SafeProcessHandle _processHandle;
+        private bool _addedRef;
+
         public ProcessWaitHandle(SafeProcessHandle processHandle)
         {
+            _processHandle = processHandle;
+            _processHandle.DangerousAddRef(ref _addedRef);
             SafeWaitHandle = new SafeWaitHandle(processHandle.DangerousGetHandle(), ownsHandle: false);
+        }
+
+        protected override void Dispose(bool explicitDisposing)
+        {
+            base.Dispose(explicitDisposing);
+            if (_addedRef)
+            {
+                _addedRef = false;
+                _processHandle.DangerousRelease();
+            }
         }
     }
 
@@ -204,10 +219,10 @@ public sealed partial class WindowsAppContainerRunner
         public static extern bool CloseHandle(IntPtr hObject);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
+        public static extern bool GetExitCodeProcess(SafeProcessHandle hProcess, out uint lpExitCode);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+        public static extern uint WaitForSingleObject(SafeProcessHandle hHandle, uint dwMilliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern IntPtr CreateJobObjectW(IntPtr lpJobAttributes, string? lpName);

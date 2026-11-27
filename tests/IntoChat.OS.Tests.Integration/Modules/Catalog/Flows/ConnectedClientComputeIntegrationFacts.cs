@@ -135,6 +135,7 @@ public sealed class ConnectedClientComputeIntegrationFacts
             {
                 TokenSigningMaterial = "different-client-only-secret",
                 TokenTtlMinutes = 15,
+                AllowLoopbackKernelCallback = true,
             });
             clientServices.AddSingleton(clientSandboxOptions);
             clientServices.AddSingleton<AppTokenService>();
