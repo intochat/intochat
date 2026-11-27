@@ -1,4 +1,6 @@
 using System.Text.Json;
+using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
@@ -10,7 +12,7 @@ namespace DigitalBrain;
 /// A screen: a neuron that holds domain state and renders a declarative UI View. It is read with Read, Open and ReadChild and takes
 /// commands only through Dispatch (and Request): a caller that picks a node by key sends that node's command (<see cref="PublishedViews.CommandAt"/>).
 /// </summary>
-[NeuronAlias("screen")]
+[Shareable, Offered, NeuronAlias("screen")]
 public interface IScreen
 {
     /// <summary>Opens the screen, returning its current published view.</summary>
@@ -19,7 +21,7 @@ public interface IScreen
 
     /// <summary>Reads the current published view of this screen; null if uninitialized or alias mismatches.</summary>
     /// <param name="alias">The view alias (defaults to the screen neuron type).</param>
-    [ReadOnlyCall]
+    [Shared, ReadOnlyCall]
     Task<PublishedView?> Read(string? alias = null);
 
     /// <summary>
@@ -39,6 +41,7 @@ public interface IScreen
     /// </summary>
     /// <exception cref="ActivationRefusedException">The current view names no child with that key (<see cref="ActivationRefusedException.UnknownChild"/>),
     /// or this screen is a child and the caller is not its parent (<c>control.notFromParent</c>).</exception>
+    [Shared]
     Task Dispatch(DigitalBrain.UI.Command command);
 
     /// <summary>

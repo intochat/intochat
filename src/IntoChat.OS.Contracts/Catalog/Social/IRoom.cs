@@ -66,7 +66,7 @@ public interface IRoom
     [Shared]
     Task<PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command, CancellationToken ct = default);
 
-    [Shared]
+    [Shared, ReadOnlyCall]
     Task Here(CancellationToken ct = default);
 
     [Shared]

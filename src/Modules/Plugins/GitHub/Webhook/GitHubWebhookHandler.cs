@@ -13,7 +13,7 @@ internal static class GitHubWebhookHandler
 
         if (eventName == "ping")
         {
-            if (repository.IsPersonalAccessToken)
+            if (repository.IsDirectToken)
             {
                 var pingRepoId = Number(payload, "repository", "id");
                 return pingRepoId is null || pingRepoId == repository.RepositoryId
@@ -25,18 +25,18 @@ internal static class GitHubWebhookHandler
             return appId is null || appId == repository.AppId ? (null, false, null) : (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
 
-        if (!repository.IsPersonalAccessToken && Number(payload, "installation", "id") != repository.InstallationId)
+        if (!repository.IsDirectToken && Number(payload, "installation", "id") != repository.InstallationId)
         {
             return (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
 
         var action = String(payload, "action");
-        if (!repository.IsPersonalAccessToken && eventName == "installation" && action is "deleted" or "suspend")
+        if (!repository.IsDirectToken && eventName == "installation" && action is "deleted" or "suspend")
         {
             return (null, true, null);
         }
 
-        if (!repository.IsPersonalAccessToken && eventName == "installation_repositories")
+        if (!repository.IsDirectToken && eventName == "installation_repositories")
         {
             var removed = payload.TryGetProperty("repositories_removed", out var repositories)
                 && repositories.ValueKind == JsonValueKind.Array

@@ -8,13 +8,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
 import '../design/keys.dart';
+import '../primitives/button.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
-import '../nodes/button.dart';
-import '../nodes/empty_state.dart';
-import '../nodes/error_line.dart';
+import '../nodes/action_nodes.dart';
+import '../nodes/feedback_nodes.dart';
+
 import '../nodes/node_common.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
@@ -1223,13 +1224,14 @@ class _AssistantMessageItem extends StatelessWidget {
                     if (hasModelInfo) const SizedBox(width: 10),
                     keyedControl(
                       retry.key,
-                      Btn(
+                      UiMixButton.preset(
                         label: retry.label,
-                        icon: isRegenerateRetryKey(retry.key)
+                        style: UiMixButtonStyle.secondary,
+                        iconData: isRegenerateRetryKey(retry.key)
                             ? LucideIcons.refreshCw
                             : LucideIcons.rotateCcw,
-                        small: true,
-                        onTap: retry.enabled && ctx.interactive
+                        compact: true,
+                        onPressed: retry.enabled && ctx.interactive
                             ? () => pressCommand(
                                 retry.key,
                                 retry.command,

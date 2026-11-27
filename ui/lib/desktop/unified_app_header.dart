@@ -569,35 +569,37 @@ class AppTestingMenuPopover extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Btn(
+                child: UiMixButton.preset(
                   key: const ValueKey('window-sandbox-reset-btn'),
                   label: 'Reset Sandbox',
-                  small: true,
-                  icon: LucideIcons.rotateCcw,
-                  onTap: onResetSandbox,
+                  style: UiMixButtonStyle.secondary,
+                  compact: true,
+                  iconData: LucideIcons.rotateCcw,
+                  onPressed: onResetSandbox,
                 ),
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Btn(
+                child: UiMixButton.preset(
                   key: const ValueKey('window-sandbox-inspect-btn'),
                   label: '3D Creator',
-                  small: true,
-                  primary: true,
-                  icon: LucideIcons.brainCircuit,
-                  onTap: onInspectSandbox,
+                  style: UiMixButtonStyle.primary,
+                  compact: true,
+                  iconData: LucideIcons.brainCircuit,
+                  onPressed: onInspectSandbox,
                 ),
               ),
             ],
           ),
           if (onOpenAppSettings != null) ...[
             const SizedBox(height: 6),
-            Btn(
+            UiMixButton.preset(
               key: const ValueKey('window-open-app-settings-btn'),
               label: 'App Settings…',
-              small: true,
-              icon: LucideIcons.slidersHorizontal,
-              onTap: onOpenAppSettings,
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              iconData: LucideIcons.slidersHorizontal,
+              onPressed: onOpenAppSettings,
             ),
           ],
         ],

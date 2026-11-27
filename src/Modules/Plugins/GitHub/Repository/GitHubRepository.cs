@@ -21,6 +21,9 @@ internal sealed record GitHubRepository(
 
     [JsonIgnore]
     public bool IsPersonalAccessToken => string.Equals(AuthKind, "pat", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore]
+    public bool IsDirectToken => IsPersonalAccessToken || string.Equals(AuthKind, "user-oauth", StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class GitHubCredentialScope

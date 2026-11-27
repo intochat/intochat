@@ -94,7 +94,7 @@ public sealed record InviteToRoom(string RoomKey = "", string FriendAccount = ""
 public sealed record LeaveRoom(string RoomOwnerBrain = "", string RoomKey = "") : Signal;
 
 [Signal("friends.pin-room-app")]
-public sealed record PinRoomApp(string ScreenType = "social.room-checklist", string ScreenKey = "") : Signal;
+public sealed record PinRoomApp(string ScreenType = "room.checklist", string ScreenKey = "") : Signal;
 
 /// <summary>Keeps what a person types into one Friends field (one of the constants below); the text is the value.</summary>
 [Signal("friends.edit-draft")]
@@ -933,7 +933,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 return State with { Status = "Only the room host can pin mini-apps." };
             }
 
-            var screenType = string.IsNullOrWhiteSpace(request.ScreenType) ? "social.room-checklist" : request.ScreenType.Trim();
+            var screenType = string.IsNullOrWhiteSpace(request.ScreenType) ? "room.checklist" : request.ScreenType.Trim();
             var screenKey = string.IsNullOrWhiteSpace(request.ScreenKey) ? $"{active.RoomKey}-{screenType}" : request.ScreenKey.Trim();
             var room = ResolveRoom(active.OwnerBrain, active.RoomKey, isOwnRoom: true);
             if (room is null)
@@ -1375,7 +1375,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                             Button("Pin Shared Checklist", "check-square")
                                 .Key($"btn:pin-checklist:{room!.RoomKey}")
                                 .Small()
-                                .Sends(Sends(new PinRoomApp("social.room-checklist", $"{room.RoomKey}-checklist"))),
+                                .Sends(Sends(new PinRoomApp("room.checklist", $"{room.RoomKey}-checklist"))),
                             Button("Pin Calculator", "calculator")
                                 .Key($"btn:pin-calculator:{room.RoomKey}")
                                 .Small()

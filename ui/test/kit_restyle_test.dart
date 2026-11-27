@@ -26,7 +26,7 @@ void main() {
       MaterialApp(home: LoginScreen(onSubmit: (_, _) async => null)),
     );
     expect(find.byType(UiKitField), findsNWidgets(2));
-    expect(find.byType(UiKitButton), findsWidgets);
+    expect(find.byType(UiMixButton), findsWidgets);
     for (final key in ['login-username', 'login-password', 'login-submit']) {
       expect(find.byKey(Key(key)), findsOneWidget);
     }

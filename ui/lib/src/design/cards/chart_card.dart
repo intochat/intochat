@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../primitives/button.dart';
 import '../controls.dart';
 import '../keys.dart';
 import '../../theme/ui_colors.dart';
@@ -205,7 +206,12 @@ class _ChartCardState extends State<ChartCard> {
                 ),
               ),
             ),
-            Btn(label: 'Try again', small: true, onTap: widget.onRetry),
+            UiMixButton.preset(
+              label: 'Try again',
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              onPressed: widget.onRetry,
+            ),
           ],
         ),
       ),
@@ -342,31 +348,34 @@ class _ChartCardState extends State<ChartCard> {
                   ),
                 ),
                 if (!_table && widget.onSwitchChartKind != null)
-                  Btn(
+                  UiMixButton.preset(
                     label: _kind == ChartKind.columns ? 'Line' : 'Columns',
-                    icon: _kind == ChartKind.columns
+                    style: UiMixButtonStyle.secondary,
+                    iconData: _kind == ChartKind.columns
                         ? LucideIcons.chartLine
                         : LucideIcons.chartColumn,
-                    small: true,
-                    onTap: _toggleKind,
+                    compact: true,
+                    onPressed: _toggleKind,
                   ),
                 if (d.sourceNeuronUri != null)
-                  Btn(
+                  UiMixButton.preset(
                     label: 'Copy URI',
-                    icon: LucideIcons.copy,
-                    small: true,
-                    onTap: () {
+                    style: UiMixButtonStyle.secondary,
+                    iconData: LucideIcons.copy,
+                    compact: true,
+                    onPressed: () {
                       final uri = d.sourceNeuronUri!;
                       Clipboard.setData(ClipboardData(text: uri));
                       widget.onCopyNeuronUri?.call(uri);
                     },
                   ),
                 if (widget.onOpen != null)
-                  Btn(
+                  UiMixButton.preset(
                     label: 'Open in Sheets',
-                    icon: LucideIcons.grid3x3,
-                    small: true,
-                    onTap: widget.onOpen,
+                    style: UiMixButtonStyle.secondary,
+                    iconData: LucideIcons.grid3x3,
+                    compact: true,
+                    onPressed: widget.onOpen,
                   ),
               ],
             ),

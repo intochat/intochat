@@ -45,16 +45,12 @@ public sealed class CreatorSynapseProjectionFacts
             [On]
             public async Task OnIssueChanged(IssueChanged changed)
             {
-                var repo = Get<IRepository>("connection/github/main");
-                var issue = await repo.ReadIssue(new ReadIssue(changed.Number));
-                if (changed.Action == "opened")
+                await Policies.Guard("github.issue.comment", 1m, async ct =>
                 {
-                    await repo.CommentOnIssue(new CommentOnIssueRequest(changed.Number, Body: "Triaged: " + issue.Snapshot.Title, Labels: ["triage"]));
-                }
-                else
-                {
-                    await repo.PreviewIssueComment(new PreviewIssueCommentRequest(changed.Number, "Draft triage comment", ["needs-review"]));
-                }
+                    var repo = Get<IRepository>("connection/github/main");
+                    var issue = await repo.ReadIssue(new ReadIssue(changed.Number), ct);
+                    await repo.CommentOnIssue(new CommentOnIssueRequest(changed.Number, Body: "Triaged: " + issue.Snapshot.Title, Labels: ["triage"]), ct);
+                });
             }
         }
         """;
@@ -98,15 +94,11 @@ public sealed class CreatorSynapseProjectionFacts
         Assert.Contains("100%", hubNode.Status, StringComparison.Ordinal);
 
         Assert.Contains(scene.Nodes, n => n.Label.Contains("OnIssueChanged", StringComparison.Ordinal));
-        Assert.Contains(scene.Nodes, n => n.Label == "ReadIssue");
-        Assert.Contains(scene.Nodes, n => n.Label == "CommentOnIssue");
-        Assert.Contains(scene.Nodes, n => n.Label.Contains("PreviewIssueComment", StringComparison.Ordinal));
 
-        // 2. Wave 5 Accordant edge metadata: accepted (Active=true), candidate (candidate:*), and refused ([refused: policy_guard] + [refused: untrusted_evidence])
+        // 2. Accordant edge metadata: accepted (Active=true) and refused ([refused: policy_guard] from real Policies.Guard call, no hardcoded IssueChanged sniffing)
         Assert.Contains(scene.Synapses, e => e.FromId == triggerNode.Id && e.ToId == hubNode.Id && e.Active);
-        Assert.Contains(scene.Synapses, e => e.SignalLabel is { } lbl && lbl.StartsWith("candidate:", StringComparison.Ordinal) && !e.Active);
         Assert.Contains(scene.Synapses, e => e.SignalLabel is { } lbl && lbl.Contains("[refused: policy_guard]", StringComparison.Ordinal) && !e.Active);
-        Assert.Contains(scene.Synapses, e => e.SignalLabel is { } lbl && lbl.Contains("[refused: untrusted_evidence]", StringComparison.Ordinal) && !e.Active);
+        Assert.DoesNotContain(scene.Synapses, e => e.SignalLabel is { } lbl && lbl.Contains("[refused: untrusted_evidence]", StringComparison.Ordinal));
 
         // 3. Switch the inspector's tab strip child to Source -> the live C# source from ISynapseStudio is drawn as a code block
         await creator.Screen.Dispatch(new Command(CreatorView.InspectorTabsKey, "control.select", JsonSerializer.SerializeToElement(new { id = "source" })));

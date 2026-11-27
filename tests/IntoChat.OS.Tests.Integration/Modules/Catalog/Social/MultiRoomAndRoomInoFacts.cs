@@ -125,27 +125,31 @@ public sealed class MultiRoomAndRoomInoFacts
         // 2. [Shareable] RoomChecklistApp (backed by CheckBoxNeuron) is allowed by RoomNeuron.Pin.
         const string checklistKey = "trip-checklist";
         await using var checklistSession = await alice.Open<RoomChecklistApp>(checklistKey, Ct);
-        await aliceRoom.Pin("social.room-checklist", checklistKey, Ct);
+        await aliceRoom.Pin("room.checklist", checklistKey, Ct);
+
+        // Host adds initial item (wires CheckBoxNeuron child grain on host brain).
+        var hostAddCmd = new Command(".", "room-checklist.add", System.Text.Json.JsonSerializer.SerializeToElement(new { label = "Book flights" }));
+        await aliceRoom.Act("room.checklist", checklistKey, hostAddCmd, Ct);
 
         // 3. Viewer (Carol) is rejected by RoomNeuron.Act (Role.Editor enforced).
-        var addCmd = new Command(".", "room-checklist.add", System.Text.Json.JsonSerializer.SerializeToElement(new { label = "Book flights" }));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carol.Get<IRoom>(roomId).Act("social.room-checklist", checklistKey, addCmd, Ct));
+        var addCmd = new Command(".", "room-checklist.add", System.Text.Json.JsonSerializer.SerializeToElement(new { label = "Reserve hotel" }));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carol.Get<IRoom>(roomId).Act("room.checklist", checklistKey, addCmd, Ct));
 
         // 4. Editor (Bob) acts on the pinned RoomChecklistApp; Caller.For.Account is propagated as Bob (no AsSocialModule elevation).
-        var afterAdd = await bob.Get<IRoom>(roomId).Act("social.room-checklist", checklistKey, addCmd, Ct);
+        var afterAdd = await bob.Get<IRoom>(roomId).Act("room.checklist", checklistKey, addCmd, Ct);
         Assert.Contains($"last updated by {bob.Account}", afterAdd.View.GetRawText(), StringComparison.Ordinal);
 
-        // 5. Bob toggles the interactive CheckBoxNeuron child through RoomNeuron.Act -> Screen.Dispatch -> CheckBoxNeuron.
+        // 5. Interactive CheckBoxNeuron child updates through RoomNeuron.Act -> Screen.Dispatch -> CheckBoxNeuron -> Toggled.
         var toggleCheckBox = new Command(
             RoomChecklistApp.CheckKey("i1"),
             "control.setChecked",
             System.Text.Json.JsonSerializer.SerializeToElement(new { isOn = true }));
-        var afterCheck = await bob.Get<IRoom>(roomId).Act("social.room-checklist", checklistKey, toggleCheckBox, Ct);
+        var afterCheck = await aliceRoom.Act("room.checklist", checklistKey, toggleCheckBox, Ct);
         Assert.NotNull(afterCheck);
         await os.Idle();
-        var latestView = await alice.Get<IScreen>(new NeuronId(alice.Brain, "social.room-checklist", checklistKey)).Read();
+        var latestView = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
         Assert.NotNull(latestView);
-        Assert.Contains("1/1 done", latestView!.View.GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("1/2 done", latestView!.View.GetRawText(), StringComparison.Ordinal);
     }
 
     private sealed class RecordingInference(string reply) : IModelInference

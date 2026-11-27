@@ -39,7 +39,7 @@ public sealed record ClearCompletedChecklistItems : Signal;
 /// Every participant (and @Ino) interacts with live checkbox neurons with per-caller <c>Caller.For.Account</c> attribution.
 /// </summary>
 [Shareable]
-[Neuron("social.room-checklist"), Screen("social.room-checklist", Title = "Shared Checklist", Icon = "check-square", Category = "Social")]
+[Neuron("room.checklist"), Screen("room.checklist", Title = "Shared Checklist", Icon = "check-square", Category = "Social")]
 public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
 {
     protected override async Task OnActivate(CancellationToken cancellationToken)
@@ -68,7 +68,10 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
         var id = $"i{State.Items.Length + 1}";
         var actor = CallerAccount();
         var item = new ChecklistItem(id, request.Label.Trim(), Checked: false, UpdatedBy: actor);
-        await FollowChild<ICheckBoxControl, Toggled>(CheckKey(id));
+        if (Context.Caller is null || Context.Caller.Brain == Id.Brain)
+        {
+            await FollowChild<ICheckBoxControl, Toggled>(CheckKey(id));
+        }
         await Show(State with { Items = [.. State.Items, item], LastUpdatedBy = actor });
     }
 
