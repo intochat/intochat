@@ -75,11 +75,11 @@ public static WeekSpend WeeklyCap(Charging s, WeekSpend t) =>
     t with { Spent = t.Spent + s.Amount };
 ```
 
-From `tests/DigitalBrain.Runtime.Synapses.Tests.Unit/Compile/SynapseCompilerFacts.cs`.
+From `tests/DigitalBrain.Tests.Unit/RuntimeSynapses/Compile/SynapseCompilerFacts.cs`.
 
 ## What the build and the host check
 
-`SynapseCompiler` in `DigitalBrain.Runtime.Synapses` compiles synapse source and runs the analyzers:
+`SynapseCompiler` in `DigitalBrain.Simulation` (`RuntimeSynapses`) compiles synapse source and runs the analyzers:
 
 - `DB0041`: every `[Synapse]` is a reaction or a view.
 - `DB0042`: a synapse's state record is declared in its own assembly.
@@ -93,7 +93,7 @@ The analyzer is advice. The boundary is the host: `UnitLoader` checks every buil
 - The build may declare no P/Invoke and no explicit-layout types.
 - A refused build fails the deploy with a `DB0045` diagnostic.
 
-The allow-list in short (the exact list is `AllowedApis` in `src/DigitalBrain.Runtime.Synapses/Host/AllowedApis.cs`):
+The allow-list in short (the exact list is `AllowedApis` in `src/DigitalBrain.Simulation/RuntimeSynapses/Host/AllowedApis.cs`):
 
 - Whole namespaces: `System`, `System.Collections`, `System.Collections.Generic`, `System.Collections.Immutable`,
   `System.Collections.Frozen`, `System.Linq`, `System.Text`, `System.Text.Json` (with `.Serialization` and `.Nodes`),
