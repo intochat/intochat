@@ -15,6 +15,7 @@ public sealed record ConnectorDefinition(
     public Type[] Neurons { get; init; } = [];
     public Type[] Signals { get; init; } = [];
     public OAuthMethod[] OAuthMethods { get; init; } = [];
+    public OAuthDeviceMethod[] DeviceMethods { get; init; } = [];
 
     // What a connection offers is its module's ModuleManifest.Provides (05-07, R4-01); a connector declares no capabilities.
 
@@ -30,6 +31,31 @@ public sealed record ConnectorDefinition(
             {
                 throw new InvalidOperationException(
                     $"OAuthMethod '{method.Id}' on connector '{Id}' references integration '{method.IntegrationId}', which is not declared in RequiredIntegrations or OptionalIntegrations.");
+            }
+        }
+
+        foreach (var method in DeviceMethods ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(method.DeviceAuthorizationEndpoint)
+                || string.IsNullOrWhiteSpace(method.TokenEndpoint))
+            {
+                throw new InvalidOperationException(
+                    $"OAuthDeviceMethod '{method.Id}' on connector '{Id}' must declare both DeviceAuthorizationEndpoint and TokenEndpoint.");
+            }
+
+            if (string.IsNullOrWhiteSpace(method.DefaultClientId)
+                && string.IsNullOrWhiteSpace(method.IntegrationId))
+            {
+                throw new InvalidOperationException(
+                    $"OAuthDeviceMethod '{method.Id}' on connector '{Id}' must declare either DefaultClientId or IntegrationId.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(method.IntegrationId)
+                && !required.Contains(method.IntegrationId, StringComparer.Ordinal)
+                && !optional.Contains(method.IntegrationId, StringComparer.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"OAuthDeviceMethod '{method.Id}' on connector '{Id}' references integration '{method.IntegrationId}', which is not declared in RequiredIntegrations or OptionalIntegrations.");
             }
         }
     }

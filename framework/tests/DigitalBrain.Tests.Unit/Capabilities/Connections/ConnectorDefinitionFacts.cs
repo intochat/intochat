@@ -51,4 +51,56 @@ public sealed class ConnectorDefinitionFacts
         };
         declaredOptional.Validate();
     }
+
+    [Fact]
+    public void OAuthDeviceMethodValidatesEndpointsClientIdAndOptionalIntegration()
+    {
+        var publicDevice = new ConnectorDefinition("forge", "Forge", ["device"], [])
+        {
+            DeviceMethods =
+            [
+                new OAuthDeviceMethod(
+                    "device",
+                    "https://forge.example.test/login/device/code",
+                    "https://forge.example.test/login/oauth/access_token",
+                    ["repo"],
+                    DefaultClientId: "public-desktop-client")
+            ]
+        };
+        publicDevice.Validate();
+
+        var missingClientId = new ConnectorDefinition("forge", "Forge", ["device"], [])
+        {
+            DeviceMethods =
+            [
+                new OAuthDeviceMethod(
+                    "device",
+                    "https://forge.example.test/login/device/code",
+                    "https://forge.example.test/login/oauth/access_token",
+                    ["repo"])
+            ]
+        };
+        Assert.Throws<InvalidOperationException>(() => missingClientId.Validate());
+
+        var undeclaredIntegration = new ConnectorDefinition("forge", "Forge", ["device"], [])
+        {
+            DeviceMethods =
+            [
+                new OAuthDeviceMethod(
+                    "device",
+                    "https://forge.example.test/login/device/code",
+                    "https://forge.example.test/login/oauth/access_token",
+                    ["repo"],
+                    DefaultClientId: "public-desktop-client",
+                    IntegrationId: "forge-oauth")
+            ]
+        };
+        Assert.Throws<InvalidOperationException>(() => undeclaredIntegration.Validate());
+
+        var declaredOptionalIntegration = undeclaredIntegration with
+        {
+            OptionalIntegrations = ["forge-oauth"]
+        };
+        declaredOptionalIntegration.Validate();
+    }
 }

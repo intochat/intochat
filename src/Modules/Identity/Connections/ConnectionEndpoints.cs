@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
@@ -9,11 +11,27 @@ using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Runtime.Http;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Connections;
 
 namespace IntoChat.OS.Modules.Identity.Connections;
 
 internal sealed record ConnectInput(string? ConnectorId, string? AuthMethodId, string? Value);
 internal sealed record LoginInput(string? ConnectorId, string? AuthMethodId, string? Target);
+internal sealed record DeviceStartInput(string? ConnectorId, string? AuthMethodId, string? Target);
+internal sealed record DevicePollInput(string? FlowId);
+internal sealed record ConnectionErrorResponse(string Error);
+internal sealed record LoginUrlResponse(string Url);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(ConnectInput))]
+[JsonSerializable(typeof(LoginInput))]
+[JsonSerializable(typeof(DeviceStartInput))]
+[JsonSerializable(typeof(DevicePollInput))]
+[JsonSerializable(typeof(ConnectionErrorResponse))]
+[JsonSerializable(typeof(LoginUrlResponse))]
+[JsonSerializable(typeof(OAuthDeviceStartResult))]
+[JsonSerializable(typeof(OAuthDevicePollResult))]
+internal sealed partial class ConnectionEndpointsJsonContext : JsonSerializerContext;
 
 internal static class ConnectionEndpoints
 {
@@ -44,12 +62,12 @@ internal static class ConnectionEndpoints
             if (await RequireConnectorAllowedAsync(context, input.ConnectorId, ct) is { } claimPrompt) { return claimPrompt; }
             // The connector names the grain type, so an undeclared one would address no neuron at all.
             if (!connectors.Any(connector => connector.Id == input.ConnectorId))
-            { return Results.BadRequest(new { error = $"No composed module declares connector '{input.ConnectorId}'." }); }
-            if (await ConnectionLogin.UnavailableError(context.RequestServices, input.ConnectorId, ct) is { } unavailable) { return Conflict(unavailable); }
+            { return BadRequestError($"No composed module declares connector '{input.ConnectorId}'."); }
+            if (await ConnectionLogin.UnavailableError(context.RequestServices, input.ConnectorId, input.AuthMethodId, ct) is { } unavailable) { return Conflict(unavailable); }
             var key = ResolveTargetKey(BrainScope.CurrentId(), input.ConnectorId, connectionId);
             // A declared connector may ship no connection neuron; the manifest check refuses it by name.
             try { return Results.Ok(await neurons.CallerConnection<IConnection>(context.RequestServices, key).Connect(input.AuthMethodId, input.Value)); }
-            catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
+            catch (ArgumentException error) { return BadRequestError(error.Message); }
         });
 
         group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, HttpContext context, CancellationToken ct) =>
@@ -57,9 +75,50 @@ internal static class ConnectionEndpoints
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId)) { return Results.BadRequest(); }
             if (await RequireConnectorAllowedAsync(context, input.ConnectorId, ct) is { } claimPrompt) { return claimPrompt; }
             var start = await ConnectionLogin.StartAsync(context.RequestServices, BrainScope.CurrentId(), connectionId, input.ConnectorId, input.AuthMethodId, input.Target, context.Request, ct);
-            return start.Url is { } url ? Results.Ok(new { url = url.AbsoluteUri })
-                : start.Conflict ? Results.Json(new { error = start.Error }, statusCode: StatusCodes.Status409Conflict)
-                : Results.BadRequest(new { error = start.Error });
+            return start.Url is { } url
+                ? Results.Json(new LoginUrlResponse(url.AbsoluteUri), ConnectionEndpointsJsonContext.Default.LoginUrlResponse)
+                : start.Conflict ? Conflict(start.Error ?? "Connector is unavailable.")
+                : BadRequestError(start.Error ?? "Invalid login request.");
+        });
+
+        group.MapPost("/{connectionId}/device/start", async (string connectionId, DeviceStartInput input, HttpContext context, AuthorityNeurons neurons, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] IOAuthDeviceFlow deviceFlow, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId)) { return Results.BadRequest(); }
+            if (await RequireConnectorAllowedAsync(context, input.ConnectorId, ct) is { } claimPrompt) { return claimPrompt; }
+            if (!connectors.Any(connector => connector.Id == input.ConnectorId))
+            { return BadRequestError($"No composed module declares connector '{input.ConnectorId}'."); }
+            if (await ConnectionLogin.UnavailableError(context.RequestServices, input.ConnectorId, input.AuthMethodId, ct) is { } unavailable) { return Conflict(unavailable); }
+
+            var brainId = BrainScope.CurrentId();
+            var key = ResolveTargetKey(brainId, input.ConnectorId, connectionId);
+            try
+            {
+                _ = neurons.CallerConnection<IConnection>(context.RequestServices, key);
+                var result = await deviceFlow.StartAsync(new BrainId(brainId), key, input.AuthMethodId, input.Target, ct);
+                return Results.Json(result, ConnectionEndpointsJsonContext.Default.OAuthDeviceStartResult);
+            }
+            catch (ClaimRequiredException error) { return ClaimPromptResult.FromDecision(error.Decision); }
+            catch (ArgumentException error) { return BadRequestError(error.Message); }
+            catch (InvalidOperationException error) { return Conflict(error.Message); }
+        });
+
+        group.MapPost("/{connectionId}/device/poll", async (string connectionId, DevicePollInput input, HttpContext context, [FromServices] IOAuthDeviceFlow deviceFlow, CancellationToken ct) =>
+        {
+            _ = connectionId;
+            if (string.IsNullOrWhiteSpace(input.FlowId)) { return Results.BadRequest(); }
+            if (await RequireConnectorAllowedAsync(context, connectorId: null, ct) is { } claimPrompt) { return claimPrompt; }
+
+            var brainId = BrainScope.CurrentId();
+            try
+            {
+                var result = await deviceFlow.PollOnceAsync(new BrainId(brainId), input.FlowId, ct);
+                return Results.Json(result, ConnectionEndpointsJsonContext.Default.OAuthDevicePollResult);
+            }
+            catch (ClaimRequiredException error) { return ClaimPromptResult.FromDecision(error.Decision); }
+            catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (ArgumentException error) { return BadRequestError(error.Message); }
+            catch (InvalidOperationException error) { return Conflict(error.Message); }
         });
 
         group.MapPost("/{connectionId}/probe", async (string connectionId, HttpContext context, AuthorityNeurons neurons, CancellationToken ct) =>
@@ -193,9 +252,13 @@ internal static class ConnectionEndpoints
         return null;
     }
 
-    private static IResult Conflict(string error) => Results.Json(new { error }, statusCode: StatusCodes.Status409Conflict);
+    private static IResult BadRequestError(string error)
+        => Results.Json(new ConnectionErrorResponse(error), ConnectionEndpointsJsonContext.Default.ConnectionErrorResponse, statusCode: StatusCodes.Status400BadRequest);
+
+    private static IResult Conflict(string error)
+        => Results.Json(new ConnectionErrorResponse(error), ConnectionEndpointsJsonContext.Default.ConnectionErrorResponse, statusCode: StatusCodes.Status409Conflict);
 
     // When a connectionId is shared by multiple connectors and no connectorId/connectionKey is specified, ask for disambiguation.
     private static IResult Ambiguous(string connectionId)
-        => Results.Json(new { error = $"Connection '{connectionId}' names more than one connector in this brain; specify connectorId or a 3-part connectionKey." }, statusCode: StatusCodes.Status409Conflict);
+        => Conflict($"Connection '{connectionId}' names more than one connector in this brain; specify connectorId or a 3-part connectionKey.");
 }

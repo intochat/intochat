@@ -107,7 +107,11 @@ public abstract class ConnectionNeuron<TState> : Neuron<TState>, IConnection, IC
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         RequireMember();
         await RequireAuthMethod("Connect", authMethodId);
-        await Check("Connect", new AuthMethodIsNotBrowserLogin(Address.ConnectorId, authMethodId, Connector.OAuthMethods.Any(method => method.Id == authMethodId)));
+        await Check("Connect", new AuthMethodIsNotBrowserLogin(
+            Address.ConnectorId,
+            authMethodId,
+            Connector.OAuthMethods.Any(method => method.Id == authMethodId)
+                || Connector.DeviceMethods.Any(method => method.Id == authMethodId)));
         var sealedVal = await SealAsync(ValueSecret, value);
         var (next, fact) = State.Connect(Address.ConnectorId, Address.ConnectionId, authMethodId, sealedVal);
         await Record(next, fact);
