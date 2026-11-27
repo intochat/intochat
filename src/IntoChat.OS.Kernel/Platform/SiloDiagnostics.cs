@@ -32,6 +32,7 @@ public static class SiloDiagnostics
     public static IServiceCollection AddSiloDiagnostics(this IServiceCollection services)
     {
         services.AddMetrics();
+        services.TryAddSingleton(TimeProvider.System);
         // Only a default: UseBrainOwnershipCounters replaces it whether it runs before or after this.
         services.TryAddSingleton<DigitalBrain.Runtime.Orleans.IBrainOwnershipCounters, NoBrainOwnershipCounters>();
         services.TryAddSingleton<BrainOwnershipMetrics>();
@@ -67,10 +68,11 @@ public static class SiloDiagnostics
             await using var stream = File.OpenRead(path);
             return Results.Ok(await JsonSerializer.DeserializeAsync<CanaryRecord>(stream, cancellationToken: ct));
         });
-        group.MapPost("/canary", async (CanaryWrite write, IOptions<OsBrainStoreOptions> store, CancellationToken ct) =>
+        group.MapPost("/canary", async (CanaryWrite write, IOptions<OsBrainStoreOptions> store, HttpContext http, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(write.Value) || write.Value.Length > MaxCanaryLength) { return Results.BadRequest(); }
-            var record = new CanaryRecord(write.Value, DateTimeOffset.UtcNow, Revision(configuration), Environment.MachineName);
+            var clock = http.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System;
+            var record = new CanaryRecord(write.Value, clock.GetUtcNow(), Revision(configuration), Environment.MachineName);
             var path = CanaryPathOf(store.Value);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             // Written to a staging file unique to this write, then moved over, so a reader sees the previous canary or this

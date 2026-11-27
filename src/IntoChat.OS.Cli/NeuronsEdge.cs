@@ -3,9 +3,14 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
+using IntoChat.OS.Modules.AI.Workflows;
+using IntoChat.OS.Modules.Apps.AppRuns;
+using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Runs;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
@@ -16,8 +21,6 @@ namespace IntoChat.OS.Cli;
 // protobuf runtime and a second copy of the generated types.
 public sealed class NeuronsEdge : IDisposable
 {
-    internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
-
     private static readonly Method<NeuronCall, byte[]> CallMethod = new(MethodType.Unary, "intochat.os.Neurons", "Call",
         Marshallers.Create<NeuronCall>(request => request.Encode(), _ => throw new NotSupportedException()),
         Marshallers.Create(_ => throw new NotSupportedException(), NeuronCall.DecodeReply));
@@ -43,14 +46,23 @@ public sealed class NeuronsEdge : IDisposable
         foreach (var (name, value) in proof?.Headers() ?? []) { _headers.Add(name, value); }
     }
 
-    // One neuron method by its contract, key and named arguments; the reply deserialized as T, or default when the method
+    // One neuron method by its contract, key and named arguments; the reply deserialized as TReply, or default when the method
     // returned nothing.
-    public async Task<T?> Call<T>(Type contract, string key, string method, object arguments, CancellationToken ct = default)
+    public async Task<TReply?> Call<TArgs, TReply>(
+        Type contract,
+        string key,
+        string method,
+        TArgs arguments,
+        JsonTypeInfo<TArgs> argumentsTypeInfo,
+        JsonTypeInfo<TReply> replyTypeInfo,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(contract);
-        var request = new NeuronCall(_brain, contract.FullName!, key, method, JsonSerializer.SerializeToUtf8Bytes(arguments, JsonSerializerOptions.Web));
+        ArgumentNullException.ThrowIfNull(argumentsTypeInfo);
+        ArgumentNullException.ThrowIfNull(replyTypeInfo);
+        var request = new NeuronCall(_brain, contract.FullName!, key, method, JsonSerializer.SerializeToUtf8Bytes(arguments, argumentsTypeInfo));
         var reply = await _invoker.AsyncUnaryCall(CallMethod, null, new CallOptions(_headers, cancellationToken: ct), request);
-        return reply.Length == 0 ? default : JsonSerializer.Deserialize<T>(reply, Json);
+        return reply.Length == 0 ? default : JsonSerializer.Deserialize(reply, replyTypeInfo);
     }
 
     public void Dispose() => _channel.Dispose();
@@ -126,3 +138,28 @@ public sealed class NeuronsEdge : IDisposable
         }
     }
 }
+
+public sealed record ListRunsArgs(int Limit);
+public sealed record StartAppRunArgs(AppTrigger Trigger, string App, string Name, string? PayloadJson);
+public sealed record StartWorkflowArgs(string Workflow, string Input);
+public sealed record CancelRunArgs(string Reason);
+public sealed record EmptyArgs;
+public sealed record ApproveConfirmationArgs(bool Approve);
+public sealed record LinkUriArgs(string Uri);
+public sealed record LinkServerCodeArgs(string Server, string Code);
+
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(ListRunsArgs))]
+[JsonSerializable(typeof(StartAppRunArgs))]
+[JsonSerializable(typeof(StartWorkflowArgs))]
+[JsonSerializable(typeof(CancelRunArgs))]
+[JsonSerializable(typeof(EmptyArgs))]
+[JsonSerializable(typeof(ApproveConfirmationArgs))]
+[JsonSerializable(typeof(LinkUriArgs))]
+[JsonSerializable(typeof(LinkServerCodeArgs))]
+[JsonSerializable(typeof(RunView[]))]
+[JsonSerializable(typeof(AppRunView))]
+[JsonSerializable(typeof(WorkflowRunView))]
+[JsonSerializable(typeof(CodeOrchestrationView))]
+[JsonSerializable(typeof(JsonElement))]
+public sealed partial class CliJsonContext : JsonSerializerContext;

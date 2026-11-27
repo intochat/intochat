@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using DigitalBrain.Log;
 using IntoChat.OS.Host.Logging;
@@ -8,6 +7,8 @@ using IntoChat.OS.Modules.Devices.Runtimes.Ollama;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
+using OllamaSharp.Models;
+using OllamaSharp.Models.Exceptions;
 
 namespace IntoChat.OS.Modules.Devices;
 
@@ -42,6 +43,15 @@ public sealed class OllamaRuntime : ILocalRuntime
     private Uri Endpoint => DevicesOptions.ValidateHttpUrl(_options.CurrentValue.Ollama.Endpoint, "Ollama.Endpoint");
 
     private TimeSpan ProbeTimeout => TimeSpan.FromMilliseconds(Math.Clamp(_options.CurrentValue.Ollama.ProbeTimeoutMs, 100, 60_000));
+
+    private (OllamaApiClient Client, bool Dispose) CreateApiClient(Uri endpoint)
+    {
+        _http.BaseAddress ??= endpoint;
+
+        return Uri.Equals(_http.BaseAddress, endpoint)
+            ? (new OllamaApiClient(_http), false)
+            : (new OllamaApiClient(endpoint), true);
+    }
 
     private void InvalidateCache()
     {
@@ -87,27 +97,31 @@ public sealed class OllamaRuntime : ILocalRuntime
     {
         using var timeout = new CancellationTokenSource(ProbeTimeout, _clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        var (client, dispose) = CreateApiClient(endpoint);
         try
         {
-            using var response = await _http.GetAsync(new Uri(endpoint, "/api/version"), linked.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return new RuntimeStatus(Id, Reachable: false, Version: null, Endpoint: endpoint);
-            }
-            var body = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false);
-            var parsed = string.IsNullOrWhiteSpace(body)
-                ? null
-                : JsonSerializer.Deserialize(body, OllamaJson.Default.VersionResponse);
-            return new RuntimeStatus(Id, Reachable: true, Version: parsed?.Version, Endpoint: endpoint);
+            var version = await client.GetVersionAsync(linked.Token).ConfigureAwait(false);
+            return new RuntimeStatus(
+                Id,
+                Reachable: true,
+                Version: string.IsNullOrWhiteSpace(version) ? null : version,
+                Endpoint: endpoint);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException)
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException or OllamaException)
         {
             OsConsoleLog.For<OllamaRuntime>().LogSwallowed(error, $"probing Ollama at {endpoint}");
             return new RuntimeStatus(Id, Reachable: false, Version: null, Endpoint: endpoint);
+        }
+        finally
+        {
+            if (dispose)
+            {
+                client.Dispose();
+            }
         }
     }
 
@@ -174,54 +188,59 @@ public sealed class OllamaRuntime : ILocalRuntime
 
     private async Task<ModelCard[]> FetchInstalledAsync(Uri endpoint, CancellationToken ct)
     {
-        TagsResponse? tags;
+        var (client, dispose) = CreateApiClient(endpoint);
         try
         {
-            using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-            using var response = await _http.GetAsync(new Uri(endpoint, "/api/tags"), linked.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
+            Model[]? models;
+            try
+            {
+                using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+                models = [.. await client.ListLocalModelsAsync(linked.Token).ConfigureAwait(false)];
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException or OllamaException)
+            {
+                OsConsoleLog.For<OllamaRuntime>().LogSwallowed(error, $"listing Ollama models from {endpoint}");
+                return [];
+            }
+
+            if (models.Length == 0)
             {
                 return [];
             }
-            var body = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false);
-            tags = JsonSerializer.Deserialize(body, OllamaJson.Default.TagsResponse);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException)
-        {
-            OsConsoleLog.For<OllamaRuntime>().LogSwallowed(error, $"listing Ollama models from {endpoint}");
-            return [];
-        }
 
-        if (tags?.Models is null || tags.Models.Length == 0)
-        {
-            return [];
-        }
-
-        var cards = new List<ModelCard>(tags.Models.Length);
-        foreach (var tag in tags.Models)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(tag.Name))
+            var cards = new List<ModelCard>(models.Length);
+            foreach (var tag in models)
             {
-                continue;
+                ct.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace(tag.Name))
+                {
+                    continue;
+                }
+
+                if (OllamaCards.FindCatalogued(tag.Name) is not null)
+                {
+                    cards.Add(OllamaCards.FromTag(tag, show: null));
+                    continue;
+                }
+
+                var show = await ReadShowAsync(client, tag.Name, ct).ConfigureAwait(false);
+                cards.Add(OllamaCards.FromTag(tag, show));
             }
 
-            if (OllamaCards.FindCatalogued(tag.Name) is not null)
-            {
-                cards.Add(OllamaCards.FromTag(tag, show: null));
-                continue;
-            }
-
-            var show = await ReadShowAsync(endpoint, tag.Name, ct).ConfigureAwait(false);
-            cards.Add(OllamaCards.FromTag(tag, show));
+            return [.. cards];
         }
-
-        return [.. cards];
+        finally
+        {
+            if (dispose)
+            {
+                client.Dispose();
+            }
+        }
     }
 
     public async Task<IReadOnlyCollection<ModelId>> Loaded(CancellationToken ct)
@@ -232,37 +251,40 @@ public sealed class OllamaRuntime : ILocalRuntime
             return [];
         }
 
+        var (client, dispose) = CreateApiClient(endpoint);
         try
         {
             using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-            using var response = await _http.GetAsync(new Uri(endpoint, "/api/ps"), linked.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return [];
-            }
-            var body = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false);
-            var parsed = JsonSerializer.Deserialize(body, OllamaJson.Default.PsResponse);
-            return parsed?.Models is null
+            var running = await client.ListRunningModelsAsync(linked.Token).ConfigureAwait(false);
+            return running is null
                 ? []
-                : [.. parsed.Models.Where(static m => !string.IsNullOrWhiteSpace(m.Name)).Select(static m => new ModelId(m.Name))];
+                : [.. running.Where(static m => !string.IsNullOrWhiteSpace(m.Name)).Select(static m => new ModelId(m.Name))];
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException)
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException or OllamaException)
         {
             OsConsoleLog.For<OllamaRuntime>().LogSwallowed(error, $"reading loaded Ollama models from {endpoint}");
             return [];
+        }
+        finally
+        {
+            if (dispose)
+            {
+                client.Dispose();
+            }
         }
     }
 
     public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
     {
+        var (client, dispose) = CreateApiClient(Endpoint);
         try
         {
-            await foreach (var progress in PullAsync(_http, Endpoint, id, ct).ConfigureAwait(false))
+            await foreach (var progress in PullAsync(client, id, ct).ConfigureAwait(false))
             {
                 if (progress.State is InstallState.Ready or InstallState.Failed or InstallState.Cancelled)
                 {
@@ -273,6 +295,10 @@ public sealed class OllamaRuntime : ILocalRuntime
         }
         finally
         {
+            if (dispose)
+            {
+                client.Dispose();
+            }
             InvalidateCache();
         }
     }
@@ -281,22 +307,19 @@ public sealed class OllamaRuntime : ILocalRuntime
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id.Value);
         var endpoint = Endpoint;
-        using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(endpoint, "/api/delete"))
-        {
-            Content = new StringContent(
-                JsonSerializer.Serialize(new DeleteRequest(id.Value), OllamaJson.Default.DeleteRequest),
-                Encoding.UTF8,
-                "application/json"),
-        };
         using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        var (client, dispose) = CreateApiClient(endpoint);
         try
         {
-            using var response = await _http.SendAsync(request, linked.Token).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
+            await client.DeleteModelAsync(new DeleteModelRequest { Model = id.Value }, linked.Token).ConfigureAwait(false);
         }
         finally
         {
+            if (dispose)
+            {
+                client.Dispose();
+            }
             InvalidateCache();
         }
     }
@@ -333,114 +356,83 @@ public sealed class OllamaRuntime : ILocalRuntime
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
 
-        using var client = new HttpClient(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
-        await foreach (var progress in PullAsync(client, endpoint, model, ct).ConfigureAwait(false))
+        using var http = new HttpClient(handler, disposeHandler: false)
+        {
+            BaseAddress = endpoint,
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+        var client = new OllamaApiClient(http);
+        await foreach (var progress in PullAsync(client, model, ct).ConfigureAwait(false))
         {
             yield return progress;
         }
     }
 
     private static async IAsyncEnumerable<InstallProgress> PullAsync(
-        HttpClient client,
-        Uri endpoint,
+        OllamaApiClient client,
         ModelId model,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(endpoint, "/api/pull"))
-        {
-            Content = new StringContent(
-                JsonSerializer.Serialize(new PullRequest(model.Value, Stream: true), OllamaJson.Default.PullRequest),
-                Encoding.UTF8,
-                "application/json"),
-        };
-
-        HttpResponseMessage? response = null;
-        string? sendError = null;
-        try
-        {
-            response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        }
-        catch (HttpRequestException error)
-        {
-            sendError = "Could not reach Ollama: " + error.Message;
-        }
-
-        if (sendError is not null)
-        {
-            yield return new InstallProgress(model, InstallState.Failed, 0, 0, 0, sendError);
-            yield break;
-        }
-
-        using var httpResponse = response!;
-        if (!httpResponse.IsSuccessStatusCode)
-        {
-            yield return new InstallProgress(model, InstallState.Failed, 0, 0, 0, $"Ollama answered {(int)httpResponse.StatusCode} to the pull request.");
-            yield break;
-        }
-
-        using var stream = await httpResponse.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-
         var layers = new Dictionary<string, (long Total, long Completed)>(StringComparer.Ordinal);
         double lastPercent = 0;
         long lastCompleted = 0;
         long lastTotal = 0;
 
+        await using var enumerator = client.PullModelAsync(
+                new PullModelRequest { Model = model.Value, Stream = true },
+                ct)
+            .GetAsyncEnumerator(ct);
+
         while (true)
         {
-            string? rawLine = null;
-            string? readError = null;
+            bool moved;
+            string? streamError = null;
             try
             {
-                rawLine = await reader.ReadLineAsync(ct).ConfigureAwait(false);
+                moved = await enumerator.MoveNextAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (ResponseError error)
+            {
+                moved = false;
+                streamError = error.Message;
+            }
+            catch (OllamaException error)
+            {
+                moved = false;
+                streamError = error.Message;
             }
             catch (HttpRequestException error)
             {
-                readError = "Could not reach Ollama: " + error.Message;
+                moved = false;
+                streamError = error.StatusCode is { } code
+                    ? $"Ollama answered {(int)code} to the pull request."
+                    : "Could not reach Ollama: " + error.Message;
+            }
+            catch (JsonException)
+            {
+                moved = false;
+                streamError = "Ollama sent a malformed progress line.";
             }
 
-            if (readError is not null)
+            if (streamError is not null)
             {
-                yield return new InstallProgress(model, InstallState.Failed, lastPercent, lastCompleted, lastTotal, readError);
+                yield return new InstallProgress(model, InstallState.Failed, lastPercent, lastCompleted, lastTotal, streamError);
                 yield break;
             }
 
-            if (rawLine is null)
+            if (!moved)
             {
                 break;
             }
 
-            if (string.IsNullOrWhiteSpace(rawLine))
-            {
-                continue;
-            }
-
-            PullLine? parsed = null;
-            string? parseError = null;
-            try
-            {
-                parsed = JsonSerializer.Deserialize(rawLine, OllamaJson.Default.PullLine);
-            }
-            catch (JsonException)
-            {
-                parseError = "Ollama sent a malformed progress line.";
-            }
-
-            if (parseError is not null)
-            {
-                yield return new InstallProgress(model, InstallState.Failed, lastPercent, lastCompleted, lastTotal, parseError);
-                yield break;
-            }
-
+            var parsed = enumerator.Current;
             if (parsed is null)
             {
                 continue;
-            }
-
-            if (!string.IsNullOrEmpty(parsed.Error))
-            {
-                yield return new InstallProgress(model, InstallState.Failed, lastPercent, lastCompleted, lastTotal, parsed.Error);
-                yield break;
             }
 
             var status = parsed.Status ?? string.Empty;
@@ -460,11 +452,11 @@ public sealed class OllamaRuntime : ILocalRuntime
 
             if (status.StartsWith("pulling", StringComparison.OrdinalIgnoreCase))
             {
-                if (parsed.Total is > 0 and var layerTotal)
+                if (parsed.Total > 0)
                 {
                     var layerKey = !string.IsNullOrWhiteSpace(parsed.Digest) ? parsed.Digest : status;
-                    var layerDone = Math.Clamp(parsed.Completed ?? 0, 0, layerTotal);
-                    layers[layerKey] = (layerTotal, layerDone);
+                    var layerDone = Math.Clamp(parsed.Completed, 0, parsed.Total);
+                    layers[layerKey] = (parsed.Total, layerDone);
                 }
 
                 long sumTotal = 0;
@@ -491,32 +483,19 @@ public sealed class OllamaRuntime : ILocalRuntime
             "The pull stream ended before Ollama reported success; it resumes on the next install.");
     }
 
-    private async Task<ShowResponse?> ReadShowAsync(Uri endpoint, string modelName, CancellationToken ct)
+    private async Task<ShowModelResponse?> ReadShowAsync(OllamaApiClient client, string modelName, CancellationToken ct)
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(endpoint, "/api/show"))
-            {
-                Content = new StringContent(
-                    JsonSerializer.Serialize(new ShowRequest(modelName), OllamaJson.Default.ShowRequest),
-                    Encoding.UTF8,
-                    "application/json"),
-            };
             using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-            using var response = await _http.SendAsync(request, linked.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-            var body = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false);
-            return JsonSerializer.Deserialize(body, OllamaJson.Default.ShowResponse);
+            return await client.ShowModelAsync(new ShowModelRequest { Model = modelName }, linked.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException)
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException or OllamaException)
         {
             OsConsoleLog.For<OllamaRuntime>().LogSwallowed(error, $"reading Ollama model details for '{modelName}'");
             return null;

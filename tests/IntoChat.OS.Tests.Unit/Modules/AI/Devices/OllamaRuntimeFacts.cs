@@ -105,7 +105,9 @@ public sealed class OllamaRuntimeFacts
         var script = new Script("""{"status":"success"}""");
         _ = await Collect(Runtime(script).Install(new ModelId("qwen3.5:4b"), Ct));
         Assert.Equal("http://localhost:11434/api/pull", script.RequestUri?.ToString());
-        Assert.Equal("""{"model":"qwen3.5:4b","stream":true}""", script.RequestBody);
+        using var doc = JsonDocument.Parse(script.RequestBody!);
+        Assert.Equal("qwen3.5:4b", doc.RootElement.GetProperty("model").GetString());
+        Assert.True(doc.RootElement.GetProperty("stream").GetBoolean());
     }
 
     [Fact]
@@ -172,7 +174,8 @@ public sealed class OllamaRuntimeFacts
         var script = new Script("{}", HttpStatusCode.OK);
         await Runtime(script).Remove(new ModelId("qwen3.5:4b"), Ct);
         Assert.Equal(HttpMethod.Delete, script.RequestMethod);
-        Assert.Equal("""{"model":"qwen3.5:4b"}""", script.RequestBody);
+        using var doc = JsonDocument.Parse(script.RequestBody!);
+        Assert.Equal("qwen3.5:4b", doc.RootElement.GetProperty("model").GetString());
     }
 
     [Fact]

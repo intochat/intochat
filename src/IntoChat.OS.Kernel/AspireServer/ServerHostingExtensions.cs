@@ -168,6 +168,7 @@ public static class ServerHostingExtensions
                 + ":" + IntoChat.OS.Host.Execution.AcaDynamicSessionsOptions.SectionName));
         builder.Services.AddHttpClient("SandboxWorker");
         builder.Services.AddHttpClient(IntoChat.OS.Host.Execution.AcaDynamicSessionsOptions.HttpClientName);
+        builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Auth.WebViewTickets>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.AppTokenService>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkAiAdapter>();

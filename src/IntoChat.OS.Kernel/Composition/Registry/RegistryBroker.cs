@@ -26,12 +26,14 @@ public sealed class RegistryBroker : IRegistryBroker
 {
     private readonly IServiceProvider? _services;
     private readonly ICapabilityBroker? _capabilityBroker;
+    private readonly TimeProvider _clock;
     private readonly ConcurrentDictionary<string, string> _memoryFallback = new(StringComparer.OrdinalIgnoreCase);
 
-    public RegistryBroker(IServiceProvider? services = null, ICapabilityBroker? capabilityBroker = null)
+    public RegistryBroker(IServiceProvider? services = null, ICapabilityBroker? capabilityBroker = null, TimeProvider? clock = null)
     {
         _services = services;
         _capabilityBroker = capabilityBroker;
+        _clock = clock ?? services?.GetService<TimeProvider>() ?? TimeProvider.System;
     }
 
     public ICapabilityBroker? CapabilityBroker => _capabilityBroker;
@@ -270,15 +272,16 @@ public sealed class RegistryBroker : IRegistryBroker
 
     private static string MaskTail(string? tail) => tail is { Length: > 0 } ? $"••••••••{tail}" : "••••••••";
 
-    private static RegistryEntryDescriptor BuildMemoryDescriptor(string uri, string key, RegistryTier tier, string storedVal, bool isPlatform)
+    private RegistryEntryDescriptor BuildMemoryDescriptor(string uri, string key, RegistryTier tier, string storedVal, bool isPlatform)
     {
+        var now = _clock.GetUtcNow();
         if (tier != RegistryTier.Vault)
         {
-            return new RegistryEntryDescriptor(uri, key, tier, storedVal, null, true, DateTimeOffset.UtcNow);
+            return new RegistryEntryDescriptor(uri, key, tier, storedVal, null, true, now);
         }
         var tail = storedVal.Length > 4 ? storedVal[^4..] : storedVal;
         var val = isPlatform ? storedVal : $"••••••••{tail}";
-        return new RegistryEntryDescriptor(uri, key, RegistryTier.Vault, val, tail, true, DateTimeOffset.UtcNow);
+        return new RegistryEntryDescriptor(uri, key, RegistryTier.Vault, val, tail, true, now);
     }
 
     private static void AddSettingDescriptor(List<RegistryEntryDescriptor> list, string key, string value)

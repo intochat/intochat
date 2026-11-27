@@ -1,5 +1,6 @@
 using System.Globalization;
 using IntoChat.OS.Modules.AI.Models;
+using OllamaSharp.Models;
 
 namespace IntoChat.OS.Modules.Devices.Runtimes.Ollama;
 
@@ -26,7 +27,7 @@ internal static class OllamaCards
         return null;
     }
 
-    internal static ModelCard FromTag(TagModel tag, ShowResponse? show)
+    internal static ModelCard FromTag(Model tag, ShowModelResponse? show)
     {
         ArgumentNullException.ThrowIfNull(tag);
 

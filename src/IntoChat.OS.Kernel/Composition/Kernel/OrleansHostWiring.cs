@@ -31,6 +31,7 @@ public static class OrleansHostWiring
                     provider.GetRequiredService<Operations.ILocalProcessProbe>(),
                     provider.GetService<Microsoft.Extensions.Logging.ILogger<Operations.LocalOperationDriverLifetime>>()));
         }
+        services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClusterMembershipFeed, ClusterMembershipFeed>();
         services.AddOptions<Orleans.Hosting.ReminderOptions>().Configure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) =>
         {
