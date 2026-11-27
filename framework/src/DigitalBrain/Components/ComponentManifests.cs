@@ -135,6 +135,7 @@ public static class ComponentManifests
 {
     private static readonly ConcurrentDictionary<ComponentId, ComponentManifest> ByComponent = new();
     private static readonly ConcurrentDictionary<Type, SlotNeed[]> ByNeuronClass = new();
+    private static readonly ConcurrentDictionary<Type, Type[]> ReactsByNeuronClass = new();
 
     /// <summary>Registers or merges <paramref name="manifest"/> for its component id.</summary>
     public static void Register(ComponentManifest manifest)
@@ -144,12 +145,16 @@ public static class ComponentManifests
         ByComponent.AddOrUpdate(manifest.Id, manifest, (_, existing) => existing.Merge(manifest));
     }
 
-    /// <summary>Registers <paramref name="manifest"/> and records its slots for <paramref name="neuronClass"/>.</summary>
+    /// <summary>Registers <paramref name="manifest"/> and records its slots and reactions for <paramref name="neuronClass"/>.</summary>
     public static void Register(Type neuronClass, ComponentManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(neuronClass);
         Register(manifest);
         ByNeuronClass[neuronClass] = manifest.Slots;
+        if (manifest.Reacts.Length > 0)
+        {
+            ReactsByNeuronClass[neuronClass] = manifest.Reacts;
+        }
     }
 
     /// <summary>Returns the manifest registered for <paramref name="id"/>, or <c>null</c> if none.</summary>
@@ -180,4 +185,11 @@ public static class ComponentManifests
 
     /// <summary>Returns <see langword="true"/> when <paramref name="neuronClass"/> declares at least one slot.</summary>
     public static bool HasSlots(Type neuronClass) => SlotsOf(neuronClass).Length > 0;
+
+    /// <summary>Returns the signal types directly registered for <paramref name="neuronClass"/>, or an empty array.</summary>
+    public static Type[] ReactsOf(Type neuronClass)
+    {
+        ArgumentNullException.ThrowIfNull(neuronClass);
+        return ReactsByNeuronClass.TryGetValue(neuronClass, out var reacts) ? reacts : [];
+    }
 }

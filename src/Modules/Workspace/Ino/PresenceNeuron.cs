@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Kernel;
@@ -22,7 +23,11 @@ namespace IntoChat.OS.Modules.Apps;
 // a trusted interrupt pauses; an approval Ino waits on; a tool in flight (searching for search/read tools); a turn
 // under 2 s old with no tool listens; a failed Ino flow under 10 s old needs attention; else idle.
 [DigitalBrain.Neurons.Neuron("ino.presence")]
-internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<Presence>, IPresence
+internal sealed class PresenceNeuron(
+    ISignalHistory history,
+    ILogger<PresenceNeuron>? logger = null,
+    ISecretRedactor? redactor = null,
+    IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<Presence>, IPresence
 {
     private static readonly TimeSpan ListeningWindow = TimeSpan.FromSeconds(2), AttentionWindow = TimeSpan.FromSeconds(10);
 
@@ -37,7 +42,10 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
 
     private sealed record Failure(string FlowId, string FlowType, string? Detail, DateTimeOffset At);
 
+    private sealed record PendingReceipt(string ConversationKey, string ReceiptId, string Text);
+
     private readonly Dictionary<(string Context, string Name), string> _interrupts = [];
+    private readonly List<PendingReceipt> _pendingReceipts = [];
     private string? _conversationId;
     private Run? _run;
     private string? _lastTrace;
@@ -60,6 +68,7 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
             typeof(ConfirmationRequested),
             typeof(ConfirmationResolved),
             typeof(FlowsChanged),
+            typeof(FlowWaiting),
             typeof(FlowDone),
         ]);
         await Quietly(async () => _conversationId = await Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current(), "sessions");
@@ -130,6 +139,7 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
     public async Task OnConversationChanged(ConversationChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
+        await FlushPendingReceiptsAsync();
         if (string.IsNullOrWhiteSpace(_conversationId) || !string.Equals(changed.Id.Value, _conversationId, StringComparison.Ordinal))
         {
             return;
@@ -252,15 +262,115 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
     }
 
     [On]
+    public async Task OnFlowWaiting(FlowWaiting waiting)
+    {
+        ArgumentNullException.ThrowIfNull(waiting);
+        if (waiting.Reason != WaitReason.Approval && string.IsNullOrWhiteSpace(waiting.ConfirmationPlanId)) { return; }
+        FlowView? flow = null;
+        await Quietly(async () => flow = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Read(waiting.FlowId), "flow");
+        if (flow is null || !IsInoOwned(flow)) { return; }
+        var receiptText = await BuildRedactedReceiptAsync(
+            flow,
+            outcomeLabel: "Needs your decision",
+            rawDetail: $"Waiting on step '{waiting.Step}' for your answer.");
+        await PostFlowReceiptAsync(flow, $"flow-wait/{waiting.FlowId}/{waiting.Step}", receiptText);
+    }
+
+    [On]
     public async Task OnFlowDone(FlowDone done)
     {
         ArgumentNullException.ThrowIfNull(done);
-        if (done.Outcome != FlowOutcome.Failed) { return; }
         FlowView? flow = null;
         await Quietly(async () => flow = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Read(done.FlowId), "flow");
         if (flow is null || !IsInoOwned(flow)) { return; }
-        _failure = new Failure(done.FlowId, flow.Type, done.Detail ?? flow.Detail, Context.Time.GetUtcNow());
-        await Recompute();
+
+        var rawDetail = done.Detail ?? flow.Detail;
+        if (done.Outcome == FlowOutcome.Failed)
+        {
+            _failure = new Failure(done.FlowId, flow.Type, rawDetail, Context.Time.GetUtcNow());
+            await Recompute();
+        }
+
+        var outcomeLabel = done.Outcome switch
+        {
+            FlowOutcome.Completed => "Completed",
+            FlowOutcome.Failed => "Failed",
+            _ => "Cancelled",
+        };
+        var receiptText = await BuildRedactedReceiptAsync(flow, outcomeLabel, rawDetail);
+        await PostFlowReceiptAsync(flow, $"flow-done/{done.FlowId}", receiptText);
+    }
+
+    private ISecretRedactor? ResolveRedactor()
+        => redactor ?? services?.GetService(typeof(ISecretRedactor)) as ISecretRedactor;
+
+    // Fail-closed redaction: if ISecretRedactor is unavailable or throws, never leak raw task output/detail.
+    private async Task<string> BuildRedactedReceiptAsync(FlowView flow, string outcomeLabel, string? rawDetail)
+    {
+        var activeRedactor = ResolveRedactor();
+        var title = string.IsNullOrWhiteSpace(flow.Title) ? flow.Type : flow.Title;
+        var baseText = string.IsNullOrWhiteSpace(rawDetail)
+            ? $"Background task \"{title}\" ({outcomeLabel})."
+            : $"Background task \"{title}\" ({outcomeLabel}): {rawDetail.Trim()}";
+
+        if (activeRedactor is null)
+        {
+            return $"Background task \"{title}\" ({outcomeLabel}).";
+        }
+
+        try
+        {
+            var redacted = await activeRedactor.Redact(baseText, CancellationToken.None).ConfigureAwait(true);
+            return string.IsNullOrWhiteSpace(redacted)
+                ? $"Background task \"{title}\" ({outcomeLabel})."
+                : redacted;
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            PresenceLog.Unread(Logger(), error, "secret-redactor");
+            return $"Background task \"{title}\" ({outcomeLabel}). [details redacted]";
+        }
+    }
+
+    private async Task PostFlowReceiptAsync(FlowView flow, string receiptId, string text)
+    {
+        if (string.IsNullOrWhiteSpace(flow.Conversation))
+        {
+            return;
+        }
+
+        var conversationKey = InoFileWriteReports.ConversationKey(Id.Brain.Value, flow.Conversation);
+        try
+        {
+            await Get<IConversation>(new NeuronId(Id.Brain, IConversation.Type, conversationKey))
+                .Post(text, receiptId, Visibility.Owner);
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            PresenceLog.Unread(Logger(), error, "flow-receipt");
+            if (_pendingReceipts.All(r => !string.Equals(r.ReceiptId, receiptId, StringComparison.Ordinal)))
+            {
+                _pendingReceipts.Add(new PendingReceipt(conversationKey, receiptId, text));
+            }
+        }
+    }
+
+    private async Task FlushPendingReceiptsAsync()
+    {
+        if (_pendingReceipts.Count == 0) { return; }
+        foreach (var receipt in _pendingReceipts.ToArray())
+        {
+            try
+            {
+                await Get<IConversation>(new NeuronId(Id.Brain, IConversation.Type, receipt.ConversationKey))
+                    .Post(receipt.Text, receipt.ReceiptId, Visibility.Owner);
+                _pendingReceipts.Remove(receipt);
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+            {
+                PresenceLog.Unread(Logger(), error, "flow-receipt");
+            }
+        }
     }
 
     private Task Ended(string agentId, string runId)

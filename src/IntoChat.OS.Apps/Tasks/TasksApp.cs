@@ -28,6 +28,7 @@ using SelectionChanged = DigitalBrain.UI.Commands.SelectionChanged;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Tasks;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,6 +130,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     private const string SynapsesKey = "ino/synapses";
 
     [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = ITasks.DefaultKey, Required = false)] private partial ITasks? TasksStore { get; }
     [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = ApprovalsKey, Required = false)] private partial IApprovals? Approvals { get; }
     [Slot(Key = SynapsesKey, Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
@@ -231,6 +233,8 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         await FollowChild<ITabStripControl, SelectionChanged>(TabsKey);
         await FollowChild<IQueryTableControl, RowSelected>(TableKey);
         await TryFollowOptionalAsync<IFlows, FlowsChanged>(FlowsKey);
+        await TryFollowOptionalAsync<ITasks, TasksChanged>(ITasks.DefaultKey);
+        await TryFollowOptionalAsync<ITasks, TaskAsked>(ITasks.DefaultKey);
 
         await RefreshFlowsAndSyncAsync();
     }
@@ -403,20 +407,31 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.TaskId) is not { } taskId || Blank(request.Stage) is not { } stage) { return; }
         await ApplyDecisionAsync(State.MoveTask(taskId, stage));
+        await TrySyncTaskStageToStoreAsync(taskId, stage);
     }
 
     [On]
     public async Task Advance(TasksAdvance request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var selectedId = State.SelectedTaskId;
         await ApplyDecisionAsync(State.AdvanceSelectedStage());
+        if (selectedId is not null && State.SelectedTask is { } updated)
+        {
+            await TrySyncTaskStageToStoreAsync(selectedId, updated.Stage);
+        }
     }
 
     [On]
     public async Task Complete(TasksComplete request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var selectedId = State.SelectedTaskId;
         await ApplyDecisionAsync(State.CompleteSelectedTask());
+        if (selectedId is not null)
+        {
+            await TrySyncTaskStageToStoreAsync(selectedId, "done");
+        }
     }
 
     [On]
@@ -424,6 +439,14 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         await ApplyDecisionAsync(State.ClearDoneTasks());
+        if (TasksStore is { } store)
+        {
+            try { await store.ClearCompleted(); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "Clearing completed tasks in TasksNeuron failed; local view stays updated.");
+            }
+        }
     }
 
     [On]
@@ -581,6 +604,25 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     {
         ArgumentNullException.ThrowIfNull(request);
         var title = Blank(State.Draft.Title) ?? string.Create(CultureInfo.InvariantCulture, $"Task #{State.NextTaskSequence}");
+        if (TasksStore is { } store)
+        {
+            try
+            {
+                var created = await store.Create(title, State.Draft.Description);
+                var synced = State.SyncDomainTasks(await store.List());
+                await Show(synced with
+                {
+                    SelectedTaskId = created.TaskId,
+                    Draft = synced.Draft with { Title = "", Description = "" },
+                    Status = $"Added '{created.Title}' to Backlog.",
+                });
+                return;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "Creating task in TasksNeuron failed; falling back to local TasksWorkspaceState.");
+            }
+        }
         await ApplyDecisionAsync(State.AddTask(title, State.Draft.Description, "backlog"));
     }
 
@@ -617,6 +659,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         ArgumentNullException.ThrowIfNull(moved);
         if (SignalChild != KanbanKey || TasksWorkspaceState.TryNormalizeStage(moved.ColumnId) is not { } stage) { return; }
         await ApplyDecisionAsync(State.MoveTask(moved.CardId, stage));
+        await TrySyncTaskStageToStoreAsync(moved.CardId, stage);
     }
 
     [On]
@@ -649,16 +692,54 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         }
 
         await ApplyDecisionAsync(State.MoveTask(selected.Id, stage));
+        await TrySyncTaskStageToStoreAsync(selected.Id, stage);
     }
 
     [On]
     public Task OnFlowsChanged(FlowsChanged? changed)
         => changed is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
 
+    [On]
+    public Task OnTasksChanged(TasksChanged? changed)
+        => changed is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
+
+    [On]
+    public Task OnTaskAsked(TaskAsked? asked)
+        => asked is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
+
+    private async Task TrySyncTaskStageToStoreAsync(string taskId, string stage)
+    {
+        if (TasksStore is not { } store) { return; }
+        try
+        {
+            if (await store.Read(taskId) is not null)
+            {
+                await store.Transition(taskId, TasksWorkspaceState.TaskStatusForStage(stage));
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(error, "Syncing task stage transition to TasksNeuron failed.");
+        }
+    }
+
     // ── Live Synchronization with Brain Flows ────────────────────────────────
 
     private async Task RefreshFlowsAndSyncAsync()
     {
+        TaskRecord[]? domainTasks = null;
+        if (TasksStore is { } store)
+        {
+            try
+            {
+                domainTasks = await store.List();
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "The domain tasks store is optional; keeping current tasks.");
+            }
+        }
+
         if (Flows is { } flows)
         {
             try
@@ -686,7 +767,8 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         _confirmations = await TryReadConfirmationsAsync();
         _issueDrafts = await TryReadGitHubIssueDraftsAsync();
 
-        var synced = State.SyncLiveFlows(_flows);
+        var next = domainTasks is not null ? State.SyncDomainTasks(domainTasks) : State;
+        var synced = next.SyncLiveFlows(_flows);
         await Show(synced with { Status = synced.Status });
     }
 

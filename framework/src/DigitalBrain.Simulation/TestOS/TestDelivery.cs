@@ -29,6 +29,7 @@ internal sealed class SynapseRegistry : INudge
         {
             var journal = _os.Journal(id.Brain);
             var consumer = new TestConsumer(_os, id);
+            var isDeclarative = _os.DeclarativeReacts.IsDeclarativeSubscriber(id);
             var delivery = new Delivery(
                 id,
                 journal,
@@ -37,8 +38,15 @@ internal sealed class SynapseRegistry : INudge
                 alias => _os.TypeOf(alias),
                 _os.Clock,
                 _counters,
-                delivery => _os.NoteDelivery(delivery));
+                delivery => _os.NoteDelivery(delivery),
+                acceptBrainWide: isDeclarative
+                    ? (publisher, alias) => _os.DeclarativeReacts.Accepts(id, publisher, alias, _os.ClassOf, _os.TypeOf)
+                    : null);
             delivery.Initialize().GetAwaiter().GetResult();
+            if (isDeclarative)
+            {
+                delivery.SeedDeclarative(_os.DeclarativeReacts.AliasesOf(id), _os.Clock.GetUtcNow());
+            }
             return delivery;
         });
 
@@ -57,7 +65,10 @@ internal sealed class SynapseRegistry : INudge
                         throw new InvalidOperationException("FailNextPublishAfterAppend");
                     }
                     _os.Listeners.Offered(pub, signals);
-                });
+                },
+                _os.DeclarativeReacts,
+                _os.ClassOf,
+                b);
         });
 
     public ISignalNudge NudgeFor(BrainId brain) => FanoutFor(brain);
@@ -67,7 +78,8 @@ internal sealed class SynapseRegistry : INudge
         var view = _os.Journal(subscriber.Brain).MemoryJournal;
         var subs = view.Subscriptions.All.FirstOrDefault(s => s.Subscriber == subscriber);
         var isBrainWide = subs?.Entries.Exists(e => e.IsBrainWide) == true;
-        if (!isBrainWide && !_os.IsActive(subscriber)) { return; }
+        var isDeclarative = _os.DeclarativeReacts.IsDeclarativeSubscriber(subscriber);
+        if (!isBrainWide && !isDeclarative && !_os.IsActive(subscriber)) { return; }
         if (!_os.TryHost(subscriber, out _)) { return; }
         var d = For(subscriber);
         var copies = _os.Options.DuplicateDelivery ? 2 : 1;
@@ -227,11 +239,19 @@ internal sealed class SynapseRegistry : INudge
 
     public IReadOnlyList<NeuronId> Behind()
     {
+        var seen = new HashSet<NeuronId>();
         var list = new List<NeuronId>();
         foreach (var b in _os.AllBrains)
         {
             var view = _os.Journal(b).MemoryJournal;
-            list.AddRange(view.Subscriptions.Due(view, alias => _os.TypeOf(alias), slack: 0));
+            foreach (var sub in view.Subscriptions.Due(view, alias => _os.TypeOf(alias), slack: 0))
+            {
+                if (seen.Add(sub)) { list.Add(sub); }
+            }
+            foreach (var sub in _os.DeclarativeReacts.Due(b, view, _os.ClassOf, _os.TypeOf))
+            {
+                if (seen.Add(sub)) { list.Add(sub); }
+            }
         }
         return list;
     }

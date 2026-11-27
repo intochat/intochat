@@ -60,7 +60,7 @@ public static class InoAgentDefinition
             [
                 typeof(IStudio).FullName!, typeof(IData).FullName!, typeof(IUserSettings).FullName!, typeof(IFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(ICodeOrchestration).FullName!, typeof(ISynapseStudio).FullName!, typeof(IFocus).FullName!,
                 typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
-                typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!, typeof(IEngineerRuns).FullName!,
+                typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!, typeof(IntoChat.OS.Modules.Apps.Tasks.ITasks).FullName!, typeof(IEngineerRuns).FullName!,
                 typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).FullName!,
                 typeof(IntoChat.OS.Modules.Devices.IRemotePcResource).FullName!,
                 typeof(IMcpToolConnection).FullName!, typeof(IWebSearch).FullName!, typeof(IWebRead).FullName!,

@@ -1,15 +1,22 @@
 using DigitalBrain.Units;
 using DigitalBrain.Access;
 using DigitalBrain.Kernel;
+using DigitalBrain.Signals;
 using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Signalling;
+using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans.Synapses;
 
-internal sealed class GrainNudge(IGrainFactory grains, NeuronTypeRegistry types, JournalPayloads? payloads = null, PublishFaults? faults = null) : INudge
+internal sealed class GrainNudge(
+    IGrainFactory grains,
+    NeuronTypeRegistry types,
+    JournalPayloads? payloads = null,
+    PublishFaults? faults = null,
+    ILogger? logger = null) : INudge
 {
     public void Nudge(NeuronId subscriber, Position upTo)
     {
@@ -17,6 +24,7 @@ internal sealed class GrainNudge(IGrainFactory grains, NeuronTypeRegistry types,
         {
             throw new InvalidOperationException("PublishFaults: FailAfterAppend.");
         }
+        SignalTelemetry.LogNudge(logger, subscriber, upTo.Value);
         var host = HostOf(subscriber);
         using var delivering = AsBrain(subscriber.Brain);
         _ = host.Nudge(upTo.Value);
@@ -32,6 +40,7 @@ internal sealed class GrainNudge(IGrainFactory grains, NeuronTypeRegistry types,
         {
             encoded = encoded with { TraceId = traceId, CausationId = causationId };
         }
+        SignalTelemetry.LogOffer(logger, subscriber, publisher, encoded.Type);
         var host = HostOf(subscriber);
         using var delivering = AsBrain(subscriber.Brain);
         _ = host.Offer(publisher, encoded, DateTimeOffset.UtcNow);

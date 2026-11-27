@@ -32,15 +32,23 @@ internal static class ConfirmationEndpoints
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(brain);
-        if (planId is not { Length: > 0 and <= MaxPlanId } || input.Approve is not { } approve)
+        if (planId is not { Length: > 0 and <= MaxPlanId } || (input.Approve is null && input.OptionIndex is null))
         {
-            throw new ArgumentException("A confirmation answer names its plan and approve.");
+            throw new ArgumentException("A confirmation answer names its plan and approve or optionIndex.");
         }
         ShellPresenceGate.RequireDirectPerson(caller);
-        await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(planId, approve).WaitAsync(ct);
+        var inbox = brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope));
+        if (input.OptionIndex is { } optionIndex)
+        {
+            await inbox.ResolveOption(planId, optionIndex).WaitAsync(ct);
+        }
+        else
+        {
+            await inbox.Resolve(planId, input.Approve!.Value).WaitAsync(ct);
+        }
         return Results.Ok(new { delivered = true });
     }
 
     // Dart mirror: IntoChatOSUiClient.answerConfirmation in ui/lib/src/core/ui_client.dart.
-    internal sealed record ConfirmationAnswer(bool? Approve);
+    internal sealed record ConfirmationAnswer(bool? Approve, int? OptionIndex = null);
 }

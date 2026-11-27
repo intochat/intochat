@@ -64,7 +64,8 @@ public sealed record Said(
     ModelId? Model = null,
     EntryId? Replaces = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AttachmentRef[]? Attachments = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AttachmentRef[]? Attachments = null,
+    Visibility Visible = Visibility.Everyone) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Called(
     EntryId Id,

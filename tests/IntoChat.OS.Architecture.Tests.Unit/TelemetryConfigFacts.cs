@@ -58,11 +58,14 @@ public sealed class TelemetryConfigFacts
         using (var osSource = new ActivitySource("IntoChat.OS.Modules.TelemetryProbe"))
         using (var componentSource = new ActivitySource("IntoChat.SampleComponent"))
         using (var componentSubSource = new ActivitySource("IntoChat.SampleComponent.Sub"))
+        using (var signalSource = new ActivitySource("DigitalBrain.Signals"))
         using (var unrelatedSource = new ActivitySource("Unrelated.External"))
         {
             using (osSource.StartActivity("os-op")) { }
             using (componentSource.StartActivity("component-op")) { }
             using (componentSubSource.StartActivity("component-sub-op")) { }
+            using (signalSource.StartActivity("signal.publish")) { }
+            using (signalSource.StartActivity("signal.react")) { }
             using (unrelatedSource.StartActivity("unrelated-op")) { }
         }
 
@@ -81,6 +84,8 @@ public sealed class TelemetryConfigFacts
         Assert.Contains("IntoChat.OS.Modules.TelemetryProbe:os-op", recordedActivities);
         Assert.Contains("IntoChat.SampleComponent:component-op", recordedActivities);
         Assert.Contains("IntoChat.SampleComponent.Sub:component-sub-op", recordedActivities);
+        Assert.Contains("DigitalBrain.Signals:signal.publish", recordedActivities);
+        Assert.Contains("DigitalBrain.Signals:signal.react", recordedActivities);
         Assert.DoesNotContain(recordedActivities, entry => entry.StartsWith("Unrelated.External:", StringComparison.Ordinal));
 
         Assert.Contains("IntoChat.OS.Modules.TelemetryProbe:os.probe.count", recordedMetrics);

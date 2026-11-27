@@ -54,6 +54,9 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
                 kanbanBox.Y <= 52f,
                 string.Create(CultureInfo.InvariantCulture, $"TasksApp top header must be <= 52px (kanban Y <= 52px), measured: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
+            using var seedClient = host.CreateKernelClient();
+            await SeedTasksWorkspaceAsync(seedClient, host.Scope, ct);
+
             foreach (var cardId in new[] { "task-1", "task-2", "task-3" })
             {
                 await page.SemanticsId($"card:{cardId}").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
@@ -166,6 +169,43 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
         }
 
         Assert.Empty(httpErrors);
+    }
+
+    private static async Task SeedTasksWorkspaceAsync(HttpClient kernel, string scope, CancellationToken ct)
+    {
+        var neuron = $"{scope}/apps/tasks";
+        (string Title, string Stage)[] seeds =
+        [
+            ("Audit neuron contracts & invariants", "done"),
+            ("Reboot Tasks onto AggregateScreen", "in-progress"),
+            ("Verify Kanban & Stepper push sync", "backlog"),
+        ];
+
+        for (var i = 0; i < seeds.Length; i++)
+        {
+            var (title, stage) = seeds[i];
+            using var draftResp = await kernel.PostAsJsonAsync(
+                $"/brains/{scope}/act",
+                new { neuron, target = ".", signal = "tasks.edit-draft", args = new { field = "title", value = title } },
+                ct);
+            Assert.True(draftResp.IsSuccessStatusCode, $"Failed to set task draft title '{title}': {(int)draftResp.StatusCode}");
+
+            using var addResp = await kernel.PostAsJsonAsync(
+                $"/brains/{scope}/act",
+                new { neuron, target = ".", signal = "tasks.add-task", args = new { } },
+                ct);
+            Assert.True(addResp.IsSuccessStatusCode, $"Failed to create seeded task '{title}': {(int)addResp.StatusCode}");
+
+            if (!string.Equals(stage, "backlog", StringComparison.Ordinal))
+            {
+                var taskId = string.Create(CultureInfo.InvariantCulture, $"task-{i + 1}");
+                using var moveResp = await kernel.PostAsJsonAsync(
+                    $"/brains/{scope}/act",
+                    new { neuron, target = ".", signal = "tasks.move", args = new { taskId, stage } },
+                    ct);
+                Assert.True(moveResp.IsSuccessStatusCode, $"Failed to move seeded task '{taskId}' to '{stage}': {(int)moveResp.StatusCode}");
+            }
+        }
     }
 
     private static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)

@@ -1,4 +1,5 @@
 using DigitalBrain.Signals;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Kernel;
 
@@ -40,7 +41,9 @@ internal sealed class Delivery(
     Func<string, Type?> typeOf,
     TimeProvider time,
     DeliveryCounters counters,
-    Action<SignalDelivery>? observe = null) : IDisposable
+    Action<SignalDelivery>? observe = null,
+    Func<NeuronId, string, bool>? acceptBrainWide = null,
+    ILogger? logger = null) : IDisposable
 {
     internal const long SkipFlush = 1000;
 
@@ -152,6 +155,22 @@ internal sealed class Delivery(
         await Flush(force: true).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Seeds declarative <c>[Reacts]</c> aliases on this subscriber's brain-wide entry without
+    /// resetting an existing persisted cursor. Starts at <see cref="Position"/> 0 when no
+    /// brain-wide subscription has been persisted yet so a lazy-activated neuron catches the
+    /// signal that woke it.
+    /// </summary>
+    public void SeedDeclarative(IEnumerable<string> aliases, DateTimeOffset now)
+    {
+        var list = aliases as IReadOnlyCollection<string> ?? [.. aliases];
+        if (list.Count == 0) { return; }
+        lock (_gate)
+        {
+            _held = _held.AddBrainWide(list, new Position(0), now, exact: false);
+        }
+    }
+
     public async Task Remove(NeuronId source)
     {
         lock (_gate)
@@ -190,7 +209,8 @@ internal sealed class Delivery(
             {
                 if (_held.Of(source) is not { } current) { return; }
                 var wanted = current.Wants(subscriber, item.Journaled.Publisher, item.Alias, typeOf)
-                             && !(consumer.TakesUntyped && current.IsBrainWide && item.Journaled.Publisher == subscriber)
+                             && !(current.IsBrainWide && item.Journaled.Publisher == subscriber)
+                             && (!current.IsBrainWide || acceptBrainWide is null || acceptBrainWide(item.Journaled.Publisher, item.Alias))
                              && (consumer.TakesUntyped || item.Journaled.Signal is not IUntypedSignal);
                 if (!wanted)
                 {
@@ -213,6 +233,7 @@ internal sealed class Delivery(
     {
         Move(held => held.Advance(entry, position, time.GetUtcNow()));
         ReactionScope? scope = null;
+        using var activity = SignalTelemetry.StartReact(subscriber, signal, logger);
         try
         {
             await consumer.Consume(signal,
@@ -221,6 +242,7 @@ internal sealed class Delivery(
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
+            SignalTelemetry.RecordReactionFailure(activity, subscriber, signal, error, logger);
             counters.Failure(subscriber, entry.Source, position, error);
             if (scope is { Carried: true }) { Carried(scope.Version); }
             else if (consumer.TakesUntyped)

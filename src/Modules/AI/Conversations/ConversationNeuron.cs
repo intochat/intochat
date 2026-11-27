@@ -219,7 +219,7 @@ internal sealed class ConversationNeuron(
         await Reconsider();
     }
 
-    public async Task Post(string text, string id)
+    public async Task Post(string text, string id, Visibility visibility = Visibility.Everyone)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -235,7 +235,7 @@ internal sealed class ConversationNeuron(
         var masked = await Runner.Mask(text);
         var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
         var agentDisplay = State.Agents.FirstOrDefault()?.Definition.DisplayName ?? agentId;
-        var entry = new Said(entryId, new Participant.Assistant(agentId), Clock.GetUtcNow(), masked, Sender: new SenderIdentity(agentId, agentDisplay, SenderKind.Agent));
+        var entry = new Said(entryId, new Participant.Assistant(agentId), Clock.GetUtcNow(), masked, Sender: new SenderIdentity(agentId, agentDisplay, SenderKind.Agent), Visible: visibility);
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, entry);
         var participants = WithParticipants(State.Participants, new Participant.Assistant(agentId));
 

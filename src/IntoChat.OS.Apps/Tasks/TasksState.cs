@@ -3,7 +3,9 @@ using System.Text.Json.Serialization;
 using DigitalBrain.Flows;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Tasks;
 using IntoChat.OS.UI;
+using TaskStatus = IntoChat.OS.Modules.Apps.Tasks.TaskStatus;
 
 namespace IntoChat.OS.Apps.Tasks;
 
@@ -59,8 +61,6 @@ public sealed record TasksWorkspaceState(
     string? SelectedTaskId,
     TaskWorkItem[] Tasks)
 {
-    public const int MaxWorkspaceTasks = 24;
-
     public const int MaxEscalatedIssues = 16;
 
     public static readonly string[] StageIds = ["backlog", "in-progress", "review", "done"];
@@ -72,8 +72,8 @@ public sealed record TasksWorkspaceState(
     public TasksWorkspaceState() : this(
         ActiveTab: "board",
         Query: new FlowQuery(),
-        SelectedTaskId: "task-2",
-        Tasks: DefaultSeedTasks())
+        SelectedTaskId: null,
+        Tasks: [])
     {
     }
 
@@ -85,7 +85,7 @@ public sealed record TasksWorkspaceState(
 
     public TasksDraft Draft { get; init; } = new();
 
-    public int NextTaskSequence { get; init; } = 4;
+    public int NextTaskSequence { get; init; } = 1;
 
     public string? FocusedConfirmationId { get; init; }
 
@@ -127,9 +127,6 @@ public sealed record TasksWorkspaceState(
     [Invariant("RelateKind is always a valid RelationKind."), JsonIgnore]
     public bool ValidRelateKind => Enum.TryParse<RelationKind>(RelateKind, ignoreCase: false, out _);
 
-    [Invariant("Workspace task count stays within the board capacity limit."), JsonIgnore]
-    public bool WithinBoardCapacity => Tasks.Length <= MaxWorkspaceTasks;
-
     // ── Declarative Domain Rules ─────────────────────────────────────────────
 
     public static Rule NonEmptyTitle(string? title) => Decision.Rule(
@@ -143,12 +140,6 @@ public sealed record TasksWorkspaceState(
         stage,
         static s => TryNormalizeStage(s) is null,
         "Stage column must be backlog, in-progress, review, or done.");
-
-    public Rule BoardHasCapacity() => Decision.Rule(
-        "board_capacity_reached",
-        Tasks.Length,
-        static count => count >= MaxWorkspaceTasks,
-        "Clear completed tasks before adding more than 24 items.");
 
     public Rule TaskExists(string? taskId) => Decision.Rule(
         "task_not_found",
@@ -204,7 +195,7 @@ public sealed record TasksWorkspaceState(
         [Sample("backlog", "in-progress")] string? stage = "backlog")
     {
         var effectiveStage = stage ?? "backlog";
-        return Decision.Check("add-task", NonEmptyTitle(title), ValidStageColumn(effectiveStage), BoardHasCapacity())
+        return Decision.Check("add-task", NonEmptyTitle(title), ValidStageColumn(effectiveStage))
             ?? Decision.Accept(CreateTaskCore(title!.Trim(), description?.Trim() ?? string.Empty, TryNormalizeStage(effectiveStage)!));
     }
 
@@ -347,9 +338,7 @@ public sealed record TasksWorkspaceState(
         }
         else
         {
-            nextTasks = Tasks.Length >= MaxWorkspaceTasks
-                ? [.. Tasks.Skip(Tasks.Length - MaxWorkspaceTasks + 1), item]
-                : [.. Tasks, item];
+            nextTasks = [.. Tasks, item];
         }
 
         return this with
@@ -444,7 +433,7 @@ public sealed record TasksWorkspaceState(
                     FlowId = flow.FlowId,
                 };
             }
-            else if (list.Count < MaxWorkspaceTasks)
+            else
             {
                 list.Add(new TaskWorkItem(
                     Id: flow.FlowId,
@@ -462,8 +451,67 @@ public sealed record TasksWorkspaceState(
         {
             Tasks = [.. list],
             SelectedTaskId = nextSelected,
+            NextTaskSequence = Math.Max(NextTaskSequence, list.Count + 1),
         };
     }
+
+    [IgnoreExplore]
+    public TasksWorkspaceState SyncDomainTasks(TaskRecord[] domainTasks)
+    {
+        var list = Tasks.ToList();
+        var domainIds = new HashSet<string>(domainTasks.Select(static t => t.TaskId), StringComparer.Ordinal);
+        // Remove stale domain tasks that were cleared in TasksNeuron (keep flow-projected items unless overwritten).
+        list.RemoveAll(t => t.FlowId is null && !domainIds.Contains(t.Id));
+
+        foreach (var task in domainTasks)
+        {
+            var stage = StageForTaskStatus(task.Status);
+            var item = new TaskWorkItem(
+                Id: task.TaskId,
+                Title: task.Title,
+                Stage: stage,
+                Owner: task.Owner,
+                Description: string.IsNullOrWhiteSpace(task.Summary) ? task.Description : task.Summary!,
+                Tag: task.Tag,
+                FlowId: task.FlowId);
+
+            var existingIdx = list.FindIndex(t => string.Equals(t.Id, task.TaskId, StringComparison.Ordinal));
+            if (existingIdx >= 0)
+            {
+                list[existingIdx] = item;
+            }
+            else
+            {
+                list.Add(item);
+            }
+        }
+
+        var nextSelected = SelectedTaskId is not null && list.Any(t => string.Equals(t.Id, SelectedTaskId, StringComparison.Ordinal))
+            ? SelectedTaskId
+            : list.FirstOrDefault()?.Id;
+        return this with
+        {
+            Tasks = [.. list],
+            SelectedTaskId = nextSelected,
+            NextTaskSequence = Math.Max(NextTaskSequence, list.Count + 1),
+        };
+    }
+
+    public static string StageForTaskStatus(TaskStatus status) => status switch
+    {
+        TaskStatus.InProgress => "in-progress",
+        TaskStatus.NeedsYou or TaskStatus.Waiting => "review",
+        TaskStatus.Completed or TaskStatus.Failed => "done",
+        _ => "backlog",
+    };
+
+    public static TaskStatus TaskStatusForStage(string stage) => NormalizeStage(stage) switch
+    {
+        "in-progress" => TaskStatus.InProgress,
+        "review" => TaskStatus.Waiting,
+        "done" => TaskStatus.Completed,
+        _ => TaskStatus.Queued,
+    };
 
     [IgnoreExplore]
     public TasksWorkspaceState WithSource(string flowId, string? source)
@@ -752,11 +800,4 @@ public sealed record TasksWorkspaceState(
         var raw = dot >= 0 && dot + 1 < type.Length ? type[(dot + 1)..] : type;
         return char.ToUpperInvariant(raw[0]) + raw[1..];
     }
-
-    private static TaskWorkItem[] DefaultSeedTasks() =>
-    [
-        new("task-1", "Audit neuron contracts & invariants", "done", "owner", "Verify AliasFacts and PersistedStateRules across UI neurons.", "Architecture"),
-        new("task-2", "Reboot Tasks onto AggregateScreen", "in-progress", "owner", "Wire IKanbanBoard, IStepper, ITabs, ITable, and ICommandBar.", "UI"),
-        new("task-3", "Verify Kanban & Stepper push sync", "backlog", "ino", "Assert back-to-back card moves and stage transitions without clobbering.", "Verification"),
-    ];
 }

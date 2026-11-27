@@ -221,7 +221,6 @@ public sealed partial class TasksApp
                 .Key("tasks:add")
                 .Small()
                 .Style(s => s.Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
-                .Guard(state.BoardHasCapacity())
                 .Sends(new TasksAddTask()),
             new Button("tasks:open-ino", "Ino ↗", Intent: AppSignals.OpenApp("ino", state.SelectedFlowId))
             {

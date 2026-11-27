@@ -91,24 +91,43 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             IJournalView view = log ?? (IJournalView)journal;
             var consumer = new HostConsumer(this);
             var counters = ServiceProvider.GetService<DeliveryCounters>() ?? new DeliveryCounters();
+            var payloads = ServiceProvider.GetService<JournalPayloads>();
+            var signalTypes = payloads?.Types;
+            Func<string, Type?> signalTypeOf = alias => signalTypes is not null && signalTypes.TryResolve(alias, out var signalType) ? signalType : null;
+            Func<string, Type?> neuronClassOf = neuronType => types.TryGetRegistration(neuronType, out var r) ? r.Class : null;
+            var declarativeReacts = ServiceProvider.GetService<DeclarativeReactsIndex>();
+            var isDeclarative = declarativeReacts?.IsDeclarativeSubscriber(id) == true;
+            var loggerFactory = ServiceProvider.GetService<ILoggerFactory>();
             var delivery = new Delivery(
                 id,
                 journal,
                 view,
                 consumer,
-                alias => types.TryGetRegistration(alias, out var r) ? r.Class : null,
+                signalTypeOf,
                 time,
-                counters);
+                counters,
+                acceptBrainWide: isDeclarative
+                    ? (publisher, alias) => declarativeReacts!.Accepts(id, publisher, alias, neuronClassOf, signalTypeOf)
+                    : null,
+                logger: loggerFactory?.CreateLogger<Delivery>());
             await delivery.Initialize(cancellationToken).ConfigureAwait(true);
+            if (isDeclarative)
+            {
+                delivery.SeedDeclarative(declarativeReacts!.AliasesOf(id), time.GetUtcNow());
+            }
 
             var nudge = (ISignalNudge?)log?.Fanout ?? new Fanout(
                 view,
-                new GrainNudge(grains, types, ServiceProvider.GetService<JournalPayloads>()),
-                alias => types.TryGetRegistration(alias, out var r) ? r.Class : null,
+                new GrainNudge(grains, types, payloads, logger: loggerFactory?.CreateLogger<GrainNudge>()),
+                signalTypeOf,
                 (pub, sigs) =>
                 {
                     ServiceProvider.GetService<Signalling.ClusterListeners>()?.Offer(pub, sigs);
-                });
+                },
+                declarativeReacts,
+                neuronClassOf,
+                id.Brain,
+                loggerFactory?.CreateLogger<Fanout>());
             var context = new HostNeuronContext(id, this.GetGrainId(), registration, bound, grains, types,
                 ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, Defer, delivery, journal, nudge);
             NeuronAttachment.Attach(neuron, context);
