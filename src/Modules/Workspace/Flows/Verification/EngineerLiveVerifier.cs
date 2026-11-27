@@ -215,6 +215,7 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
             ChangedFiles = changedFiles,
         };
 
+        var usedCandidateHostVerifier = _candidateVerifier is null;
         EngineerLiveReport report;
         try
         {
@@ -230,7 +231,10 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
                         TouchesUi: plan.TouchesUi,
                         TraceId: effectiveContext.TraceId,
                         BrainId: effectiveContext.BrainId,
-                        McpCalls: [.. plan.McpCalls.Select(static c => new CandidateMcpCall(c.Target, c.Method, c.Expected))]),
+                        McpCalls: [.. plan.McpCalls.Select(static c => new CandidateMcpCall(c.Target, c.Method, c.Expected))],
+                        VerifyUiAsync: plan.TouchesUi
+                            ? (uiUrl, token) => VerifyPlaywrightUiAsync(uiUrl, token)
+                            : null),
                     ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -252,9 +256,9 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
         var errLogs = report.ErrorLogCount;
         var pwPassed = report.PlaywrightPassed;
 
-        if (plan.TouchesUi)
+        if (!usedCandidateHostVerifier && plan.TouchesUi)
         {
-            var pw = await ProbePlaywrightIfRegisteredAsync(touchesUi: true, probes, traces, ct).ConfigureAwait(false);
+            var pw = await ProbePlaywrightIfRegisteredAsync(touchesUi: true, targetUrl: null, probes, traces, ct).ConfigureAwait(false);
             c4 += pw.Count4xx;
             c5 += pw.Count5xx;
             errLogs += pw.ErrorLogs;
@@ -353,7 +357,10 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
             }
         }
 
-        var pwAudit = await ProbePlaywrightIfRegisteredAsync(plan.TouchesUi, probes, traces, ct).ConfigureAwait(false);
+        var directUiUrl = plan.TouchesUi && !string.IsNullOrWhiteSpace(liveBaseUrl)
+            ? liveBaseUrl.TrimEnd('/') + "/"
+            : null;
+        var pwAudit = await ProbePlaywrightIfRegisteredAsync(plan.TouchesUi, directUiUrl, probes, traces, ct).ConfigureAwait(false);
         count4xx += pwAudit.Count4xx;
         count5xx += pwAudit.Count5xx;
         errorLogs += pwAudit.ErrorLogs;
@@ -481,8 +488,23 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
         return (audited, violationsTotal, mcpPassed, playwrightPassed, errorLogs);
     }
 
+    private async Task<CandidateUiVerificationResult> VerifyPlaywrightUiAsync(string uiUrl, CancellationToken ct)
+    {
+        var probes = new List<EngineerLiveProbe>();
+        var traces = new List<string>();
+        var pw = await ProbePlaywrightIfRegisteredAsync(touchesUi: true, uiUrl, probes, traces, ct).ConfigureAwait(false);
+        return new CandidateUiVerificationResult(
+            Passed: pw.Passed,
+            Http4xxCount: pw.Count4xx,
+            Http5xxCount: pw.Count5xx,
+            ErrorLogCount: pw.ErrorLogs,
+            Probes: [.. probes],
+            TraceSummaries: [.. traces]);
+    }
+
     private async Task<(bool Passed, int Count4xx, int Count5xx, int ErrorLogs)> ProbePlaywrightIfRegisteredAsync(
         bool touchesUi,
+        string? targetUrl,
         List<EngineerLiveProbe> probes,
         List<string> traces,
         CancellationToken ct)
@@ -500,11 +522,17 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
             }
             else
             {
-                try { (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-page-session", await pageSession.SnapshotAsync(ct).ConfigureAwait(false)); }
+                try
+                {
+                    var observation = !string.IsNullOrWhiteSpace(targetUrl)
+                        ? await pageSession.NavigateAsync(targetUrl, ct).ConfigureAwait(false)
+                        : await pageSession.SnapshotAsync(ct).ConfigureAwait(false);
+                    (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-page-session", observation);
+                }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogSwallowed(ex, "Live IBrowserPageSession snapshot probe failed.");
-                    (probe, c5, err) = (new EngineerLiveProbe("playwright-page-session", "playwright", false, 500, $"Playwright snapshot failed: {ex.Message}"), 1, 1);
+                    _logger.LogSwallowed(ex, "Live IBrowserPageSession verification probe failed.");
+                    (probe, c5, err) = (new EngineerLiveProbe("playwright-page-session", "playwright", false, 500, $"Playwright probe failed: {ex.Message}"), 1, 1);
                 }
             }
 
@@ -518,14 +546,17 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, ID
             try
             {
                 if (!(await playwrightService.Read().ConfigureAwait(false)).Connected) { return (true, 0, 0, 0); }
-                var (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-live-dom-probe", await playwrightService.Snapshot(ct).ConfigureAwait(false));
+                var observation = !string.IsNullOrWhiteSpace(targetUrl)
+                    ? await playwrightService.Navigate(targetUrl, ct).ConfigureAwait(false)
+                    : await playwrightService.Snapshot(ct).ConfigureAwait(false);
+                var (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-live-dom-probe", observation);
                 probes.Add(probe);
                 traces.Add($"span playwright.live_dom passed={probe.Passed} status={probe.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "n/a"}");
                 return (probe.Passed, c4, c5, err);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogSwallowed(ex, "Live IPlaywright DOM snapshot probe failed.");
+                _logger.LogSwallowed(ex, "Live IPlaywright DOM probe failed.");
                 probes.Add(new EngineerLiveProbe("playwright-live-dom-probe", "playwright", false, 500, $"IPlaywright probe failed: {ex.Message}"));
                 return (false, 0, 1, 1);
             }
