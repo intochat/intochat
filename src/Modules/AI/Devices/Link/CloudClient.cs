@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -112,32 +111,6 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         return await ReadJsonAsync(response, DeviceWireJson.Default.DeviceChatJob, ct).ConfigureAwait(false);
     }
 
-    public async Task<BrainDevicesResponse> BrainModelsAsync(string brain, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
-        using var response = await SendSignedAsync(
-            HttpMethod.Get,
-            DeviceRoutes.Catalog + "?brain=" + Uri.EscapeDataString(brain),
-            createContent: null,
-            ct).ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.BrainDevicesResponse, ct).ConfigureAwait(false)
-            ?? throw new InvalidDataException("Cloud returned an empty device models response.");
-    }
-
-    // The relay's NDJSON stream of DeviceChunk lines for one chat; the caller disposes the response.
-    public async Task<HttpResponseMessage> BrainChatAsync(BrainChatRequest chat, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(chat);
-        return await SendSignedAsync(
-            HttpMethod.Post,
-            DeviceRoutes.Chat,
-            () => JsonContent(chat, DeviceWireJson.Default.BrainChatRequest),
-            ct,
-            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-    }
-
     public async Task<bool> ReportComputeCapabilityAsync(ComputeCapabilityAdvertisement capability, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(capability);
@@ -154,49 +127,6 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
 
         response.EnsureSuccessStatusCode();
         return true;
-    }
-
-    public async Task<BrainComputeNodesResponse?> BrainComputeNodesAsync(string brain, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
-        using var response = await SendSignedAsync(
-            HttpMethod.Get,
-            DeviceRoutes.ComputeNodes + "?brain=" + Uri.EscapeDataString(brain),
-            createContent: null,
-            ct).ConfigureAwait(false);
-
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.BrainComputeNodesResponse, ct).ConfigureAwait(false);
-    }
-
-    public async Task<ConnectedSandboxResponse?> DispatchBrainSandboxAsync(
-        BrainSandboxDispatchRequest dispatch,
-        TimeSpan availabilityTimeout,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(dispatch);
-        using var availabilityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        availabilityCts.CancelAfter(availabilityTimeout);
-
-        using var response = await SendSignedAsync(
-            HttpMethod.Post,
-            DeviceRoutes.SandboxDispatch,
-            () => JsonContent(dispatch, DeviceWireJson.Default.BrainSandboxDispatchRequest),
-            availabilityCts.Token,
-            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedSandboxResponse, ct).ConfigureAwait(false);
     }
 
     public async Task<ConnectedSandboxRequest?> PollNextSandboxAsync(CancellationToken ct = default)
@@ -227,31 +157,6 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
             ct).ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();
-    }
-
-    public async Task<PcResourceResponse?> DispatchBrainResourceAsync(
-        BrainResourceDispatchRequest dispatch,
-        TimeSpan availabilityTimeout,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(dispatch);
-        using var availabilityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        availabilityCts.CancelAfter(availabilityTimeout);
-
-        using var response = await SendSignedAsync(
-            HttpMethod.Post,
-            DeviceRoutes.ResourceDispatch,
-            () => JsonContent(dispatch, DeviceWireJson.Default.BrainResourceDispatchRequest),
-            availabilityCts.Token,
-            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.PcResourceResponse, ct).ConfigureAwait(false);
     }
 
     public async Task<PcResourceRequest?> PollNextResourceAsync(CancellationToken ct = default)
@@ -302,7 +207,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
-    private async Task<HttpResponseMessage> SendSignedAsync(
+    internal async Task<HttpResponseMessage> SendSignedAsync(
         HttpMethod method,
         string route,
         Func<HttpContent>? createContent,
@@ -419,12 +324,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
     private HttpRequestMessage BuildSignedRequest(HttpMethod method, Uri url, LinkSecrets secrets, HttpContent? content)
     {
         var request = new HttpRequestMessage(method, url) { Content = content };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secrets.AccessToken);
-
-        using var key = ECDsa.Create();
-        key.ImportPkcs8PrivateKey(secrets.PrivateKeyPkcs8, out _);
-        var proof = MachineProof.Sign(key, method.Method, url, secrets.AccessToken, clock.GetUtcNow());
-        request.Headers.TryAddWithoutValidation(CircleRoutes.MachineProofHeader, proof);
+        CloudRelayRequestSigner.SignWithMachineProof(request, secrets.AccessToken, secrets.PrivateKeyPkcs8, clock);
         return request;
     }
 
@@ -460,12 +360,5 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
     }
 
     internal static Uri Combine(Uri server, string route)
-    {
-        var baseText = server.AbsoluteUri;
-        if (!baseText.EndsWith('/'))
-        {
-            baseText += "/";
-        }
-        return new Uri(new Uri(baseText, UriKind.Absolute), route.TrimStart('/'));
-    }
+        => CloudRelayRequestSigner.Combine(server, route);
 }

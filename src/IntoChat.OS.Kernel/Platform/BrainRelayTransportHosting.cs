@@ -1,10 +1,8 @@
 using System.Collections.Concurrent;
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
-using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -343,45 +341,15 @@ public sealed class KernelBrainRelayClientProvider
     private Uri? ResolveBaseUri()
         => _options.Value.RelayBaseUri ?? (_assertionSigner is { IsConfigured: true, ServiceUri: { } uri } ? uri : null);
 
-    private async ValueTask AuthorizeAsync(HttpRequestMessage request, CancellationToken ct)
-    {
-        if (_assertionSigner is { IsConfigured: true })
-        {
-            var brainId = _callers?.Current?.Brain.Value ?? _options.Value.LocalBrainId;
-            if (!string.IsNullOrWhiteSpace(brainId) && request.RequestUri is not null)
-            {
-                var bodyBytes = request.Content is not null
-                    ? await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
-                    : [];
-
-                var token = _assertionSigner.Sign(
-                    brainId,
-                    RelayPurpose,
-                    request.Method.Method,
-                    request.RequestUri.PathAndQuery,
-                    bodyBytes);
-                request.Headers.Authorization = new AuthenticationHeaderValue(ServiceAssertion.Scheme, token);
-                return;
-            }
-        }
-
-        // Desktop / home-server fallback: Bearer token + optional X-Machine-Proof.
-        if (!string.IsNullOrWhiteSpace(_options.Value.BearerToken))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Value.BearerToken);
-            if (_options.Value.MachineProofFactory is { } proofFactory)
-            {
-                var bodyBytes = request.Content is not null
-                    ? await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
-                    : [];
-                var proof = await proofFactory(request, bodyBytes, ct).ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(proof))
-                {
-                    request.Headers.TryAddWithoutValidation(CircleRoutes.MachineProofHeader, proof);
-                }
-            }
-        }
-    }
+    private ValueTask AuthorizeAsync(HttpRequestMessage request, CancellationToken ct)
+        => CloudRelayRequestSigner.AuthorizeServiceOrBearerAsync(
+            request,
+            _assertionSigner,
+            _callers?.Current?.Brain.Value ?? _options.Value.LocalBrainId,
+            RelayPurpose,
+            _options.Value.BearerToken,
+            _options.Value.MachineProofFactory,
+            ct);
 }
 
 /// <summary>
