@@ -34,7 +34,7 @@ internal static class MarketplaceEndpoints
         marketplace.MapGet("/{publisher}/{name}/icon", (string publisher, string name, [FromServices] MarketplaceView view, [FromServices] AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
         {
             var listing = await Listing(view, publisher, name, ct);
-            if (listing.Icon is null) { return Results.NotFound(new { error = $"{publisher}/{name} has no icon." }); }
+            if (listing.Icon is null) { return Results.Json(new WorkspaceErrorResponse($"{publisher}/{name} has no icon."), WorkspaceAppsJsonContext.Default.WorkspaceErrorResponse, statusCode: StatusCodes.Status404NotFound); }
             var bundle = await installer.Bundle(listing.Source, listing.Publisher, listing.Name, ct);
             return AppsEndpoints.Icon(listing.Icon, bundle.Files, $"{publisher}/{name}");
         }));
@@ -46,12 +46,17 @@ internal static class MarketplaceEndpoints
     // The latest listing through the one install path: a missing or stale consent answers 409 with what the app asks for.
     internal static Task<IResult> Install(string publisher, string name, InstallBody? body, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
     {
-        if (!AppsEndpoints.IsPerson(installer.Caller)) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
+        if (!AppsEndpoints.IsPerson(installer.Caller)) { return Results.Json(new WorkspaceErrorResponse("Only you can install apps."), WorkspaceAppsJsonContext.Default.WorkspaceErrorResponse, statusCode: StatusCodes.Status403Forbidden); }
         var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);
         return outcome.Status switch
         {
-            AppInstallStatus.Ok => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), outcome.InstalledName!).Key).Read().WaitAsync(ct))),
-            AppInstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
+            AppInstallStatus.Ok => Results.Json(
+                AppsEndpoints.View(await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), outcome.InstalledName!).Key).Read().WaitAsync(ct)),
+                WorkspaceAppsJsonContext.Default.AppViewResponse),
+            AppInstallStatus.NeedsConsent => Results.Json(
+                new AppInstallConsentResponse("needsConsent", outcome.Requires, outcome.Message),
+                WorkspaceAppsJsonContext.Default.AppInstallConsentResponse,
+                statusCode: StatusCodes.Status409Conflict),
             _ => AppsEndpoints.Refused(outcome),
         };
     });

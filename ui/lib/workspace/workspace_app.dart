@@ -498,11 +498,15 @@ class WorkspaceAppState extends State<WorkspaceApp>
     }
     return WidthHint(
       key: ValueKey('width:$_rootName'),
-      onNarrow: (narrow) => unawaited(
-        widget.programmingClient!
-            .requestApp(brain, 'desktop', 'narrow', '$narrow')
-            .then<void>((_) {}, onError: (Object _) {}),
-      ),
+      onNarrow: (narrow) {
+        final session = _session;
+        if (session == null) return;
+        unawaited(
+          session.dispatchDesktopSignal('desktop.narrow', {
+            'narrow': '$narrow',
+          }),
+        );
+      },
       child: root,
     );
   }
