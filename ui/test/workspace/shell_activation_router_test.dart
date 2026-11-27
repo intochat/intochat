@@ -154,9 +154,10 @@ void main() {
       );
     });
 
-    test('routes os_uri settings and legacy settings activations to settings navigate without ui.navigate-to', () async {
+    test('routes os_uri settings and legacy settings activations without ui.navigate-to', () async {
       final actEvents = <Map<String, Object?>>[];
       final shellOps = <(String, String, String)>[];
+      final appRequests = <(String, String, String, String)>[];
       final openedApps = <String>[];
 
       final router = ShellActivationRouter(
@@ -168,6 +169,8 @@ void main() {
           actEvents.add(event);
           return const {'delivered': true};
         },
+        requestApp: (brain, app, op, input) async =>
+            appRequests.add((brain, app, op, input)),
         desktopDelegate: DesktopActivationDelegate(
           findOpenWindow: (_) => null,
           focusWindow: (_) {},
@@ -188,7 +191,7 @@ void main() {
       expect(actEvents, isEmpty);
 
       await router.activate({'kind': 'settings', 'tab': 'voice'});
-      expect(shellOps.last, ('settings', 'navigate', 'voice'));
+      expect(appRequests.last, ('brain-1', 'settings', 'open', 'voice'));
       expect(actEvents, isEmpty);
     });
 

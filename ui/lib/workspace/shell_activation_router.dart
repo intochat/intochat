@@ -253,7 +253,6 @@ class ShellActivationRouter {
 
     final isLegacySettings = action['kind'] == 'settings';
     if (isLegacySettings) {
-      settingsSection ??= _nonEmptyField(action['tab']);
       action = settingsActivation(action);
     }
 
@@ -276,10 +275,6 @@ class ShellActivationRouter {
         navInput != null ||
         navArgsJson != null ||
         rawTransition != null;
-
-    if (app == 'settings' && settingsSection == null && isLegacySettings) {
-      settingsSection = navInput;
-    }
 
     return ParsedShellActivation(
       kind: action['kind'] as String?,
@@ -446,6 +441,7 @@ class ShellActivationRouter {
           brain: brain,
           app: app,
           neuron: neuron,
+          changingBrain: changingBrain,
           parsed: parsed,
           state: latestState,
           desktop: desktop,
@@ -540,6 +536,7 @@ class ShellActivationRouter {
     required String brain,
     required String app,
     required String? neuron,
+    required bool changingBrain,
     required ParsedShellActivation parsed,
     required ShellRoutingState state,
     required DesktopActivationDelegate desktop,
@@ -564,6 +561,10 @@ class ShellActivationRouter {
       desktop.focusWindow(existing);
     } else {
       unawaited(desktop.openApp(app));
+    }
+
+    if (!state.hasExplicitRoot && neuron != null && !changingBrain) {
+      await onShowNeuron?.call(brain, neuron);
     }
 
     var navDelivered = false;
@@ -596,7 +597,7 @@ class ShellActivationRouter {
         await requestApp?.call(brain, app, operation, parsed.input ?? '');
       }
     } else if (parsed.operation case final String operation
-        when !navDelivered && operation != 'open') {
+        when !navDelivered) {
       await requestApp?.call(brain, app, operation, parsed.input ?? '');
     }
 
