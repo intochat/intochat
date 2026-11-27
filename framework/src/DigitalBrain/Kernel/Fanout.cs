@@ -1,3 +1,6 @@
+using DigitalBrain.Signals;
+using Microsoft.Extensions.Logging;
+
 namespace DigitalBrain.Kernel;
 
 internal readonly record struct AliasMark(NeuronId Publisher, string Alias, Position Last);
@@ -39,10 +42,28 @@ internal sealed class Fanout(
     IJournalView journal,
     INudge nudge,
     Func<string, Type?> typeOf,
-    Action<NeuronId, IReadOnlyList<Signal>> listeners) : ISignalNudge
+    Action<NeuronId, IReadOnlyList<Signal>> listeners,
+    DeclarativeReactsIndex? declarativeReacts = null,
+    Func<string, Type?>? neuronClassOf = null,
+    BrainId? brain = null,
+    ILogger? logger = null) : ISignalNudge
 {
     public Task Appended(NeuronId publisher, IReadOnlyList<JournaledSignal> appended, Position last, CancellationToken ct)
     {
+        if (appended.Count == 1)
+        {
+            var single = appended[0];
+            var alias = SignalAliases.Of(single.Signal);
+            using var activity = SignalTelemetry.StartPublish(single.Publisher, alias, single.Sequence, single.CausationId, logger);
+            listeners(publisher, [single.Signal]);
+            Appended(publisher, [alias], last);
+            return Task.CompletedTask;
+        }
+
+        foreach (var item in appended)
+        {
+            using (SignalTelemetry.StartPublish(item.Publisher, SignalAliases.Of(item.Signal), item.Sequence, item.CausationId, logger)) { }
+        }
         listeners(publisher, [.. appended.Select(item => item.Signal)]);
         Appended(publisher, [.. appended.Select(item => SignalAliases.Of(item.Signal))], last);
         return Task.CompletedTask;
@@ -50,16 +71,35 @@ internal sealed class Fanout(
 
     public void Appended(NeuronId publisher, IReadOnlyCollection<string> aliases, Position last)
     {
+        HashSet<NeuronId>? nudged = null;
         foreach (var subscriber in journal.Subscriptions.Hearing(publisher, aliases, typeOf))
         {
-            nudge.Nudge(subscriber, last);
+            nudged ??= [];
+            if (nudged.Add(subscriber))
+            {
+                nudge.Nudge(subscriber, last);
+            }
+        }
+
+        if (declarativeReacts is not null && neuronClassOf is not null)
+        {
+            foreach (var subscriber in declarativeReacts.Hearing(publisher, aliases, neuronClassOf, typeOf))
+            {
+                nudged ??= [];
+                if (nudged.Add(subscriber))
+                {
+                    nudge.Nudge(subscriber, last);
+                }
+            }
         }
     }
 
     public Task Offered(NeuronId publisher, Signal signal, CancellationToken ct)
     {
+        var alias = SignalAliases.Of(signal);
+        using var activity = SignalTelemetry.StartPublish(publisher, alias, 0, null, logger);
         listeners(publisher, [signal]);
-        foreach (var subscriber in journal.Subscriptions.Hearing(publisher, [SignalAliases.Of(signal)], typeOf))
+        foreach (var subscriber in journal.Subscriptions.Hearing(publisher, [alias], typeOf))
         {
             nudge.Offer(subscriber, publisher, signal);
         }
@@ -68,7 +108,14 @@ internal sealed class Fanout(
 
     public int Reconcile()
     {
-        var due = journal.Subscriptions.Due(journal, typeOf, Delivery.SkipFlush);
+        var due = new HashSet<NeuronId>(journal.Subscriptions.Due(journal, typeOf, Delivery.SkipFlush));
+        if (declarativeReacts is not null && neuronClassOf is not null && brain is { } b)
+        {
+            foreach (var subscriber in declarativeReacts.Due(b, journal, neuronClassOf, typeOf))
+            {
+                due.Add(subscriber);
+            }
+        }
         foreach (var subscriber in due)
         {
             nudge.Nudge(subscriber, journal.Last);

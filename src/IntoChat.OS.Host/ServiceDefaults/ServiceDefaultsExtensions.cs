@@ -125,6 +125,7 @@ public static class ServiceDefaultsExtensions
                 .AddSource(builder.Environment.ApplicationName)
                 .AddSource(ProductTelemetryPrefix)
                 .AddSource($"{ProductTelemetryPrefix}.*")
+                .AddSource("DigitalBrain.Signals")
                 .AddSource("Experimental.Microsoft.Extensions.AI")
                 .AddSource("Experimental.Microsoft.Extensions.AI.*")
                 .AddSource("Microsoft.Extensions.AI")

@@ -297,6 +297,8 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 
     internal SynapseRegistry Delivery { get; }
 
+    internal DeclarativeReactsIndex DeclarativeReacts { get; } = new();
+
     /// <summary>A local TestOS.</summary>
     public static TestOS Local(Action<TestOSOptions>? configure = null)
     {
@@ -689,6 +691,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             ?? throw new ArgumentException($"{type.FullName} has no [Neuron(\"type\")] attribute.", nameof(type));
         var registered = _types.GetOrAdd(name, type);
         if (registered != type) { throw new ArgumentException($"Neuron type '{name}' is already registered for {registered.FullName}.", nameof(type)); }
+        DeclarativeReacts.Register(name, type);
         _ = CallMarkers.Predicate(type);
         if (type.Assembly != typeof(Neuron).Assembly) { ScanModuleActions(type.Assembly); }
         return this;
