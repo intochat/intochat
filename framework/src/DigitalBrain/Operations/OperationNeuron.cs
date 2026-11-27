@@ -15,11 +15,13 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
 {
     public const string NeuronType = "runtime.operation";
 
+    private readonly SemaphoreSlim _settleGate = new(1, 1);
     private CancellationTokenSource? _runningCts;
 
     public void Dispose()
     {
         _runningCts?.Dispose();
+        _settleGate.Dispose();
     }
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
@@ -118,7 +120,16 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
 
     private async Task Settle(ConfirmationResult outcome)
     {
-        var moved = await Apply("operation.answer", State.Answer(outcome, Context.Time.GetUtcNow())).ConfigureAwait(true);
+        bool moved;
+        await _settleGate.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            moved = await Apply("operation.answer", State.Answer(outcome, Context.Time.GetUtcNow())).ConfigureAwait(true);
+        }
+        finally
+        {
+            _settleGate.Release();
+        }
 
 #pragma warning disable CA1031
         try

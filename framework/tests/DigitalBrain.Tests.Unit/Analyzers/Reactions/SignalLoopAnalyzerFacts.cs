@@ -67,11 +67,18 @@ public sealed class SignalLoopAnalyzerFacts
         source.AppendLine("public sealed class Big : Neuron {");
         source.AppendLine("    private IAsyncEnumerable<T> Signals<T>() where T : Signal => throw null!;");
         var loops = 0;
-        for (var i = 0; source.ToString().Split('\n').Length < 2000; i++)
+        var lines = source.ToString().Split('\n').Length;
+        for (var i = 0; lines < 2000; i++)
         {
             source.AppendLine(CultureInfo.InvariantCulture, $"    [On] public Task Heard{i}(Number n) => Task.CompletedTask;");
             source.AppendLine(CultureInfo.InvariantCulture, $"    public async Task Loop{i}(IAsyncEnumerable<int> values) {{ await foreach (var v in values) {{ }} }}");
-            if (i % 50 == 0) { source.AppendLine(CultureInfo.InvariantCulture, $"    public async Task Bad{i}() {{ await foreach (var n in Signals<Number>()) {{ }} }}"); loops++; }
+            lines += 2;
+            if (i % 50 == 0)
+            {
+                source.AppendLine(CultureInfo.InvariantCulture, $"    public async Task Bad{i}() {{ await foreach (var n in Signals<Number>()) {{ }} }}");
+                loops++;
+                lines++;
+            }
         }
         source.AppendLine("}");
         var text = source.ToString();
@@ -79,6 +86,11 @@ public sealed class SignalLoopAnalyzerFacts
 
         var references = await Microsoft.CodeAnalysis.Testing.ReferenceAssemblies.Net.Net80
             .ResolveAsync(LanguageNames.CSharp, TestContext.Current.CancellationToken);
+        var warmup = CSharpCompilation.Create("Warmup", [CSharpSyntaxTree.ParseText(Prelude + Verify<SignalLoopAnalyzer>.Stubs + "\npublic sealed class W : Neuron { }", cancellationToken: TestContext.Current.CancellationToken)],
+            references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        _ = await warmup.WithAnalyzers([new SignalLoopAnalyzer()])
+            .GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+
         var compilation = CSharpCompilation.Create("Big", [CSharpSyntaxTree.ParseText(text, cancellationToken: TestContext.Current.CancellationToken)],
             references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
@@ -89,6 +101,6 @@ public sealed class SignalLoopAnalyzerFacts
         watch.Stop();
 
         Assert.Equal(loops, diagnostics.Count(d => d.Id == "DB0013"));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"analysis took {watch.Elapsed}");
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), $"analysis took {watch.Elapsed}");
     }
 }

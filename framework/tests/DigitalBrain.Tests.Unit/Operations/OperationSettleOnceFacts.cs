@@ -15,7 +15,9 @@ public sealed class OperationSettleOnceFacts
 
     private sealed class CountingHandler : IOperationHandler<CountedPlan>
     {
-        public int Runs { get; private set; }
+        private int _runs;
+
+        public int Runs => Volatile.Read(ref _runs);
 
         // A real run is detached and slow: the operation stays Running while the second settle arrives.
         public TaskCompletionSource Finish { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -24,7 +26,7 @@ public sealed class OperationSettleOnceFacts
 
         public async Task<OperationResult> Run(CountedPlan plan, IOperationNeuron operation, OperationScope scope, CancellationToken ct)
         {
-            Runs++;
+            Interlocked.Increment(ref _runs);
             await Finish.Task;
             return new OperationResult.Succeeded();
         }

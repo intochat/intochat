@@ -509,6 +509,7 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
         if (options.OllamaEndpoint is not null)
         {
             SetNestedValue(root, AIKeys.OllamaEndpoint, options.OllamaEndpoint.GetLeftPart(UriPartial.Authority));
+            SetNestedValue(root, "IntoChatOS:Modules:devices:Options:Ollama:ProbeTimeoutMs", "10000");
         }
 
         if (!string.IsNullOrWhiteSpace(options.DefaultModel))

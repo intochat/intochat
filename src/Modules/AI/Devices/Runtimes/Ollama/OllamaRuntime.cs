@@ -13,7 +13,6 @@ namespace IntoChat.OS.Modules.Devices;
 
 public sealed class OllamaRuntime : ILocalRuntime
 {
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(1_500);
     private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(5);
 
@@ -41,6 +40,8 @@ public sealed class OllamaRuntime : ILocalRuntime
     public RuntimeId Id => RuntimeId.Ollama;
 
     private Uri Endpoint => DevicesOptions.ValidateHttpUrl(_options.CurrentValue.Ollama.Endpoint, "Ollama.Endpoint");
+
+    private TimeSpan ProbeTimeout => TimeSpan.FromMilliseconds(Math.Clamp(_options.CurrentValue.Ollama.ProbeTimeoutMs, 100, 60_000));
 
     private void InvalidateCache()
     {

@@ -72,7 +72,11 @@ public sealed class ScriptedOllama : IAsyncDisposable
         Models = models;
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         BaseAddress = new Uri($"http://127.0.0.1:{port}", UriKind.Absolute);
-        _acceptLoop = Task.Run(AcceptConnectionsAsync);
+        _acceptLoop = Task.Factory.StartNew(
+            AcceptConnectionsAsync,
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default).Unwrap();
     }
 
     public Uri BaseAddress { get; }
@@ -166,10 +170,11 @@ public sealed class ScriptedOllama : IAsyncDisposable
     {
         using (client)
         await using (var stream = client.GetStream())
+        await using (var reader = new BufferedStream(stream, 4096))
         {
             while (!ct.IsCancellationRequested)
             {
-                var request = await ReadHttpRequestAsync(stream, ct).ConfigureAwait(false);
+                var request = await ReadHttpRequestAsync(reader, stream, ct).ConfigureAwait(false);
                 if (request is null)
                 {
                     return;
@@ -530,7 +535,7 @@ public sealed class ScriptedOllama : IAsyncDisposable
         _ => code.ToString(),
     };
 
-    private static async Task<RawHttpRequest?> ReadHttpRequestAsync(NetworkStream stream, CancellationToken ct)
+    private static async Task<RawHttpRequest?> ReadHttpRequestAsync(Stream readStream, NetworkStream writeStream, CancellationToken ct)
     {
         var headerBuffer = new MemoryStream();
         var single = new byte[1];
@@ -538,7 +543,7 @@ public sealed class ScriptedOllama : IAsyncDisposable
 
         while (true)
         {
-            var read = await stream.ReadAsync(single, ct).ConfigureAwait(false);
+            var read = await readStream.ReadAsync(single, ct).ConfigureAwait(false);
             if (read == 0)
             {
                 return null;
@@ -589,28 +594,28 @@ public sealed class ScriptedOllama : IAsyncDisposable
         if (headers.TryGetValue("Expect", out var expect)
             && expect.Contains("100-continue", StringComparison.OrdinalIgnoreCase))
         {
-            await stream.WriteAsync("HTTP/1.1 100 Continue\r\n\r\n"u8.ToArray(), ct).ConfigureAwait(false);
+            await writeStream.WriteAsync("HTTP/1.1 100 Continue\r\n\r\n"u8.ToArray(), ct).ConfigureAwait(false);
         }
 
         string body = string.Empty;
         if (headers.TryGetValue("Transfer-Encoding", out var transferEncoding)
             && transferEncoding.Contains("chunked", StringComparison.OrdinalIgnoreCase))
         {
-            body = await ReadChunkedBodyAsync(stream, ct).ConfigureAwait(false);
+            body = await ReadChunkedBodyAsync(readStream, ct).ConfigureAwait(false);
         }
         else if (headers.TryGetValue("Content-Length", out var lengthRaw)
             && int.TryParse(lengthRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var contentLength)
             && contentLength > 0)
         {
             var bodyBytes = new byte[contentLength];
-            await stream.ReadExactlyAsync(bodyBytes, ct).ConfigureAwait(false);
+            await readStream.ReadExactlyAsync(bodyBytes, ct).ConfigureAwait(false);
             body = Encoding.UTF8.GetString(bodyBytes);
         }
 
         return new RawHttpRequest(method, path, body);
     }
 
-    private static async Task<string> ReadChunkedBodyAsync(NetworkStream stream, CancellationToken ct)
+    private static async Task<string> ReadChunkedBodyAsync(Stream stream, CancellationToken ct)
     {
         var body = new MemoryStream();
         while (true)
@@ -650,7 +655,7 @@ public sealed class ScriptedOllama : IAsyncDisposable
         return Encoding.UTF8.GetString(body.ToArray());
     }
 
-    private static async Task<string?> ReadLineAsync(NetworkStream stream, CancellationToken ct)
+    private static async Task<string?> ReadLineAsync(Stream stream, CancellationToken ct)
     {
         var line = new MemoryStream();
         var single = new byte[1];
