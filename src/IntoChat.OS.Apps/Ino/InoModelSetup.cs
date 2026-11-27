@@ -580,6 +580,7 @@ internal static class InoModelSetup
             new("drawer-tab", "Switch the inline artifact drawer tab between preview, diff, and logs."),
             new("pin-artifact", "Pin the active code orchestration run as a sandboxed app via CrystallizeAsync."),
             new("clear-context", "Clear the active editing context chip above the composer."),
+            new("answer-task-ask", "Answer a pending multi-option ITasks Ask prompt from the docked ChoiceCard."),
         ]) with
     {
         CompiledType = compiledType.AssemblyQualifiedName,

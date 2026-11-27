@@ -107,6 +107,7 @@ public static partial class InoView
                 ReadAloud = voice.Speak,
                 TalkConversation = voice.Talk && !string.IsNullOrWhiteSpace(conversation) ? conversation : null,
                 ActiveContextLabel = string.IsNullOrWhiteSpace(s.ActiveContextName) ? null : s.ActiveContextName.Trim(),
+                Waiting = BuildWaitingChoice(s),
             });
     }
 
@@ -350,6 +351,7 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s, device) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
+        Node[] tasks = s.ActiveTasks is { Length: > 0 } activeTasks ? [.. activeTasks.Select(RenderTaskJobCard)] : [];
         var navAboveList = new List<Node>();
         if (string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
         {
@@ -368,7 +370,7 @@ public static partial class InoView
         }
         else
         {
-            Node[] under = [.. approvals, .. loose, .. setup];
+            Node[] under = [.. tasks, .. approvals, .. loose, .. setup];
             leftColumn = Filling(navAbove, conversation, under);
         }
 
@@ -385,6 +387,68 @@ public static partial class InoView
         }
 
         return leftColumn;
+    }
+
+    internal static Node? BuildWaitingChoice(InoAppState s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        var askTask = s.ActiveTasks.FirstOrDefault(static t =>
+            string.Equals(t.Status, "needs-you", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(t.AskQuestion)
+            && t.AskOptions is { Length: >= 2 });
+        if (askTask is null)
+        {
+            return null;
+        }
+
+        var options = new ChoiceOptionNode[askTask.AskOptions.Length];
+        for (var i = 0; i < askTask.AskOptions.Length; i++)
+        {
+            var label = askTask.AskOptions[i];
+            var detail = askTask.AskRecommendedIndex == i ? "Recommended" : null;
+            var pick = Button(label)
+                .Key($"task-ask:{askTask.TaskId}:{i}")
+                .Sends(new InoAnswerTaskAsk(askTask.TaskId, label, i, askTask.ConfirmationPlanId))
+                .ToButton();
+            options[i] = new ChoiceOptionNode(label, detail, pick);
+        }
+
+        return new ChoiceCardNode($"task-ask:{askTask.TaskId}", askTask.AskQuestion!, options);
+    }
+
+    internal static JobCardNode RenderTaskJobCard(InoTaskSummary task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        var (jobStatus, stepStatus, progress) = task.Status.ToLowerInvariant() switch
+        {
+            "completed" or "done" => ("done", "done", 1.0),
+            "failed" or "error" => ("error", "failed", 1.0),
+            "needs-you" => ("running", "waiting", 0.55),
+            "queued" => ("running", "waiting", 0.15),
+            _ => ("running", "running", 0.5),
+        };
+
+        var hasArtifact = !string.IsNullOrWhiteSpace(task.ArtifactUri) || !string.IsNullOrWhiteSpace(task.FlowId);
+        Button? openArtifact = hasArtifact
+            ? Button("Open artifact", "external-link")
+                .Small()
+                .Key($"open-task-artifact:{task.TaskId}")
+                .Sends(new InoOpenDrawer(
+                    ArtifactId: task.TaskId,
+                    FlowId: task.FlowId,
+                    Title: string.IsNullOrWhiteSpace(task.ArtifactLabel) ? task.Title : task.ArtifactLabel,
+                    LiveViewPath: task.ArtifactUri,
+                    Kind: !string.IsNullOrWhiteSpace(task.FlowId) ? "code-orchestration" : "artifact"))
+                .ToButton()
+            : null;
+
+        return new JobCardNode(
+            task.Title,
+            [new JobStepNode(task.Status == "needs-you" ? "Needs your answer" : task.Title, stepStatus, task.Summary)],
+            Progress: progress,
+            Status: jobStatus,
+            ResultText: task.Summary,
+            OpenArtifact: openArtifact);
     }
 
     internal static JobCardNode RenderCodeOrchestrationJobCard(InoDrawerArtifact artifact)

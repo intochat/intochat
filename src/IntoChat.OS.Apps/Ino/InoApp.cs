@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context, answer-task-ask
 */
 using IntoChat.OS.Host.Apps;
 using System.Text.Json;
@@ -24,6 +24,8 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Tasks;
+using TaskStatus = IntoChat.OS.Modules.Apps.Tasks.TaskStatus;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Conversations;
@@ -56,6 +58,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot(Required = false)] private partial SlotCollection<IApp> Apps { get; }
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<ICodeOrchestration> CodeOrchestrations { get; }
+    [Slot(Key = ITasks.DefaultKey, Required = false)] private partial ITasks? Tasks { get; }
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
@@ -323,7 +326,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         {
             await TryOptionalAsync("device-installs", () => Follow<IDevice, InstallChanged>($"devices/{machine.Value}"));
         }
-        await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
+        await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged), typeof(TasksChanged), typeof(TaskAsked)]));
         var snapshot = await RefreshPickerAsync();
         var settings = await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await UserSettings.Read());
         Voice = await InoModelSetup.InitializeViewAsync(Setup, snapshot, settings);
@@ -331,6 +334,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         var conversationKey = InoModel.ConversationKeyOf(State.ConversationId);
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
         await TrySeatFromSettingsAsync(State.ConversationId, settings, snapshot);
+        await RefreshTasksAsync(commit: false);
         await RefreshConversationAsync(full: true);
     }
 
@@ -374,6 +378,91 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [On] public Task OnConfirmationRequested(ConfirmationRequested? requested) => requested is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnConfirmationResolved(ConfirmationResolved? resolved) => resolved is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnFlowsChanged(FlowsChanged? changed) => changed is { FlowId.Length: > 0 } ? RefreshApprovalsAsync(skipWhenBothEmpty: true) : Task.CompletedTask;
+    [On] public Task OnTasksChanged(TasksChanged? changed) => changed is { TaskId.Length: > 0 } ? RefreshTasksAsync() : Task.CompletedTask;
+    [On] public Task OnTaskAsked(TaskAsked? asked) => asked is { TaskId.Length: > 0 } ? RefreshTasksAsync() : Task.CompletedTask;
+
+    [On]
+    public async Task AnswerTaskAsk(InoAnswerTaskAsk request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var taskId = request.TaskId?.Trim();
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        var option = request.Option?.Trim();
+        if (string.IsNullOrWhiteSpace(option)
+            && request.OptionIndex is { } idx
+            && State.ActiveTasks.FirstOrDefault(t => string.Equals(t.TaskId, taskId, StringComparison.Ordinal)) is { AskOptions: var opts }
+            && idx >= 0 && idx < opts.Length)
+        {
+            option = opts[idx];
+        }
+
+        if (string.IsNullOrWhiteSpace(option))
+        {
+            return;
+        }
+
+        if (Tasks is { } tasks)
+        {
+            await tasks.AnswerAsk(taskId, option);
+            await RefreshTasksAsync();
+        }
+    }
+
+    private async Task RefreshTasksAsync(bool commit = true)
+    {
+        if (Tasks is not { } tasks)
+        {
+            return;
+        }
+
+        var records = await ReadOptionalAsync<TaskRecord[]>("tasks-list", [], () => tasks.List());
+        var projected = records
+            .Where(static r => r.Status is TaskStatus.Queued or TaskStatus.InProgress or TaskStatus.NeedsYou or TaskStatus.Waiting or TaskStatus.Failed or TaskStatus.Completed)
+            .OrderByDescending(static r => r.Status == TaskStatus.NeedsYou)
+            .ThenByDescending(static r => r.UpdatedAt)
+            .Take(8)
+            .Select(static r =>
+            {
+                var artifact = r.Artifacts.LastOrDefault();
+                var statusSlug = r.Status switch
+                {
+                    TaskStatus.NeedsYou => "needs-you",
+                    TaskStatus.InProgress => "in-progress",
+                    TaskStatus.Waiting => "waiting",
+                    TaskStatus.Completed => "completed",
+                    TaskStatus.Failed => "failed",
+                    _ => "queued",
+                };
+                return new InoTaskSummary(
+                    TaskId: r.TaskId,
+                    Title: r.Title,
+                    Status: statusSlug,
+                    Summary: r.Summary,
+                    FlowId: r.FlowId,
+                    ArtifactUri: artifact?.Uri,
+                    ArtifactLabel: artifact?.Label,
+                    AskQuestion: r.PendingAsk?.Question,
+                    AskOptions: r.PendingAsk?.Options ?? [],
+                    AskRecommendedIndex: r.PendingAsk?.RecommendedIndex,
+                    ConfirmationPlanId: r.ConfirmationPlanId);
+            })
+            .ToArray();
+
+        if (!commit)
+        {
+            if (projected.Length > 0)
+            {
+                await Show(State with { ActiveTasks = projected });
+            }
+            return;
+        }
+
+        await Commit(State with { ActiveTasks = projected });
+    }
 
     [On]
     public async Task OpenDrawer(InoOpenDrawer request)

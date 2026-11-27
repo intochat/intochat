@@ -11,9 +11,11 @@ using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Tasks;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.UI;
+using TaskStatus = IntoChat.OS.Modules.Apps.Tasks.TaskStatus;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -194,6 +196,100 @@ public sealed class InoInlineDrawerAndDockFacts
             .Single();
         Assert.Equal("Developer", creatorScreen.Category);
         Assert.True(creatorScreen.Dock < 0);
+    }
+
+    [Fact]
+    public async Task InoApp_SurfacesITasksJobCard_AndResolvesDockedMultiOptionAskChoiceCard()
+    {
+        FakeTasksNeuron.Reset();
+        await using var os = TestOS.Local();
+        os.Register<FakeTasksNeuron>();
+        os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
+        var ino = await os.Install<InoApp>();
+
+        // Active task in NeedsYou with artifact link + multi-option Ask prompt.
+        Assert.Single(ino.App.State.ActiveTasks);
+        var props = InoView.ThreadProps(ino.App.State, VoiceAbilities.None, ino.App.State.ConversationId);
+        var waiting = Assert.IsType<ChoiceCardNode>(props.Waiting);
+        Assert.Equal("Which environment should I deploy to?", waiting.Question);
+        Assert.Equal(2, waiting.Options.Count);
+        Assert.Equal("Sandbox", waiting.Options[0].Title);
+        Assert.Equal("Recommended", waiting.Options[0].Detail);
+        Assert.Equal("ino.answer-task-ask", waiting.Options[0].Pick?.Command?.Signal);
+
+        var rendered = JsonSerializer.Serialize(ino.App.Render(), WebJson);
+        Assert.Contains("Deploy budget app", rendered, StringComparison.Ordinal);
+        Assert.Contains("Open artifact", rendered, StringComparison.Ordinal);
+
+        // Answering the docked ChoiceCard calls ITasks.AnswerAsk and clears Waiting.
+        await ino.Request("answer-task-ask", new InoAnswerTaskAsk(TaskId: "task-1", Option: "Sandbox", OptionIndex: 0));
+        Assert.Equal(("task-1", "Sandbox"), FakeTasksNeuron.LastAnswer);
+        var afterProps = InoView.ThreadProps(ino.App.State, VoiceAbilities.None, ino.App.State.ConversationId);
+        Assert.Null(afterProps.Waiting);
+    }
+
+    [Neuron("tasks")]
+    private sealed class FakeTasksNeuron : Neuron, ITasks
+    {
+        public static (string TaskId, string Option)? LastAnswer { get; private set; }
+        private static TaskStatus _status = TaskStatus.NeedsYou;
+        private static TaskAskPrompt? _pendingAsk = new("Which environment should I deploy to?", ["Sandbox", "Production"], RecommendedIndex: 0);
+
+        public static void Reset()
+        {
+            LastAnswer = null;
+            _status = TaskStatus.NeedsYou;
+            _pendingAsk = new("Which environment should I deploy to?", ["Sandbox", "Production"], RecommendedIndex: 0);
+        }
+
+        private static TaskRecord CurrentRecord() => new(
+            TaskId: "task-1",
+            Title: "Deploy budget app",
+            Description: "Deploy budget app to sandbox",
+            Status: _status,
+            Owner: "ino",
+            Tag: "Build",
+            CreatedAt: DateTimeOffset.UnixEpoch,
+            UpdatedAt: DateTimeOffset.UnixEpoch,
+            FlowId: "flow-budget",
+            Summary: "Waiting for deployment target",
+            PendingAsk: _pendingAsk,
+            Artifacts: [new TaskArtifactLink("app", "Budget App", "apps/budget/view")]);
+
+        public Task<TaskRecord[]> List(TaskStatus? status = null)
+            => Task.FromResult<TaskRecord[]>([CurrentRecord()]);
+
+        public Task<TaskRecord?> Read(string taskId)
+            => Task.FromResult<TaskRecord?>(CurrentRecord());
+
+        public Task<TaskRecord> Create(string title, string description = "", string tag = "Task", string? flowId = null, string[]? allowedContracts = null)
+            => Task.FromResult(CurrentRecord());
+
+        public Task<TaskRecord> Transition(string taskId, TaskStatus status, string? summary = null)
+        {
+            _status = status;
+            return Task.FromResult(CurrentRecord());
+        }
+
+        public Task<TaskRecord> Ask(string taskId, TaskAskPrompt prompt)
+        {
+            _status = TaskStatus.NeedsYou;
+            _pendingAsk = prompt;
+            return Task.FromResult(CurrentRecord());
+        }
+
+        public Task<TaskRecord> AnswerAsk(string taskId, string selectedOption)
+        {
+            LastAnswer = (taskId, selectedOption);
+            _status = TaskStatus.InProgress;
+            _pendingAsk = null;
+            return Task.FromResult(CurrentRecord());
+        }
+
+        public Task<TaskRecord> LinkArtifact(string taskId, TaskArtifactLink link)
+            => Task.FromResult(CurrentRecord());
+
+        public Task<int> ClearCompleted() => Task.FromResult(0);
     }
 
     [Neuron("flow.code-orchestration")]

@@ -24,6 +24,7 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.drawer-tab")] public sealed record InoSelectDrawerTab(string? Tab = null) : Signal;
 [Signal("ino.pin-artifact")] public sealed record InoPinArtifact(string? FlowId = null, string? Alias = null, string? Title = null) : Signal;
 [Signal("ino.clear-context")] public sealed record InoClearContext : Signal;
+[Signal("ino.answer-task-ask")] public sealed record InoAnswerTaskAsk(string? TaskId = null, string? Option = null, int? OptionIndex = null, string? PlanId = null) : Signal;
 
 [Signal("ino.send")]
 public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : Signal

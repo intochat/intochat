@@ -66,6 +66,29 @@ public sealed record InoDrawerArtifact(
     }
 }
 
+public sealed record InoTaskSummary(
+    string TaskId,
+    string Title,
+    string Status,
+    string? Summary = null,
+    string? FlowId = null,
+    string? ArtifactUri = null,
+    string? ArtifactLabel = null,
+    string? AskQuestion = null,
+    string[]? AskOptions = null,
+    int? AskRecommendedIndex = null,
+    string? ConfirmationPlanId = null)
+{
+    private readonly string[] _askOptions = AskOptions ?? [];
+
+    [AllowNull]
+    public string[] AskOptions
+    {
+        get => _askOptions;
+        init => _askOptions = value ?? [];
+    }
+}
+
 /// <summary>
 /// Pure DDD Aggregate state for <see cref="InoApp"/> (<c>app.ino</c>).
 /// Enforces active thread and section validity, bounded 64-thread history, non-null collections,
@@ -102,6 +125,7 @@ public sealed record InoAppState(
     private readonly Approval[] _approvals = [];
     private readonly string[] _detectedLocalModels = [];
     private readonly string[] _recentConversations = [];
+    private readonly InoTaskSummary[] _activeTasks = [];
 
     public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 
@@ -180,6 +204,13 @@ public sealed record InoAppState(
     public string? ActiveContextName { get; init; }
     public string? ActiveContextTarget { get; init; }
 
+    [AllowNull]
+    public InoTaskSummary[] ActiveTasks
+    {
+        get => _activeTasks;
+        init => _activeTasks = value ?? [];
+    }
+
     // ── Domain Invariants ────────────────────────────────────────────────────
 
     [Invariant("DrawerTab is always preview, diff, or logs."), JsonIgnore]
@@ -209,7 +240,8 @@ public sealed record InoAppState(
         && SeenProgress is not null
         && Approvals is not null
         && DetectedLocalModels is not null
-        && RecentConversations is not null;
+        && RecentConversations is not null
+        && ActiveTasks is not null;
 
     [Invariant("Blocked sessions hold neither an active run nor a pending prompt."), JsonIgnore]
     public bool ConsistentSessionRunInvariant =>
