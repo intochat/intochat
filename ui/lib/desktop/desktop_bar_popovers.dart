@@ -179,16 +179,6 @@ class DesktopBarPopover extends StatelessWidget {
             }
             onNewWindowForApp?.call(targetApp);
           },
-          onFocusIno: () {
-            onClose();
-            for (final w in windows) {
-              if (w.appId == 'ino') {
-                onFocusWindow?.call(w.windowId);
-                return;
-              }
-            }
-            onNewWindowForApp?.call('ino');
-          },
           onOpenSettings: () {
             onClose();
             onOpenSettings?.call();
@@ -538,7 +528,6 @@ class _NotificationsPopover extends StatelessWidget {
     required this.loaded,
     required this.loading,
     required this.onTapNotification,
-    required this.onFocusIno,
     required this.onOpenSettings,
     required this.onMarkAllRead,
     this.onClearAll,
@@ -549,7 +538,6 @@ class _NotificationsPopover extends StatelessWidget {
   final bool loaded;
   final bool loading;
   final ValueChanged<DesktopNotificationEntry> onTapNotification;
-  final VoidCallback onFocusIno;
   final VoidCallback onOpenSettings;
   final VoidCallback onMarkAllRead;
   final VoidCallback? onClearAll;
@@ -576,92 +564,6 @@ class _NotificationsPopover extends StatelessWidget {
     final hasUnread =
         notificationsCount > 0 || notifications.any((n) => !n.read);
 
-    if (!loaded) {
-      final previewItems = [
-        (
-          LucideIcons.hand,
-          c.working,
-          'Needs you · Approve Nordlys close date',
-          'Move CloseDate to 15 Nov in Salesforce',
-          '2m',
-        ),
-        (
-          LucideIcons.sparkles,
-          c.accent,
-          'Working · Morning Brief finished',
-          '3 meetings, 2 renewals, 1 overdue invoice',
-          '18m',
-        ),
-        (
-          LucideIcons.triangleAlert,
-          c.error,
-          'Error · Tripletex session expired',
-          'Sign in again so Ino can read Q4 invoices',
-          '1h',
-        ),
-      ];
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHeader(c, hasUnread: notificationsCount > 0, hasItems: false),
-          for (final it in previewItems)
-            _PopoverRow(
-              onTap: onFocusIno,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Icon(it.$1, size: 15, color: it.$2),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            it.$3,
-                            style: UiType.textStyle(
-                              13,
-                              weight: FontWeight.w600,
-                              color: c.textStrong,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            it.$4,
-                            style: UiType.textStyle(12, color: c.textMuted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      it.$5,
-                      style: UiType.textStyle(
-                        11.5,
-                        color: c.textSubtle,
-                        tnum: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          const _PopoverDivider(),
-          _PopoverItem(
-            key: const ValueKey('popover-notifications-settings'),
-            icon: LucideIcons.bell,
-            label: 'Notification settings',
-            onTap: onOpenSettings,
-          ),
-        ],
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -669,10 +571,11 @@ class _NotificationsPopover extends StatelessWidget {
         _buildHeader(
           c,
           hasUnread: hasUnread,
-          hasItems: notifications.isNotEmpty,
+          hasItems: loaded && notifications.isNotEmpty,
         ),
         if (loading && notifications.isEmpty)
           Padding(
+            key: const ValueKey('popover-notifications-loading'),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 18),
             child: Center(
               child: Text(
@@ -681,7 +584,7 @@ class _NotificationsPopover extends StatelessWidget {
               ),
             ),
           )
-        else if (notifications.isEmpty)
+        else if (!loaded || notifications.isEmpty)
           Padding(
             key: const ValueKey('popover-notifications-empty'),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 20),
