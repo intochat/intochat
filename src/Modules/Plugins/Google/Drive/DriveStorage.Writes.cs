@@ -20,7 +20,9 @@ internal sealed partial class DriveNeuron : IStorageUpload
 
     public async Task<string> BeginUpload(WritePlan plan, CancellationToken ct = default)
     {
-        await ConfirmWrite(plan, ct);
+        ArgumentNullException.ThrowIfNull(plan);
+        RequireWrite();
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await Uploads.BeginUpload(plan, ct);
     }
     public Task AppendUpload(string upload, long offset, byte[] bytes, CancellationToken ct = default) => Uploads.AppendUpload(upload, offset, bytes, ct);
@@ -42,7 +44,8 @@ internal sealed partial class DriveNeuron : IStorageUpload
     async Task<OperationId> IStorage.Write(WritePlan plan, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        await ConfirmWrite(plan, ct);
+        RequireWrite();
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         var operation = await operations.Start(new DriveWriteOperation(plan.Kind, plan.DryRun), ct);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, operation.Cancellation);
         try
@@ -74,7 +77,9 @@ internal sealed partial class DriveNeuron : IStorageUpload
 
     async Task<StorageWriteStream> IStorage.OpenWrite(WritePlan plan, CancellationToken ct)
     {
-        await ConfirmWrite(plan, ct);
+        ArgumentNullException.ThrowIfNull(plan);
+        RequireWrite();
+        await StorageWriteGate.AuthorizeAsync(Context.Id, this, plan, Context.Caller, authorizer, confirmations, StorageWritePolicy.AlwaysConfirm, ct).ConfigureAwait(true);
         return await OpenWriteCore(plan, ct);
     }
 
@@ -100,24 +105,6 @@ internal sealed partial class DriveNeuron : IStorageUpload
     {
         using var trace = EnterTrace();
         if (!CanWrite) { throw new Unsupported(null); }
-    }
-
-    private async Task ConfirmWrite(WritePlan plan, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        RequireWrite();
-        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(true)) { return; }
-        if (confirmations is null || plan.DryRun) { return; }
-        var descriptor = await ((IStorage)this).Describe(ct).ConfigureAwait(true);
-        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
-        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
-            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
-        var question = await runner.Confirmation(plan, ct).ConfigureAwait(true);
-        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(true);
-        if (answer.Outcome != ConfirmationOutcome.Approved)
-        {
-            throw new Denied(plan.Source ?? plan.TargetFolder);
-        }
     }
 
     private async Task<PreparedWrite> Prepare(WritePlan plan, CancellationToken ct)

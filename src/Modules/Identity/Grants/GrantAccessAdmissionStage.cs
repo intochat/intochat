@@ -144,13 +144,19 @@ internal sealed class InMemoryGrantPolicySource(InMemoryGrantStore store) : IGra
             };
         }
 
+        var snapshot = store.Snapshot();
+        var principals = PrincipalSet.For(caller);
+        var connectionBound = caller.Actor is Actor.App
+            && request.SemanticTypeIds.Count == 0
+            && EdgeGrantsCache.IsConnectionBoundInGrants(caller, request.TargetNeuron, snapshot, principals);
+
         var decision = GrantRules.Evaluate(
             caller,
             request,
             member,
-            store.Snapshot(),
-            PrincipalSet.For(caller),
-            connectionBound: false);
+            snapshot,
+            principals,
+            connectionBound: connectionBound);
         return ValueTask.FromResult(decision);
     }
 }

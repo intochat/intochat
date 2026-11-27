@@ -94,12 +94,7 @@ public sealed class ConnectionStorage(
         if (connectionKey is { Length: > 0 })
         {
             if (edge is null) { throw new InvalidOperationException($"Connection storage '{connectionKey}' was bound without an EdgeAuthority."); }
-            var current = edge.Current ?? throw new UnauthorizedAccessException($"Connection storage '{connectionKey}' refuses a call with no caller.");
-            // Carried (OWED.md): an app caller is lifted to the kernel of the connection's brain for the provider call.
-            if (current.Actor is DigitalBrain.Access.Actor.App)
-            {
-                return await edge.AsKernel(current.Brain, () => Translated(call)).ConfigureAwait(false);
-            }
+            _ = edge.Current ?? throw new UnauthorizedAccessException($"Connection storage '{connectionKey}' refuses a call with no caller.");
         }
         return await Translated(call).ConfigureAwait(false);
     }
