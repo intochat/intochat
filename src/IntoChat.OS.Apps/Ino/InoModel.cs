@@ -406,8 +406,8 @@ public static class InoModel
             return trimmed;
         }
 
-        var name = state.ActiveContextName?.Trim();
-        var target = state.ActiveContextTarget?.Trim();
+        var name = SanitizeContextToken(state.ActiveContextName);
+        var target = SanitizeContextToken(state.ActiveContextTarget);
         if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(target))
         {
             return trimmed;
@@ -417,6 +417,22 @@ public static class InoModel
             ? $"[Active context: {name} ({target})]"
             : $"[Active context: {name ?? target}]";
         return $"{contextHeader}\n{trimmed}";
+    }
+
+    private static string? SanitizeContextToken(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var clean = raw
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", string.Empty, StringComparison.Ordinal)
+            .Replace("]", string.Empty, StringComparison.Ordinal)
+            .Trim();
+        return clean.Length == 0 ? null : clean;
     }
 
     /// <summary>Derives a valid sandbox unit alias slug for <c>ICodeOrchestration.CrystallizeAsync</c>.</summary>

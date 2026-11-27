@@ -235,6 +235,20 @@ void main() {
                           small: true,
                         ),
                         ButtonNode(
+                          key: 'ino:drawer-popout',
+                          label: 'Pop out',
+                          command: null,
+                          intent: null,
+                          enabled: false,
+                          tone: 'neutral',
+                          tooltip: 'Pin as App to pop out',
+                          visible: true,
+                          automationName: 'Pop out',
+                          style: '',
+                          icon: 'external-link',
+                          small: true,
+                        ),
+                        ButtonNode(
                           key: 'ino:drawer-close',
                           label: 'Close',
                           command: null,
@@ -445,5 +459,283 @@ void main() {
         expect(dispatched, contains('task.answer'));
       },
     );
+
+    testWidgets(
+      'Child-mounted ConversationNode (childPath: conversation) routes / commands to root (.) and . commands to conversation',
+      (tester) async {
+        final actions = <ActAction>[];
+        final ctx = NodeContext(
+          view: 'local/apps/ino/view',
+          childPath: 'conversation',
+          send: (action) async {
+            if (action is ActAction) actions.add(action);
+            return null;
+          },
+        );
+
+        const conversation = ConversationNode(
+          key: 'conversation',
+          messages: [
+            MessageNode(
+              id: 'm1',
+              role: 'assistant',
+              text: 'Built artifact.',
+              cards: [
+                JobCardNode(
+                  title: 'Expense Splitter',
+                  steps: [
+                    JobStepNode(label: 'Run', status: 'done', detail: null),
+                  ],
+                  progress: 1.0,
+                  status: 'done',
+                  resultText: 'Done',
+                  cancel: null,
+                  openArtifact: ButtonNode(
+                    key: 'open-artifact:1',
+                    label: 'Open artifact',
+                    command: Command(
+                      target: '/',
+                      signal: 'ino.open-drawer',
+                      args: null,
+                      props: null,
+                    ),
+                    intent: null,
+                    enabled: true,
+                    tone: 'neutral',
+                    tooltip: null,
+                    visible: true,
+                    automationName: 'Open artifact',
+                    style: '',
+                    icon: 'external-link',
+                    small: true,
+                  ),
+                ),
+              ],
+              activities: null,
+              status: 'completed',
+              model: null,
+              retry: null,
+              modelLabel: null,
+              providerIcon: null,
+              error: null,
+              attachments: null,
+              sender: null,
+            ),
+          ],
+          composer: ComposerNode(
+            key: 'composer',
+            onSubmit: Command(
+              target: '.',
+              signal: 'control.submitText',
+              args: null,
+              props: null,
+            ),
+            placeholder: 'Ask anything.',
+            enabled: true,
+            activeModelLabel: null,
+            activeProviderIcon: null,
+            dictation: false,
+            activeContextLabel: 'Expense Splitter',
+            onClearContext: Command(
+              target: '.',
+              signal: 'control.clearContext',
+              args: null,
+              props: null,
+            ),
+          ),
+          waiting: ChoiceCardNode(
+            id: 'ask-child',
+            question: 'Deploy target?',
+            pickedIndex: null,
+            options: [
+              ChoiceOptionNode(
+                title: 'Sandbox',
+                detail: 'Recommended',
+                icon: null,
+                pick: ButtonNode(
+                  key: 'task-ask:1:0',
+                  label: 'Sandbox',
+                  command: Command(
+                    target: '/',
+                    signal: 'ino.answer-task-ask',
+                    args: null,
+                    props: null,
+                  ),
+                  intent: null,
+                  enabled: true,
+                  tone: 'accent',
+                  tooltip: null,
+                  visible: true,
+                  automationName: 'Sandbox',
+                  style: '',
+                  icon: null,
+                  small: false,
+                ),
+              ),
+              ChoiceOptionNode(
+                title: 'Production',
+                detail: null,
+                icon: null,
+                pick: ButtonNode(
+                  key: 'task-ask:1:1',
+                  label: 'Production',
+                  command: Command(
+                    target: '/',
+                    signal: 'ino.answer-task-ask',
+                    args: null,
+                    props: null,
+                  ),
+                  intent: null,
+                  enabled: true,
+                  tone: 'neutral',
+                  tooltip: null,
+                  visible: true,
+                  automationName: 'Production',
+                  style: '',
+                  icon: null,
+                  small: false,
+                ),
+              ),
+            ],
+          ),
+          status: 'paused',
+          error: null,
+          stop: null,
+          empty: null,
+          automationName: 'Conversation',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: UiTheme.intochat(Brightness.light),
+            home: Scaffold(body: NodeRenderer.render(conversation, ctx)),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Sandbox'));
+        await tester.pump();
+        expect(
+          actions.any(
+            (a) => a.signal == 'ino.answer-task-ask' && a.target == '.',
+          ),
+          isTrue,
+        );
+        expect(ctx.actTarget('/'), '.');
+        expect(ctx.actTarget('.'), 'conversation');
+        expect(ctx.actTarget('/other'), 'other');
+      },
+    );
+
+    testWidgets(
+      'Focus Mode 900x700 scrim dismiss hides overlay and updating trailing drawer reopens it automatically',
+      (tester) async {
+        tester.view.physicalSize = const Size(900, 700);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final ctx = NodeContext(
+          view: 'local/apps/ino/view',
+          send: (_) async => null,
+        );
+
+        SplitPaneNode buildSplit(String title) => SplitPaneNode(
+          leadingExtent: 520,
+          gap: 16,
+          trailingDrawer: true,
+          collapseBreakpoint: 1024,
+          trailingFraction: 0.58,
+          leading: const TextNode(
+            value: 'Conversation',
+            tone: 'strong',
+            size: 14,
+            mono: false,
+            tabular: false,
+          ),
+          trailing: TextNode(
+            value: title,
+            tone: 'strong',
+            size: 15,
+            mono: false,
+            tabular: false,
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: UiTheme.intochat(Brightness.light),
+            home: Scaffold(
+              body: SizedBox(
+                width: 900,
+                height: 700,
+                child: NodeRenderer.render(buildSplit('Artifact A'), ctx),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('split_pane_trailing_overlay')),
+          findsOneWidget,
+        );
+
+        // Dismiss via exposed left scrim strip -> overlay hides, Artifact toggle pill appears.
+        await tester.tapAt(const Offset(40, 350));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('split_pane_trailing_overlay')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('split_pane_trailing_toggle')),
+          findsOneWidget,
+        );
+
+        // Update trailing drawer to Artifact B -> overlay reopens automatically!
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: UiTheme.intochat(Brightness.light),
+            home: Scaffold(
+              body: SizedBox(
+                width: 900,
+                height: 700,
+                child: NodeRenderer.render(buildSplit('Artifact B'), ctx),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('split_pane_trailing_overlay')),
+          findsOneWidget,
+        );
+        expect(find.text('Artifact B'), findsOneWidget);
+      },
+    );
+
+    test('IntentGate accepts Pop out OpenWindow when pinned and refuses os://view/', () {
+      bool knowsApp(String app) => app == 'tip-calc';
+      expect(
+        IntentGate.check(
+          const IntentNode(
+            intentKind: IntentKind.openWindow,
+            arg: 'os://window/open?app=tip-calc',
+          ),
+          knowsApp: knowsApp,
+        ),
+        isNotNull,
+      );
+      expect(
+        IntentGate.check(
+          const IntentNode(
+            intentKind: IntentKind.openWindow,
+            arg: 'os://view/apps/unpinned/view',
+          ),
+          knowsApp: knowsApp,
+        ),
+        isNull,
+      );
+    });
   });
 }

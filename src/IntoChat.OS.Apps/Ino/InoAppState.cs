@@ -64,6 +64,38 @@ public sealed record InoDrawerArtifact(
         get => _scopedContracts;
         init => _scopedContracts = value ?? [];
     }
+
+    public bool Equals(InoDrawerArtifact? other) =>
+        other is not null
+        && string.Equals(Id, other.Id, StringComparison.Ordinal)
+        && string.Equals(Title, other.Title, StringComparison.Ordinal)
+        && string.Equals(Kind, other.Kind, StringComparison.Ordinal)
+        && string.Equals(Status, other.Status, StringComparison.Ordinal)
+        && string.Equals(FlowId, other.FlowId, StringComparison.Ordinal)
+        && string.Equals(LiveViewPath, other.LiveViewPath, StringComparison.Ordinal)
+        && string.Equals(CompiledScript, other.CompiledScript, StringComparison.Ordinal)
+        && string.Equals(Summary, other.Summary, StringComparison.Ordinal)
+        && string.Equals(DiffText, other.DiffText, StringComparison.Ordinal)
+        && string.Equals(LogsText, other.LogsText, StringComparison.Ordinal)
+        && string.Equals(PinnedAppAlias, other.PinnedAppAlias, StringComparison.Ordinal)
+        && string.Equals(PinError, other.PinError, StringComparison.Ordinal)
+        && string.Equals(ExecutionTarget, other.ExecutionTarget, StringComparison.Ordinal)
+        && _scopedContracts.SequenceEqual(other._scopedContracts, StringComparer.Ordinal);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Id, StringComparer.Ordinal);
+        hash.Add(Title, StringComparer.Ordinal);
+        hash.Add(Kind, StringComparer.Ordinal);
+        hash.Add(Status, StringComparer.Ordinal);
+        hash.Add(FlowId, StringComparer.Ordinal);
+        hash.Add(LiveViewPath, StringComparer.Ordinal);
+        hash.Add(PinnedAppAlias, StringComparer.Ordinal);
+        hash.Add(PinError, StringComparer.Ordinal);
+        foreach (var c in _scopedContracts) { hash.Add(c, StringComparer.Ordinal); }
+        return hash.ToHashCode();
+    }
 }
 
 public sealed record InoTaskSummary(
@@ -86,6 +118,33 @@ public sealed record InoTaskSummary(
     {
         get => _askOptions;
         init => _askOptions = value ?? [];
+    }
+
+    public bool Equals(InoTaskSummary? other) =>
+        other is not null
+        && string.Equals(TaskId, other.TaskId, StringComparison.Ordinal)
+        && string.Equals(Title, other.Title, StringComparison.Ordinal)
+        && string.Equals(Status, other.Status, StringComparison.Ordinal)
+        && string.Equals(Summary, other.Summary, StringComparison.Ordinal)
+        && string.Equals(FlowId, other.FlowId, StringComparison.Ordinal)
+        && string.Equals(ArtifactUri, other.ArtifactUri, StringComparison.Ordinal)
+        && string.Equals(ArtifactLabel, other.ArtifactLabel, StringComparison.Ordinal)
+        && string.Equals(AskQuestion, other.AskQuestion, StringComparison.Ordinal)
+        && AskRecommendedIndex == other.AskRecommendedIndex
+        && string.Equals(ConfirmationPlanId, other.ConfirmationPlanId, StringComparison.Ordinal)
+        && _askOptions.SequenceEqual(other._askOptions, StringComparer.Ordinal);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(TaskId, StringComparer.Ordinal);
+        hash.Add(Title, StringComparer.Ordinal);
+        hash.Add(Status, StringComparer.Ordinal);
+        hash.Add(FlowId, StringComparer.Ordinal);
+        hash.Add(AskQuestion, StringComparer.Ordinal);
+        hash.Add(AskRecommendedIndex);
+        foreach (var opt in _askOptions) { hash.Add(opt, StringComparer.Ordinal); }
+        return hash.ToHashCode();
     }
 }
 
@@ -203,6 +262,7 @@ public sealed record InoAppState(
     public string DrawerTab { get; init; } = "preview";
     public string? ActiveContextName { get; init; }
     public string? ActiveContextTarget { get; init; }
+    public string? LastAutoOpenedFlowId { get; init; }
 
     [AllowNull]
     public InoTaskSummary[] ActiveTasks

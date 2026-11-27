@@ -186,7 +186,8 @@ public static class ConversationThreadProjection
             if (said.By is Participant.Human human)
             {
                 var sender = said.Sender ?? new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Self);
-                messages.Add(new ThreadMessage(said.Id.Value, "user", said.Text, "completed")
+                var displayText = StripActiveContextHeader(said.Text);
+                messages.Add(new ThreadMessage(said.Id.Value, "user", displayText, "completed")
                 {
                     Sender = sender,
                     Attachments = ProjectAttachments(said.Attachments),
@@ -703,4 +704,20 @@ public static class ConversationThreadProjection
 
     private static string? GetString(JsonElement obj, string name)
         => obj.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String ? prop.GetString() : null;
+
+    internal static string StripActiveContextHeader(string text)
+    {
+        if (string.IsNullOrEmpty(text) || !text.StartsWith("[Active context:", StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        var newline = text.IndexOf('\n');
+        if (newline < 0 || text.IndexOf(']', 0, newline) < 0)
+        {
+            return text;
+        }
+
+        return text[(newline + 1)..];
+    }
 }

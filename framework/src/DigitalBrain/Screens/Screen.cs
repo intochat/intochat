@@ -135,7 +135,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             ArgumentNullException.ThrowIfNull(command);
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Target);
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
-            if (command.Target == ".")
+            if (command.Target is "." or "/")
             {
                 // The handler hears who acted from the kernel-stamped caller, never from the args: a declared "by" is replaced or dropped.
                 var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: Context.Caller?.For?.Principal);

@@ -24,7 +24,20 @@ public static class ScreenClicks
         ArgumentException.ThrowIfNullOrWhiteSpace(childPath);
         var view = await screen.ReadChild(childPath).ConfigureAwait(false) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode, "The child has no view yet.");
         var command = view.CommandAt(key, value);
-        var inner = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
-        await screen.Dispatch(command with { Target = inner == "." ? childPath : childPath + "/" + inner }).ConfigureAwait(false);
+        string target;
+        if (command.Target == "/")
+        {
+            target = ".";
+        }
+        else if (command.Target.StartsWith('/'))
+        {
+            target = command.Target[1..];
+        }
+        else
+        {
+            var inner = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
+            target = inner == "." ? childPath : childPath + "/" + inner;
+        }
+        await screen.Dispatch(command with { Target = target }).ConfigureAwait(false);
     }
 }

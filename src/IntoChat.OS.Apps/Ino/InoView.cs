@@ -365,7 +365,7 @@ public static partial class InoView
         if (HasUnprojectedVaultSecretPrompt(s, view))
         {
             Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];
-            Node[] below = [.. approvals, .. setup];
+            Node[] below = [.. tasks, .. approvals, .. setup];
             leftColumn = Filling(above, conversation, below);
         }
         else
@@ -406,10 +406,10 @@ public static partial class InoView
         {
             var label = askTask.AskOptions[i];
             var detail = askTask.AskRecommendedIndex == i ? "Recommended" : null;
-            var pick = Button(label)
+            var pick = WithRootTarget(Button(label)
                 .Key($"task-ask:{askTask.TaskId}:{i}")
                 .Sends(new InoAnswerTaskAsk(askTask.TaskId, label, i, askTask.ConfirmationPlanId))
-                .ToButton();
+                .ToButton());
             options[i] = new ChoiceOptionNode(label, detail, pick);
         }
 
@@ -471,7 +471,7 @@ public static partial class InoView
             new("Compile & sanitize script", "done"),
             new("Run in sandbox", stepStatus, artifact.ExecutionTarget),
         };
-        var openButton = Button("Open artifact", "external-link")
+        var openButton = WithRootTarget(Button("Open artifact", "external-link")
             .Small()
             .Key($"open-artifact:{artifact.Id}")
             .Sends(new InoOpenDrawer(
@@ -480,7 +480,7 @@ public static partial class InoView
                 Title: artifact.Title,
                 LiveViewPath: artifact.LiveViewPath,
                 Kind: artifact.Kind))
-            .ToButton();
+            .ToButton());
 
         return new JobCardNode(
             artifact.Title,
@@ -540,17 +540,20 @@ public static partial class InoView
 
         var popoutTarget = !string.IsNullOrWhiteSpace(artifact.PinnedAppAlias)
             ? AppSignals.OpenApp(artifact.PinnedAppAlias).Arg
-            : !string.IsNullOrWhiteSpace(artifact.LiveViewPath)
-                ? $"os://view/{artifact.LiveViewPath.TrimStart('/')}"
-                : null;
+            : null;
 
-        Node? popoutAction = popoutTarget is not null
+        Node popoutAction = popoutTarget is not null
             ? GhostButton("Pop out", "external-link")
                 .Small()
                 .Key(DrawerPopoutKey)
                 .WithIntent(IntentKind.OpenWindow, popoutTarget)
                 .ToNode()
-            : null;
+            : GhostButton("Pop out", "external-link")
+                .Small()
+                .Key(DrawerPopoutKey)
+                .Disabled(true)
+                .Tooltip("Pin as App to pop out")
+                .ToNode();
 
         Node closeAction = GhostButton("Close", "x")
             .Small()
@@ -610,10 +613,13 @@ public static partial class InoView
             .Style(Mix.Style()
                 .Tone(UiTone.Elevated)
                 .Padding(12)
-                .Radius(12))[
+                .Radius(14))[
             VStack(Space.Sm, [header, .. banners, body]).Extents([-1d, .. banners.Select(static _ => -1d), 1d])
         ];
     }
+
+    private static Button WithRootTarget(Button button)
+        => button.Command is null ? button : button with { Command = button.Command with { Target = "/" } };
 
     private static Node[] RenderNavigationSeedNodes(InoAppState s, Rejected? departureRejection)
     {
@@ -1028,12 +1034,12 @@ public static partial class InoView
                     ],
                     Subtitle: card.Summary,
                     LinkLabel: "Open in Drawer",
-                    Open: Button("Open in Drawer", "external-link")
+                    Open: WithRootTarget(Button("Open in Drawer", "external-link")
                         .Small()
                         .Style(OsMixStyles.LinkAction())
                         .Key($"open-run-drawer:{card.Id}")
                         .Sends(new InoOpenDrawer(ArtifactId: card.Id, FlowId: card.Id, Title: card.Title, Kind: "code-orchestration"))
-                        .ToButton());
+                        .ToButton()));
                 break;
 
             default:

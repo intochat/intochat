@@ -555,8 +555,9 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
         oldWidget.node.trailingFraction != widget.node.trailingFraction) {
       _draggedExtent = null;
     }
-    if (oldWidget.node.trailingDrawer != widget.node.trailingDrawer &&
-        widget.node.trailingDrawer == true) {
+    if (widget.node.trailingDrawer == true &&
+        (oldWidget.node.trailingDrawer != true ||
+            oldWidget.node.trailing != widget.node.trailing)) {
       _trailingOverlayOpen = true;
     }
   }
@@ -893,33 +894,46 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
           Positioned(
             top: 10,
             right: 12,
-            child: GestureDetector(
-              key: const ValueKey('split_pane_trailing_toggle'),
-              onTap: interactive
-                  ? () => setState(() => _trailingOverlayOpen = true)
-                  : null,
-              child: Container(
-                height: 30,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: c.accentTint,
-                  borderRadius: BorderRadius.circular(UiTokens.of(context).sm),
-                  border: Border.all(color: c.accent.withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.panelRight, size: 14, color: c.accent),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Artifact',
-                      style: UiType.textStyle(
-                        12,
-                        weight: FontWeight.w600,
-                        color: c.accent,
+            child: Semantics(
+              button: true,
+              label: 'Open artifact drawer',
+              child: MouseRegion(
+                cursor: interactive
+                    ? SystemMouseCursors.click
+                    : MouseCursor.defer,
+                child: GestureDetector(
+                  key: const ValueKey('split_pane_trailing_toggle'),
+                  onTap: interactive
+                      ? () => setState(() => _trailingOverlayOpen = true)
+                      : null,
+                  child: Container(
+                    height: 30,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: c.accentTint,
+                      borderRadius: BorderRadius.circular(
+                        UiTokens.of(context).sm,
+                      ),
+                      border: Border.all(
+                        color: c.accent.withValues(alpha: 0.4),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.panelRight, size: 14, color: c.accent),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Artifact',
+                          style: UiType.textStyle(
+                            12,
+                            weight: FontWeight.w600,
+                            color: c.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

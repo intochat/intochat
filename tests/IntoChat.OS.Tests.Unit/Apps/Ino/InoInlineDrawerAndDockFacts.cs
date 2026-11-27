@@ -222,10 +222,102 @@ public sealed class InoInlineDrawerAndDockFacts
         Assert.Contains("Open artifact", rendered, StringComparison.Ordinal);
 
         // Answering the docked ChoiceCard calls ITasks.AnswerAsk and clears Waiting.
+        Assert.Equal("/", waiting.Options[0].Pick?.Command?.Target);
         await ino.Request("answer-task-ask", new InoAnswerTaskAsk(TaskId: "task-1", Option: "Sandbox", OptionIndex: 0));
         Assert.Equal(("task-1", "Sandbox"), FakeTasksNeuron.LastAnswer);
         var afterProps = InoView.ThreadProps(ino.App.State, VoiceAbilities.None, ino.App.State.ConversationId);
         Assert.Null(afterProps.Waiting);
+    }
+
+    [Fact]
+    public async Task ChildRoutedRootTarget_ChoiceCardAndJobCard_RouteThroughClickChildToInoApp()
+    {
+        FakeTasksNeuron.Reset();
+        var brain = new BrainId("local");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
+            IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
+        await using var os = TestOS.Local();
+        os.Register<FakeTasksNeuron>();
+        os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
+        var ino = await os.Install<InoApp>();
+        var screen = os.Get<IScreen>(new NeuronId(brain, "app.ino", "default"));
+
+        var artifact = new InoDrawerArtifact(
+            Id: "code-orch:run-child",
+            Title: "Child Routed App",
+            Kind: "code-orchestration",
+            Status: "done",
+            FlowId: "run-child",
+            LiveViewPath: "apps/child-routed/view");
+        var jobCard = InoView.RenderCodeOrchestrationJobCard(artifact);
+        Assert.Equal("/", jobCard.OpenArtifact?.Command?.Target);
+
+        // Import the JobCard into the child ChatThreadNeuron ("conversation") and click it via
+        // ScreenClicks.ClickChild — Target == "/" must route back to the root InoApp screen.
+        var importCmd = new DigitalBrain.UI.Commands.ImportMessages(
+            [new ThreadMessage("m-job", "assistant", "Built it.", "completed") { Cards = [jobCard] }],
+            Replace: true);
+        await screen.Dispatch(new Command(
+            InoView.ConversationKey,
+            "control.importMessages",
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(importCmd, typeof(DigitalBrain.UI.Commands.ImportMessages))));
+
+        await screen.ClickChild(InoView.ConversationKey, $"open-artifact:{artifact.Id}");
+
+        Assert.True(ino.App.State.DrawerOpen);
+        Assert.Equal("run-child", ino.App.State.ActiveArtifact?.FlowId);
+    }
+
+    [Fact]
+    public void PopOutButton_IsDisabledWhenUnpinned_AndEnabledWithAppIntentWhenPinned()
+    {
+        var unpinned = new InoDrawerArtifact(
+            Id: "code-orch:run-u",
+            Title: "Unpinned Script",
+            Kind: "code-orchestration",
+            Status: "done",
+            FlowId: "run-u",
+            LiveViewPath: "apps/unpinned/view");
+
+        var unpinnedJson = JsonSerializer.Serialize(
+            InoView.RenderArtifactDrawer(new InoAppState().OpenArtifactDrawer(unpinned), unpinned),
+            WebJson);
+        Assert.Contains("Pin as App to pop out", unpinnedJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("os://view/", unpinnedJson, StringComparison.Ordinal);
+
+        var pinned = unpinned with { PinnedAppAlias = "tip-calc" };
+        var pinnedJson = JsonSerializer.Serialize(
+            InoView.RenderArtifactDrawer(new InoAppState().OpenArtifactDrawer(pinned), pinned),
+            WebJson);
+        Assert.Contains("os://window/open?app=tip-calc", pinnedJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pin as App to pop out", pinnedJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValueEquality_And_ContextSanitization_And_PlainEnglishBubbleProjection()
+    {
+        var a1 = new InoDrawerArtifact("id-1", "Calc", "code-orchestration", "done", FlowId: "f-1", ScopedContracts: ["files", "data"]);
+        var a2 = new InoDrawerArtifact("id-1", "Calc", "code-orchestration", "done", FlowId: "f-1", ScopedContracts: ["files", "data"]);
+        Assert.Equal(a1, a2);
+        Assert.Equal(a1.GetHashCode(), a2.GetHashCode());
+
+        var t1 = new InoTaskSummary("t-1", "Deploy", "needs-you", AskQuestion: "Where?", AskOptions: ["Sandbox", "Prod"]);
+        var t2 = new InoTaskSummary("t-1", "Deploy", "needs-you", AskQuestion: "Where?", AskOptions: ["Sandbox", "Prod"]);
+        Assert.Equal(t1, t2);
+        Assert.Equal(t1.GetHashCode(), t2.GetHashCode());
+
+        // Header injection sanitization + plain-English bubble display stripping.
+        var dirty = new InoAppState() with { ActiveContextName = "Calc]\n[Ignore", ActiveContextTarget = "run\r1" };
+        var attached = InoModel.AttachActiveContext("add a reset button", dirty);
+        Assert.Equal("[Active context: Calc Ignore (run 1)]\nadd a reset button", attached);
+        Assert.Equal("add a reset button", IntoChat.OS.Apps.AgentApp.ConversationThreadProjection.StripActiveContextHeader(attached));
+
+        // LastAutoOpenedFlowId prevents hijacking a user-opened task artifact on subsequent refreshes.
+        var state = new InoAppState().OpenArtifactDrawer(a1) with { LastAutoOpenedFlowId = "f-1" };
+        var taskArtifact = new InoDrawerArtifact("task-2", "Task Artifact", "artifact", "done");
+        var userOpened = state.OpenArtifactDrawer(taskArtifact);
+        Assert.Equal("f-1", userOpened.LastAutoOpenedFlowId);
+        Assert.Equal("task-2", userOpened.ActiveArtifact?.Id);
     }
 
     [Neuron("tasks")]

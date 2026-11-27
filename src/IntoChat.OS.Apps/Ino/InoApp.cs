@@ -811,23 +811,25 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             }
         }
 
-        if (InoThread.LatestCodeOrchestrationArtifact(merged) is { } latestArtifact)
+        if (InoThread.LatestCodeOrchestrationArtifact(merged) is { FlowId.Length: > 0 } latestArtifact)
         {
-            var isNewFlow = !string.Equals(next.ActiveArtifact?.FlowId, latestArtifact.FlowId, StringComparison.Ordinal);
-            if (isNewFlow)
+            var unseenFlow = !string.Equals(next.LastAutoOpenedFlowId, latestArtifact.FlowId, StringComparison.Ordinal);
+            if (unseenFlow)
             {
-                next = next.OpenArtifactDrawer(latestArtifact);
+                next = next.OpenArtifactDrawer(latestArtifact) with { LastAutoOpenedFlowId = latestArtifact.FlowId };
             }
-            else if (next.ActiveArtifact is { } existing && existing != latestArtifact)
+            else if (next.ActiveArtifact is { } existing
+                && string.Equals(existing.FlowId, latestArtifact.FlowId, StringComparison.Ordinal))
             {
-                next = next with
+                var updated = latestArtifact with
                 {
-                    ActiveArtifact = latestArtifact with
-                    {
-                        PinnedAppAlias = existing.PinnedAppAlias ?? latestArtifact.PinnedAppAlias,
-                        PinError = existing.PinError,
-                    },
+                    PinnedAppAlias = existing.PinnedAppAlias ?? latestArtifact.PinnedAppAlias,
+                    PinError = existing.PinError,
                 };
+                if (!existing.Equals(updated))
+                {
+                    next = next with { ActiveArtifact = updated };
+                }
             }
         }
 
