@@ -350,7 +350,7 @@ public sealed class SettingsAppFacts
             await using var os = TestOS.Local().Register<UserSettingsNeuron>().Register<FakeApprovalsNeuron>();
             var settings = await os.Install<SettingsApp>();
             await settings.Request("open", new SettingsOpen());
-            await settings.App.Navigate(new SettingsNavigate("notifications"));
+            await settings.Request("navigate", new SettingsNavigate("notifications"));
 
             var wireJson = System.Text.Json.JsonSerializer.Serialize(
                 settings.App.Render(),
