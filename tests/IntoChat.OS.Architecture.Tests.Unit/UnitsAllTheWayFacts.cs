@@ -231,18 +231,26 @@ public sealed partial class UnitsAllTheWayFacts
     {
         var nodes = Path.Combine(Repository.Root, "ui", "lib", "s" + "rc", "nodes");
         var dispatch = File.ReadAllText(Path.Combine(nodes, "node_renderer.dart"));
+        var rendererFiles = Directory.EnumerateFiles(nodes, "*.dart")
+            .Where(path => !string.Equals(Path.GetFileName(path), "node_renderer.dart", StringComparison.Ordinal))
+            .Select(path => (Name: Path.GetFileName(path), Text: File.ReadAllText(path)))
+            .ToArray();
         var missing = new List<string>();
         var kinds = NodeSchema.DerivedKinds();
         Assert.NotEmpty(kinds);
-        Assert.NotEmpty(Directory.EnumerateFiles(nodes, "*.dart"));
+        Assert.NotEmpty(rendererFiles);
         foreach (var (type, kind) in kinds)
         {
             var dart = NodeSchema.DartName(type);
             var render = "render" + dart[..^"Node".Length];
-            // One file per kind named after it (splitPane is split_pane.dart), holding the renderer the dispatch calls.
-            var file = Path.Combine(nodes, Regex.Replace(kind, "(?<=[a-z])([A-Z])", "_$1").ToLowerInvariant() + ".dart");
-            if (!File.Exists(file)) { missing.Add($"{kind}: no {Path.GetFileName(file)}"); continue; }
-            if (!File.ReadAllText(file).Contains(render + "(", StringComparison.Ordinal)) { missing.Add($"{kind}: {Path.GetFileName(file)} has no {render}"); }
+            // Renderers live in grouped or per-kind files under ui/lib/src/nodes/ imported by node_renderer.dart.
+            var declaring = rendererFiles
+                .Where(file => file.Text.Contains($"Widget {render}(", StringComparison.Ordinal))
+                .Select(file => file.Name)
+                .ToArray();
+            if (declaring.Length == 0) { missing.Add($"{kind}: no Widget {render}(...) in ui/lib/src/nodes/*.dart"); }
+            else if (!declaring.Any(name => dispatch.Contains($"'{name}'", StringComparison.Ordinal)))
+            { missing.Add($"{kind}: node_renderer.dart does not import {string.Join(", ", declaring)} for {render}"); }
             if (!dispatch.Contains($"{dart}() => {render}(", StringComparison.Ordinal)) { missing.Add($"{kind}: node_renderer.dart does not dispatch {dart}"); }
         }
         Assert.Empty(missing);
