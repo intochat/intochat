@@ -1,5 +1,6 @@
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
+using DigitalBrain.Signals;
 using System.Text.Json;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,7 +130,21 @@ internal sealed class BrainJournalWriter(BrainLogs logs) : IBrainJournalWriter
         var position = log.LastPosition;
         if (signals.Count > 0 && NeuronId.TryParse(publisher, out var publisherNeuron))
         {
-            log.Fanout?.Appended(publisherNeuron, [.. signals.Select(s => s.Type)], new DigitalBrain.Kernel.Position(position));
+            var (_, causationId) = CurrentCause.Stamp();
+            if (signals.Count == 1)
+            {
+                using var activity = SignalTelemetry.StartPublish(publisherNeuron, signals[0].Type, last, causationId);
+                log.Fanout?.Appended(publisherNeuron, [signals[0].Type], new DigitalBrain.Kernel.Position(position));
+            }
+            else
+            {
+                var firstSeq = last - signals.Count + 1;
+                for (var i = 0; i < signals.Count; i++)
+                {
+                    using (SignalTelemetry.StartPublish(publisherNeuron, signals[i].Type, firstSeq + i, causationId)) { }
+                }
+                log.Fanout?.Appended(publisherNeuron, [.. signals.Select(s => s.Type)], new DigitalBrain.Kernel.Position(position));
+            }
         }
         return new JournalAppendResult(sequence, last, position);
     }

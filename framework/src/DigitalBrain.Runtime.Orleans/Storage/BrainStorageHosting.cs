@@ -5,6 +5,7 @@ using DigitalBrain.Runtime.Orleans.Synapses;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Hosting;
 using Orleans.Storage;
@@ -72,6 +73,15 @@ public static class BrainStorageHosting
         services.TryAddSingleton<DigitalBrain.Brains.IBrainCapabilityPolicy, DigitalBrain.Brains.DefaultBrainCapabilityPolicy>();
         services.TryAddSingleton(sp =>
         {
+            var index = new DeclarativeReactsIndex();
+            if (sp.GetService<NeuronTypeRegistry>() is { } types)
+            {
+                index.RegisterRange(types.Registrations.Select(static r => (r.Type, r.Class)));
+            }
+            return index;
+        });
+        services.TryAddSingleton(sp =>
+        {
             var logs = new BrainLogs(sp.GetRequiredService<BrainStorageKeys>(),
                 sp.GetRequiredService<OrleansSdk.Serialization.Serializer>(), sp.GetRequiredService<JournalPayloads>(),
                 sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IRetentionPolicy>(),
@@ -82,15 +92,20 @@ public static class BrainStorageHosting
                 var types = sp.GetService<NeuronTypeRegistry>();
                 var grains = sp.GetService<IGrainFactory>();
                 var faults = sp.GetService<Synapses.PublishFaults>();
+                var payloads = sp.GetService<JournalPayloads>();
+                var loggerFactory = sp.GetService<ILoggerFactory>();
                 var nudge = sp.GetService<DigitalBrain.Kernel.INudge>()
-                    ?? (grains is not null && types is not null ? new Synapses.GrainNudge(grains, types, sp.GetService<JournalPayloads>(), faults) : null);
-                var listeners = sp.GetService<Signalling.BrainListeners>();
+                    ?? (grains is not null && types is not null
+                        ? new Synapses.GrainNudge(grains, types, payloads, faults, loggerFactory?.CreateLogger<Synapses.GrainNudge>())
+                        : null);
                 if (nudge is not null)
                 {
+                    var signalTypes = payloads?.Types;
+                    var declarativeReacts = sp.GetService<DeclarativeReactsIndex>();
                     log.Fanout = new DigitalBrain.Kernel.Fanout(
                         log,
                         nudge,
-                        alias => types?.TryGetRegistration(alias, out var r) == true ? r.Class : null,
+                        alias => signalTypes is not null && signalTypes.TryResolve(alias, out var signalType) ? signalType : null,
                         (pub, sigs) =>
                         {
                             if (faults?.ShouldFail(pub) == true)
@@ -98,7 +113,11 @@ public static class BrainStorageHosting
                                 throw new InvalidOperationException("PublishFaults: FailAfterAppend.");
                             }
                             sp.GetService<Signalling.ClusterListeners>()?.Offer(pub, sigs);
-                        });
+                        },
+                        declarativeReacts,
+                        neuronType => types?.TryGetRegistration(neuronType, out var r) == true ? r.Class : null,
+                        new BrainId(log.BrainId),
+                        loggerFactory?.CreateLogger<DigitalBrain.Kernel.Fanout>());
                 }
             };
             return logs;
