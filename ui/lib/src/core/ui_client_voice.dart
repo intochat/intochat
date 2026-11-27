@@ -78,7 +78,7 @@ extension IntoChatOSUiClientVoice on IntoChatOSUiClient {
     };
 
     String? ticket;
-    if (useWebTicket && headers.isNotEmpty) {
+    if (useWebTicket) {
       ticket = await mintTalkTicket(conversation);
     }
 

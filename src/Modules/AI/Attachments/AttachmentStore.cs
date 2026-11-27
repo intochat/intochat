@@ -132,7 +132,7 @@ internal sealed class FileAttachmentStore
         return $"data:{stored.Metadata.MediaType};base64,{Convert.ToBase64String(stored.Bytes)}";
     }
 
-    private async Task<StoredAttachmentMetadata?> TryReadMetadataAsync(BrainId callerBrain, string id, CancellationToken ct)
+    internal async Task<StoredAttachmentMetadata?> TryReadMetadataAsync(BrainId callerBrain, string id, CancellationToken ct)
     {
         if (!BrainScope.IsValidId(callerBrain.Value) || !AttachmentValidator.IsValidAttachmentId(id))
         {

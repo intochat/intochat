@@ -587,10 +587,12 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
         if (LooksLikeOgg(opusBytes))
         {
             const int oggSampleRate = 48_000;
+            var channels = DetectOggOpusChannels(opusBytes);
             using var ms = new MemoryStream(opusBytes, writable: false);
-            using var decoder = OpusCodecFactory.CreateDecoder(oggSampleRate, 1);
+            using var decoder = OpusCodecFactory.CreateDecoder(oggSampleRate, channels);
             var oggIn = new OpusOggReadStream(decoder, ms);
             using var outMs = new MemoryStream();
+            Span<byte> pair = stackalloc byte[2];
             while (oggIn.HasNextPacket)
             {
                 var samples = oggIn.DecodeNextPacket();
@@ -599,9 +601,29 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
                     continue;
                 }
 
-                var bytes = new byte[samples.Length * sizeof(short)];
-                Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
-                outMs.Write(bytes, 0, bytes.Length);
+                if (channels == 1)
+                {
+                    var bytes = new byte[samples.Length * sizeof(short)];
+                    Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+                    outMs.Write(bytes, 0, bytes.Length);
+                }
+                else
+                {
+                    var frames = samples.Length / channels;
+                    for (var f = 0; f < frames; f++)
+                    {
+                        int sum = 0;
+                        var offset = f * channels;
+                        for (var c = 0; c < channels; c++)
+                        {
+                            sum += samples[offset + c];
+                        }
+
+                        var mono = (short)Math.Clamp(sum / channels, short.MinValue, short.MaxValue);
+                        BinaryPrimitives.WriteInt16LittleEndian(pair, mono);
+                        outMs.Write(pair);
+                    }
+                }
             }
 
             var pcm48k = outMs.ToArray();
@@ -626,6 +648,24 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
         }
 
         return rawPcm;
+    }
+
+    private static int DetectOggOpusChannels(ReadOnlySpan<byte> oggBytes)
+    {
+        // Search the first Ogg page for the RFC 7845 "OpusHead" identification header; byte +9 is channel count.
+        ReadOnlySpan<byte> magic = "OpusHead"u8;
+        var limit = Math.Min(oggBytes.Length, 512);
+        var idx = oggBytes[..limit].IndexOf(magic);
+        if (idx >= 0 && idx + 9 < oggBytes.Length)
+        {
+            var ch = oggBytes[idx + 9];
+            if (ch is 1 or 2)
+            {
+                return ch;
+            }
+        }
+
+        return 1;
     }
 
     private static void WriteFloatToMonoPcm16(MemoryStream output, ReadOnlySpan<float> samples, int channels)

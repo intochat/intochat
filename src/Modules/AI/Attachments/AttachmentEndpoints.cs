@@ -1,15 +1,20 @@
 using System.Globalization;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Log;
+using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Voice;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Net.Http.Headers;
 
 namespace IntoChat.OS.Modules.AI.Attachments;
 
 internal static class AttachmentEndpoints
 {
+    internal const long MaxUploadRequestBytes = AttachmentValidator.MaxFileAttachmentBytes + 64 * 1024;
+
     public static async Task<IResult> UploadAsync(
         HttpContext http,
         FileAttachmentStore store,
@@ -50,7 +55,11 @@ internal static class AttachmentEndpoints
         }
         catch (InvalidDataException error)
         {
-            return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest);
+            var isTooLarge = error.Message.Contains("limit", StringComparison.OrdinalIgnoreCase)
+                || error.Message.Contains("exceeded", StringComparison.OrdinalIgnoreCase);
+            return Results.Problem(
+                error.Message,
+                statusCode: isTooLarge ? StatusCodes.Status413PayloadTooLarge : StatusCodes.Status400BadRequest);
         }
 
         ValidatedAttachment validated;
@@ -76,9 +85,15 @@ internal static class AttachmentEndpoints
 
             if (!string.IsNullOrWhiteSpace(rawTranscript))
             {
-                redactedTranscript = redactor is not null
-                    ? await redactor.Redact(rawTranscript, ct).ConfigureAwait(false)
-                    : rawTranscript;
+                // Fail closed: never persist or expose an unredacted voice-note transcript.
+                if (redactor is null)
+                {
+                    return Results.Problem(
+                        "Secret redactor is unavailable; voice-note transcript cannot be stored safely.",
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+
+                redactedTranscript = await redactor.Redact(rawTranscript, ct).ConfigureAwait(false);
             }
         }
 
@@ -124,11 +139,13 @@ internal static class AttachmentEndpoints
         }
 
         http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
         http.Response.Headers.CacheControl = "private, max-age=3600";
+
         var inline = stored.Metadata.Kind is AttachmentValidator.KindImage or AttachmentValidator.KindVoiceNote;
-        http.Response.Headers.ContentDisposition = inline
-            ? $"inline; filename=\"{stored.Metadata.FileName}\""
-            : $"attachment; filename=\"{stored.Metadata.FileName}\"";
+        var disposition = new ContentDispositionHeaderValue(inline ? "inline" : "attachment");
+        disposition.SetHttpFileName(stored.Metadata.FileName);
+        http.Response.Headers.ContentDisposition = disposition.ToString();
 
         return Results.File(stored.Bytes, stored.Metadata.MediaType);
     }
@@ -153,16 +170,21 @@ internal static class AttachmentEndpoints
 
         if (request.HasFormContentType)
         {
-            var form = await request.ReadFormAsync(ct).ConfigureAwait(false);
+            var formOptions = new FormOptions
+            {
+                MultipartBodyLengthLimit = MaxUploadRequestBytes,
+                ValueCountLimit = 32,
+            };
+            var form = await request.ReadFormAsync(formOptions, ct).ConfigureAwait(false);
             var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
             if (file is null || file.Length == 0)
             {
                 throw new AttachmentValidationException("Attachment file payload is required.", statusCode: 400);
             }
 
-            if (file.Length > AttachmentValidator.MaxAttachmentBytes)
+            if (file.Length > AttachmentValidator.MaxFileAttachmentBytes)
             {
-                throw new AttachmentValidationException($"Attachment exceeds the {AttachmentValidator.MaxAttachmentBytes / (1024 * 1024)} MiB size limit.", statusCode: 413);
+                throw new AttachmentValidationException($"Attachment exceeds the {AttachmentValidator.MaxFileAttachmentBytes / (1024 * 1024)} MiB size limit.", statusCode: 413);
             }
 
             fileName = file.FileName;
@@ -173,13 +195,13 @@ internal static class AttachmentEndpoints
             if (string.IsNullOrWhiteSpace(rawConversation) && form.TryGetValue("conversation", out var formConv)) { rawConversation = formConv.ToString(); }
 
             await using var stream = file.OpenReadStream();
-            bytes = await ReadBoundedAsync(stream, AttachmentValidator.MaxAttachmentBytes, ct).ConfigureAwait(false);
+            bytes = await ReadBoundedAsync(stream, AttachmentValidator.MaxFileAttachmentBytes, ct).ConfigureAwait(false);
         }
         else
         {
             fileName = request.Query["fileName"].ToString();
             mediaType = request.ContentType;
-            bytes = await ReadBoundedAsync(request.Body, AttachmentValidator.MaxAttachmentBytes, ct).ConfigureAwait(false);
+            bytes = await ReadBoundedAsync(request.Body, AttachmentValidator.MaxFileAttachmentBytes, ct).ConfigureAwait(false);
         }
 
         var isVoiceNote = string.Equals(rawKind, AttachmentValidator.KindVoiceNote, StringComparison.OrdinalIgnoreCase);
@@ -245,17 +267,17 @@ internal static class AttachmentEndpoints
         IAudioConverter? audioConverter,
         CancellationToken ct)
     {
-        var voice = await voiceClients.Hear(brain, ct).ConfigureAwait(false);
-        if (voice.Client is null)
-        {
-            return null;
-        }
-
-        using var client = voice.Client;
         string? tempInput = null;
         string? tempWav = null;
         try
         {
+            var voice = await voiceClients.Hear(brain, ct).ConfigureAwait(false);
+            if (voice.Client is null)
+            {
+                return null;
+            }
+
+            using var client = voice.Client;
             Stream audioStream;
             if (validated.MediaType is "audio/ogg" or "audio/opus" && audioConverter is not null)
             {
@@ -287,6 +309,12 @@ internal static class AttachmentEndpoints
                     ? text[..AttachmentValidator.MaxTranscriptChars]
                     : text;
             }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // Persist the voice clip cleanly with Transcript = null on transient STT/conversion failures.
+            OsConsoleLog.For<FileAttachmentStore>().LogSwallowed(error, "auto-transcribing uploaded voice-note clip");
+            return null;
         }
         finally
         {

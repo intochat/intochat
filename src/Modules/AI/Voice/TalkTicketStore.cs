@@ -13,6 +13,7 @@ internal sealed class TalkTicketStore(TimeProvider? clock = null)
 {
     internal static readonly TimeSpan DefaultTtl = TimeSpan.FromSeconds(30);
     private const int MaxPendingTickets = 4_096;
+    internal const int MaxTicketsPerPrincipal = 32;
 
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly ConcurrentDictionary<string, Entry> _tickets = new(StringComparer.Ordinal);
@@ -29,6 +30,22 @@ internal sealed class TalkTicketStore(TimeProvider? clock = null)
         if (_tickets.Count >= MaxPendingTickets)
         {
             throw new InvalidOperationException("Too many pending voice tickets; try again shortly.");
+        }
+
+        var principalKey = caller.For?.Principal ?? caller.Brain.Value;
+        var activeForPrincipal = 0;
+        foreach (var pair in _tickets)
+        {
+            var entryKey = pair.Value.Caller.For?.Principal ?? pair.Value.Caller.Brain.Value;
+            if (string.Equals(entryKey, principalKey, StringComparison.Ordinal) && pair.Value.ExpiresAt > now)
+            {
+                activeForPrincipal++;
+            }
+        }
+
+        if (activeForPrincipal >= MaxTicketsPerPrincipal)
+        {
+            throw new InvalidOperationException("Too many active voice tickets for this account; try again shortly.");
         }
 
         var ticket = CreateOpaqueToken();

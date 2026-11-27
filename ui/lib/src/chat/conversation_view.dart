@@ -358,11 +358,23 @@ class _ConversationViewState extends State<ConversationView> {
       !_submitting &&
       !_uploadingAttachment;
 
+  static Map<String, Object?> _attachmentToWireJson(AttachmentNode a) => {
+    'id': a.id,
+    'kind': a.kind,
+    'fileName': a.fileName,
+    'mediaType': a.mediaType,
+    'sizeBytes': a.sizeBytes,
+    'url': a.url,
+    if (a.durationMs != null) 'durationMs': a.durationMs,
+    if (a.transcript != null) 'transcript': a.transcript,
+  };
+
   Future<void> _stageVoiceNoteClip(Uint8List audio, String mimeType) async {
     final uploader = widget.ctx.uploadAttachment;
     if (uploader == null || !mounted) return;
     setState(() => _uploadingAttachment = true);
     try {
+      final ext = audioExtensionForMime(mimeType);
       // Estimate WAV duration from 16 kHz 16-bit mono PCM payload when available.
       final pcmBytes = audio.length > 44 ? audio.length - 44 : audio.length;
       final durationMs = ((pcmBytes / 32000.0) * 1000).round().clamp(
@@ -371,13 +383,19 @@ class _ConversationViewState extends State<ConversationView> {
       );
       final uploaded = await uploader(
         audio,
-        'voice-note-${DateTime.now().millisecondsSinceEpoch}.wav',
+        'voice-note-${DateTime.now().millisecondsSinceEpoch}$ext',
         mediaType: mimeType,
         isVoiceNote: true,
         durationMs: durationMs,
       );
       if (mounted) {
         setState(() => _stagedAttachments.add(uploaded));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not upload voice clip: $error')),
+        );
       }
     } finally {
       if (mounted) {
@@ -394,8 +412,39 @@ class _ConversationViewState extends State<ConversationView> {
 
     setState(() => _submitting = true);
     try {
-      if (staged.isNotEmpty && widget.ctx.sendWithAttachments != null) {
-        await widget.ctx.sendWithAttachments!(draft, staged);
+      if (staged.isNotEmpty) {
+        final explicitSend = widget.ctx.sendWithAttachments;
+        final callNeuron = widget.ctx.callNeuron;
+        final talkId = widget.talkConversation?.trim();
+        final convKey = (talkId != null && talkId.isNotEmpty)
+            ? (talkId.startsWith('conversations/')
+                  ? talkId
+                  : 'conversations/$talkId')
+            : null;
+        if (explicitSend != null) {
+          await explicitSend(draft, staged);
+        } else if (callNeuron != null && convKey != null) {
+          await callNeuron(
+            'IntoChat.OS.Modules.Flutter.Conversations.IConversation',
+            convKey,
+            'Say',
+            [
+              draft,
+              null,
+              [for (final item in staged) _attachmentToWireJson(item)],
+            ],
+          );
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Attachments are not supported in this view.'),
+              ),
+            );
+          }
+          return;
+        }
+
         if (mounted) {
           if (_controller.text == draft) {
             _controller.clear();

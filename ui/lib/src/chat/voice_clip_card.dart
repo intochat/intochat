@@ -67,6 +67,18 @@ class _VoiceClipCardState extends State<VoiceClipCard> {
   int _epoch = 0;
 
   @override
+  void didUpdateWidget(covariant VoiceClipCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.attachment.url != widget.attachment.url) {
+      _cachedBytes = null;
+      _error = null;
+      if (_playing) {
+        unawaited(_stop());
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _epoch++;
     _progressTimer?.cancel();
@@ -243,8 +255,8 @@ class _VoiceClipCardState extends State<VoiceClipCard> {
                         children: [
                           Text(
                             durationLabel,
-                            style: UiType.textStyle(
-                              11.5,
+                            style: UiType.tabularStyle(
+                              12.5,
                               weight: FontWeight.w500,
                               color: c.textMuted,
                             ),

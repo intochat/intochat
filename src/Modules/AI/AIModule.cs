@@ -124,7 +124,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
                 http.RequestServices.GetService<DigitalBrain.Capabilities.Secrets.ISecretRedactor>(),
                 http.RequestAborted).ConfigureAwait(false);
             await result.ExecuteAsync(http).ConfigureAwait(false);
-        });
+        }).WithMetadata(new global::Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AttachmentEndpoints.MaxUploadRequestBytes));
         endpoints.MapGet("/ai/attachments/{id}", async (HttpContext http, string id) =>
         {
             var result = await AttachmentEndpoints.DownloadAsync(

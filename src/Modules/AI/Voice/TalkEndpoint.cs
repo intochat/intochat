@@ -166,7 +166,7 @@ internal static class TalkEndpoint
             caller = redeemedCaller;
             if (stampedCaller is null)
             {
-                ticketCallerScope = http.RequestServices.GetService<EdgeAuthority>()?.Enter(caller);
+                ticketCallerScope = http.RequestServices.GetRequiredService<EdgeAuthority>().Enter(caller);
             }
         }
         else if (stampedCaller is not null)

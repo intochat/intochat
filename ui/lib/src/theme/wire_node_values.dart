@@ -23,6 +23,17 @@ WireAttachmentKind parseAttachmentKind(String? raw) =>
       _ => WireAttachmentKind.file,
     };
 
+String audioExtensionForMime(String mimeType) {
+  final normalized = mimeType.split(';').first.trim().toLowerCase();
+  return switch (normalized) {
+    'audio/webm' => '.webm',
+    'audio/ogg' || 'audio/opus' => '.ogg',
+    'audio/mp4' || 'audio/x-m4a' => '.m4a',
+    'audio/mpeg' || 'audio/mp3' => '.mp3',
+    _ => '.wav',
+  };
+}
+
 enum WireMessageStatus { sending, running, failed, interrupted, other }
 
 enum WireActivityStatus { running, failed, done }

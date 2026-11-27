@@ -19,12 +19,19 @@ internal sealed class AttachmentValidationException(string message, int statusCo
 
 internal static class AttachmentValidator
 {
-    public const int MaxAttachmentBytes = 8 * 1024 * 1024;           // 8 MiB per attachment
-    public const int MaxAttachmentsPerTurn = 6;                      // max attachments in one Say() turn
-    public const long MaxTotalTurnAttachmentBytes = 24L * 1024 * 1024; // 24 MiB total per turn
-    public const int MaxVoiceNoteDurationMs = 5 * 60 * 1000;         // 5 minutes max voice note
+    public const int MaxAudioAttachmentBytes = 10 * 1024 * 1024;      // 10 MiB max for audio/voice-note clips
+    public const int MaxFileAttachmentBytes = 25 * 1024 * 1024;       // 25 MiB max for general file/image attachments
+    public const int MaxAttachmentBytes = MaxFileAttachmentBytes;
+    public const int MaxAttachmentsPerTurn = 6;                       // max attachments in one Say() turn
+    public const long MaxTotalTurnAttachmentBytes = 50L * 1024 * 1024; // 50 MiB total per turn
+    public const int MaxVoiceNoteDurationMs = 5 * 60 * 1000;          // 5 minutes max voice note
     public const int MaxFileNameLength = 160;
     public const int MaxTranscriptChars = 32_000;
+
+    public static int MaxBytesForKind(string kind)
+        => string.Equals(kind, KindVoiceNote, StringComparison.Ordinal)
+            ? MaxAudioAttachmentBytes
+            : MaxFileAttachmentBytes;
 
     public const string KindImage = "image";
     public const string KindFile = "file";
@@ -103,11 +110,11 @@ internal static class AttachmentValidator
 
         var trimmed = rawFileName.Trim();
         if (trimmed.Length > MaxFileNameLength
-            || trimmed.IndexOfAny(['/', '\\', '\0']) >= 0
+            || trimmed.IndexOfAny(['/', '\\', '\0', '"', ';']) >= 0
             || trimmed.Contains("..", StringComparison.Ordinal)
             || trimmed.Any(char.IsControl))
         {
-            throw new AttachmentValidationException("Attachment filename contains forbidden path or control characters.");
+            throw new AttachmentValidationException("Attachment filename contains forbidden path, header, or control characters.");
         }
 
         return trimmed;
@@ -144,9 +151,9 @@ internal static class AttachmentValidator
             throw new AttachmentValidationException("Attachment payload must not be empty.", statusCode: 400);
         }
 
-        if (bytes.Length > MaxAttachmentBytes)
+        if (bytes.Length > MaxFileAttachmentBytes)
         {
-            throw new AttachmentValidationException($"Attachment exceeds the {MaxAttachmentBytes / (1024 * 1024)} MiB size limit.", statusCode: 413);
+            throw new AttachmentValidationException($"Attachment exceeds the {MaxFileAttachmentBytes / (1024 * 1024)} MiB size limit.", statusCode: 413);
         }
 
         var fileName = SanitizeFileName(rawFileName);
@@ -165,6 +172,12 @@ internal static class AttachmentValidator
         if (!TryGetAllowedType(mediaType, out var kind, out var extensions))
         {
             throw new AttachmentValidationException($"Unsupported attachment media type '{mediaType}'.", statusCode: 415);
+        }
+
+        var kindMaxBytes = MaxBytesForKind(kind);
+        if (bytes.Length > kindMaxBytes)
+        {
+            throw new AttachmentValidationException($"Attachment exceeds the {kindMaxBytes / (1024 * 1024)} MiB size limit for {kind}.", statusCode: 413);
         }
 
         if (!extensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
@@ -244,9 +257,10 @@ internal static class AttachmentValidator
                 throw new ArgumentException($"Attachment kind '{item.Kind}' does not match media type '{item.MediaType}'.", nameof(attachments));
             }
 
-            if (item.SizeBytes is <= 0 or > MaxAttachmentBytes)
+            var maxForKind = MaxBytesForKind(expectedKind);
+            if (item.SizeBytes <= 0 || item.SizeBytes > maxForKind)
             {
-                throw new ArgumentException($"Attachment size must be between 1 byte and {MaxAttachmentBytes} bytes.", nameof(attachments));
+                throw new ArgumentException($"Attachment size must be between 1 byte and {maxForKind} bytes.", nameof(attachments));
             }
 
             totalBytes += item.SizeBytes;
@@ -285,8 +299,14 @@ internal static class AttachmentValidator
             return true;
         }
 
-        if (bytes.Length >= 4 && ((bytes[0] == 0xCF && bytes[1] == 0xFA && bytes[2] == 0xED && bytes[3] == 0xFE)
-            || (bytes[0] == 0xFE && bytes[1] == 0xED && bytes[2] == 0xFA && bytes[3] == 0xCF)))
+        // Mach-O 64-bit, 32-bit, and fat universal binaries (big & little endian)
+        if (bytes.Length >= 4
+            && ((bytes[0] == 0xCF && bytes[1] == 0xFA && bytes[2] == 0xED && bytes[3] == 0xFE)
+                || (bytes[0] == 0xFE && bytes[1] == 0xED && bytes[2] == 0xFA && bytes[3] == 0xCF)
+                || (bytes[0] == 0xFE && bytes[1] == 0xED && bytes[2] == 0xFA && bytes[3] == 0xCE)
+                || (bytes[0] == 0xCE && bytes[1] == 0xFA && bytes[2] == 0xED && bytes[3] == 0xFE)
+                || (bytes[0] == 0xCA && bytes[1] == 0xFE && bytes[2] == 0xBA && bytes[3] == 0xBE)
+                || (bytes[0] == 0xBE && bytes[1] == 0xBA && bytes[2] == 0xFE && bytes[3] == 0xCA)))
         {
             return true;
         }
@@ -352,7 +372,7 @@ internal static class AttachmentValidator
             return false;
         }
 
-        var trimmedStart = text.AsSpan().TrimStart();
+        var trimmedStart = text.AsSpan().TrimStart('\uFEFF').TrimStart();
         if (trimmedStart.StartsWith("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase)
             || trimmedStart.StartsWith("<html", StringComparison.OrdinalIgnoreCase)
             || trimmedStart.StartsWith("<svg", StringComparison.OrdinalIgnoreCase)

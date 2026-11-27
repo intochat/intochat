@@ -386,29 +386,49 @@ internal sealed class ConversationNeuron(
 
     private async Task<AttachmentRef[]> SanitizeAndAuthorizeAttachmentsAsync(AttachmentRef[] attachments)
     {
-        var store = Services.GetService<FileAttachmentStore>();
+        // Fail closed: never accept attachments without verifying ownership and reconstructing metadata from the brain's store.
+        var store = Services.GetService<FileAttachmentStore>()
+            ?? throw new InvalidOperationException("Attachment store is unavailable; attachments cannot be verified.");
+
         var result = new AttachmentRef[attachments.Length];
+        long totalStoredBytes = 0;
         for (var i = 0; i < attachments.Length; i++)
         {
             var item = attachments[i];
-            if (store is not null && !await store.OwnsAsync(Id.Brain, item.Id, CancellationToken.None))
+            var meta = await store.TryReadMetadataAsync(Id.Brain, item.Id, CancellationToken.None)
+                ?? throw new UnauthorizedAccessException($"Attachment '{item.Id}' is not accessible from this brain.");
+
+            var maxForKind = AttachmentValidator.MaxBytesForKind(meta.Kind);
+            if (meta.SizeBytes <= 0 || meta.SizeBytes > maxForKind)
             {
-                throw new UnauthorizedAccessException($"Attachment '{item.Id}' is not accessible from this brain.");
+                throw new ArgumentException($"Stored attachment '{meta.Id}' exceeds the {maxForKind} byte limit.", nameof(attachments));
             }
 
-            var safeFileName = AttachmentValidator.SanitizeFileName(item.FileName);
-            var safeMime = AttachmentValidator.NormalizeMediaType(item.MediaType);
-            var maskedTranscript = string.IsNullOrWhiteSpace(item.Transcript)
-                ? null
-                : await Runner.Mask(item.Transcript);
-
-            result[i] = item with
+            totalStoredBytes += meta.SizeBytes;
+            if (totalStoredBytes > AttachmentValidator.MaxTotalTurnAttachmentBytes)
             {
-                FileName = safeFileName,
-                MediaType = safeMime,
-                Url = $"/ai/attachments/{item.Id}",
-                Transcript = maskedTranscript,
-            };
+                throw new ArgumentException(
+                    $"Combined stored attachments exceed the {AttachmentValidator.MaxTotalTurnAttachmentBytes / (1024 * 1024)} MiB per-turn limit.",
+                    nameof(attachments));
+            }
+
+            var safeFileName = AttachmentValidator.SanitizeFileName(meta.FileName);
+            var safeMime = AttachmentValidator.NormalizeMediaType(meta.MediaType);
+            var maskedTranscript = string.IsNullOrWhiteSpace(meta.Transcript)
+                ? null
+                : await Runner.Mask(meta.Transcript);
+
+            // Reconstruct strictly from server-stored metadata (never trust client-supplied sizes, MIME, URL, or transcripts).
+            result[i] = new AttachmentRef(
+                Id: meta.Id,
+                Kind: meta.Kind,
+                FileName: safeFileName,
+                MediaType: safeMime,
+                SizeBytes: meta.SizeBytes,
+                Url: $"/ai/attachments/{meta.Id}",
+                DurationMs: meta.DurationMs,
+                Transcript: maskedTranscript,
+                Sha256: meta.Sha256);
         }
 
         return result;
