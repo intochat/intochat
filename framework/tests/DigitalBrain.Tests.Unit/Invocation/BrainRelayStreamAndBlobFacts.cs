@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -114,14 +116,22 @@ public sealed class BrainRelayStreamAndBlobFacts
     /// <summary>In-memory scriptable WebSocket for deterministic unit testing of stream frames and close codes.</summary>
     private sealed class FakeWebSocket : WebSocket
     {
-        private readonly Channel<(WebSocketMessageType Type, byte[] Payload, WebSocketCloseStatus? CloseStatus, string? CloseDesc)> _inbound =
-            Channel.CreateUnbounded<(WebSocketMessageType, byte[], WebSocketCloseStatus?, string?)>();
+        private readonly Channel<(WebSocketMessageType Type, byte[] Payload, bool EndOfMessage, WebSocketCloseStatus? CloseStatus, string? CloseDesc)> _inbound =
+            Channel.CreateUnbounded<(WebSocketMessageType, byte[], bool, WebSocketCloseStatus?, string?)>();
         private WebSocketState _state = WebSocketState.Open;
         private WebSocketCloseStatus? _closeStatus;
         private string? _closeDescription;
+        private int _receiveCount;
 
         public ConcurrentQueue<string> SentTextFrames { get; } = new();
         public TaskCompletionSource<string> FirstSentFrame { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CloseOutputStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Terminated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool HangCloseOutput { get; set; }
+        public int ReceiveCount => Volatile.Read(ref _receiveCount);
+        public bool CloseAsyncCalled { get; private set; }
+        public bool CloseOutputCalled { get; private set; }
+        public bool Aborted { get; private set; }
 
         public override WebSocketCloseStatus? CloseStatus => _closeStatus;
         public override string? CloseStatusDescription => _closeDescription;
@@ -129,14 +139,18 @@ public sealed class BrainRelayStreamAndBlobFacts
         public override string? SubProtocol => null;
 
         public void EnqueueText(string json)
-            => _inbound.Writer.TryWrite((WebSocketMessageType.Text, Encoding.UTF8.GetBytes(json), null, null));
+            => _inbound.Writer.TryWrite((WebSocketMessageType.Text, Encoding.UTF8.GetBytes(json), true, null, null));
+
+        public void EnqueueTextFragment(byte[] payload, bool endOfMessage)
+            => _inbound.Writer.TryWrite((WebSocketMessageType.Text, payload, endOfMessage, null, null));
 
         public void EnqueueClose(WebSocketCloseStatus status, string description)
-            => _inbound.Writer.TryWrite((WebSocketMessageType.Close, [], status, description));
+            => _inbound.Writer.TryWrite((WebSocketMessageType.Close, [], true, status, description));
 
         public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             var item = await _inbound.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _receiveCount);
             if (item.Type == WebSocketMessageType.Close)
             {
                 _closeStatus = item.CloseStatus;
@@ -146,7 +160,7 @@ public sealed class BrainRelayStreamAndBlobFacts
             }
 
             item.Payload.CopyTo(buffer.Array!, buffer.Offset);
-            return new WebSocketReceiveResult(item.Payload.Length, item.Type, endOfMessage: true);
+            return new WebSocketReceiveResult(item.Payload.Length, item.Type, endOfMessage: item.EndOfMessage);
         }
 
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
@@ -163,21 +177,36 @@ public sealed class BrainRelayStreamAndBlobFacts
 
         public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
+            CloseAsyncCalled = true;
             _closeStatus = closeStatus;
             _closeDescription = statusDescription;
             _state = WebSocketState.Closed;
+            Terminated.TrySetResult();
             return Task.CompletedTask;
         }
 
-        public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+        public override async Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
+            CloseOutputCalled = true;
             _closeStatus = closeStatus;
             _closeDescription = statusDescription;
-            _state = WebSocketState.Closed;
-            return Task.CompletedTask;
+            CloseOutputStarted.TrySetResult();
+            if (HangCloseOutput)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            }
+
+            _state = WebSocketState.CloseSent;
+            Terminated.TrySetResult();
         }
 
-        public override void Abort() => _state = WebSocketState.Aborted;
+        public override void Abort()
+        {
+            Aborted = true;
+            _state = WebSocketState.Aborted;
+            Terminated.TrySetResult();
+        }
+
         public override void Dispose() => _state = WebSocketState.Closed;
     }
 
@@ -477,6 +506,247 @@ public sealed class BrainRelayStreamAndBlobFacts
         await loopTask;
 
         Assert.True(wsAttempts >= 1);
+    }
+
+    [Fact]
+    public async Task OversizedWebSocketFrameBreaksImmediatelyAndClosesOutputWithoutUnboundedDrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 11, 27, 14, 0, 0, TimeSpan.Zero));
+        var aliceBrain = new BrainId("alice");
+        using var aliceKeys = BrainKeyPair.Generate();
+        await using var aliceOS = TestOS.Local();
+        var receiver = new BrainEnvelopeReceiver(
+            aliceBrain,
+            aliceKeys,
+            _ => null,
+            aliceOS.Edge,
+            aliceOS.InvokeLocalAsync,
+            aliceOS.PostLocalAsync,
+            clock: clock);
+
+        var socket = new FakeWebSocket();
+        var chunk = new byte[32];
+        for (var i = 0; i < 100; i++)
+        {
+            socket.EnqueueTextFragment(chunk, endOfMessage: false);
+        }
+
+        using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var http = new HttpClient(new StubHttpHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent))));
+        var client = new HttpBrainRelayClient(
+            http,
+            new Uri("https://relay.example"),
+            timeProvider: clock,
+            options: new BrainRelayClientOptions
+            {
+                MaxInboundFrameBytes = 64,
+                InitialReconnectDelay = TimeSpan.FromSeconds(10),
+                JitterFactor = 0.0,
+                WebSocketConnectAsync = (_, _, _) => Task.FromResult<WebSocket>(socket),
+            });
+
+        var loopTask = client.RunStreamLoopAsync(receiver, loopCts.Token);
+        await socket.Terminated.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await loopCts.CancelAsync();
+        await loopTask;
+
+        // 3 chunks of 32 bytes = 96 > 64 -> must break immediately without draining remaining 97 fragments.
+        Assert.Equal(3, socket.ReceiveCount);
+        Assert.True(socket.CloseOutputCalled);
+        Assert.False(socket.CloseAsyncCalled);
+        Assert.Equal(WebSocketCloseStatus.MessageTooBig, socket.CloseStatus);
+    }
+
+    [Fact]
+    public async Task OversizedWebSocketFrameAbortsSocketWhenCloseOutputTimesOut()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 11, 27, 14, 0, 0, TimeSpan.Zero));
+        var aliceBrain = new BrainId("alice");
+        using var aliceKeys = BrainKeyPair.Generate();
+        await using var aliceOS = TestOS.Local();
+        var receiver = new BrainEnvelopeReceiver(
+            aliceBrain,
+            aliceKeys,
+            _ => null,
+            aliceOS.Edge,
+            aliceOS.InvokeLocalAsync,
+            aliceOS.PostLocalAsync,
+            clock: clock);
+
+        var socket = new FakeWebSocket { HangCloseOutput = true };
+        socket.EnqueueTextFragment(new byte[128], endOfMessage: false);
+
+        using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var http = new HttpClient(new StubHttpHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent))));
+        var client = new HttpBrainRelayClient(
+            http,
+            new Uri("https://relay.example"),
+            timeProvider: clock,
+            options: new BrainRelayClientOptions
+            {
+                MaxInboundFrameBytes = 64,
+                InitialReconnectDelay = TimeSpan.FromSeconds(10),
+                JitterFactor = 0.0,
+                WebSocketConnectAsync = (_, _, _) => Task.FromResult<WebSocket>(socket),
+            });
+
+        var loopTask = client.RunStreamLoopAsync(receiver, loopCts.Token);
+        await socket.CloseOutputStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        // Advance clock past the bounded CloseOutputAsync timeout (2s) -> must fall back to Abort().
+        clock.Advance(TimeSpan.FromSeconds(3));
+        await socket.Terminated.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await loopCts.CancelAsync();
+        await loopTask;
+
+        Assert.Equal(1, socket.ReceiveCount);
+        Assert.True(socket.CloseOutputCalled);
+        Assert.True(socket.Aborted);
+    }
+
+    [Fact]
+    public void IsWebSocketUpgradeRejectedClassifiesOnlyGenuineUpgradeRejections()
+    {
+        // Genuine upgrade rejections -> true.
+        Assert.True(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.NotAWebSocket)));
+        Assert.True(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.UnsupportedProtocol)));
+        Assert.True(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.UnsupportedVersion)));
+        foreach (var status in new[] { HttpStatusCode.BadRequest, HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed, HttpStatusCode.UpgradeRequired, HttpStatusCode.NotImplemented })
+        {
+            var httpEx = new HttpRequestException($"HTTP {(int)status}", null, status);
+            Assert.True(HttpBrainRelayClient.IsWebSocketUpgradeRejected(httpEx), $"Expected {status} to be classified as upgrade rejection.");
+            Assert.True(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.NotAWebSocket, httpEx)), $"Expected wrapped {status} to be classified as upgrade rejection.");
+        }
+
+        // Transient, network (DNS/TCP/TLS), and auth/rate-limit errors -> false.
+        Assert.False(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.Faulted)));
+        var dnsEx = new HttpRequestException("DNS failure", new SocketException((int)SocketError.HostNotFound));
+        var tcpEx = new HttpRequestException("Connection refused", new SocketException((int)SocketError.ConnectionRefused));
+        var tlsEx = new HttpRequestException("TLS handshake failed", new AuthenticationException("Untrusted cert"));
+        foreach (var networkEx in new[] { dnsEx, tcpEx, tlsEx })
+        {
+            Assert.False(HttpBrainRelayClient.IsWebSocketUpgradeRejected(networkEx));
+            Assert.False(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.Faulted, networkEx)));
+            Assert.False(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.NotAWebSocket, networkEx)));
+        }
+
+        foreach (var status in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.TooManyRequests, HttpStatusCode.BadGateway, HttpStatusCode.ServiceUnavailable })
+        {
+            var httpEx = new HttpRequestException($"HTTP {(int)status}", null, status);
+            Assert.False(HttpBrainRelayClient.IsWebSocketUpgradeRejected(httpEx), $"Expected {status} NOT to be classified as upgrade rejection.");
+            Assert.False(HttpBrainRelayClient.IsWebSocketUpgradeRejected(new WebSocketException(WebSocketError.NotAWebSocket, httpEx)), $"Expected wrapped {status} NOT to be classified as upgrade rejection.");
+        }
+    }
+
+    [Theory]
+    [InlineData("dns")]
+    [InlineData("tcp")]
+    [InlineData("tls")]
+    [InlineData("401")]
+    [InlineData("403")]
+    [InlineData("429")]
+    [InlineData("502")]
+    [InlineData("503")]
+    public async Task WebSocketTransientAndAuthErrorsBackOffWithoutHttpFallback(string errorKind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 11, 27, 14, 0, 0, TimeSpan.Zero));
+        var aliceBrain = new BrainId("alice");
+        using var aliceKeys = BrainKeyPair.Generate();
+        await using var aliceOS = TestOS.Local();
+        var receiver = new BrainEnvelopeReceiver(
+            aliceBrain,
+            aliceKeys,
+            _ => null,
+            aliceOS.Edge,
+            aliceOS.InvokeLocalAsync,
+            aliceOS.PostLocalAsync,
+            clock: clock);
+
+        Exception CreateError() => errorKind switch
+        {
+            "dns" => new WebSocketException(WebSocketError.Faulted, new HttpRequestException("DNS failed", new SocketException((int)SocketError.HostNotFound))),
+            "tcp" => new WebSocketException(WebSocketError.Faulted, new HttpRequestException("TCP refused", new SocketException((int)SocketError.ConnectionRefused))),
+            "tls" => new WebSocketException(WebSocketError.Faulted, new HttpRequestException("TLS failed", new AuthenticationException("cert"))),
+            "401" => new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized),
+            "403" => new HttpRequestException("Forbidden", null, HttpStatusCode.Forbidden),
+            "429" => new HttpRequestException("TooManyRequests", null, HttpStatusCode.TooManyRequests),
+            "502" => new HttpRequestException("BadGateway", null, HttpStatusCode.BadGateway),
+            "503" => new HttpRequestException("ServiceUnavailable", null, HttpStatusCode.ServiceUnavailable),
+            _ => throw new ArgumentOutOfRangeException(nameof(errorKind)),
+        };
+
+        var httpPollCount = 0;
+        var wsAttempts = 0;
+        var secondAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thirdAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var http = new HttpClient(new StubHttpHandler((req, _) =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/circle/v1/brains/next")
+            {
+                Interlocked.Increment(ref httpPollCount);
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+        }));
+
+        using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var client = new HttpBrainRelayClient(
+            http,
+            new Uri("https://relay.example"),
+            timeProvider: clock,
+            options: new BrainRelayClientOptions
+            {
+                InitialReconnectDelay = TimeSpan.FromSeconds(2),
+                MaxReconnectDelay = TimeSpan.FromSeconds(16),
+                JitterFactor = 0.0,
+                WebSocketConnectAsync = (_, _, _) =>
+                {
+                    var attempt = Interlocked.Increment(ref wsAttempts);
+                    if (attempt == 2)
+                    {
+                        secondAttempt.TrySetResult();
+                    }
+                    else if (attempt == 3)
+                    {
+                        thirdAttempt.TrySetResult();
+                    }
+
+                    return Task.FromException<WebSocket>(CreateError());
+                },
+            });
+
+        var loopTask = client.RunStreamLoopAsync(receiver, loopCts.Token);
+
+        await Task.Delay(50, ct);
+        Assert.Equal(1, Volatile.Read(ref wsAttempts));
+        Assert.Equal(0, Volatile.Read(ref httpPollCount));
+
+        // 1s < 2s initial backoff -> still waiting.
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(50, ct);
+        Assert.Equal(1, Volatile.Read(ref wsAttempts));
+
+        // 2s total -> triggers attempt 2.
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await secondAttempt.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        Assert.Equal(2, Volatile.Read(ref wsAttempts));
+
+        // Attempt 2 backs off for 4s -> 3s is not enough.
+        clock.Advance(TimeSpan.FromSeconds(3));
+        await Task.Delay(50, ct);
+        Assert.Equal(2, Volatile.Read(ref wsAttempts));
+
+        // 4s total -> triggers attempt 3; still zero HTTP fallback polls.
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await thirdAttempt.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        Assert.Equal(0, Volatile.Read(ref httpPollCount));
+
+        await loopCts.CancelAsync();
+        await loopTask;
     }
 
     [Fact]

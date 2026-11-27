@@ -26,6 +26,7 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
     private const string FriendCodesPrefix = "/circle/v1/friends/codes/";
     private const string BlobsPath = "/circle/v1/brains/blobs";
     private const string BlobsPrefix = "/circle/v1/brains/blobs/";
+    private static readonly TimeSpan OversizedFrameCloseTimeout = TimeSpan.FromSeconds(2);
 
     private readonly HttpClient _http;
     private readonly string _basePrefix;
@@ -545,6 +546,7 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
         var ws = new ClientWebSocket();
         try
         {
+            ws.Options.CollectHttpResponseDetails = true;
             ws.Options.KeepAliveInterval = _options.KeepAliveInterval > TimeSpan.Zero
                 ? _options.KeepAliveInterval
                 : TimeSpan.FromSeconds(25);
@@ -555,6 +557,15 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
 
             await ws.ConnectAsync(wsStreamUri, ct).ConfigureAwait(false);
             return ws;
+        }
+        catch (WebSocketException wsEx) when (ws.HttpStatusCode != 0 && wsEx.InnerException is null)
+        {
+            var statusCode = ws.HttpStatusCode;
+            ws.Dispose();
+            throw new HttpRequestException(
+                $"WebSocket handshake failed with HTTP {(int)statusCode} ({statusCode}).",
+                wsEx,
+                statusCode);
         }
         catch
         {
@@ -578,6 +589,7 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
             messageBuffer.SetLength(0);
             WebSocketReceiveResult result;
             var oversized = false;
+            long totalBytes = 0;
 
             do
             {
@@ -602,11 +614,14 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
                     return result.CloseStatus ?? socket.CloseStatus;
                 }
 
-                if (messageBuffer.Length + result.Count > maxFrameBytes)
+                totalBytes += result.Count;
+                if (totalBytes > maxFrameBytes)
                 {
                     oversized = true;
+                    break;
                 }
-                else if (result.Count > 0)
+
+                if (result.Count > 0)
                 {
                     messageBuffer.Write(receiveBuffer, 0, result.Count);
                 }
@@ -615,14 +630,7 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
 
             if (oversized)
             {
-                if (socket.State == WebSocketState.Open)
-                {
-                    await socket.CloseAsync(
-                        WebSocketCloseStatus.MessageTooBig,
-                        "Inbound frame exceeded client limit.",
-                        ct).ConfigureAwait(false);
-                }
-
+                await CloseOversizedSocketAsync(socket, ct).ConfigureAwait(false);
                 return WebSocketCloseStatus.MessageTooBig;
             }
 
@@ -742,18 +750,49 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
         await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct).ConfigureAwait(false);
     }
 
+    private async Task CloseOversizedSocketAsync(WebSocket socket, CancellationToken ct)
+    {
+        if (socket.State != WebSocketState.Open)
+        {
+            socket.Abort();
+            return;
+        }
+
+        using var timeoutCts = new CancellationTokenSource(OversizedFrameCloseTimeout, _timeProvider);
+        using var closeCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        try
+        {
+            await socket.CloseOutputAsync(
+                WebSocketCloseStatus.MessageTooBig,
+                "Inbound frame exceeded client limit.",
+                closeCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            socket.Abort();
+            throw;
+        }
+        catch (Exception error)
+        {
+            System.Diagnostics.Trace.TraceWarning($"WebSocket oversized frame close failed ({error.GetType().Name}); aborting socket.");
+            socket.Abort();
+        }
+    }
+
     private async Task RunHttpFallbackWindowAsync(BrainEnvelopeReceiver receiver, CancellationToken ct)
     {
         var fallbackDuration = _options.HttpFallbackDuration > TimeSpan.Zero
             ? _options.HttpFallbackDuration
             : TimeSpan.FromSeconds(30);
         var deadline = _timeProvider.GetUtcNow() + fallbackDuration;
+        var consecutiveErrors = 0;
 
         while (!ct.IsCancellationRequested && _timeProvider.GetUtcNow() < deadline)
         {
             try
             {
                 var delivered = await PollOnceAsync(receiver, ct).ConfigureAwait(false);
+                consecutiveErrors = 0;
                 if (!delivered && _timeProvider.GetUtcNow() < deadline)
                 {
                     var remaining = deadline - _timeProvider.GetUtcNow();
@@ -770,10 +809,11 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
             }
             catch (Exception error)
             {
-                var message = $"HTTP fallback poll failed ({error.GetType().Name}); backing off.";
+                consecutiveErrors++;
+                var message = $"HTTP fallback poll failed ({error.GetType().Name}); backing off (attempt {consecutiveErrors}).";
                 System.Diagnostics.Trace.TraceWarning(message);
                 _options.OnStreamDiagnostic?.Invoke(message);
-                await DelayWithJitteredBackoffAsync(1, ct).ConfigureAwait(false);
+                await DelayWithJitteredBackoffAsync(consecutiveErrors, ct).ConfigureAwait(false);
             }
         }
     }
@@ -823,14 +863,21 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
         return builder.Uri;
     }
 
-    private static bool IsWebSocketUpgradeRejected(Exception error)
+    internal static bool IsWebSocketUpgradeRejected(Exception error)
         => error switch
         {
-            WebSocketException wsEx when wsEx.WebSocketErrorCode is WebSocketError.NotAWebSocket or WebSocketError.UnsupportedProtocol or WebSocketError.UnsupportedVersion or WebSocketError.Faulted => true,
-            WebSocketException wsEx when wsEx.InnerException is HttpRequestException => true,
-            HttpRequestException { StatusCode: HttpStatusCode.BadRequest or HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.UpgradeRequired or HttpStatusCode.NotImplemented or HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable } => true,
+            HttpRequestException httpEx => IsWebSocketUpgradeRejectedStatusCode(httpEx.StatusCode),
+            WebSocketException { InnerException: HttpRequestException innerHttp } => IsWebSocketUpgradeRejectedStatusCode(innerHttp.StatusCode),
+            WebSocketException { InnerException: null, WebSocketErrorCode: WebSocketError.NotAWebSocket or WebSocketError.UnsupportedProtocol or WebSocketError.UnsupportedVersion } => true,
             _ => false,
         };
+
+    private static bool IsWebSocketUpgradeRejectedStatusCode(HttpStatusCode? statusCode)
+        => statusCode is HttpStatusCode.BadRequest
+            or HttpStatusCode.NotFound
+            or HttpStatusCode.MethodNotAllowed
+            or HttpStatusCode.UpgradeRequired
+            or HttpStatusCode.NotImplemented;
 
     private async Task PostEnvelopeAsync(string path, BrainEnvelope envelope, CancellationToken ct, string? leaseId = null)
     {

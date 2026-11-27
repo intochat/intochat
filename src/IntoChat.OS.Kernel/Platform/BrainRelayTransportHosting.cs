@@ -412,13 +412,15 @@ public sealed class KernelBrainRelayClientProvider
             return;
         }
 
-        if (opts.AutoBindDeviceCredentials && _deviceCredentials is not null)
+        if (opts.AutoBindDeviceCredentials
+            && _deviceCredentials is not null
+            && HasMatchingOrigin(request.RequestUri, _deviceCredentials.TryGetServerUri()))
         {
             await _deviceCredentials.TryAuthorizeRequestAsync(request, ct).ConfigureAwait(false);
         }
     }
 
-    private async ValueTask AuthorizeWebSocketAsync(
+    internal async ValueTask AuthorizeWebSocketAsync(
         Uri httpStreamUri,
         IDictionary<string, string> headers,
         CancellationToken ct)
@@ -440,7 +442,7 @@ public sealed class KernelBrainRelayClientProvider
         }
     }
 
-    private async ValueTask<BrainStreamFrame?> CreateAuthRefreshFrameAsync(Uri httpStreamUri, CancellationToken ct)
+    internal async ValueTask<BrainStreamFrame?> CreateAuthRefreshFrameAsync(Uri httpStreamUri, CancellationToken ct)
     {
         var opts = _options.Value;
         var brainId = _callers?.Current?.Brain.Value ?? opts.LocalBrainId;
@@ -456,7 +458,10 @@ public sealed class KernelBrainRelayClientProvider
             return new BrainStreamFrame(BrainStreamFrameTypes.AuthRefresh, ServiceAssertion: token);
         }
 
-        if (opts.AutoBindDeviceCredentials && _deviceCredentials is not null)
+        if (string.IsNullOrWhiteSpace(opts.BearerToken)
+            && opts.AutoBindDeviceCredentials
+            && _deviceCredentials is not null
+            && HasMatchingOrigin(httpStreamUri, _deviceCredentials.TryGetServerUri()))
         {
             var creds = await _deviceCredentials
                 .TryCreateStreamCredentialsAsync(httpStreamUri, forceRefresh: true, ct)
@@ -471,6 +476,19 @@ public sealed class KernelBrainRelayClientProvider
         }
 
         return null;
+    }
+
+    private static bool HasMatchingOrigin(Uri? targetUri, Uri? serverUri)
+    {
+        if (targetUri is null || serverUri is null || !targetUri.IsAbsoluteUri || !serverUri.IsAbsoluteUri)
+        {
+            return false;
+        }
+
+        return targetUri.Port > 0
+            && string.Equals(targetUri.Scheme, serverUri.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(targetUri.IdnHost, serverUri.IdnHost, StringComparison.OrdinalIgnoreCase)
+            && targetUri.Port == serverUri.Port;
     }
 }
 
@@ -494,6 +512,11 @@ public static class BrainRelayTransportHosting
             .PostConfigure<IServiceProvider>(static (options, sp) =>
             {
                 if (!options.AutoBindDeviceCredentials || options.RelayBaseUri is not null)
+                {
+                    return;
+                }
+
+                if (sp.GetService<IServiceAssertionSigner>() is { IsConfigured: true })
                 {
                     return;
                 }
