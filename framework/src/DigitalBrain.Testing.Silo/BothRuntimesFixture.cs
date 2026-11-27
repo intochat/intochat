@@ -129,7 +129,13 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public async Task Elapse(TimeSpan by, CancellationToken ct)
         {
-            os.Clock.Advance(by);
+            ArgumentOutOfRangeException.ThrowIfLessThan(by, TimeSpan.Zero);
+            var end = os.Clock.GetUtcNow() + by;
+            while (os.Clock.Step(end))
+            {
+                ct.ThrowIfCancellationRequested();
+                await os.Idle().ConfigureAwait(false);
+            }
             await os.Idle().ConfigureAwait(false);
         }
 
