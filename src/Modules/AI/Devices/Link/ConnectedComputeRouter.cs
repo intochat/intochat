@@ -71,24 +71,25 @@ internal sealed class RelayConnectedComputeTransport(
             : await serviceRelay!.DispatchBrainSandboxAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false);
     }
 
-    public async Task<ConnectedResourceResponse?> ExecuteResourceAsync(
+    public async Task<PcResourceResponse?> ExecuteResourceAsync(
         BrainId brainId,
         ConnectedComputeNode node,
-        ConnectedResourceRequest request,
+        PcResourceRequest request,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(request);
-        if (await credentials.Read(ct).ConfigureAwait(false) is null)
+        var hasDeviceLink = await credentials.Read(ct).ConfigureAwait(false) is not null;
+        if (!hasDeviceLink && serviceRelay is not { IsConfigured: true })
         {
             return null;
         }
 
         var timeoutMs = Math.Clamp(options?.CurrentValue.Compute.AvailabilityTimeoutMs ?? 400, 50, 500);
-        return await cloud.DispatchBrainResourceAsync(
-            new BrainResourceDispatchRequest(brainId.Value, node.MachineId, request),
-            TimeSpan.FromMilliseconds(timeoutMs),
-            ct).ConfigureAwait(false);
+        var dispatch = new BrainResourceDispatchRequest(brainId.Value, node.MachineId, request);
+        return hasDeviceLink
+            ? await cloud.DispatchBrainResourceAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false)
+            : await serviceRelay!.DispatchBrainResourceAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false);
     }
 }
 
@@ -352,9 +353,9 @@ internal sealed class ConnectedComputeRouter(
         return null;
     }
 
-    public async Task<ConnectedResourceResponse?> TryExecuteResourceOnConnectedClientAsync(
+    public async Task<PcResourceResponse?> TryExecuteResourceOnConnectedClientAsync(
         BrainId brainId,
-        ConnectedResourceRequest request,
+        PcResourceRequest request,
         string? preferredMachineId = null,
         CancellationToken ct = default)
     {
@@ -369,7 +370,7 @@ internal sealed class ConnectedComputeRouter(
         }
 
         var nodes = await ListNodesAsync(brainId, ct).ConfigureAwait(false);
-        var isConsole = request.Kind == ConnectedResourceKind.ConsoleRun;
+        var isConsole = string.Equals(request.Capability, ClientComputeConsentPolicy.ConsoleCapability, StringComparison.Ordinal);
         var candidates = nodes
             .Where(n => isConsole ? n.IsEligibleForConsole : n.IsEligibleForWindowsFolderGateway)
             .Where(n => string.IsNullOrWhiteSpace(preferredMachineId)

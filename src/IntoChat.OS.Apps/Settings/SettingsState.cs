@@ -234,6 +234,12 @@ public sealed record SettingsAppState(
     public string? MintedEnrollmentHandoffUri { get; init; }
 
     [JsonIgnore]
+    public string? PendingEnrollmentServerOrigin { get; init; }
+
+    [JsonIgnore]
+    public DateTimeOffset? PendingEnrollmentExpiresAt { get; init; }
+
+    [JsonIgnore]
     public Rejected? LastRejection { get; init; }
 
     public SettingsAppState() : this(

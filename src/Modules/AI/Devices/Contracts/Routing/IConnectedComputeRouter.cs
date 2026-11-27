@@ -463,10 +463,10 @@ public interface IConnectedComputeRouter
     /// Dispatches a Mode B PC resource operation (consented folder or [PersonOnly]-approved console)
     /// to an online consented connected PC. Returns <see langword="null"/> if no eligible device is online.
     /// </summary>
-    Task<ConnectedResourceResponse?> TryExecuteResourceOnConnectedClientAsync(
+    Task<PcResourceResponse?> TryExecuteResourceOnConnectedClientAsync(
         BrainId brainId,
-        ConnectedResourceRequest request,
+        PcResourceRequest request,
         string? preferredMachineId = null,
         CancellationToken ct = default)
-        => Task.FromResult<ConnectedResourceResponse?>(null);
+        => Task.FromResult<PcResourceResponse?>(null);
 }

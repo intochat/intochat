@@ -33,6 +33,7 @@ internal sealed record DeviceErrorResponse(string Error);
 [JsonSerializable(typeof(ConnectedComputeNode))]
 [JsonSerializable(typeof(ConnectedComputeNode[]))]
 [JsonSerializable(typeof(Link.LinkStatus))]
+[JsonSerializable(typeof(PendingDeviceEnrollmentInfo))]
 internal sealed partial class DevicesHttpJson : JsonSerializerContext;
 
 internal static class DevicesEndpoints
@@ -45,6 +46,10 @@ internal static class DevicesEndpoints
         group.MapGet("/this", GetThisAsync);
         group.MapGet("/compute/nodes", GetComputeNodesAsync);
         group.MapGet("/link/status", GetLinkStatusAsync);
+        group.MapGet("/link/pending", GetLinkPendingAsync);
+        group.MapPost("/link/pending", PostLinkPendingAsync);
+        group.MapPost("/link/pending/confirm", PostLinkPendingConfirmAsync);
+        group.MapPost("/link/pending/cancel", PostLinkPendingCancelAsync);
         group.MapPost("/link/enroll", PostLinkEnrollAsync);
         group.MapPost("/link/leave", PostLinkLeaveAsync);
         group.MapGet("/{machineId}", GetDeviceAsync);
@@ -67,6 +72,149 @@ internal static class DevicesEndpoints
             status,
             DevicesHttpJson.Default.LinkStatus,
             http.RequestAborted).ConfigureAwait(false);
+    }
+
+    private static async Task GetLinkPendingAsync(HttpContext http)
+    {
+        if (!IsDirectPersonCaller(http))
+        {
+            http.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        var store = http.RequestServices.GetService<IPendingDeviceEnrollmentStore>();
+        var pending = store?.Current;
+        if (pending is null)
+        {
+            http.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+
+        http.Response.ContentType = "application/json; charset=utf-8";
+        await JsonSerializer.SerializeAsync(
+            http.Response.Body,
+            pending,
+            DevicesHttpJson.Default.PendingDeviceEnrollmentInfo,
+            http.RequestAborted).ConfigureAwait(false);
+    }
+
+    private static async Task PostLinkPendingAsync(HttpContext http)
+    {
+        if (!IsDirectPersonCaller(http))
+        {
+            http.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        var (server, code, parseError) = await ReadAndValidateEnrollRequestAsync(http).ConfigureAwait(false);
+        if (parseError is not null || server is null)
+        {
+            await WriteErrorAsync(http, StatusCodes.Status400BadRequest, parseError ?? "Invalid enrollment payload.").ConfigureAwait(false);
+            return;
+        }
+
+        var store = http.RequestServices.GetRequiredService<IPendingDeviceEnrollmentStore>();
+        var pending = store.Stage(server, code);
+        http.Response.StatusCode = StatusCodes.Status202Accepted;
+        http.Response.ContentType = "application/json; charset=utf-8";
+        await JsonSerializer.SerializeAsync(
+            http.Response.Body,
+            pending,
+            DevicesHttpJson.Default.PendingDeviceEnrollmentInfo,
+            http.RequestAborted).ConfigureAwait(false);
+    }
+
+    private static async Task PostLinkPendingConfirmAsync(HttpContext http)
+    {
+        if (!IsDirectPersonCaller(http))
+        {
+            http.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        var store = http.RequestServices.GetService<IPendingDeviceEnrollmentStore>();
+        if (store is null || !store.TryConsume(out var server, out var code) || server is null)
+        {
+            await WriteErrorAsync(http, StatusCodes.Status404NotFound, "No pending device link request to confirm.").ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var link = SiloNeurons.Get<Link.IDeviceLink>(http.RequestServices, Link.IDeviceLink.Key(BrainScope.CurrentId()));
+            var status = await link.Join(server, code).ConfigureAwait(false);
+            http.Response.ContentType = "application/json; charset=utf-8";
+            await JsonSerializer.SerializeAsync(
+                http.Response.Body,
+                status,
+                DevicesHttpJson.Default.LinkStatus,
+                http.RequestAborted).ConfigureAwait(false);
+        }
+        catch (ArgumentException error)
+        {
+            await WriteErrorAsync(http, StatusCodes.Status400BadRequest, error.Message).ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException error)
+        {
+            await WriteErrorAsync(http, StatusCodes.Status403Forbidden, error.Message).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException error)
+        {
+            await WriteErrorAsync(http, StatusCodes.Status422UnprocessableEntity, error.Message).ConfigureAwait(false);
+        }
+    }
+
+    private static Task PostLinkPendingCancelAsync(HttpContext http)
+    {
+        if (!IsDirectPersonCaller(http))
+        {
+            http.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+
+        http.RequestServices.GetService<IPendingDeviceEnrollmentStore>()?.Clear();
+        http.Response.StatusCode = StatusCodes.Status204NoContent;
+        return Task.CompletedTask;
+    }
+
+    private static async Task<(Uri? Server, Code Code, string? Error)> ReadAndValidateEnrollRequestAsync(HttpContext http)
+    {
+        DeviceEnrollLinkRequest? request;
+        try
+        {
+            request = await JsonSerializer.DeserializeAsync(
+                http.Request.Body,
+                DevicesHttpJson.Default.DeviceEnrollLinkRequest,
+                http.RequestAborted).ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            return (null, default, "Request body must be valid JSON.");
+        }
+
+        if (request is null)
+        {
+            return (null, default, "Enrollment payload is required.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Uri))
+        {
+            return Link.DeviceEnrollUri.TryParse(request.Uri, out var server, out var code, out var validationError)
+                ? (server, code, null)
+                : (null, default, validationError ?? "Invalid enrollment URI.");
+        }
+
+        if (!Link.DeviceEnrollUri.TryParseServer(request.Server, out var parsedServer, out var serverError))
+        {
+            return (null, default, serverError ?? "Invalid server URL.");
+        }
+
+        if (!Link.DeviceEnrollUri.ValidateCode(request.Code, out var parsedCode, out var codeError))
+        {
+            return (null, default, codeError ?? "Invalid pairing code.");
+        }
+
+        return (parsedServer, parsedCode, null);
     }
 
     private static async Task PostLinkEnrollAsync(HttpContext http)

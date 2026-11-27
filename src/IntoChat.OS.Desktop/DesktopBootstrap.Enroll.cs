@@ -135,6 +135,14 @@ internal static partial class DesktopBootstrap
             return false;
         }
 
+        if (!string.IsNullOrEmpty(candidateServer.Query)
+            || !string.IsNullOrEmpty(candidateServer.Fragment)
+            || (!string.IsNullOrEmpty(candidateServer.AbsolutePath) && !string.Equals(candidateServer.AbsolutePath, "/", StringComparison.Ordinal)))
+        {
+            error = "Server URL must be an origin only (scheme, host, and optional port) without path, query, or fragment.";
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(rawCode))
         {
             error = "Pairing code is required.";
@@ -165,7 +173,7 @@ internal static partial class DesktopBootstrap
             return false;
         }
 
-        server = candidateServer;
+        server = new Uri(candidateServer.GetLeftPart(UriPartial.Authority), UriKind.Absolute);
         code = trimmedCode;
         return true;
     }
@@ -307,7 +315,9 @@ internal static partial class DesktopBootstrap
             payloadBytes = buffer.ToArray();
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(kernelUrl, "brains/owner/devices/link/enroll"))
+        // Anti-drive-by: protocol handoffs stage a pending enrollment for explicit user confirmation
+        // in Desktop Settings (displaying the exact server origin) instead of silently auto-joining.
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(kernelUrl, "brains/owner/devices/link/pending"))
         {
             Content = new ByteArrayContent(payloadBytes),
         };

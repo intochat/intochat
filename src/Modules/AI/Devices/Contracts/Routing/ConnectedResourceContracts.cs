@@ -5,31 +5,40 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Devices;
 
-/// <summary>Mode B PC resource operation dispatched over the authenticated Circle relay.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ConnectedResourceKind>))]
-public enum ConnectedResourceKind
-{
-    [JsonStringEnumMemberName("folder-list")]
-    FolderList = 0,
+/// <summary>
+/// Locked Slice 1 Mode B PC resource request dispatched over <c>/circle/v1/compute/resource/dispatch</c>
+/// and polled by the PC via <c>/circle/v1/compute/resource/next</c> (camelCase JSON).
+/// </summary>
+[GenerateSerializer, Alias("devices.compute.pc-resource-request")]
+public sealed record PcResourceRequest(
+    [property: Id(0)] string JobId,
+    [property: Id(1)] string BrainId,
+    [property: Id(2)] string Capability,
+    [property: Id(3)] string Operation,
+    [property: Id(4)] string? PayloadJson = null,
+    [property: Id(5)] string? ApprovalToken = null,
+    [property: Id(6)] int TimeoutSeconds = 60);
 
-    [JsonStringEnumMemberName("folder-read-text")]
-    FolderReadText = 1,
+/// <summary>
+/// Locked Slice 1 Mode B PC resource response posted to <c>/circle/v1/compute/resource/{jobId}/result</c>
+/// and returned from <c>/circle/v1/compute/resource/dispatch</c> (camelCase JSON).
+/// </summary>
+[GenerateSerializer, Alias("devices.compute.pc-resource-response")]
+public sealed record PcResourceResponse(
+    [property: Id(0)] bool Ok,
+    [property: Id(1)] string? ResultJson = null,
+    [property: Id(2)] string? Error = null,
+    [property: Id(3)] string? ExecutedByMachineId = null);
 
-    [JsonStringEnumMemberName("folder-write-text")]
-    FolderWriteText = 2,
-
-    [JsonStringEnumMemberName("folder-exists")]
-    FolderExists = 3,
-
-    [JsonStringEnumMemberName("folder-search")]
-    FolderSearch = 4,
-
-    [JsonStringEnumMemberName("folder-stat")]
-    FolderStat = 5,
-
-    [JsonStringEnumMemberName("console-run")]
-    ConsoleRun = 6,
-}
+/// <summary>Locked Slice 1 NDJSON chunk schema for live sandbox streaming over <c>/circle/v1/compute/sandbox/{jobId}/stream</c>.</summary>
+[GenerateSerializer, Alias("devices.compute.sandbox-stream-chunk")]
+public sealed record SandboxStreamChunk(
+    [property: Id(0)] string? Stdout = null,
+    [property: Id(1)] string? Stderr = null,
+    [property: Id(2)] string? Progress = null,
+    [property: Id(3)] bool Done = false,
+    [property: Id(4)] string? Error = null,
+    [property: Id(5)] ConnectedSandboxResponse? Result = null);
 
 /// <summary>Structured entry returned by Mode B consented folder list/search/stat operations.</summary>
 [GenerateSerializer, Alias("devices.compute.resource-entry")]
@@ -40,37 +49,52 @@ public sealed record ConnectedResourceEntry(
     [property: Id(3)] long SizeBytes,
     [property: Id(4)] DateTimeOffset LastModifiedUtc);
 
-/// <summary>
-/// Mode B PC resource request dispatched from a Cloud brain to a paired Windows PC over
-/// <c>/circle/v1/compute/resource/dispatch</c> and polled via <c>/circle/v1/compute/resource/next</c>.
-/// </summary>
-[GenerateSerializer, Alias("devices.compute.resource-request")]
-public sealed record ConnectedResourceRequest(
-    [property: Id(0)] string JobId,
-    [property: Id(1)] string BrainId,
-    [property: Id(2)] ConnectedResourceKind Kind,
-    [property: Id(3)] string? RootLabel = null,
-    [property: Id(4)] string? RelativePath = null,
-    [property: Id(5)] string? Content = null,
-    [property: Id(6)] string? SearchPattern = null,
-    [property: Id(7)] string? Command = null,
-    [property: Id(8)] string? WorkingDirectory = null,
-    [property: Id(9)] int TimeoutSeconds = 60,
-    [property: Id(10)] string? ApprovalPlanId = null,
-    [property: Id(11)] string? ApprovalProof = null);
+/// <summary>Payload JSON for Mode B <c>IWindowsFolderGateway</c> operations.</summary>
+public sealed record FolderResourcePayload(
+    string? RootLabel = null,
+    string? RelativePath = null,
+    string? Content = null,
+    string? SearchPattern = null);
 
-/// <summary>Structured result returned by a paired Windows PC for a Mode B resource request.</summary>
-[GenerateSerializer, Alias("devices.compute.resource-response")]
-public sealed record ConnectedResourceResponse(
-    [property: Id(0)] bool Handled,
-    [property: Id(1)] string? Error = null,
-    [property: Id(2)] string? TextContent = null,
-    [property: Id(3)] bool? Exists = null,
-    [property: Id(4)] ConnectedResourceEntry[]? Entries = null,
-    [property: Id(5)] int? ExitCode = null,
-    [property: Id(6)] string? StandardOutput = null,
-    [property: Id(7)] string? StandardError = null,
-    [property: Id(8)] string? ExecutedByMachineId = null);
+/// <summary>Payload JSON for Mode B <c>IConsole</c> operations.</summary>
+public sealed record ConsoleResourcePayload(
+    string Command,
+    string? RootLabel = null,
+    string? WorkingDirectory = null,
+    string? ApprovalPlanId = null);
+
+/// <summary>Result JSON for Mode B <c>IWindowsFolderGateway</c> operations.</summary>
+public sealed record FolderResourceResult(
+    string? TextContent = null,
+    bool? Exists = null,
+    ConnectedResourceEntry[]? Entries = null);
+
+/// <summary>Result JSON for Mode B <c>IConsole</c> operations.</summary>
+public sealed record ConsoleResourceResult(
+    int ExitCode,
+    string StandardOutput,
+    string StandardError);
+
+/// <summary>Safe metadata for a pending anti-drive-by <c>intochat://enroll</c> handoff (never exposes raw code).</summary>
+public sealed record PendingDeviceEnrollmentInfo(
+    Uri ServerOrigin,
+    DateTimeOffset ReceivedAt,
+    DateTimeOffset ExpiresAt);
+
+/// <summary>
+/// In-memory store for pending <c>intochat://enroll</c> protocol handoffs on Desktop.
+/// Holds the single-use code strictly in memory (never persisted or logged) until the user explicitly confirms or cancels.
+/// </summary>
+public interface IPendingDeviceEnrollmentStore
+{
+    PendingDeviceEnrollmentInfo? Current { get; }
+
+    PendingDeviceEnrollmentInfo Stage(Uri serverOrigin, Code code);
+
+    bool TryConsume(out Uri? serverOrigin, out Code code);
+
+    void Clear();
+}
 
 /// <summary>Live runtime consent store for Mode B PC resource relay capabilities (default OFF).</summary>
 public interface IClientResourceConsent
@@ -89,15 +113,15 @@ public interface IClientResourceConsent
 /// <summary>Transport abstraction for dispatching Mode B PC resource operations to a connected client.</summary>
 public interface IConnectedResourceTransport
 {
-    Task<ConnectedResourceResponse?> ExecuteResourceAsync(
+    Task<PcResourceResponse?> ExecuteResourceAsync(
         BrainId brainId,
         ConnectedComputeNode node,
-        ConnectedResourceRequest request,
+        PcResourceRequest request,
         CancellationToken ct = default);
 }
 
 /// <summary>
-/// Executes a Mode B <see cref="ConnectedResourceRequest"/> locally on a Windows PC, enforcing
+/// Executes a Mode B <see cref="PcResourceRequest"/> locally on a Windows PC, enforcing
 /// <c>PathConfinement.Resolve</c> against user-consented roots and verifying <c>[PersonOnly]</c> approval
 /// proof before invoking confined shell commands.
 /// </summary>
@@ -105,8 +129,8 @@ public interface ILocalPcResourceExecutor
 {
     Task<string[]> GetConsentedFolderLabelsAsync(CancellationToken ct = default);
 
-    Task<ConnectedResourceResponse> ExecuteAsync(
-        ConnectedResourceRequest request,
+    Task<PcResourceResponse> ExecuteAsync(
+        PcResourceRequest request,
         CancellationToken ct = default);
 }
 

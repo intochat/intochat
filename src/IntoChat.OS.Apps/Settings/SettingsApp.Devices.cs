@@ -163,6 +163,78 @@ public sealed partial class SettingsApp
     }
 
     [On]
+    public async Task ConfirmPendingEnrollment(SettingsConfirmPendingEnrollment request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (PendingEnrollmentStore is null || !PendingEnrollmentStore.TryConsume(out var serverUri, out var parsedCode) || serverUri is null)
+        {
+            await UpdateAsync(State with
+            {
+                PendingEnrollmentServerOrigin = null,
+                PendingEnrollmentExpiresAt = null,
+                DevicePairingFeedback = "No pending link request to confirm.",
+                DevicePairingFeedbackIsError = true,
+                Status = "No pending link request to confirm.",
+            });
+            return;
+        }
+
+        if (DeviceLink is not { } link)
+        {
+            await UpdateAsync(State with
+            {
+                PendingEnrollmentServerOrigin = null,
+                PendingEnrollmentExpiresAt = null,
+                DevicePairingFeedback = "Device link service is unavailable in this host.",
+                DevicePairingFeedbackIsError = true,
+                Status = "Device link service is unavailable.",
+            });
+            return;
+        }
+
+        try
+        {
+            var status = await link.Join(serverUri, parsedCode);
+            await UpdateAsync(ApplyDeviceLinkStatus(State, status) with
+            {
+                PendingEnrollmentServerOrigin = null,
+                PendingEnrollmentExpiresAt = null,
+                ShowManualPairingForm = false,
+                DevicePairingFeedback = $"Linked to {serverUri.GetLeftPart(UriPartial.Authority)}.",
+                DevicePairingFeedbackIsError = false,
+                Status = $"Connected this PC to {serverUri.Host}.",
+            });
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException or HttpRequestException or TaskCanceledException)
+        {
+            Log.LogWarning(ex, "Confirming pending device enrollment failed in Settings.");
+            await UpdateAsync(State with
+            {
+                PendingEnrollmentServerOrigin = null,
+                PendingEnrollmentExpiresAt = null,
+                DevicePairingFeedback = ex.Message,
+                DevicePairingFeedbackIsError = true,
+                Status = ex.Message,
+            });
+        }
+    }
+
+    [On]
+    public Task CancelPendingEnrollment(SettingsCancelPendingEnrollment request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        PendingEnrollmentStore?.Clear();
+        return UpdateAsync(State with
+        {
+            PendingEnrollmentServerOrigin = null,
+            PendingEnrollmentExpiresAt = null,
+            DevicePairingFeedback = "Cancelled pending link request.",
+            DevicePairingFeedbackIsError = false,
+            Status = "Cancelled pending link request.",
+        });
+    }
+
+    [On]
     public async Task DisconnectDevice(SettingsDisconnectDevice request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -292,10 +364,13 @@ public sealed partial class SettingsApp
     {
         var isCloud = ResolveIsCloudTopology();
         var cloudUrl = ResolveCloudLinkUrl();
+        var pending = !isCloud ? PendingEnrollmentStore?.Current : null;
         var next = current with
         {
             IsCloudTopology = isCloud,
             CloudLinkUrl = cloudUrl,
+            PendingEnrollmentServerOrigin = pending?.ServerOrigin.GetLeftPart(UriPartial.Authority),
+            PendingEnrollmentExpiresAt = pending?.ExpiresAt,
         };
 
         if (!isCloud && DeviceLink is { } link)

@@ -262,19 +262,33 @@ internal sealed class DeviceWorker(
         _lastComputeHeartbeatAt = now;
     }
 
-    private async Task ExecuteResourceJobAsync(ConnectedResourceRequest job, CancellationToken ct)
+    private async Task ExecuteResourceJobAsync(PcResourceRequest job, CancellationToken ct)
     {
-        var isConsole = job.Kind == ConnectedResourceKind.ConsoleRun;
+        var isConsole = string.Equals(job.Capability, ClientComputeConsentPolicy.ConsoleCapability, StringComparison.Ordinal);
+        var isFolder = string.Equals(job.Capability, ClientComputeConsentPolicy.WindowsFolderGatewayCapability, StringComparison.Ordinal);
         var allowFolders = EffectiveAllowWindowsFolderGateway();
         var allowConsole = EffectiveAllowConsole();
 
-        if (!isConsole && !allowFolders)
+        if (!isConsole && !isFolder)
+        {
+            logger.LogInformation("Refused Mode B resource job {JobId}: unsupported capability '{Capability}'.", job.JobId, job.Capability);
+            await cloud.ReportResourceResultAsync(
+                job.JobId,
+                new PcResourceResponse(
+                    Ok: false,
+                    Error: $"unsupported-capability: '{job.Capability}' is not supported on this PC.",
+                    ExecutedByMachineId: thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (isFolder && !allowFolders)
         {
             logger.LogInformation("Refused Mode B folder job {JobId}: IWindowsFolderGateway consent is OFF.", job.JobId);
             await cloud.ReportResourceResultAsync(
                 job.JobId,
-                new ConnectedResourceResponse(
-                    Handled: false,
+                new PcResourceResponse(
+                    Ok: false,
                     Error: "consent-disabled: IWindowsFolderGateway is disabled on this PC.",
                     ExecutedByMachineId: thisMachine.Value),
                 ct).ConfigureAwait(false);
@@ -286,28 +300,28 @@ internal sealed class DeviceWorker(
             logger.LogInformation("Refused Mode B console job {JobId}: IConsole consent is OFF.", job.JobId);
             await cloud.ReportResourceResultAsync(
                 job.JobId,
-                new ConnectedResourceResponse(
-                    Handled: false,
+                new PcResourceResponse(
+                    Ok: false,
                     Error: "consent-disabled: IConsole is disabled on this PC.",
                     ExecutedByMachineId: thisMachine.Value),
                 ct).ConfigureAwait(false);
             return;
         }
 
-        if (isConsole && (string.IsNullOrWhiteSpace(job.ApprovalPlanId) || string.IsNullOrWhiteSpace(job.ApprovalProof)))
+        if (isConsole && string.IsNullOrWhiteSpace(job.ApprovalToken))
         {
             logger.LogInformation("Refused Mode B console job {JobId}: missing [PersonOnly] approval proof.", job.JobId);
             await cloud.ReportResourceResultAsync(
                 job.JobId,
-                new ConnectedResourceResponse(
-                    Handled: false,
+                new PcResourceResponse(
+                    Ok: false,
                     Error: "person-approval-required: IConsole requires [PersonOnly] human approval proof.",
                     ExecutedByMachineId: thisMachine.Value),
                 ct).ConfigureAwait(false);
             return;
         }
 
-        ConnectedResourceResponse response;
+        PcResourceResponse response;
         try
         {
             response = await localResourceExecutor!.ExecuteAsync(job, ct).ConfigureAwait(false);
@@ -322,9 +336,9 @@ internal sealed class DeviceWorker(
         }
         catch (Exception error)
         {
-            logger.LogWarning(error, "Mode B local PC resource job {JobId} ({Kind}) failed with {ErrorType}.", job.JobId, job.Kind, error.GetType().Name);
-            response = new ConnectedResourceResponse(
-                Handled: false,
+            logger.LogWarning(error, "Mode B local PC resource job {JobId} ({Capability}/{Operation}) failed with {ErrorType}.", job.JobId, job.Capability, job.Operation, error.GetType().Name);
+            response = new PcResourceResponse(
+                Ok: false,
                 Error: error.Message,
                 ExecutedByMachineId: thisMachine.Value);
         }

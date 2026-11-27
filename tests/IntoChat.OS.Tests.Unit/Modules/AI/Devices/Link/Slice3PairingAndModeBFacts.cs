@@ -53,9 +53,12 @@ public sealed class Slice3PairingAndModeBFacts
         Assert.Equal("http://localhost:5080/", localServer!.AbsoluteUri);
         Assert.Equal("AB12CD", sixChar.Value);
 
-        // Security rejections
+        // Security rejections (including path/query/fragment injection on server origin)
         Assert.False(DeviceEnrollUri.TryParse("intochat://enroll?server=http%3A%2F%2Fevil.example&code=AB12CD", out _, out _, out _));
         Assert.False(DeviceEnrollUri.TryParse("intochat://enroll?server=https%3A%2F%2Fuser%3Apass%40cloud.intochat.io&code=AB12CD", out _, out _, out _));
+        Assert.False(DeviceEnrollUri.TryParse("intochat://enroll?server=https%3A%2F%2Fcloud.intochat.io%2Fevil%2Fpath&code=AB12CD", out _, out _, out _));
+        Assert.False(DeviceEnrollUri.TryParse("intochat://enroll?server=https%3A%2F%2Fcloud.intochat.io%3Ffoo%3Dbar&code=AB12CD", out _, out _, out _));
+        Assert.False(DeviceEnrollUri.TryParse("intochat://enroll?server=https%3A%2F%2Fcloud.intochat.io%23frag&code=AB12CD", out _, out _, out _));
         Assert.False(DeviceEnrollUri.TryParse("https://enroll?server=https%3A%2F%2Fcloud.intochat.io&code=AB12CD", out _, out _, out _));
         Assert.False(DeviceEnrollUri.TryParse("intochat://other?server=https%3A%2F%2Fcloud.intochat.io&code=AB12CD", out _, out _, out _));
         Assert.False(DeviceEnrollUri.TryParse("intochat://enroll?server=https%3A%2F%2Fcloud.intochat.io&code=123", out _, out _, out _));
@@ -63,7 +66,7 @@ public sealed class Slice3PairingAndModeBFacts
     }
 
     [Fact]
-    public async Task DesktopSingleInstanceIpcForwardsEnrollUriAndRejectsMalformedUris()
+    public async Task DesktopSingleInstanceIpcForwardsEnrollUriAndStagesPendingInsteadOfAutoJoining()
     {
         var home = Path.Combine(Path.GetTempPath(), "intochat-ipc-test-" + Guid.NewGuid().ToString("N")[..8]);
         var layout = DesktopBootstrap.ResolveLayout(home);
@@ -78,6 +81,24 @@ public sealed class Slice3PairingAndModeBFacts
         Assert.Equal("https://cloud.intochat.io/", server!.AbsoluteUri);
         Assert.Equal("ABCD-EFGH-JKMN", code);
         Assert.False(DesktopBootstrap.TryParseEnrollUri("intochat://enroll?server=http://remote.bad&code=ABCDEF", out _, out _, out _));
+        Assert.False(DesktopBootstrap.TryParseEnrollUri("intochat://enroll?server=https%3A%2F%2Fcloud.intochat.io%2Finjected&code=ABCDEF", out _, out _, out _));
+
+        // Verify SendEnrollToKernelAsync posts to /link/pending (anti-drive-by), NOT /link/enroll
+        string? postedPath = null;
+        using var kernelHandler = new StubHttpHandler(req =>
+        {
+            postedPath = req.RequestUri!.AbsolutePath;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));
+        });
+        using var kernelHttp = new HttpClient(kernelHandler);
+        var (stagedOk, stagedErr) = await DesktopBootstrap.SendEnrollToKernelAsync(
+            kernelHttp,
+            new Uri("http://127.0.0.1:5080/"),
+            "presence-token",
+            validUri,
+            Ct);
+        Assert.True(stagedOk, stagedErr);
+        Assert.Equal("/brains/owner/devices/link/pending", postedPath);
 
         var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var pipeServer = DesktopBootstrap.StartEnrollPipeServer(
@@ -173,10 +194,12 @@ public sealed class Slice3PairingAndModeBFacts
                 ["IntoChatOS:CloudUrl"] = "https://cloud.intochat.io",
             })
             .Build();
+        var pendingStore = new PendingDeviceEnrollmentStore(new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 10, 0, 0, TimeSpan.Zero)));
         var desktopServices = new ServiceCollection()
             .AddSingleton<IConfiguration>(desktopConfig)
             .AddSingleton<IConnectedComputeRouter>(router)
             .AddSingleton<Action<Uri>>(uri => launchedBrowserUrl = uri)
+            .AddSingleton<IPendingDeviceEnrollmentStore>(pendingStore)
             .BuildServiceProvider();
 
         await using var desktopOs = TestOS.Local(o => o.Services = desktopServices)
@@ -187,23 +210,43 @@ public sealed class Slice3PairingAndModeBFacts
         var desktopSettings = desktopInstalled.App;
         using (desktopOs.Edge.Enter(desktopOs.Edge.Person("local", "local", brain)))
         {
+            // Stage a pending protocol handoff: must NOT auto-join until explicitly confirmed
+            pendingStore.Stage(new Uri("https://cloud.intochat.io"), Code.New());
             await desktopSettings.Open(new SettingsOpen("general"));
             await desktopSettings.Navigate(new SettingsNavigate("devices"));
+            Assert.Equal(0, FakeDeviceLink.JoinCalls);
+
             var desktopViewJson = JsonSerializer.Serialize(desktopSettings.Render());
             Assert.Contains("Connect this PC to IntoChat Cloud", desktopViewJson, StringComparison.Ordinal);
-            Assert.Contains("Connect in Browser", desktopViewJson, StringComparison.Ordinal);
-            Assert.Contains("Enter 6-character pairing code", desktopViewJson, StringComparison.Ordinal);
+            Assert.Contains("Connect in browser", desktopViewJson, StringComparison.Ordinal);
+            Assert.Contains("Enter pairing code", desktopViewJson, StringComparison.Ordinal);
+            Assert.Contains("Confirm cloud link", desktopViewJson, StringComparison.Ordinal);
+            Assert.Contains("https://cloud.intochat.io", desktopViewJson, StringComparison.Ordinal);
+            Assert.Contains("Link this PC", desktopViewJson, StringComparison.Ordinal);
+
+            // Cancel clears pending without joining
+            await desktopSettings.CancelPendingEnrollment(new SettingsCancelPendingEnrollment());
+            Assert.Equal(0, FakeDeviceLink.JoinCalls);
+            Assert.Null(pendingStore.Current);
+            Assert.Null(desktopSettings.State.PendingEnrollmentServerOrigin);
+
+            // Re-stage and confirm explicitly -> joins once
+            pendingStore.Stage(new Uri("https://cloud.intochat.io"), Code.New());
+            await desktopSettings.ConfirmPendingEnrollment(new SettingsConfirmPendingEnrollment());
+            Assert.Equal(LinkState.Connected, desktopSettings.State.DeviceLinkState);
+            Assert.Equal(1, FakeDeviceLink.JoinCalls);
+            Assert.Null(pendingStore.Current);
+
+            await desktopSettings.DisconnectDevice(new SettingsDisconnectDevice());
+            Assert.Equal(LinkState.NotJoined, desktopSettings.State.DeviceLinkState);
+            Assert.Equal(1, FakeDeviceLink.LeaveCalls);
 
             await desktopSettings.LaunchBrowserPairing(new SettingsLaunchBrowserPairing());
             Assert.Equal(new Uri("https://cloud.intochat.io/account/link-device"), launchedBrowserUrl);
 
             await desktopSettings.PairDevice(new SettingsPairDevice("https://cloud.intochat.io", "ABCD-EFGH-JKMN"));
             Assert.Equal(LinkState.Connected, desktopSettings.State.DeviceLinkState);
-            Assert.Equal(1, FakeDeviceLink.JoinCalls);
-
-            await desktopSettings.DisconnectDevice(new SettingsDisconnectDevice());
-            Assert.Equal(LinkState.NotJoined, desktopSettings.State.DeviceLinkState);
-            Assert.Equal(1, FakeDeviceLink.LeaveCalls);
+            Assert.Equal(2, FakeDeviceLink.JoinCalls);
         }
 
         // Cloud (cloud topology)
@@ -230,9 +273,9 @@ public sealed class Slice3PairingAndModeBFacts
             await cloudSettings.Open(new SettingsOpen("general"));
             await cloudSettings.Navigate(new SettingsNavigate("devices"));
             var cloudViewJson = JsonSerializer.Serialize(cloudSettings.Render());
-            Assert.Contains("Connected Devices", cloudViewJson, StringComparison.Ordinal);
+            Assert.Contains("Connected devices", cloudViewJson, StringComparison.Ordinal);
             Assert.Contains("My Windows PC", cloudViewJson, StringComparison.Ordinal);
-            Assert.Contains("Link New PC / Generate Code", cloudViewJson, StringComparison.Ordinal);
+            Assert.Contains("Link new PC", cloudViewJson, StringComparison.Ordinal);
 
             await cloudSettings.MintEnrollmentCode(new SettingsMintEnrollmentCode());
             Assert.False(string.IsNullOrWhiteSpace(cloudSettings.State.MintedEnrollmentCode));
@@ -313,11 +356,16 @@ public sealed class Slice3PairingAndModeBFacts
             Assert.DoesNotContain(ClientComputeConsentPolicy.ConsoleCapability, relay.LastAdvertisement.AdvertisedCapabilities ?? []);
 
             // Incoming folder job while consent OFF must fail closed
-            relay.EnqueueResourceJob(new ConnectedResourceRequest("job-denied-off", brain.Value, ConnectedResourceKind.FolderReadText, "Projects", "hello.txt"));
+            relay.EnqueueResourceJob(new PcResourceRequest(
+                JobId: "job-denied-off",
+                BrainId: brain.Value,
+                Capability: ClientComputeConsentPolicy.WindowsFolderGatewayCapability,
+                Operation: "read-text",
+                PayloadJson: JsonSerializer.Serialize(new FolderResourcePayload("Projects", "hello.txt"), DeviceWireJson.Default.FolderResourcePayload)));
             await worker.Tick(Ct);
             var deniedResult = relay.GetResourceResult("job-denied-off");
             Assert.NotNull(deniedResult);
-            Assert.False(deniedResult!.Handled);
+            Assert.False(deniedResult!.Ok);
             Assert.Contains("consent-disabled", deniedResult.Error, StringComparison.OrdinalIgnoreCase);
 
             // Enable both Mode B consents -> capabilities & safe folder labels advertised
@@ -390,10 +438,115 @@ public sealed class Slice3PairingAndModeBFacts
             Assert.Equal("ran: dotnet --version", executed.StandardOutput);
             Assert.Single(executedCommands);
 
+            // Live revocation of local PC consent fails closed even when Cloud dispatches
+            consent.SetAllowWindowsFolderGateway(false);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => remotePc.ReadFileTextAsync("Projects", "hello.txt", cancellationToken: Ct));
+
             // Ino agent definition includes IRemotePcResource & Mode B guidance
             var ino = InoAgentDefinition.For(new UserSettingsState { DisplayName = "Vlad" });
             Assert.Contains(typeof(IRemotePcResource).FullName!, ino.Contracts);
             Assert.Contains("devices_pc_resource_", ino.Instructions, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task HostedCloudModeBUsesServiceAssertionAndRevocationClearsLinkBinOnly()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "intochat-relay-auth-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempRoot);
+        var custodyMarker = Path.Combine(tempRoot, "custody.key");
+        await File.WriteAllTextAsync(custodyMarker, "keep-me-intact", Ct);
+
+        try
+        {
+            // 1. Multi-tenant Hosted Cloud OS Mode B dispatch via CloudRelayServiceClient (ServiceAssertion JWT, no link.bin)
+            string? capturedAuth = null;
+            string? capturedPurpose = null;
+            string? capturedBrain = null;
+            string? capturedBody = null;
+            var signer = new StubServiceAssertionSigner(
+                new Uri("https://cloud.intochat.io"),
+                (brainId, purpose, _, _, _) =>
+                {
+                    capturedBrain = brainId;
+                    capturedPurpose = purpose;
+                    return "eyJ.service.assertion";
+                });
+
+            using var serviceHandler = new StubHttpHandler(async req =>
+            {
+                capturedAuth = req.Headers.Authorization?.ToString();
+                capturedBody = req.Content is null ? null : await req.Content.ReadAsStringAsync(Ct);
+                var ok = new PcResourceResponse(
+                    Ok: true,
+                    ResultJson: """{"textContent":"hello-via-service-jwt"}""",
+                    ExecutedByMachineId: "win-pc-1");
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(ok, DeviceWireJson.Default.PcResourceResponse), Encoding.UTF8, "application/json"),
+                };
+            });
+            using var serviceHttp = new HttpClient(serviceHandler);
+            var serviceRelay = new CloudRelayServiceClient(serviceHttp, signer);
+            var emptyCreds = new DeviceCredentials(new PlaintextProtector(), Path.Combine(tempRoot, "missing-link.bin"));
+            var cloudClient = new CloudClient(serviceHttp, emptyCreds, TimeProvider.System);
+            var transport = new RelayConnectedComputeTransport(cloudClient, emptyCreds, serviceRelay: serviceRelay);
+
+            var node = new ConnectedComputeNode(
+                BrainId: "tenant-brain-42",
+                MachineId: "win-pc-1",
+                DeviceName: "My Windows PC",
+                ConsentMode: ComputeConsentMode.ExplicitToggle,
+                SandboxReady: true,
+                SandboxRuntime: "unit-host",
+                Status: ComputeNodeStatus.Online,
+                LastHeartbeatAt: DateTimeOffset.UtcNow,
+                AllowWindowsFolderGateway: true,
+                AdvertisedCapabilities: [ClientComputeConsentPolicy.WindowsFolderGatewayCapability]);
+
+            var resp = await transport.ExecuteResourceAsync(
+                new BrainId("tenant-brain-42"),
+                node,
+                new PcResourceRequest("job-jwt-1", "tenant-brain-42", ClientComputeConsentPolicy.WindowsFolderGatewayCapability, "read-text", """{"rootLabel":"Projects","relativePath":"a.txt"}"""),
+                Ct);
+
+            Assert.NotNull(resp);
+            Assert.True(resp!.Ok);
+            Assert.Equal("Service eyJ.service.assertion", capturedAuth);
+            Assert.Equal("tenant-brain-42", capturedBrain);
+            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, capturedPurpose);
+            Assert.Contains("\"capability\":\"IWindowsFolderGateway\"", capturedBody!, StringComparison.Ordinal);
+
+            // 2. Server revocation (401 on refresh/call) clears link.bin without touching custody/user state
+            var linkPath = Path.Combine(tempRoot, "devices", "link.bin");
+            var liveCreds = new DeviceCredentials(new PlaintextProtector(), linkPath);
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            await liveCreds.Write(new LinkSecrets(
+                new Uri("https://cloud.intochat.io"),
+                "cred-revoked",
+                "access-token",
+                DateTimeOffset.UtcNow.AddHours(1),
+                "refresh-token",
+                DateTimeOffset.UtcNow.AddDays(7),
+                key.ExportPkcs8PrivateKey()), Ct);
+            Assert.True(File.Exists(linkPath));
+
+            using var revokedHandler = new StubHttpHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+            using var revokedHttp = new HttpClient(revokedHandler);
+            var revokedCloud = new CloudClient(revokedHttp, liveCreds, TimeProvider.System);
+            await Assert.ThrowsAsync<DeviceLinkRevokedException>(() => revokedCloud.StatusAsync(Ct));
+
+            Assert.False(File.Exists(linkPath));
+            Assert.Null(await liveCreds.Read(Ct));
+            Assert.True(File.Exists(custodyMarker));
+            Assert.Equal("keep-me-intact", await File.ReadAllTextAsync(custodyMarker, Ct));
         }
         finally
         {
@@ -511,6 +664,17 @@ public sealed class Slice3PairingAndModeBFacts
         public Task<bool> IsLive(string machineId, string keyThumbprint) => Task.FromResult(true);
     }
 
+    private sealed class StubServiceAssertionSigner(
+        Uri serviceUri,
+        Func<string, string, string, string, ReadOnlySpan<byte>, string> onSign) : IServiceAssertionSigner
+    {
+        public bool IsConfigured => true;
+        public Uri? ServiceUri => serviceUri;
+
+        public string Sign(string brainId, string purpose, string method, string pathAndQuery, ReadOnlySpan<byte> body)
+            => onSign(brainId, purpose, method, pathAndQuery, body);
+    }
+
     private sealed class DirectModeBTransport(ILocalPcResourceExecutor executor) : IConnectedComputeTransport, IConnectedResourceTransport
     {
         public Task<bool> ProbeAsync(BrainId brainId, ConnectedComputeNode node, CancellationToken ct = default)
@@ -519,20 +683,20 @@ public sealed class Slice3PairingAndModeBFacts
         public Task<ConnectedSandboxResponse?> ExecuteAsync(BrainId brainId, ConnectedComputeNode node, ConnectedSandboxRequest request, CancellationToken ct = default)
             => Task.FromResult<ConnectedSandboxResponse?>(null);
 
-        public async Task<ConnectedResourceResponse?> ExecuteResourceAsync(BrainId brainId, ConnectedComputeNode node, ConnectedResourceRequest request, CancellationToken ct = default)
+        public async Task<PcResourceResponse?> ExecuteResourceAsync(BrainId brainId, ConnectedComputeNode node, PcResourceRequest request, CancellationToken ct = default)
             => await executor.ExecuteAsync(request, ct).ConfigureAwait(false);
     }
 
     private sealed class InMemoryModeBRelay : HttpMessageHandler
     {
-        private readonly ConcurrentQueue<ConnectedResourceRequest> _resourceJobs = new();
-        private readonly ConcurrentDictionary<string, ConnectedResourceResponse> _resourceResults = new(StringComparer.Ordinal);
+        private readonly ConcurrentQueue<PcResourceRequest> _resourceJobs = new();
+        private readonly ConcurrentDictionary<string, PcResourceResponse> _resourceResults = new(StringComparer.Ordinal);
 
         public ComputeCapabilityAdvertisement? LastAdvertisement { get; private set; }
 
-        public void EnqueueResourceJob(ConnectedResourceRequest req) => _resourceJobs.Enqueue(req);
+        public void EnqueueResourceJob(PcResourceRequest req) => _resourceJobs.Enqueue(req);
 
-        public ConnectedResourceResponse? GetResourceResult(string jobId)
+        public PcResourceResponse? GetResourceResult(string jobId)
             => _resourceResults.TryGetValue(jobId, out var res) ? res : null;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -554,7 +718,7 @@ public sealed class Slice3PairingAndModeBFacts
             {
                 if (_resourceJobs.TryDequeue(out var next))
                 {
-                    var json = JsonSerializer.Serialize(next, DeviceWireJson.Default.ConnectedResourceRequest);
+                    var json = JsonSerializer.Serialize(next, DeviceWireJson.Default.PcResourceRequest);
                     return new HttpResponseMessage(HttpStatusCode.OK)
                     {
                         Content = new StringContent(json, Encoding.UTF8, "application/json"),
@@ -568,7 +732,7 @@ public sealed class Slice3PairingAndModeBFacts
             {
                 var trimmed = path[(CircleRoutes.Prefix + "/compute/resource/").Length..^"/result".Length];
                 var body = await request.Content!.ReadAsStringAsync(cancellationToken);
-                var result = JsonSerializer.Deserialize(body, DeviceWireJson.Default.ConnectedResourceResponse)!;
+                var result = JsonSerializer.Deserialize(body, DeviceWireJson.Default.PcResourceResponse)!;
                 _resourceResults[trimmed] = result;
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }

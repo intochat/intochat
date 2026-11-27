@@ -225,7 +225,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<ConnectedResourceResponse?> DispatchBrainResourceAsync(
+    public async Task<PcResourceResponse?> DispatchBrainResourceAsync(
         BrainResourceDispatchRequest dispatch,
         TimeSpan availabilityTimeout,
         CancellationToken ct = default)
@@ -247,10 +247,10 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         }
 
         response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedResourceResponse, ct).ConfigureAwait(false);
+        return await ReadJsonAsync(response, DeviceWireJson.Default.PcResourceResponse, ct).ConfigureAwait(false);
     }
 
-    public async Task<ConnectedResourceRequest?> PollNextResourceAsync(CancellationToken ct = default)
+    public async Task<PcResourceRequest?> PollNextResourceAsync(CancellationToken ct = default)
     {
         using var response = await SendSignedAsync(
             HttpMethod.Get,
@@ -264,17 +264,17 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         }
 
         response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedResourceRequest, ct).ConfigureAwait(false);
+        return await ReadJsonAsync(response, DeviceWireJson.Default.PcResourceRequest, ct).ConfigureAwait(false);
     }
 
-    public async Task ReportResourceResultAsync(string jobId, ConnectedResourceResponse result, CancellationToken ct = default)
+    public async Task ReportResourceResultAsync(string jobId, PcResourceResponse result, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
         ArgumentNullException.ThrowIfNull(result);
         using var response = await SendSignedAsync(
             HttpMethod.Post,
             DeviceRoutes.ResourceResultFor(jobId),
-            () => JsonContent(result, DeviceWireJson.Default.ConnectedResourceResponse),
+            () => JsonContent(result, DeviceWireJson.Default.PcResourceResponse),
             ct).ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();

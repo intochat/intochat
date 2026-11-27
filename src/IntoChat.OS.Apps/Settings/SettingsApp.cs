@@ -123,6 +123,12 @@ public sealed record SettingsMintEnrollmentCode(string? ServerUrl = null) : Sign
 [Signal("settings.revoke-enrolled-device")]
 public sealed record SettingsRevokeEnrolledDevice(string MachineId = "") : Signal;
 
+[Signal("settings.confirm-pending-enrollment")]
+public sealed record SettingsConfirmPendingEnrollment : Signal;
+
+[Signal("settings.cancel-pending-enrollment")]
+public sealed record SettingsCancelPendingEnrollment : Signal;
+
 [Neuron("app.settings")]
 [Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 10)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
@@ -155,7 +161,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
     private MachineId? ThisMachine { get; }
 
-    public SettingsApp() : this(null, null, null, null, null, null, null, null, null, null, null) { }
+    public SettingsApp() : this(null, null, null, null, null, null, null, null, null, null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
     public SettingsApp(
@@ -169,7 +175,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         IClientResourceConsent? clientResourceConsent = null,
         IConnectedComputeRouter? connectedComputeRouter = null,
         IConfiguration? configuration = null,
-        Action<Uri>? openBrowser = null)
+        Action<Uri>? openBrowser = null,
+        IPendingDeviceEnrollmentStore? pendingEnrollmentStore = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
@@ -182,6 +189,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         ConnectedComputeRouter = connectedComputeRouter;
         Configuration = configuration;
         OpenBrowserAction = openBrowser;
+        PendingEnrollmentStore = pendingEnrollmentStore;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -425,6 +433,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public IConnectedComputeRouter? ConnectedComputeRouter { get; set; }
     public IConfiguration? Configuration { get; set; }
     public Action<Uri>? OpenBrowserAction { get; set; }
+    public IPendingDeviceEnrollmentStore? PendingEnrollmentStore { get; set; }
 
     private ILogger Log => GetLogger();
 

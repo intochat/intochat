@@ -36,9 +36,9 @@ internal static class SettingsControls
         new("notify-jobs", "notifications", "Background jobs & long-running agent completions", s => s.NotifyBackgroundJobs, (s, on) => s with { NotifyBackgroundJobs = on }),
         new("notify-connections", "notifications", "Connection expirations & health probe failures", s => s.NotifyConnectionHealth, (s, on) => s with { NotifyConnectionHealth = on }),
         new("quiet-hours", "notifications", "Quiet hours schedule (22:00 – 07:00)", s => s.QuietHoursEnabled, (s, on) => s with { QuietHoursEnabled = on }),
-        new(AllowClientCodeSandbox, "models", "Connected Client Compute (ICodeSandbox) — run orchestrated code on this device", s => s.AllowClientCodeSandbox, (s, on) => s with { AllowClientCodeSandbox = on }),
-        new(AllowWindowsFolderGateway, "devices", "Consented Folders (IWindowsFolderGateway) — let Cloud Ino & Engineer access consented folders", s => s.AllowWindowsFolderGateway, (s, on) => s with { AllowWindowsFolderGateway = on }),
-        new(AllowConsole, "devices", "[PersonOnly] Shell (IConsole) — require your explicit approval before running shell commands", s => s.AllowConsole, (s, on) => s with { AllowConsole = on }),
+        new(AllowClientCodeSandbox, "models", "Run code on this PC", s => s.AllowClientCodeSandbox, (s, on) => s with { AllowClientCodeSandbox = on }),
+        new(AllowWindowsFolderGateway, "devices", "Shared folders", s => s.AllowWindowsFolderGateway, (s, on) => s with { AllowWindowsFolderGateway = on }),
+        new(AllowConsole, "devices", "Interactive shell", s => s.AllowConsole, (s, on) => s with { AllowConsole = on }),
     ];
 
     public const string ThemeMode = "theme-mode";
@@ -314,9 +314,9 @@ internal static class SettingsControls
         return children.Form(PairDevice, new FormProps(
             [
                 new FormInput("server", "Cloud server URL", Value: state.CloudLinkUrl, Placeholder: "https://intochat.io", MaxLength: 256),
-                new FormInput("code", "Pairing code", Value: "", Placeholder: "ABCD-EFGH-JKMN or 6-char code", MaxLength: 64),
+                new FormInput("code", "Pairing code", Value: "", Placeholder: "ABCD-EFGH-JKMN", MaxLength: 64),
             ],
-            "Pair this PC",
+            "Link this PC",
             IsEnabled: !managed,
             AutomationName: "Enter pairing code"));
     }

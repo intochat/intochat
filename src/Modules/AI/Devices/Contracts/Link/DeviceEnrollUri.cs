@@ -135,6 +135,14 @@ public static class DeviceEnrollUri
             return false;
         }
 
+        if (!string.IsNullOrEmpty(server.Query)
+            || !string.IsNullOrEmpty(server.Fragment)
+            || (server.AbsolutePath.Length > 0 && !string.Equals(server.AbsolutePath, "/", StringComparison.Ordinal)))
+        {
+            error = "Server URL must be an origin only (no path, query, or fragment).";
+            return false;
+        }
+
         var isHttps = string.Equals(server.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
         var isLoopbackHttp = string.Equals(server.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && server.IsLoopback;
         if (!isHttps && !isLoopbackHttp)

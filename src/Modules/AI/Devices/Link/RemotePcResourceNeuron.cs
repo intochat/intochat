@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,17 +37,13 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
         string? machineId = null,
         CancellationToken cancellationToken = default)
     {
-        var response = await DispatchFolderAsync(
-            new ConnectedResourceRequest(
-                JobId: NewJobId(),
-                BrainId: Id.Brain.Value,
-                Kind: ConnectedResourceKind.FolderList,
-                RootLabel: rootLabel,
-                RelativePath: relativePath),
+        var result = await DispatchFolderAsync(
+            "list",
+            new FolderResourcePayload(RootLabel: rootLabel, RelativePath: relativePath),
             machineId,
             cancellationToken).ConfigureAwait(true);
 
-        return response.Entries ?? [];
+        return result.Entries ?? [];
     }
 
     public async Task<string> ReadFileTextAsync(
@@ -55,17 +52,13 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
         string? machineId = null,
         CancellationToken cancellationToken = default)
     {
-        var response = await DispatchFolderAsync(
-            new ConnectedResourceRequest(
-                JobId: NewJobId(),
-                BrainId: Id.Brain.Value,
-                Kind: ConnectedResourceKind.FolderReadText,
-                RootLabel: rootLabel,
-                RelativePath: relativePath),
+        var result = await DispatchFolderAsync(
+            "read-text",
+            new FolderResourcePayload(RootLabel: rootLabel, RelativePath: relativePath),
             machineId,
             cancellationToken).ConfigureAwait(true);
 
-        return response.TextContent ?? string.Empty;
+        return result.TextContent ?? string.Empty;
     }
 
     public async Task WriteFileTextAsync(
@@ -77,13 +70,8 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
     {
         ArgumentNullException.ThrowIfNull(content);
         _ = await DispatchFolderAsync(
-            new ConnectedResourceRequest(
-                JobId: NewJobId(),
-                BrainId: Id.Brain.Value,
-                Kind: ConnectedResourceKind.FolderWriteText,
-                RootLabel: rootLabel,
-                RelativePath: relativePath,
-                Content: content),
+            "write-text",
+            new FolderResourcePayload(RootLabel: rootLabel, RelativePath: relativePath, Content: content),
             machineId,
             cancellationToken).ConfigureAwait(true);
     }
@@ -95,18 +83,13 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
         string? machineId = null,
         CancellationToken cancellationToken = default)
     {
-        var response = await DispatchFolderAsync(
-            new ConnectedResourceRequest(
-                JobId: NewJobId(),
-                BrainId: Id.Brain.Value,
-                Kind: ConnectedResourceKind.FolderSearch,
-                RootLabel: rootLabel,
-                RelativePath: relativePath,
-                SearchPattern: pattern),
+        var result = await DispatchFolderAsync(
+            "search",
+            new FolderResourcePayload(RootLabel: rootLabel, RelativePath: relativePath, SearchPattern: pattern),
             machineId,
             cancellationToken).ConfigureAwait(true);
 
-        return response.Entries ?? [];
+        return result.Entries ?? [];
     }
 
     public async Task<ConnectedResourceEntry?> StatPathAsync(
@@ -115,17 +98,13 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
         string? machineId = null,
         CancellationToken cancellationToken = default)
     {
-        var response = await DispatchFolderAsync(
-            new ConnectedResourceRequest(
-                JobId: NewJobId(),
-                BrainId: Id.Brain.Value,
-                Kind: ConnectedResourceKind.FolderStat,
-                RootLabel: rootLabel,
-                RelativePath: relativePath),
+        var result = await DispatchFolderAsync(
+            "stat",
+            new FolderResourcePayload(RootLabel: rootLabel, RelativePath: relativePath),
             machineId,
             cancellationToken).ConfigureAwait(true);
 
-        return response.Exists == true ? response.Entries?.FirstOrDefault() : null;
+        return result.Exists == true ? result.Entries?.FirstOrDefault() : null;
     }
 
     public async Task<RemotePcShellOutcome> RunConsoleCommandAsync(
@@ -159,7 +138,7 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
                 Destructive: true,
                 Title: $"Run shell command on {target.DeviceName}?",
                 Body: $"Command: {command.Trim()}" + (string.IsNullOrWhiteSpace(rootLabel) ? "" : $" (folder: {rootLabel.Trim()})"),
-                ApproveLabel: "Approve & Run",
+                ApproveLabel: "Approve & run",
                 DenyLabel: "Deny",
                 TargetLabel: target.DeviceName)
             {
@@ -193,18 +172,25 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
                 ExecutedByMachineId: target.MachineId);
         }
 
-        var proof = LocalPcResourceExecutor.CreateApprovalProof(approvedPlanId.Trim(), Id.Brain.Value);
+        var planIdTrimmed = approvedPlanId.Trim();
+        var proof = LocalPcResourceExecutor.CreateApprovalProof(planIdTrimmed, Id.Brain.Value);
+        var payloadJson = JsonSerializer.Serialize(
+            new ConsoleResourcePayload(
+                Command: command.Trim(),
+                RootLabel: rootLabel,
+                ApprovalPlanId: planIdTrimmed),
+            DeviceWireJson.Default.ConsoleResourcePayload);
+
         var response = await Router.TryExecuteResourceOnConnectedClientAsync(
             Id.Brain,
-            new ConnectedResourceRequest(
+            new PcResourceRequest(
                 JobId: NewJobId(),
                 BrainId: Id.Brain.Value,
-                Kind: ConnectedResourceKind.ConsoleRun,
-                RootLabel: rootLabel,
-                Command: command.Trim(),
-                TimeoutSeconds: timeoutSeconds,
-                ApprovalPlanId: approvedPlanId.Trim(),
-                ApprovalProof: proof),
+                Capability: ClientComputeConsentPolicy.ConsoleCapability,
+                Operation: "run",
+                PayloadJson: payloadJson,
+                ApprovalToken: proof,
+                TimeoutSeconds: timeoutSeconds),
             preferredMachineId: target.MachineId,
             ct: cancellationToken).ConfigureAwait(true);
 
@@ -212,40 +198,51 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
         {
             return new RemotePcShellOutcome(
                 Status: "unavailable",
-                PlanId: approvedPlanId.Trim(),
+                PlanId: planIdTrimmed,
                 Error: $"Connected PC '{target.DeviceName}' went offline before executing the command.",
                 ExecutedByMachineId: target.MachineId);
         }
 
-        if (!response.Handled || !string.IsNullOrWhiteSpace(response.Error))
+        var consoleResult = string.IsNullOrWhiteSpace(response.ResultJson)
+            ? null
+            : JsonSerializer.Deserialize(response.ResultJson, DeviceWireJson.Default.ConsoleResourceResult);
+
+        if (!response.Ok || !string.IsNullOrWhiteSpace(response.Error))
         {
             return new RemotePcShellOutcome(
                 Status: "failed",
-                PlanId: approvedPlanId.Trim(),
-                ExitCode: response.ExitCode,
-                StandardOutput: response.StandardOutput,
-                StandardError: response.StandardError,
+                PlanId: planIdTrimmed,
+                ExitCode: consoleResult?.ExitCode,
+                StandardOutput: consoleResult?.StandardOutput,
+                StandardError: consoleResult?.StandardError,
                 Error: response.Error ?? "Remote PC shell execution failed.",
                 ExecutedByMachineId: response.ExecutedByMachineId ?? target.MachineId);
         }
 
         return new RemotePcShellOutcome(
             Status: "completed",
-            PlanId: approvedPlanId.Trim(),
-            ExitCode: response.ExitCode ?? 0,
-            StandardOutput: response.StandardOutput ?? string.Empty,
-            StandardError: response.StandardError ?? string.Empty,
+            PlanId: planIdTrimmed,
+            ExitCode: consoleResult?.ExitCode ?? 0,
+            StandardOutput: consoleResult?.StandardOutput ?? string.Empty,
+            StandardError: consoleResult?.StandardError ?? string.Empty,
             ExecutedByMachineId: response.ExecutedByMachineId ?? target.MachineId);
     }
 
-    private async Task<ConnectedResourceResponse> DispatchFolderAsync(
-        ConnectedResourceRequest request,
+    private async Task<FolderResourceResult> DispatchFolderAsync(
+        string operation,
+        FolderResourcePayload payload,
         string? machineId,
         CancellationToken ct)
     {
+        var payloadJson = JsonSerializer.Serialize(payload, DeviceWireJson.Default.FolderResourcePayload);
         var response = await Router.TryExecuteResourceOnConnectedClientAsync(
             Id.Brain,
-            request,
+            new PcResourceRequest(
+                JobId: NewJobId(),
+                BrainId: Id.Brain.Value,
+                Capability: ClientComputeConsentPolicy.WindowsFolderGatewayCapability,
+                Operation: operation,
+                PayloadJson: payloadJson),
             preferredMachineId: machineId,
             ct: ct).ConfigureAwait(true);
 
@@ -254,12 +251,18 @@ internal sealed class RemotePcResourceNeuron(IServiceProvider services) : Neuron
             throw new InvalidOperationException("No online connected PC with consented folder access (IWindowsFolderGateway) is available.");
         }
 
-        if (!response.Handled || !string.IsNullOrWhiteSpace(response.Error))
+        if (!response.Ok || !string.IsNullOrWhiteSpace(response.Error))
         {
             throw new UnauthorizedAccessException(response.Error ?? "Connected PC refused the folder operation.");
         }
 
-        return response;
+        if (string.IsNullOrWhiteSpace(response.ResultJson))
+        {
+            return new FolderResourceResult();
+        }
+
+        return JsonSerializer.Deserialize(response.ResultJson, DeviceWireJson.Default.FolderResourceResult)
+            ?? new FolderResourceResult();
     }
 
     private static string NewJobId() => "res-" + Guid.NewGuid().ToString("N")[..12];

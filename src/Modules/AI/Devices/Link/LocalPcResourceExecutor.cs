@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Log;
@@ -35,20 +36,25 @@ internal sealed class LocalPcResourceExecutor(
         return BuildRootMap(roots).Keys.OrderBy(static k => k, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    public async Task<ConnectedResourceResponse> ExecuteAsync(ConnectedResourceRequest request, CancellationToken ct = default)
+    public async Task<PcResourceResponse> ExecuteAsync(PcResourceRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        if (request.Kind == ConnectedResourceKind.ConsoleRun)
+        if (string.Equals(request.Capability, ClientComputeConsentPolicy.ConsoleCapability, StringComparison.Ordinal))
         {
             return await ExecuteConsoleAsync(request, ct).ConfigureAwait(false);
         }
 
-        return await ExecuteFolderAsync(request, ct).ConfigureAwait(false);
+        if (string.Equals(request.Capability, ClientComputeConsentPolicy.WindowsFolderGatewayCapability, StringComparison.Ordinal))
+        {
+            return await ExecuteFolderAsync(request, ct).ConfigureAwait(false);
+        }
+
+        return Deny($"unsupported-capability: '{request.Capability}' is not supported on this PC.");
     }
 
-    private async Task<ConnectedResourceResponse> ExecuteFolderAsync(ConnectedResourceRequest request, CancellationToken ct)
+    private async Task<PcResourceResponse> ExecuteFolderAsync(PcResourceRequest request, CancellationToken ct)
     {
         if (!consent.AllowWindowsFolderGateway)
         {
@@ -60,6 +66,20 @@ internal sealed class LocalPcResourceExecutor(
             return Deny("No consented folder root provider is configured on this PC.");
         }
 
+        FolderResourcePayload payload;
+        try
+        {
+            payload = string.IsNullOrWhiteSpace(request.PayloadJson)
+                ? new FolderResourcePayload()
+                : JsonSerializer.Deserialize(request.PayloadJson, DeviceWireJson.Default.FolderResourcePayload)
+                    ?? new FolderResourcePayload();
+        }
+        catch (JsonException error)
+        {
+            logger?.LogWarning(error, "Malformed Mode B folder payload JSON for job {JobId}.", request.JobId);
+            return Deny("Invalid folder payload JSON.");
+        }
+
         var brainId = string.IsNullOrWhiteSpace(request.BrainId) ? IntoChatOSNames.DefaultOwnerBrainId : request.BrainId.Trim();
         var roots = await rootProvider.GetConsentedRootsAsync(brainId, ct).ConfigureAwait(false);
         var rootMap = BuildRootMap(roots);
@@ -68,12 +88,13 @@ internal sealed class LocalPcResourceExecutor(
             return Deny("No user-consented folders are available on this PC.");
         }
 
-        var rootLabel = request.RootLabel?.Trim();
+        var rootLabel = payload.RootLabel?.Trim();
         if (string.IsNullOrWhiteSpace(rootLabel) || !rootMap.TryGetValue(rootLabel, out var hostRoot))
         {
-            return Deny($"Folder root '{request.RootLabel ?? ""}' is not a consented root on this PC.");
+            return Deny($"Folder root '{payload.RootLabel ?? ""}' is not a consented root on this PC.");
         }
 
+        var operation = (request.Operation ?? string.Empty).Trim().ToLowerInvariant();
         try
         {
             var normalizedRoot = PathConfinement.Normalize(hostRoot);
@@ -82,18 +103,18 @@ internal sealed class LocalPcResourceExecutor(
                 return Deny($"Consented root '{rootLabel}' does not exist on this PC.");
             }
 
-            var allowRoot = request.Kind is ConnectedResourceKind.FolderList or ConnectedResourceKind.FolderSearch or ConnectedResourceKind.FolderExists or ConnectedResourceKind.FolderStat;
-            var fullPath = ResolveConfinedTarget(normalizedRoot, request.RelativePath, allowRoot);
+            var allowRoot = operation is "list" or "search" or "exists" or "stat";
+            var fullPath = ResolveConfinedTarget(normalizedRoot, payload.RelativePath, allowRoot);
 
-            return request.Kind switch
+            return operation switch
             {
-                ConnectedResourceKind.FolderList => ListEntries(normalizedRoot, fullPath),
-                ConnectedResourceKind.FolderReadText => await ReadTextAsync(fullPath, ct).ConfigureAwait(false),
-                ConnectedResourceKind.FolderWriteText => await WriteTextAsync(fullPath, request.Content ?? string.Empty, ct).ConfigureAwait(false),
-                ConnectedResourceKind.FolderExists => new ConnectedResourceResponse(true, Exists: File.Exists(fullPath) || Directory.Exists(fullPath), ExecutedByMachineId: thisMachine.Value),
-                ConnectedResourceKind.FolderStat => StatEntry(normalizedRoot, fullPath),
-                ConnectedResourceKind.FolderSearch => SearchEntries(normalizedRoot, fullPath, request.SearchPattern),
-                _ => Deny($"Unsupported folder operation '{request.Kind}'."),
+                "list" => ListEntries(normalizedRoot, fullPath),
+                "read-text" => await ReadTextAsync(fullPath, ct).ConfigureAwait(false),
+                "write-text" => await WriteTextAsync(fullPath, payload.Content ?? string.Empty, ct).ConfigureAwait(false),
+                "exists" => OkFolder(new FolderResourceResult(Exists: File.Exists(fullPath) || Directory.Exists(fullPath))),
+                "stat" => StatEntry(normalizedRoot, fullPath),
+                "search" => SearchEntries(normalizedRoot, fullPath, payload.SearchPattern),
+                _ => Deny($"Unsupported folder operation '{request.Operation}'."),
             };
         }
         catch (Exception error) when (error is ConfinementDenied or UnauthorizedAccessException or IOException or ArgumentException)
@@ -102,21 +123,41 @@ internal sealed class LocalPcResourceExecutor(
         }
     }
 
-    private async Task<ConnectedResourceResponse> ExecuteConsoleAsync(ConnectedResourceRequest request, CancellationToken ct)
+    private async Task<PcResourceResponse> ExecuteConsoleAsync(PcResourceRequest request, CancellationToken ct)
     {
         if (!consent.AllowConsole)
         {
             return Deny("consent-disabled: IConsole is disabled on this PC.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.ApprovalPlanId)
-            || string.IsNullOrWhiteSpace(request.ApprovalProof)
-            || !IsValidApprovalProof(request.ApprovalPlanId, request.BrainId, request.ApprovalProof))
+        var operation = (request.Operation ?? string.Empty).Trim().ToLowerInvariant();
+        if (!string.Equals(operation, "run", StringComparison.Ordinal))
+        {
+            return Deny($"Unsupported console operation '{request.Operation}'.");
+        }
+
+        ConsoleResourcePayload? payload;
+        try
+        {
+            payload = string.IsNullOrWhiteSpace(request.PayloadJson)
+                ? null
+                : JsonSerializer.Deserialize(request.PayloadJson, DeviceWireJson.Default.ConsoleResourcePayload);
+        }
+        catch (JsonException error)
+        {
+            logger?.LogWarning(error, "Malformed Mode B console payload JSON for job {JobId}.", request.JobId);
+            return Deny("Invalid console payload JSON.");
+        }
+
+        if (payload is null
+            || string.IsNullOrWhiteSpace(payload.ApprovalPlanId)
+            || string.IsNullOrWhiteSpace(request.ApprovalToken)
+            || !IsValidApprovalProof(payload.ApprovalPlanId, request.BrainId, request.ApprovalToken))
         {
             return Deny("person-approval-required: valid [PersonOnly] approval proof is required before running shell commands.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Command))
+        if (string.IsNullOrWhiteSpace(payload.Command))
         {
             return Deny("Command is required.");
         }
@@ -134,19 +175,19 @@ internal sealed class LocalPcResourceExecutor(
         string workingDir;
         try
         {
-            if (!string.IsNullOrWhiteSpace(request.RootLabel))
+            if (!string.IsNullOrWhiteSpace(payload.RootLabel))
             {
-                if (!rootMap.TryGetValue(request.RootLabel.Trim(), out var labeledRoot))
+                if (!rootMap.TryGetValue(payload.RootLabel.Trim(), out var labeledRoot))
                 {
-                    return Deny($"Working directory root '{request.RootLabel}' is not consented on this PC.");
+                    return Deny($"Working directory root '{payload.RootLabel}' is not consented on this PC.");
                 }
 
-                workingDir = PathConfinement.Resolve([labeledRoot], string.IsNullOrWhiteSpace(request.WorkingDirectory) ? labeledRoot : request.WorkingDirectory);
+                workingDir = PathConfinement.Resolve([labeledRoot], string.IsNullOrWhiteSpace(payload.WorkingDirectory) ? labeledRoot : payload.WorkingDirectory);
             }
             else
             {
                 var allowedRoots = rootMap.Values.ToArray();
-                workingDir = PathConfinement.Resolve(allowedRoots, string.IsNullOrWhiteSpace(request.WorkingDirectory) ? allowedRoots[0] : request.WorkingDirectory);
+                workingDir = PathConfinement.Resolve(allowedRoots, string.IsNullOrWhiteSpace(payload.WorkingDirectory) ? allowedRoots[0] : payload.WorkingDirectory);
             }
         }
         catch (Exception error) when (error is ConfinementDenied or UnauthorizedAccessException or IOException or ArgumentException)
@@ -158,15 +199,10 @@ internal sealed class LocalPcResourceExecutor(
         try
         {
             var (exitCode, stdout, stderr) = shellRunner is not null
-                ? await shellRunner(request.Command, workingDir, timeoutSeconds, ct).ConfigureAwait(false)
-                : await RunCmdExeAsync(request.Command, workingDir, timeoutSeconds, ct).ConfigureAwait(false);
+                ? await shellRunner(payload.Command, workingDir, timeoutSeconds, ct).ConfigureAwait(false)
+                : await RunCmdExeAsync(payload.Command, workingDir, timeoutSeconds, ct).ConfigureAwait(false);
 
-            return new ConnectedResourceResponse(
-                Handled: true,
-                ExitCode: exitCode,
-                StandardOutput: Clip(stdout),
-                StandardError: Clip(stderr),
-                ExecutedByMachineId: thisMachine.Value);
+            return OkConsole(new ConsoleResourceResult(exitCode, Clip(stdout), Clip(stderr)));
         }
         catch (TimeoutException ex)
         {
@@ -179,7 +215,7 @@ internal sealed class LocalPcResourceExecutor(
         }
     }
 
-    private ConnectedResourceResponse ListEntries(string normalizedRoot, string targetDir)
+    private PcResourceResponse ListEntries(string normalizedRoot, string targetDir)
     {
         if (!Directory.Exists(targetDir))
         {
@@ -206,10 +242,10 @@ internal sealed class LocalPcResourceExecutor(
             return cmp != 0 ? cmp : StringComparer.OrdinalIgnoreCase.Compare(a.Name, b.Name);
         });
 
-        return new ConnectedResourceResponse(true, Entries: [.. entries], ExecutedByMachineId: thisMachine.Value);
+        return OkFolder(new FolderResourceResult(Entries: [.. entries]));
     }
 
-    private async Task<ConnectedResourceResponse> ReadTextAsync(string fullPath, CancellationToken ct)
+    private async Task<PcResourceResponse> ReadTextAsync(string fullPath, CancellationToken ct)
     {
         if (!File.Exists(fullPath))
         {
@@ -217,10 +253,10 @@ internal sealed class LocalPcResourceExecutor(
         }
 
         var text = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
-        return new ConnectedResourceResponse(true, TextContent: text, ExecutedByMachineId: thisMachine.Value);
+        return OkFolder(new FolderResourceResult(TextContent: text));
     }
 
-    private async Task<ConnectedResourceResponse> WriteTextAsync(string fullPath, string content, CancellationToken ct)
+    private async Task<PcResourceResponse> WriteTextAsync(string fullPath, string content, CancellationToken ct)
     {
         var parent = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(parent))
@@ -230,10 +266,10 @@ internal sealed class LocalPcResourceExecutor(
         }
 
         await File.WriteAllTextAsync(fullPath, content, ct).ConfigureAwait(false);
-        return new ConnectedResourceResponse(true, ExecutedByMachineId: thisMachine.Value);
+        return OkFolder(new FolderResourceResult());
     }
 
-    private ConnectedResourceResponse StatEntry(string normalizedRoot, string fullPath)
+    private PcResourceResponse StatEntry(string normalizedRoot, string fullPath)
     {
         if (File.Exists(fullPath))
         {
@@ -244,11 +280,9 @@ internal sealed class LocalPcResourceExecutor(
             }
 
             var rel = Path.GetRelativePath(normalizedRoot, info.FullName).Replace('\\', '/');
-            return new ConnectedResourceResponse(
-                true,
+            return OkFolder(new FolderResourceResult(
                 Exists: true,
-                Entries: [new ConnectedResourceEntry(info.Name, rel, false, info.Length, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero))],
-                ExecutedByMachineId: thisMachine.Value);
+                Entries: [new ConnectedResourceEntry(info.Name, rel, false, info.Length, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero))]));
         }
 
         if (Directory.Exists(fullPath))
@@ -262,17 +296,15 @@ internal sealed class LocalPcResourceExecutor(
             var rel = string.Equals(PathConfinement.Normalize(info.FullName), normalizedRoot, StringComparison.OrdinalIgnoreCase)
                 ? ""
                 : Path.GetRelativePath(normalizedRoot, info.FullName).Replace('\\', '/');
-            return new ConnectedResourceResponse(
-                true,
+            return OkFolder(new FolderResourceResult(
                 Exists: true,
-                Entries: [new ConnectedResourceEntry(info.Name, rel, true, 0L, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero))],
-                ExecutedByMachineId: thisMachine.Value);
+                Entries: [new ConnectedResourceEntry(info.Name, rel, true, 0L, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero))]));
         }
 
-        return new ConnectedResourceResponse(true, Exists: false, Entries: [], ExecutedByMachineId: thisMachine.Value);
+        return OkFolder(new FolderResourceResult(Exists: false, Entries: []));
     }
 
-    private ConnectedResourceResponse SearchEntries(string normalizedRoot, string startDir, string? pattern)
+    private PcResourceResponse SearchEntries(string normalizedRoot, string startDir, string? pattern)
     {
         if (!Directory.Exists(startDir))
         {
@@ -318,7 +350,7 @@ internal sealed class LocalPcResourceExecutor(
             }
         }
 
-        return new ConnectedResourceResponse(true, Entries: [.. matches], ExecutedByMachineId: thisMachine.Value);
+        return OkFolder(new FolderResourceResult(Entries: [.. matches]));
     }
 
     private static string ResolveConfinedTarget(string normalizedRoot, string? relativePath, bool allowRoot)
@@ -456,8 +488,20 @@ internal sealed class LocalPcResourceExecutor(
         return (process.ExitCode, await stdoutTask.ConfigureAwait(false), await stderrTask.ConfigureAwait(false));
     }
 
-    private ConnectedResourceResponse Deny(string reason)
-        => new(Handled: false, Error: reason, ExecutedByMachineId: thisMachine.Value);
+    private PcResourceResponse OkFolder(FolderResourceResult result)
+        => new(
+            Ok: true,
+            ResultJson: JsonSerializer.Serialize(result, DeviceWireJson.Default.FolderResourceResult),
+            ExecutedByMachineId: thisMachine.Value);
+
+    private PcResourceResponse OkConsole(ConsoleResourceResult result)
+        => new(
+            Ok: true,
+            ResultJson: JsonSerializer.Serialize(result, DeviceWireJson.Default.ConsoleResourceResult),
+            ExecutedByMachineId: thisMachine.Value);
+
+    private PcResourceResponse Deny(string reason)
+        => new(Ok: false, Error: reason, ExecutedByMachineId: thisMachine.Value);
 
     private static string Clip(string text) => text.Length <= MaxOutputChars ? text : text[..MaxOutputChars];
 }
