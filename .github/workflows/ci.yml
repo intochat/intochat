@@ -30,6 +30,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       dotnet: ${{ steps.filter.outputs.dotnet }}
+      architecture: ${{ steps.filter.outputs.architecture }}
       flutter: ${{ steps.filter.outputs.flutter }}
       packaging: ${{ steps.filter.outputs.packaging }}
     steps:
@@ -44,11 +45,13 @@ jobs:
         run: |
           set -euo pipefail
           dotnet=false
+          architecture=false
           flutter=false
           packaging=false
 
           if [ "$EVENT_NAME" != "pull_request" ] && [ "$EVENT_NAME" != "push" ]; then
             dotnet=true
+            architecture=true
             flutter=true
             packaging=true
           else
@@ -76,6 +79,7 @@ jobs:
 
             if [ "$fail_closed" = "true" ] || [ -z "$files" ]; then
               dotnet=true
+              architecture=true
               flutter=true
               packaging=true
             else
@@ -84,6 +88,11 @@ jobs:
                 case "$f" in
                   ui/*|.github/workflows/ci.yml)
                     flutter=true
+                    ;;
+                esac
+                case "$f" in
+                  ui/lib/*|ui/test/scenarios/views/*)
+                    architecture=true
                     ;;
                 esac
                 case "$f" in
@@ -103,9 +112,10 @@ jobs:
           fi
 
           echo "dotnet=$dotnet" >> "$GITHUB_OUTPUT"
+          echo "architecture=$architecture" >> "$GITHUB_OUTPUT"
           echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
           echo "packaging=$packaging" >> "$GITHUB_OUTPUT"
-          echo "Detected changes: dotnet=$dotnet flutter=$flutter packaging=$packaging"
+          echo "Detected changes: dotnet=$dotnet architecture=$architecture flutter=$flutter packaging=$packaging"
 
   lint-and-security:
     name: lint-and-security
@@ -258,6 +268,32 @@ jobs:
         run: |
           rm -rf artifacts/bin/*.Architecture.Tests.Unit
           dotnet test --test-modules "artifacts/bin/*.Tests.Unit/release/*.Tests.Unit.dll" --max-parallel-test-modules 8
+
+  # Runs IntoChat.OS.Architecture.Tests.Unit on structural UI-only PRs (ui/lib/*, ui/test/scenarios/views/*)
+  # when the full .NET build/test-unit fan-out is skipped.
+  test-architecture:
+    name: test-architecture
+    needs: [changes]
+    if: needs.changes.outputs.dotnet != 'true' && needs.changes.outputs.architecture == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - name: Restore dependencies
+        run: dotnet restore Intochat.OS.slnx -v quiet -p:RestoreUseStaticGraphEvaluation=true
+
+      - name: Build architecture tests
+        run: dotnet build tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj -c Release --no-restore -p:CodeGraphRefresh=false -p:DebugType=none
+
+      - name: Test (Architecture Tier — MTP)
+        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Architecture.Tests.Unit/release/IntoChat.OS.Architecture.Tests.Unit.dll" --max-parallel-test-modules 8
 
   test-integration-os:
     name: test-integration-os (${{ matrix.shard }}/2)
@@ -478,7 +514,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [changes, lint-and-security, build, test-unit, test-integration-os, test-framework, e2e-os, flutter, package-dry-run]
+    needs: [changes, lint-and-security, build, test-unit, test-architecture, test-integration-os, test-framework, e2e-os, flutter, package-dry-run]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -486,5 +522,5 @@ jobs:
       - name: Gate
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: |
-          echo "changes=${{ needs.changes.result }} lint-and-security=${{ needs.lint-and-security.result }} build=${{ needs.build.result }} test-unit=${{ needs.test-unit.result }} test-integration-os=${{ needs.test-integration-os.result }} test-framework=${{ needs.test-framework.result }} e2e-os=${{ needs.e2e-os.result }} flutter=${{ needs.flutter.result }} package-dry-run=${{ needs.package-dry-run.result }}"
+          echo "changes=${{ needs.changes.result }} lint-and-security=${{ needs.lint-and-security.result }} build=${{ needs.build.result }} test-unit=${{ needs.test-unit.result }} test-architecture=${{ needs.test-architecture.result }} test-integration-os=${{ needs.test-integration-os.result }} test-framework=${{ needs.test-framework.result }} e2e-os=${{ needs.e2e-os.result }} flutter=${{ needs.flutter.result }} package-dry-run=${{ needs.package-dry-run.result }}"
           exit 1
