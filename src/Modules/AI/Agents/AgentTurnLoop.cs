@@ -230,7 +230,7 @@ internal sealed class AgentTurnLoop(
         var runCt = pumpCts.Token;
 
         var budgetExhausted = false;
-        var runTask = Task.Run(async () =>
+        async Task RunInvokingLoopAsync()
         {
             if (turn is not null) { Activity.Current = turn; }
             try
@@ -248,7 +248,7 @@ internal sealed class AgentTurnLoop(
                             // The consumer persists the started call before pulling the next event, so the tool never runs unrecorded.
                             await pump.EmitAndAwaitConsumedAsync(
                                 new AgentTurnEvent.ToolStarted(call.CallId, call.Name, ToolJson.Serialize(call.Arguments)),
-                                invocationCt).ConfigureAwait(false);
+                                invocationCt);
 
                             if (context.Function is UnavailableToolFunction)
                             {
@@ -261,7 +261,7 @@ internal sealed class AgentTurnLoop(
                                 };
                                 await pump.EmitAndAwaitConsumedAsync(
                                     new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, ToolJson.Serialize(unavailable)),
-                                    invocationCt).ConfigureAwait(false);
+                                    invocationCt);
                                 if (modelClient.ModelCalls >= plan.MaxModelCalls)
                                 {
                                     budgetExhausted = true;
@@ -278,7 +278,7 @@ internal sealed class AgentTurnLoop(
                             var toolSpan = AgentTelemetry.Tool(call, sensitive, (context.Function as ContractTool)?.Schema);
                             try
                             {
-                                result = await context.Function.InvokeAsync(context.Arguments, invocationCt).ConfigureAwait(false);
+                                result = await context.Function.InvokeAsync(context.Arguments, invocationCt);
                                 invocationCt.ThrowIfCancellationRequested();
                                 serialized = ToolJson.Serialize(result);
                                 AgentTelemetry.Result(toolSpan, serialized, sensitive);
@@ -299,10 +299,8 @@ internal sealed class AgentTurnLoop(
                             {
                                 var cancelled = fault.SourceException is OperationCanceledException;
                                 if (!cancelled) { fault.SourceException.Data["AgentToolFailed"] = true; }
-                                await pump.EmitAsync(
-                                    new AgentTurnEvent.ToolFailed(call.CallId, call.Name, cancelled ? "tool_cancelled" : "tool_failed",
-                                        cancelled ? "The tool call was interrupted." : fault.SourceException.Message),
-                                    CancellationToken.None).ConfigureAwait(false);
+                                pump.TryEmit(new AgentTurnEvent.ToolFailed(call.CallId, call.Name, cancelled ? "tool_cancelled" : "tool_failed",
+                                    cancelled ? "The tool call was interrupted." : fault.SourceException.Message));
                                 fault.Throw();
                             }
 
@@ -334,7 +332,7 @@ internal sealed class AgentTurnLoop(
 
                             await pump.EmitAndAwaitConsumedAsync(
                                 new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, serialized),
-                                invocationCt).ConfigureAwait(false);
+                                invocationCt);
                             if (modelClient.ModelCalls >= plan.MaxModelCalls)
                             {
                                 budgetExhausted = true;
@@ -349,7 +347,7 @@ internal sealed class AgentTurnLoop(
                 if (plan.Streaming)
                 {
                     var updates = new List<ChatResponseUpdate>();
-                    await foreach (var update in invokingClient.GetStreamingResponseAsync(messages, options, runCt).ConfigureAwait(false))
+                    await foreach (var update in invokingClient.GetStreamingResponseAsync(messages, options, runCt))
                     {
                         updates.Add(update);
                     }
@@ -357,7 +355,7 @@ internal sealed class AgentTurnLoop(
                 }
                 else
                 {
-                    response = await invokingClient.GetResponseAsync(messages, options, runCt).ConfigureAwait(false);
+                    response = await invokingClient.GetResponseAsync(messages, options, runCt);
                 }
 
                 runCt.ThrowIfCancellationRequested();
@@ -367,23 +365,22 @@ internal sealed class AgentTurnLoop(
                 }
 
                 var usage = response.Usage;
-                await pump.EmitAsync(
-                    new AgentTurnEvent.Completed(
-                        [.. response.Messages.Select(InferenceMapping.FromChatMessage)],
-                        usage is null ? null : new(usage.InputTokenCount, usage.OutputTokenCount, usage.TotalTokenCount)),
-                    runCt).ConfigureAwait(false);
-                await pump.EmitAsync(new AgentTurnEvent.Finished(), runCt).ConfigureAwait(false);
+                pump.TryEmit(new AgentTurnEvent.Completed(
+                    [.. response.Messages.Select(InferenceMapping.FromChatMessage)],
+                    usage is null ? null : new(usage.InputTokenCount, usage.OutputTokenCount, usage.TotalTokenCount)));
+                pump.TryEmit(new AgentTurnEvent.Finished());
             }
             finally
             {
                 pump.Complete();
             }
-        }, CancellationToken.None);
+        }
 
+        var runTask = RunInvokingLoopAsync();
         TaskCompletionSource? pendingAck = null;
         try
         {
-            while (await pump.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+            while (await pump.Reader.WaitToReadAsync(ct))
             {
                 while (pump.Reader.TryRead(out var item))
                 {
@@ -394,15 +391,15 @@ internal sealed class AgentTurnLoop(
                 }
             }
 
-            await runTask.ConfigureAwait(false);
+            await runTask;
         }
         finally
         {
             pendingAck?.TrySetCanceled(CancellationToken.None);
-            await pumpCts.CancelAsync().ConfigureAwait(false);
+            await pumpCts.CancelAsync();
             try
             {
-                await runTask.ConfigureAwait(false);
+                await runTask;
             }
             catch (OperationCanceledException)
             {
@@ -417,23 +414,28 @@ internal sealed class AgentTurnLoop(
     private sealed class TurnEventPump
     {
         private readonly Channel<(AgentTurnEvent Event, TaskCompletionSource? Ack)> _channel =
-            Channel.CreateBounded<(AgentTurnEvent, TaskCompletionSource?)>(new BoundedChannelOptions(1)
+            Channel.CreateUnbounded<(AgentTurnEvent, TaskCompletionSource?)>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = false,
-                FullMode = BoundedChannelFullMode.Wait,
             });
 
         public ChannelReader<(AgentTurnEvent Event, TaskCompletionSource? Ack)> Reader => _channel.Reader;
 
-        public async Task EmitAsync(AgentTurnEvent ev, CancellationToken ct)
-            => await _channel.Writer.WriteAsync((ev, null), ct).ConfigureAwait(false);
+        public void TryEmit(AgentTurnEvent ev) => _channel.Writer.TryWrite((ev, null));
+
+        public Task EmitAsync(AgentTurnEvent ev, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            _channel.Writer.TryWrite((ev, null));
+            return Task.CompletedTask;
+        }
 
         public async Task EmitAndAwaitConsumedAsync(AgentTurnEvent ev, CancellationToken ct)
         {
             var ack = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            await _channel.Writer.WriteAsync((ev, ack), ct).ConfigureAwait(false);
-            await ack.Task.WaitAsync(ct).ConfigureAwait(false);
+            await _channel.Writer.WriteAsync((ev, ack), ct);
+            await ack.Task.WaitAsync(ct);
         }
 
         public void Complete() => _channel.Writer.TryComplete();
