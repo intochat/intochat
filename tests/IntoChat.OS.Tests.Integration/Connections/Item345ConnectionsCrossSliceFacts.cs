@@ -32,7 +32,6 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Connections;
-using IntoChat.OS.Modules.Identity.Connections.OAuth;
 using IntoChat.OS.Modules.Identity.Contracts.Connections;
 using IntoChat.OS.Modules.Identity.Contracts.Integrations;
 using IntoChat.OS.Modules.Identity.Integrations;
@@ -664,13 +663,13 @@ public sealed class Item345ConnectionsCrossSliceFacts
         builder.Services.AddSingleton<OAuthDeviceRequests>();
         builder.Services.AddSingleton<IOAuthDeviceFlow>(sp => new OAuthDeviceFlow(
             definitions,
-            sp.GetRequiredService<AuthorityNeurons>(),
+            new OsOAuthIntegrationResolver(sp.GetRequiredService<AuthorityNeurons>(), [], os.Edge),
             sp.GetRequiredService<OAuthDeviceRequests>(),
             sp.GetRequiredService<IOptions<OAuthConnectionsOptions>>(),
             os.Clock,
             sp.GetRequiredService<IHttpClientFactory>(),
-            os.Edge,
-            capabilityPolicy: null,
+            new OsOAuthDeviceGrantAcceptor(sp.GetRequiredService<AuthorityNeurons>()),
+            authorizationGate: null,
             NullLogger<OAuthDeviceFlow>.Instance));
 
         var app = builder.Build();

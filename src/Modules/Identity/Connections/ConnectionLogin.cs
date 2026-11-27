@@ -34,15 +34,6 @@ internal static class ConnectionLogin
         catch (InvalidOperationException error) { return new(null, true, error.Message); }
     }
 
-    // Multiple connection neurons per user/brain are supported via 3-part ConnectionKeys ({brain}/connection/{connector}/{id}).
-    public static Task<string?> TakenError(AuthorityNeurons neurons, string connectionId, string connectorId)
-    {
-        _ = neurons;
-        _ = connectionId;
-        _ = connectorId;
-        return Task.FromResult<string?>(null);
-    }
-
     public static Task<string?> UnavailableError(IServiceProvider services, string connectorId, CancellationToken ct)
         => UnavailableError(services, connectorId, authMethodId: null, ct);
 

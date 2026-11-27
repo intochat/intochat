@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Runtime.Http;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
-using IntoChat.OS.Modules.Identity.Contracts.Connections;
 
 namespace IntoChat.OS.Modules.Identity.Connections;
 
@@ -216,14 +215,6 @@ internal static class ConnectionEndpoints
                 return string.IsNullOrWhiteSpace(connectorId) || string.Equals(parsed.ConnectorId, connectorId, StringComparison.Ordinal);
             })
         ];
-    }
-
-    internal static Task<bool> IsTakenByAnotherConnector(AuthorityNeurons neurons, string connectionId, string connectorId)
-    {
-        _ = neurons;
-        _ = connectionId;
-        _ = connectorId;
-        return Task.FromResult(false);
     }
 
     private static async Task<IResult?> RequireConnectorAllowedAsync(HttpContext context, string? connectorId, CancellationToken ct)

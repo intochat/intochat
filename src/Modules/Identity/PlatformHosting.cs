@@ -75,12 +75,15 @@ public static class PlatformHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, IntoChat.OS.Modules.Identity.Hosting.AccessPolicyValidation>());
         silo.AddStartupTask<IntoChat.OS.Modules.Identity.Hosting.AccessPolicyValidation>();
         services.TryAddSingleton<IOAuthIntegrationResolver, OsOAuthIntegrationResolver>();
+        services.TryAddSingleton<IOAuthDeviceGrantAcceptor, OsOAuthDeviceGrantAcceptor>();
+        services.TryAddSingleton<IOAuthDeviceAuthorizationGate, OsOAuthDeviceAuthorizationGate>();
         services.AddDigitalBrainOAuthConnections(options =>
         {
             options.ProductName = "IntoChat.OS";
             options.ConfigHint = "IntoChatOS:Connections:PublicOrigin";
             options.HttpClientName = "IntoChat.OS.Connections.OAuth";
             options.MeteredHttpClientName = "IntoChat.OS.Connections.OAuth.Metered";
+            options.DeviceHttpClientName = "IntoChat.OS.Connections.OAuthDevice";
         });
         services.PostConfigure<OAuthConnectionsOptions>(options =>
         {
@@ -90,14 +93,8 @@ public static class PlatformHosting
                 options.PublicOrigin = new Uri("http://localhost:5080");
             }
         });
-        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceRequests>();
-        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow>();
-        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Connections.IOAuthDeviceFlow>(
-            provider => provider.GetRequiredService<IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow>());
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Connections.IConnectionSecretBinder,
             IntoChat.OS.Modules.Identity.Connections.ConnectionSecretBinder>();
-        services.AddHttpClient(IntoChat.OS.Modules.Identity.Connections.OAuth.OAuthDeviceFlow.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     }
 
     public static IEndpointRouteBuilder MapIntoChatOSPlatform(this IEndpointRouteBuilder endpoints)

@@ -322,6 +322,144 @@ public sealed class OAuthConnectionsFacts
         Assert.Contains("Return to Acme Workspace and connect again.", deniedHtml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task OAuthHttpProtocolEnforcesBodyCapTokenLimitsExpiresBoundsAndFailureMapping()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+        // 1. Oversized response (> 256 KiB) fails with InvalidResponse (both Content-Length and streaming).
+        var oversized = new string('a', OAuthHttpProtocol.MaxResponseBytes + 1);
+        using var oversizedContent = new StringContent(oversized, Encoding.UTF8, "application/json");
+        var oversizedEx = await Assert.ThrowsAsync<OAuthTokenExchangeException>(() =>
+            OAuthHttpProtocol.ReadBodyAsync(oversizedContent, Ct));
+        Assert.Equal(OAuthTokenFailure.InvalidResponse, oversizedEx.Failure);
+
+        // 2. Non-object JSON and malformed JSON fail with InvalidResponse.
+        Assert.Equal(OAuthTokenFailure.InvalidResponse,
+            Assert.Throws<OAuthTokenExchangeException>(() => OAuthHttpProtocol.ParseJsonObject("[1,2,3]")).Failure);
+        Assert.Equal(OAuthTokenFailure.InvalidResponse,
+            Assert.Throws<OAuthTokenExchangeException>(() => OAuthHttpProtocol.ParseJsonObject("{not-json")).Failure);
+
+        // 3. ParseTokenGrant validates access_token, refresh_token, expires_in bounds, and scope.
+        using (var validDoc = OAuthHttpProtocol.ParseJsonObject("""{"access_token":"tok-1","refresh_token":"ref-1","expires_in":1800,"scope":"repo read:user"}"""))
+        {
+            var grant = OAuthHttpProtocol.ParseTokenGrant(validDoc.RootElement, validDoc.RootElement.GetRawText(), "device", ["repo"], "org/repo", clock);
+            Assert.Equal("tok-1", grant.AccessToken);
+            Assert.Equal("ref-1", grant.RefreshToken);
+            Assert.Equal(clock.GetUtcNow().AddSeconds(1800), grant.ExpiresAt);
+            Assert.Equal("repo read:user", grant.Scopes);
+            Assert.Equal("org/repo", grant.Target);
+        }
+
+        // Out-of-range expires_in yields null ExpiresAt; missing scope falls back to defaultScopes.
+        using (var boundsDoc = OAuthHttpProtocol.ParseJsonObject("""{"access_token":"tok-2","expires_in":999999999}"""))
+        {
+            var grant = OAuthHttpProtocol.ParseTokenGrant(boundsDoc.RootElement, boundsDoc.RootElement.GetRawText(), "device", ["repo", "gist"], null, clock);
+            Assert.Null(grant.ExpiresAt);
+            Assert.Equal("repo gist", grant.Scopes);
+        }
+
+        // > 16384-char token or whitespace/control chars fail with InvalidResponse.
+        var tooLongToken = new string('x', OAuthHttpProtocol.MaxTokenLength + 1);
+        using (var longDoc = OAuthHttpProtocol.ParseJsonObject($$"""{"access_token":"{{tooLongToken}}"}"""))
+        {
+            var ex = Assert.Throws<OAuthTokenExchangeException>(() =>
+                OAuthHttpProtocol.ParseTokenGrant(longDoc.RootElement, "{}", "device", [], null, clock));
+            Assert.Equal(OAuthTokenFailure.InvalidResponse, ex.Failure);
+        }
+
+        using (var wsRefreshDoc = OAuthHttpProtocol.ParseJsonObject("""{"access_token":"tok-ok","refresh_token":"bad refresh"}"""))
+        {
+            var ex = Assert.Throws<OAuthTokenExchangeException>(() =>
+                OAuthHttpProtocol.ParseTokenGrant(wsRefreshDoc.RootElement, "{}", "device", [], null, clock));
+            Assert.Equal(OAuthTokenFailure.InvalidResponse, ex.Failure);
+        }
+
+        using (var ctrlScopeDoc = OAuthHttpProtocol.ParseJsonObject("""{"access_token":"tok-ok","scope":"repo\nadmin"}"""))
+        {
+            var ex = Assert.Throws<OAuthTokenExchangeException>(() =>
+                OAuthHttpProtocol.ParseTokenGrant(ctrlScopeDoc.RootElement, "{}", "device", [], null, clock));
+            Assert.Equal(OAuthTokenFailure.InvalidResponse, ex.Failure);
+        }
+
+        // 4. Transport failure (HttpRequestException) maps to Unavailable.
+        var failingFactory = new StubHttpClientFactory(new ThrowingHandler());
+        var netEx = await Assert.ThrowsAsync<OAuthTokenExchangeException>(() =>
+            OAuthHttpProtocol.PostFormAsync(
+                failingFactory,
+                "Test.OAuth",
+                new Uri("https://provider.test/token"),
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["grant_type"] = "refresh_token" },
+                clock,
+                ct: Ct));
+        Assert.Equal(OAuthTokenFailure.Unavailable, netEx.Failure);
+    }
+
+    [Fact]
+    public async Task DeviceFlowViaAddDigitalBrainOAuthConnectionsCompletesRfc8628AndEnforcesAuthorizationGate()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+        var connector = new ConnectorDefinition("forge", "Forge", ["device"], [])
+        {
+            OptionalIntegrations = ["forge-oauth"],
+            DeviceMethods =
+            [
+                new OAuthDeviceMethod(
+                    "device",
+                    "https://provider.test/login/device/code",
+                    "https://provider.test/login/oauth/access_token",
+                    ["repo"],
+                    DefaultClientId: "default-pub",
+                    IntegrationId: "forge-oauth"),
+            ],
+        };
+        var integrations = new FakeIntegrationResolver(new Dictionary<string, FakeIntegrationHandle>(StringComparer.Ordinal)
+        {
+            ["forge-oauth"] = FakeIntegrationHandle.Partial("forge-oauth", "partial-client-id"),
+        });
+        var handler = new ScriptedHandler();
+        var clientFactory = new StubHttpClientFactory(handler);
+        var inbound = new RecordingConnectionInbound();
+        var gate = new ToggleAuthorizationGate();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IReadOnlyList<ConnectorDefinition>>([connector]);
+        services.AddSingleton<IOAuthIntegrationResolver>(integrations);
+        services.AddSingleton<TimeProvider>(clock);
+        services.AddSingleton<IHttpClientFactory>(clientFactory);
+        services.AddSingleton<INeuronProxies>(new SingleInboundProxies(inbound));
+        services.AddSingleton<IOAuthDeviceAuthorizationGate>(gate);
+        services.AddSingleton<ILogger<OAuthDeviceFlow>>(NullLogger<OAuthDeviceFlow>.Instance);
+        services.AddDigitalBrainOAuthConnections(o =>
+        {
+            o.DeviceHttpClientName = "Acme.Custom.OAuthDevice";
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var flow = provider.GetRequiredService<IOAuthDeviceFlow>();
+        var brain = new BrainId("brain-1");
+        var key = ConnectionKeys.For(brain.Value, "forge", "main");
+
+        // 1. Authorization gate denies when configured to block.
+        gate.Deny = true;
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => flow.StartAsync(brain, key, "device", ct: Ct));
+        gate.Deny = false;
+
+        // 2. Start succeeds using configured DeviceHttpClientName and partial integration ClientId.
+        handler.Enqueue(HttpStatusCode.OK, """{"device_code":"dc-fw-1","user_code":"FW-1234","verification_uri":"https://provider.test/device","expires_in":300,"interval":5}""");
+        var started = await flow.StartAsync(brain, key, "device", target: "org/repo", ct: Ct);
+        Assert.Equal("FW-1234", started.UserCode);
+        Assert.Contains("Acme.Custom.OAuthDevice", clientFactory.RequestedNames);
+
+        // 3. Poll receives access_token and delivers grant through default INeuronProxies acceptor.
+        handler.Enqueue(HttpStatusCode.OK, """{"access_token":"tok-device-1","scope":"repo","expires_in":3600}""");
+        var polled = await flow.PollOnceAsync(brain, started.FlowId, "main", Ct);
+        Assert.Equal(OAuthDevicePollStatus.Connected, polled.Status);
+        Assert.NotNull(inbound.LastGrant);
+        Assert.Equal("tok-device-1", inbound.LastGrant!.AccessToken);
+        Assert.Equal("org/repo", inbound.LastGrant.Target);
+    }
+
     private static DefaultHttpContext CreateCallbackContext(IServiceProvider provider, string path, string query)
     {
         var context = new DefaultHttpContext { RequestServices = provider };
@@ -396,7 +534,7 @@ public sealed class OAuthConnectionsFacts
         public IIntegrationHandle Get(string integrationId) => handles[integrationId];
     }
 
-    private sealed class FakeIntegrationHandle(string id, IntegrationStatus status, Dictionary<string, string> values) : IIntegrationHandle
+    private sealed class FakeIntegrationHandle(string id, IntegrationStatus status, Dictionary<string, string> values, Dictionary<string, string>? settings = null) : IIntegrationHandle
     {
         public static FakeIntegrationHandle Ready(string id, string clientId, string clientSecret)
             => new(id, IntegrationStatus.Ready, new Dictionary<string, string>(StringComparer.Ordinal)
@@ -405,13 +543,47 @@ public sealed class OAuthConnectionsFacts
                 ["ClientSecret"] = clientSecret,
             });
 
+        public static FakeIntegrationHandle Partial(string id, string clientId)
+            => new(id, IntegrationStatus.Partial, new Dictionary<string, string>(StringComparer.Ordinal), new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["ClientId"] = clientId,
+            });
+
         public string IntegrationId => id;
         public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(new IntegrationSnapshot { IntegrationId = id, Status = status, MissingFields = [], Revision = 1 });
+            => Task.FromResult(new IntegrationSnapshot
+            {
+                IntegrationId = id,
+                Status = status,
+                MissingFields = [],
+                Settings = settings ?? [],
+                Revision = 1,
+            });
         public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default)
             => Task.FromResult(values[field]);
         public Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(new ReleasedIntegration { Values = values });
+    }
+
+    private sealed class ThrowingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => throw new HttpRequestException("Simulated network failure.");
+    }
+
+    private sealed class ToggleAuthorizationGate : IOAuthDeviceAuthorizationGate
+    {
+        public bool Deny { get; set; }
+
+        public ValueTask AuthorizeAsync(BrainId brainId, string connectorId, CancellationToken ct = default)
+        {
+            if (Deny)
+            {
+                throw new UnauthorizedAccessException("Denied by test gate.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory

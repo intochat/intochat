@@ -103,9 +103,6 @@ public sealed class IntegrationsAndZeroTokenFacts
         Assert.Equal("neuron://local/connection/github/work", ConnectionKeys.NeuronUri(tracked[1]));
         Assert.Equal("neuron://local/connection/google-drive/work", ConnectionKeys.NeuronUri(tracked[2]));
 
-        Assert.Null(await ConnectionLogin.TakenError(null!, "work", "github"));
-        Assert.False(await ConnectionEndpoints.IsTakenByAnotherConnector(null!, "work", "github"));
-
         var personalMatch = ConnectionEndpoints.FilterTrackedKeys(tracked, "local", "personal");
         Assert.Single(personalMatch, tracked[0]);
 

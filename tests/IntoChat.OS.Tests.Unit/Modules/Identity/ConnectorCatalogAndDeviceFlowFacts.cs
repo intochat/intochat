@@ -15,7 +15,6 @@ using DigitalBrain.Runtime.Http.Connections.OAuth;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Connections;
-using IntoChat.OS.Modules.Identity.Connections.OAuth;
 using IntoChat.OS.Modules.Identity.Contracts.Connections;
 using IntoChat.OS.Modules.Identity.Contracts.Integrations;
 using IntoChat.OS.Modules.Identity.Integrations;
@@ -370,13 +369,13 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         builder.Services.AddSingleton<OAuthDeviceRequests>();
         builder.Services.AddSingleton<IOAuthDeviceFlow>(sp => new OAuthDeviceFlow(
             definitions,
-            sp.GetRequiredService<AuthorityNeurons>(),
+            new OsOAuthIntegrationResolver(sp.GetRequiredService<AuthorityNeurons>(), [], IntoChat.OS.Tests.TestEdge.Authority),
             sp.GetRequiredService<OAuthDeviceRequests>(),
             sp.GetRequiredService<IOptions<OAuthConnectionsOptions>>(),
             fakeClock,
             sp.GetRequiredService<IHttpClientFactory>(),
-            IntoChat.OS.Tests.TestEdge.Authority,
-            policy,
+            new OsOAuthDeviceGrantAcceptor(sp.GetRequiredService<AuthorityNeurons>()),
+            new OsOAuthDeviceAuthorizationGate(policy),
             NullLogger<OAuthDeviceFlow>.Instance));
 
         var app = builder.Build();
@@ -574,13 +573,13 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         var requests = new OAuthDeviceRequests(options, clock);
         return new OAuthDeviceFlow(
             connectors,
-            neurons,
+            new OsOAuthIntegrationResolver(neurons, [], IntoChat.OS.Tests.TestEdge.Authority),
             requests,
             options,
             clock,
             new SingleHandlerHttpClientFactory(handler),
-            IntoChat.OS.Tests.TestEdge.Authority,
-            policy,
+            new OsOAuthDeviceGrantAcceptor(neurons),
+            new OsOAuthDeviceAuthorizationGate(policy),
             NullLogger<OAuthDeviceFlow>.Instance);
     }
 

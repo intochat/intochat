@@ -32,11 +32,17 @@ public static class OAuthConnectionsHosting
         services.TryAddSingleton<OAuthTokenExchange>();
         services.TryAddSingleton<IOAuthTokenExchange>(sp => sp.GetRequiredService<OAuthTokenExchange>());
         services.TryAddSingleton<OAuthLoginFlow>();
+        services.TryAddSingleton<OAuthDeviceRequests>();
+        services.TryAddSingleton<IOAuthDeviceGrantAcceptor, NeuronProxiesOAuthDeviceGrantAcceptor>();
+        services.TryAddSingleton<OAuthDeviceFlow>();
+        services.TryAddSingleton<IOAuthDeviceFlow>(sp => sp.GetRequiredService<OAuthDeviceFlow>());
 
-        services.AddHttpClient(resolved.ResolvedHttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+        services.AddHttpClient(resolved.ResolvedHttpClientName, client => client.Timeout = OAuthHttpProtocol.DefaultRequestTimeout)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddMeteredHttpClient(resolved.ResolvedMeteredHttpClientName)
-            .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30));
+            .ConfigureHttpClient(client => client.Timeout = OAuthHttpProtocol.DefaultRequestTimeout);
+        services.AddHttpClient(resolved.ResolvedDeviceHttpClientName, client => client.Timeout = OAuthHttpProtocol.DefaultRequestTimeout)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHttpSurface, OAuthCallback>());
         // "Request starting" lines carry the callback's query (code and state); never log them, whatever the host's level.
