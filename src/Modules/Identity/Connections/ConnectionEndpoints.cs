@@ -104,14 +104,13 @@ internal static class ConnectionEndpoints
 
         group.MapPost("/{connectionId}/device/poll", async (string connectionId, DevicePollInput input, HttpContext context, [FromServices] IOAuthDeviceFlow deviceFlow, CancellationToken ct) =>
         {
-            _ = connectionId;
-            if (string.IsNullOrWhiteSpace(input.FlowId)) { return Results.BadRequest(); }
+            if (string.IsNullOrWhiteSpace(connectionId) || string.IsNullOrWhiteSpace(input.FlowId)) { return Results.BadRequest(); }
             if (await RequireConnectorAllowedAsync(context, connectorId: null, ct) is { } claimPrompt) { return claimPrompt; }
 
             var brainId = BrainScope.CurrentId();
             try
             {
-                var result = await deviceFlow.PollOnceAsync(new BrainId(brainId), input.FlowId, ct);
+                var result = await deviceFlow.PollOnceAsync(new BrainId(brainId), input.FlowId, connectionId, ct);
                 return Results.Json(result, ConnectionEndpointsJsonContext.Default.OAuthDevicePollResult);
             }
             catch (ClaimRequiredException error) { return ClaimPromptResult.FromDecision(error.Decision); }

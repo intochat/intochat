@@ -1,8 +1,8 @@
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using DigitalBrain.Capabilities.Http;
 using DigitalBrain.Log;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Tools;
@@ -47,44 +47,12 @@ internal sealed class McpClientSession(HttpMessageHandler? httpHandler = null) :
             return false;
         }
 
-        if (IPAddress.TryParse(endpoint.DnsSafeHost, out var ip) && IsForbiddenAddress(ip))
+        if (IPAddress.TryParse(endpoint.DnsSafeHost, out var ip) && !HttpHosts.IsPublicOrLoopback(ip))
         {
             return false;
         }
 
         return true;
-    }
-
-    public static bool IsForbiddenAddress(IPAddress address)
-    {
-        if (address.IsIPv4MappedToIPv6) { address = address.MapToIPv4(); }
-        if (IPAddress.IsLoopback(address)) { return false; }
-        if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.Broadcast)
-            || address.Equals(IPAddress.IPv6Any) || address.Equals(IPAddress.IPv6None))
-        {
-            return true;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-        {
-            var bytes = address.GetAddressBytes();
-            return bytes[0] == 0
-                || bytes[0] == 10
-                || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64)
-                || (bytes[0] == 169 && bytes[1] == 254)
-                || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
-                || (bytes[0] == 192 && bytes[1] == 168)
-                || bytes[0] >= 224;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast) { return true; }
-            var bytes = address.GetAddressBytes();
-            return (bytes[0] & 0xFE) == 0xFC;
-        }
-
-        return false;
     }
 
     public static Dictionary<string, string>? BuildHeaders(string? headerName, string? headerPrefix, string? token)

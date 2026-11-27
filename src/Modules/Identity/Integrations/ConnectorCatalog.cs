@@ -111,9 +111,15 @@ internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connec
                 return true;
             }
 
-            return !string.IsNullOrWhiteSpace(device.IntegrationId)
-                && snapshots.TryGetValue(device.IntegrationId, out var snapshot)
-                && snapshot.Status == IntegrationStatus.Ready;
+            if (string.IsNullOrWhiteSpace(device.IntegrationId)
+                || !snapshots.TryGetValue(device.IntegrationId, out var snapshot))
+            {
+                return false;
+            }
+
+            // A public device flow only needs a non-secret ClientId; it never requires confidential host secrets (e.g. PrivateKeyPem).
+            return snapshot.Status == IntegrationStatus.Ready
+                || (snapshot.Settings.TryGetValue(device.ClientIdField, out var clientId) && !string.IsNullOrWhiteSpace(clientId));
         }
 
         // Auth methods that require no confidential host IntegrationSchema (e.g. pat, bearer-token) are always available.
