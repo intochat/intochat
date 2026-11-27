@@ -43,7 +43,11 @@ internal static class NodeOwnerNormalizer
             AppTileNode tile => tile with { Command = NormalizeCommand(tile.Command, owner) },
             DigitalBrain.UI.Conversation conv => conv with
             {
-                Composer = conv.Composer with { OnSubmit = NormalizeCommand(conv.Composer.OnSubmit, owner)! },
+                Composer = conv.Composer with
+                {
+                    OnSubmit = NormalizeCommand(conv.Composer.OnSubmit, owner)!,
+                    OnClearContext = NormalizeCommand(conv.Composer.OnClearContext, owner),
+                },
                 Waiting = conv.Waiting is null ? null : Normalize(conv.Waiting, owner),
                 Messages = [.. conv.Messages.Select(m => m.Cards is null ? m : m with { Cards = NormalizeList(m.Cards, owner) })],
             },
@@ -68,6 +72,7 @@ internal static class NodeOwnerNormalizer
             JobCardNode job => job with
             {
                 Cancel = job.Cancel is null ? null : (DigitalBrain.UI.Button)Normalize(job.Cancel, owner),
+                OpenArtifact = job.OpenArtifact is null ? null : (DigitalBrain.UI.Button)Normalize(job.OpenArtifact, owner),
             },
             ErrorLineNode error => error with
             {
@@ -132,6 +137,11 @@ internal static class NodeOwnerNormalizer
         if (command is null)
         {
             return null;
+        }
+
+        if (command.Target.StartsWith('/'))
+        {
+            return command;
         }
 
         return string.IsNullOrWhiteSpace(command.Target)

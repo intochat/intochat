@@ -97,7 +97,7 @@ public sealed class AppManifestDigestFacts
         Assert.Equal("PhotoCraft", photo.Bundle.Manifest.Title);
         Assert.Equal("artcraft:photocraft", photo.Bundle.Manifest.Icon);
         Assert.Equal("Studio", photo.Bundle.Manifest.Category);
-        Assert.Equal(5, photo.Bundle.Manifest.Dock);
+        Assert.Null(photo.Bundle.Manifest.Dock);
         Assert.Equal(AppLaunch.Maximized, photo.Bundle.Manifest.Launch);
         Assert.True(photo.Bundle.Manifest.Studio);
         Assert.NotEmpty(photo.Bundle.Manifest.Operations);

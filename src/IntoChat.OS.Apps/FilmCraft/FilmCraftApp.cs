@@ -96,7 +96,7 @@ public sealed record FilmCraftAppState(
 }
 
 [Neuron("app.filmcraft")]
-[Screen("app.filmcraft", Title = "FilmCraft", Icon = "artcraft:filmcraft", Category = "Studio", Dock = 6, Launch = AppLaunch.Maximized)]
+[Screen("app.filmcraft", Title = "FilmCraft", Icon = "artcraft:filmcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
 {
     public FilmCraftApp() : this(null) { }

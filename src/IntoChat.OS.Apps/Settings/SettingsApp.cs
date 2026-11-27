@@ -136,7 +136,7 @@ public sealed record SettingsConfirmPendingEnrollment : Signal;
 public sealed record SettingsCancelPendingEnrollment : Signal;
 
 [Neuron("app.settings")]
-[Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 10)]
+[Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 5)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
 {
     [Slot(Key = "settings")] private partial IUserSettings UserSettings { get; }

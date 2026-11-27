@@ -124,10 +124,17 @@ public sealed class DesktopAppFacts
         var viewJson = System.Text.Json.JsonSerializer.Serialize(
             view,
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-        Assert.Contains("dock-photocraft", viewJson, StringComparison.Ordinal);
-        Assert.Contains("dock-filmcraft", viewJson, StringComparison.Ordinal);
-        Assert.Contains("dock-markdraw", viewJson, StringComparison.Ordinal);
+        Assert.Contains("dock-ino", viewJson, StringComparison.Ordinal);
+        Assert.Contains("dock-friends", viewJson, StringComparison.Ordinal);
+        Assert.Contains("dock-files", viewJson, StringComparison.Ordinal);
+        Assert.Contains("dock-gridcraft", viewJson, StringComparison.Ordinal);
+        Assert.Contains("dock-settings", viewJson, StringComparison.Ordinal);
         Assert.DoesNotContain("dock-creator", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-engineer", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-tasks", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-photocraft", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-filmcraft", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-markdraw", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-unit-helloworld", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-unit-btcalert", viewJson, StringComparison.Ordinal);
 

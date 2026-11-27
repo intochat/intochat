@@ -87,7 +87,7 @@ public sealed record DataStudioAppState(
         ?? Decision.Accept(DataStudioDecisions.DecideToMarkdraw(this, docPath.Trim()));
 }
 
-[Neuron("app.data"), Screen("app.data", Title = "Data Studio", Icon = "bar-chart-2", Category = "Studio", Dock = 3)]
+[Neuron("app.data"), Screen("app.data", Title = "Data Studio", Icon = "bar-chart-2", Category = "Studio")]
 public sealed partial class DataStudioApp : AggregateScreen<DataStudioAppState>
 {
     // The brain's workspace files: datasets are read from it, exports and diagrams written to it.

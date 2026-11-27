@@ -154,6 +154,8 @@ Widget renderJobCard(JobCardNode node, NodeContext ctx) => JobCard(
   ),
   state: parseJobState(node.status),
   onCancel: pressOf(node.cancel, ctx),
+  onOpenArtifact: pressOf(node.openArtifact, ctx),
+  openArtifactLabel: node.openArtifact?.label ?? 'Open artifact',
 );
 
 // --- src/nodes/stat_card.dart ---

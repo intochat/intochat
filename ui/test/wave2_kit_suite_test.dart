@@ -187,6 +187,9 @@ void main() {
           const splitNode = SplitPaneNode(
             leadingExtent: 260,
             gap: 12,
+            trailingDrawer: null,
+            collapseBreakpoint: null,
+            trailingFraction: null,
             leading: ColumnNode(
               gap: 6,
               padding: 0,

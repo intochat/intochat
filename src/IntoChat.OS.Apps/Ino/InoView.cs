@@ -29,6 +29,12 @@ public static partial class InoView
     public const string NewKey = "new-conversation";
     public const string SendDraftKey = "ino:send-draft";
     public const string DismissDraftKey = "ino:dismiss-draft";
+    public const string DrawerPinKey = "ino:drawer-pin";
+    public const string DrawerPopoutKey = "ino:drawer-popout";
+    public const string DrawerCloseKey = "ino:drawer-close";
+    public const string DrawerTabPreviewKey = "ino:drawer-tab-preview";
+    public const string DrawerTabDiffKey = "ino:drawer-tab-diff";
+    public const string DrawerTabLogsKey = "ino:drawer-tab-logs";
     public const int MaxRenderedMessages = 100;
     public const int MaxRenderedChars = 1_000_000;
 
@@ -100,6 +106,8 @@ public static partial class InoView
                 Dictation = voice.Hear,
                 ReadAloud = voice.Speak,
                 TalkConversation = voice.Talk && !string.IsNullOrWhiteSpace(conversation) ? conversation : null,
+                ActiveContextLabel = string.IsNullOrWhiteSpace(s.ActiveContextName) ? null : s.ActiveContextName.Trim(),
+                Waiting = BuildWaitingChoice(s),
             });
     }
 
@@ -343,6 +351,7 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s, device) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
+        Node[] tasks = s.ActiveTasks is { Length: > 0 } activeTasks ? [.. activeTasks.Select(RenderTaskJobCard)] : [];
         var navAboveList = new List<Node>();
         if (string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
         {
@@ -352,16 +361,265 @@ public static partial class InoView
         Node[] navAbove = [.. navAboveList];
 
         var conversation = thread(ThreadProps(s, voice, s.ConversationId, threadFailure, view, cards, availability, device));
+        Node leftColumn;
         if (HasUnprojectedVaultSecretPrompt(s, view))
         {
             Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];
-            Node[] below = [.. approvals, .. setup];
-            return Filling(above, conversation, below);
+            Node[] below = [.. tasks, .. approvals, .. setup];
+            leftColumn = Filling(above, conversation, below);
+        }
+        else
+        {
+            Node[] under = [.. tasks, .. approvals, .. loose, .. setup];
+            leftColumn = Filling(navAbove, conversation, under);
         }
 
-        Node[] under = [.. approvals, .. loose, .. setup];
-        return Filling(navAbove, conversation, under);
+        if (s.DrawerOpen && s.ActiveArtifact is { } artifact)
+        {
+            return new SplitPane(
+                leftColumn,
+                RenderArtifactDrawer(s, artifact),
+                LeadingExtent: 520,
+                Gap: 16,
+                TrailingDrawer: true,
+                CollapseBreakpoint: 1024,
+                TrailingFraction: 0.58);
+        }
+
+        return leftColumn;
     }
+
+    internal static Node? BuildWaitingChoice(InoAppState s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        var askTask = s.ActiveTasks.FirstOrDefault(static t =>
+            string.Equals(t.Status, "needs-you", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(t.AskQuestion)
+            && t.AskOptions is { Length: >= 2 });
+        if (askTask is null)
+        {
+            return null;
+        }
+
+        var options = new ChoiceOptionNode[askTask.AskOptions.Length];
+        for (var i = 0; i < askTask.AskOptions.Length; i++)
+        {
+            var label = askTask.AskOptions[i];
+            var detail = askTask.AskRecommendedIndex == i ? "Recommended" : null;
+            var pick = WithRootTarget(Button(label)
+                .Key($"task-ask:{askTask.TaskId}:{i}")
+                .Sends(new InoAnswerTaskAsk(askTask.TaskId, label, i, askTask.ConfirmationPlanId))
+                .ToButton());
+            options[i] = new ChoiceOptionNode(label, detail, pick);
+        }
+
+        return new ChoiceCardNode($"task-ask:{askTask.TaskId}", askTask.AskQuestion!, options);
+    }
+
+    internal static JobCardNode RenderTaskJobCard(InoTaskSummary task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        var (jobStatus, stepStatus, progress) = task.Status.ToLowerInvariant() switch
+        {
+            "completed" or "done" => ("done", "done", 1.0),
+            "failed" or "error" => ("error", "failed", 1.0),
+            "needs-you" => ("running", "waiting", 0.55),
+            "queued" => ("running", "waiting", 0.15),
+            _ => ("running", "running", 0.5),
+        };
+
+        var hasArtifact = !string.IsNullOrWhiteSpace(task.ArtifactUri) || !string.IsNullOrWhiteSpace(task.FlowId);
+        Button? openArtifact = hasArtifact
+            ? Button("Open artifact", "external-link")
+                .Small()
+                .Key($"open-task-artifact:{task.TaskId}")
+                .Sends(new InoOpenDrawer(
+                    ArtifactId: task.TaskId,
+                    FlowId: task.FlowId,
+                    Title: string.IsNullOrWhiteSpace(task.ArtifactLabel) ? task.Title : task.ArtifactLabel,
+                    LiveViewPath: task.ArtifactUri,
+                    Kind: !string.IsNullOrWhiteSpace(task.FlowId) ? "code-orchestration" : "artifact"))
+                .ToButton()
+            : null;
+
+        return new JobCardNode(
+            task.Title,
+            [new JobStepNode(task.Status == "needs-you" ? "Needs your answer" : task.Title, stepStatus, task.Summary)],
+            Progress: progress,
+            Status: jobStatus,
+            ResultText: task.Summary,
+            OpenArtifact: openArtifact);
+    }
+
+    internal static JobCardNode RenderCodeOrchestrationJobCard(InoDrawerArtifact artifact)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        var stepStatus = artifact.Status switch
+        {
+            "done" => "done",
+            "failed" => "failed",
+            _ => "running",
+        };
+        var progress = artifact.Status switch
+        {
+            "done" => 1.0,
+            "failed" => 1.0,
+            _ => 0.6,
+        };
+        var steps = new JobStepNode[]
+        {
+            new("Compile & sanitize script", "done"),
+            new("Run in sandbox", stepStatus, artifact.ExecutionTarget),
+        };
+        var openButton = WithRootTarget(Button("Open artifact", "external-link")
+            .Small()
+            .Key($"open-artifact:{artifact.Id}")
+            .Sends(new InoOpenDrawer(
+                ArtifactId: artifact.Id,
+                FlowId: artifact.FlowId,
+                Title: artifact.Title,
+                LiveViewPath: artifact.LiveViewPath,
+                Kind: artifact.Kind))
+            .ToButton());
+
+        return new JobCardNode(
+            artifact.Title,
+            steps,
+            Progress: progress,
+            Status: artifact.Status,
+            ResultText: artifact.Summary,
+            OpenArtifact: openButton);
+    }
+
+    internal static Node RenderArtifactDrawer(InoAppState s, InoDrawerArtifact artifact)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(artifact);
+
+        var statusKind = artifact.Status switch
+        {
+            "done" => StatusKind.Done,
+            "failed" => StatusKind.Error,
+            _ => StatusKind.Working,
+        };
+        var statusLabel = artifact.Status switch
+        {
+            "done" => "Done",
+            "failed" => "Failed",
+            _ => "Working",
+        };
+
+        var activeTab = InoAppState.SupportedDrawerTabs.Contains(s.DrawerTab, StringComparer.Ordinal)
+            ? s.DrawerTab
+            : "preview";
+
+        Node TabButton(string id, string label, string key) =>
+            Button(label)
+                .Small()
+                .Key(key)
+                .Style(OsMixStyles.FilterPill(selected: string.Equals(activeTab, id, StringComparison.Ordinal)))
+                .Sends(new InoSelectDrawerTab(id))
+                .ToNode();
+
+        var isPinned = !string.IsNullOrWhiteSpace(artifact.PinnedAppAlias);
+        var canPin = !string.IsNullOrWhiteSpace(artifact.FlowId);
+        Node pinAction = isPinned
+            ? PrimaryButton("Open Pinned App", "external-link")
+                .Small()
+                .Style(OsMixStyles.PrimaryButton(small: true))
+                .Key(DrawerPinKey)
+                .WithIntent(IntentKind.OpenWindow, AppSignals.OpenApp(artifact.PinnedAppAlias!).Arg)
+                .ToNode()
+            : PrimaryButton("Pin as App", "pin")
+                .Small()
+                .Style(OsMixStyles.PrimaryButton(small: true))
+                .Key(DrawerPinKey)
+                .Disabled(!canPin)
+                .Sends(new InoPinArtifact(artifact.FlowId, null, artifact.Title))
+                .ToNode();
+
+        var popoutTarget = !string.IsNullOrWhiteSpace(artifact.PinnedAppAlias)
+            ? AppSignals.OpenApp(artifact.PinnedAppAlias).Arg
+            : null;
+
+        Node popoutAction = popoutTarget is not null
+            ? GhostButton("Pop out", "external-link")
+                .Small()
+                .Key(DrawerPopoutKey)
+                .WithIntent(IntentKind.OpenWindow, popoutTarget)
+                .ToNode()
+            : GhostButton("Pop out", "external-link")
+                .Small()
+                .Key(DrawerPopoutKey)
+                .Disabled(true)
+                .Tooltip("Pin as App to pop out")
+                .ToNode();
+
+        Node closeAction = GhostButton("Close", "x")
+            .Small()
+            .Key(DrawerCloseKey)
+            .Sends(new InoCloseDrawer())
+            .ToNode();
+
+        var header = VStack(Space.Xs)[
+            HStack(Space.Sm)[
+                Text(artifact.Title).Strong(),
+                StatusPill(statusKind, statusLabel)
+            ],
+            HStack(Space.Xs)[
+                TabButton("preview", "Preview", DrawerTabPreviewKey),
+                TabButton("diff", "Diff", DrawerTabDiffKey),
+                TabButton("logs", "Logs", DrawerTabLogsKey),
+                pinAction,
+                popoutAction,
+                closeAction
+            ]
+        ];
+
+        var banners = new List<Node>();
+        if (isPinned)
+        {
+            banners.Add(Banner("Pinned as App", $"Installed '{artifact.Title}' as '{artifact.PinnedAppAlias}' in sandbox.", tone: "done"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(artifact.PinError))
+        {
+            banners.Add(Banner("Could not pin app", artifact.PinError, tone: "error"));
+        }
+
+        Node body = activeTab switch
+        {
+            "diff" => Card("Artifact Summary & Script", artifact.Summary ?? "Compiled script and artifact changes.")
+                .Style(OsMixStyles.Card())[
+                Text(string.IsNullOrWhiteSpace(artifact.DiffText)
+                    ? (string.IsNullOrWhiteSpace(artifact.CompiledScript) ? "No diff or script output yet." : artifact.CompiledScript)
+                    : artifact.DiffText).Tabular()
+            ],
+            "logs" => Card("Run Logs & Scoped Contracts", artifact.ExecutionTarget is { Length: > 0 } exec ? $"Target: {exec}" : "Sandbox execution telemetry")
+                .Style(OsMixStyles.Card())[
+                Text(string.IsNullOrWhiteSpace(artifact.LogsText)
+                    ? $"Status: {statusLabel}"
+                    : artifact.LogsText).Tabular()
+            ],
+            _ => !string.IsNullOrWhiteSpace(artifact.LiveViewPath) && InoCards.ToLiveSlot(artifact.LiveViewPath) is { } liveSlot
+                ? liveSlot
+                : Card(artifact.Title, artifact.Summary ?? "Live preview will appear here once ready.")
+                    .Style(OsMixStyles.Card())[
+                    StatusPill(statusKind, statusLabel)
+                ],
+        };
+
+        return Surface(SurfaceKind.Elevated)
+            .Style(Mix.Style()
+                .Tone(UiTone.Elevated)
+                .Padding(12)
+                .Radius(14))[
+            VStack(Space.Sm, [header, .. banners, body]).Extents([-1d, .. banners.Select(static _ => -1d), 1d])
+        ];
+    }
+
+    private static Button WithRootTarget(Button button)
+        => button.Command is null ? button : button with { Command = button.Command with { Target = "/" } };
 
     private static Node[] RenderNavigationSeedNodes(InoAppState s, Rejected? departureRejection)
     {
@@ -767,7 +1025,7 @@ public static partial class InoView
                 var engTopology = ColumnOr(card, 1, "1x LocalGit");
                 var engStageOrSha = ColumnOr(card, 2, card.Status);
                 yield return new RecordCardNode(
-                    "IntoChat Engineer · Multi-Worktree Pipeline", card.Title,
+                    "Code Run · Multi-Worktree Pipeline", card.Title,
                     [
                         new RecordFieldNode("Status", card.Status),
                         new RecordFieldNode("Repository", engRepo),
@@ -775,8 +1033,13 @@ public static partial class InoView
                         new RecordFieldNode("Checkpoint", engStageOrSha),
                     ],
                     Subtitle: card.Summary,
-                    LinkLabel: "Open Engineer Workbench",
-                    Open: Button("Open Engineer Workbench").Small().Style(OsMixStyles.LinkAction()).Key("open-engineer").EmitsOrIntent(AppSignals.OpenApp("engineer", card.Id)));
+                    LinkLabel: "Open in Drawer",
+                    Open: WithRootTarget(Button("Open in Drawer", "external-link")
+                        .Small()
+                        .Style(OsMixStyles.LinkAction())
+                        .Key($"open-run-drawer:{card.Id}")
+                        .Sends(new InoOpenDrawer(ArtifactId: card.Id, FlowId: card.Id, Title: card.Title, Kind: "code-orchestration"))
+                        .ToButton()));
                 break;
 
             default:

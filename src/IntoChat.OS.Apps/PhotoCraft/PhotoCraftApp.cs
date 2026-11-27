@@ -163,7 +163,7 @@ public sealed record PhotoCraftAppState(
 }
 
 [Neuron("app.photocraft")]
-[Screen("app.photocraft", Title = "PhotoCraft", Icon = "artcraft:photocraft", Category = "Studio", Dock = 5, Launch = AppLaunch.Maximized)]
+[Screen("app.photocraft", Title = "PhotoCraft", Icon = "artcraft:photocraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
 {
     public PhotoCraftApp() : this(null) { }

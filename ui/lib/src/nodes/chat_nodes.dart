@@ -95,6 +95,9 @@ class _ChatThreadSurfaceState extends State<_ChatThreadSurface> {
     final conversation = _conversationKey;
     final callNeuron = ctx.callNeuron;
 
+    final activeContext = props.activeContextLabel?.trim();
+    final hasActiveContext = activeContext != null && activeContext.isNotEmpty;
+
     return ConversationView(
       node: ConversationNode(
         key: node.key,
@@ -107,8 +110,17 @@ class _ChatThreadSurfaceState extends State<_ChatThreadSurface> {
           activeModelLabel: props.activeModelLabel,
           activeProviderIcon: props.activeProviderIcon,
           dictation: props.dictation,
+          activeContextLabel: hasActiveContext ? activeContext : null,
+          onClearContext: hasActiveContext
+              ? Command(
+                  target: node.composer.onSubmit.target,
+                  signal: 'control.clearContext',
+                  args: null,
+                  props: null,
+                )
+              : null,
         ),
-        waiting: null,
+        waiting: props.waiting,
         status: props.status,
         error: error == null
             ? null

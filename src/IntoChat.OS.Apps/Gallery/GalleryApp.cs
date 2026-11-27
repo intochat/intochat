@@ -26,7 +26,7 @@ using IntoChat.OS.UI;
 namespace IntoChat.OS.Apps.Gallery;
 
 [Neuron("app.gallery")]
-[Screen("app.gallery", Title = "UI Gallery", Icon = "layout-grid", Category = "Studio", Dock = 8)]
+[Screen("app.gallery", Title = "UI Gallery", Icon = "layout-grid", Category = "Studio")]
 public sealed class GalleryApp : AggregateScreen<GalleryState>
 {
     public const string AppName = "gallery";

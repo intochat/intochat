@@ -157,6 +157,14 @@ public sealed record RetryRequested(string Id) : Signal;
 [Signal("control.stopRequested")]
 public sealed record StopRequested : Signal;
 
+/// <summary>Clears the active editing/artifact context chip in a chat thread composer.</summary>
+[Signal("control.clearContext")]
+public sealed record ClearContext : Signal;
+
+/// <summary>The user cleared the active editing/artifact context chip in a chat thread composer.</summary>
+[Signal("control.contextCleared")]
+public sealed record ContextCleared : Signal;
+
 /// <summary>The user chose a model for a chat (and optionally pinned it as the Chat role default).</summary>
 /// <param name="ChatId">The full key of the chat that chose it.</param>
 /// <param name="ModelId">The chosen model id.</param>

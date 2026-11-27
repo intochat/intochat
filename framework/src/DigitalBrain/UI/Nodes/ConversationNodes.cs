@@ -104,7 +104,9 @@ public sealed record ComposerNode(
     bool Enabled = true,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActiveModelLabel = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActiveProviderIcon = null,
-    bool Dictation = false);
+    bool Dictation = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActiveContextLabel = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Command? OnClearContext = null);
 
 /// <summary>An addressable model-picker activation target drawn by a chat thread.</summary>
 /// <param name="Key">The node's activation key.</param>

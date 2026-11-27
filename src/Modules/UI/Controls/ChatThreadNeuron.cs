@@ -20,7 +20,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A chat thread: it owns the messages and signals what the user asks of them.</summary>
-[Neuron("control.chatThread"), Publishes(typeof(MessageAppended)), Publishes(typeof(MessageUpdated)), Publishes(typeof(RetryRequested)), Publishes(typeof(Submitted)), Publishes(typeof(StopRequested)), Publishes(typeof(ChatModelSelected))]
+[Neuron("control.chatThread"), Publishes(typeof(MessageAppended)), Publishes(typeof(MessageUpdated)), Publishes(typeof(RetryRequested)), Publishes(typeof(Submitted)), Publishes(typeof(StopRequested)), Publishes(typeof(ChatModelSelected)), Publishes(typeof(ContextCleared))]
 public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>, IChatThreadControl
 {
     [JsonSerializable(typeof(Dictionary<string, bool>))]
@@ -96,6 +96,13 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
     {
         ArgumentNullException.ThrowIfNull(command);
         return Publish(new StopRequested());
+    }
+
+    [On]
+    public Task ClearContext(ClearContext command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return Publish(new ContextCleared());
     }
 
     [On]

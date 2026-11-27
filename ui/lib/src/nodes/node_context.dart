@@ -275,9 +275,13 @@ class NodeContext {
       actNeuron ??
       (view.endsWith('/view') ? view.substring(0, view.length - 5) : view);
 
-  /// The act target for [address] relative to this view (`.` itself, `key`
-  /// or `./key` a child it shows), as a key path from [neuron].
+  /// The act target for [address] relative to this view (`.` itself, `/` the
+  /// root screen, `key` or `./key` a child it shows), as a key path from [neuron].
   String actTarget(String address) {
+    if (address.startsWith('/')) {
+      final rootRelative = address.substring(1);
+      return rootRelative.isEmpty ? '.' : rootRelative;
+    }
     if (childPath.isEmpty) return address;
     if (const {'.', './'}.contains(address)) return childPath;
     final key = address.startsWith('./') ? address.substring(2) : address;

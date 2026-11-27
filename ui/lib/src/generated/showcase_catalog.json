@@ -603,6 +603,16 @@
         "name": "talkConversation",
         "type": "String?",
         "default": null
+      },
+      {
+        "name": "activeContextLabel",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "waiting",
+        "type": "Node?",
+        "default": null
       }
     ],
     "state": [
@@ -634,6 +644,11 @@
         "args": {
           "message": "Map<String, Object?>"
         }
+      },
+      {
+        "name": "ClearContext",
+        "signal": "control.clearContext",
+        "args": {}
       },
       {
         "name": "ImportMessages",
@@ -688,6 +703,11 @@
           "modelId": "String",
           "makeDefault": "bool"
         }
+      },
+      {
+        "name": "ContextCleared",
+        "signal": "control.contextCleared",
+        "args": {}
       },
       {
         "name": "MessageAppended",
@@ -1976,6 +1996,11 @@
         "name": "cancel",
         "type": "ButtonNode?",
         "default": null
+      },
+      {
+        "name": "openArtifact",
+        "type": "ButtonNode?",
+        "default": null
       }
     ],
     "state": [],
@@ -3253,6 +3278,21 @@
         "name": "gap",
         "type": "double",
         "default": 16
+      },
+      {
+        "name": "trailingDrawer",
+        "type": "bool?",
+        "default": null
+      },
+      {
+        "name": "collapseBreakpoint",
+        "type": "double?",
+        "default": null
+      },
+      {
+        "name": "trailingFraction",
+        "type": "double?",
+        "default": null
       }
     ],
     "state": [],

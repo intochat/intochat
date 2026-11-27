@@ -1340,7 +1340,8 @@ public sealed class InoAppFacts
         };
         var engineerPreview = AggregateExplorer<InoAppState>.PreviewNode<InoApp>(engineerState);
         var engineerWire = JsonSerializer.Serialize(engineerPreview);
-        Assert.Contains("Open Engineer Workbench", engineerWire, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open Engineer Workbench", engineerWire, StringComparison.Ordinal);
+        Assert.Contains("Open in Drawer", engineerWire, StringComparison.Ordinal);
 
         Assert.Contains("digraph InoAppState", graph.ToDot(), StringComparison.Ordinal);
     }

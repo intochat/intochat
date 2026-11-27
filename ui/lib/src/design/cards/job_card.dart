@@ -49,6 +49,8 @@ class JobCard extends StatelessWidget {
     required this.state,
     this.onCancel,
     this.onRetry,
+    this.onOpenArtifact,
+    this.openArtifactLabel = 'Open artifact',
   });
 
   final CardSource source;
@@ -56,6 +58,8 @@ class JobCard extends StatelessWidget {
   final JobState state;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenArtifact;
+  final String openArtifactLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -85,16 +89,30 @@ class JobCard extends StatelessWidget {
   Widget _body(BuildContext context, UiColors c) {
     final d = data;
     final running = state == JobState.running;
+    final statusChip = switch (state) {
+      JobState.running => CardChip(
+        label: 'Working',
+        fg: c.textBody,
+        bg: c.surfaceSunk,
+        icon: WorkingSpinner(size: 12, color: c.textBody),
+      ),
+      JobState.done => CardChip(
+        label: 'Done',
+        fg: c.done,
+        bg: c.doneBg,
+        icon: Icon(LucideIcons.check, size: 12, color: c.done),
+      ),
+      JobState.error => CardChip(
+        label: 'Failed',
+        fg: c.error,
+        bg: c.errorBg,
+        icon: Icon(LucideIcons.triangleAlert, size: 12, color: c.error),
+      ),
+      JobState.cancelled => null,
+    };
     return CardShell(
       source: source,
-      status: running
-          ? CardChip(
-              label: 'Working',
-              fg: c.textBody,
-              bg: c.surfaceSunk,
-              icon: WorkingSpinner(size: 12, color: c.textBody),
-            )
-          : null,
+      status: statusChip,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -132,16 +150,29 @@ class JobCard extends StatelessWidget {
             const SizedBox(height: 12),
             CardError(text: d.errorText!, onRetry: onRetry),
           ],
-          if (running && onCancel != null) ...[
+          if ((running && onCancel != null) || onOpenArtifact != null) ...[
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: UiMixButton.preset(
-                label: 'Stop',
-                style: UiMixButtonStyle.secondary,
-                compact: true,
-                onPressed: onCancel,
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onOpenArtifact != null)
+                  UiMixButton.preset(
+                    key: const ValueKey('job-card-open-artifact'),
+                    label: openArtifactLabel,
+                    iconData: LucideIcons.externalLink,
+                    style: UiMixButtonStyle.secondary,
+                    compact: true,
+                    onPressed: onOpenArtifact,
+                  ),
+                if (running && onCancel != null)
+                  UiMixButton.preset(
+                    label: 'Stop',
+                    style: UiMixButtonStyle.secondary,
+                    compact: true,
+                    onPressed: onCancel,
+                  ),
+              ],
             ),
           ],
         ],
@@ -175,7 +206,7 @@ class _StepRow extends StatelessWidget {
         width: 18,
         height: 18,
         decoration: BoxDecoration(color: c.errorBg, shape: BoxShape.circle),
-        child: Icon(LucideIcons.x, size: 11, color: c.error),
+        child: Icon(LucideIcons.triangleAlert, size: 11, color: c.error),
       ),
       StepStatus.waiting => Container(
         width: 18,

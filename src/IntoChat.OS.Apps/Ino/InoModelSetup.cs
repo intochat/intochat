@@ -189,7 +189,8 @@ internal static class InoModelSetup
             await host.TryOptional("conversation-synapses", () => host.FollowConversation(conversationKey));
 
             ModelId? turnModel = string.IsNullOrWhiteSpace(effectiveModel) ? null : new ModelId(effectiveModel);
-            await conversation.Say(pending.Text, turnModel);
+            var contextualPrompt = InoModel.AttachActiveContext(pending.Text, state);
+            await conversation.Say(contextualPrompt, turnModel);
             if (!string.Equals(host.GetState().SelectedModel, displayModel, StringComparison.Ordinal))
             {
                 await host.ShowState(host.GetState() with { SelectedModel = displayModel });
@@ -574,6 +575,12 @@ internal static class InoModelSetup
             new("toggle-devui", "Toggle DevUI flag."),
             new("make", "Apply a sentence to the focused app, or Scratch."),
             new("link", "Post a pasted workspace link: its app, opaque input and text."),
+            new("open-drawer", "Open an artifact, micro-app, or code orchestration run in the inline right-hand drawer."),
+            new("close-drawer", "Close the inline artifact drawer."),
+            new("drawer-tab", "Switch the inline artifact drawer tab between preview, diff, and logs."),
+            new("pin-artifact", "Pin the active code orchestration run as a sandboxed app via CrystallizeAsync."),
+            new("clear-context", "Clear the active editing context chip above the composer."),
+            new("answer-task-ask", "Answer a pending multi-option ITasks Ask prompt from the docked ChoiceCard."),
         ]) with
     {
         CompiledType = compiledType.AssemblyQualifiedName,
