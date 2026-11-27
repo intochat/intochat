@@ -153,7 +153,7 @@ final class NeuronIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pngAsset = _pngAssets[kind];
+    final pngAsset = BrandVisuals.pngAssetForId(kind.name);
     if (pngAsset != null) {
       return Image.asset(
         pngAsset,
@@ -169,7 +169,7 @@ final class NeuronIcon extends StatelessWidget {
   }
 
   Widget _buildSvgOrGlyph(BuildContext context) {
-    final svgAsset = _brandAssets[kind];
+    final svgAsset = BrandVisuals.svgAssetForId(kind.name);
     if (svgAsset != null) {
       return SvgPicture.asset(
         svgAsset,
@@ -210,46 +210,5 @@ final class NeuronIcon extends StatelessWidget {
     NeuronIconKind.files => Icons.folder_outlined,
     NeuronIconKind.studio => Icons.auto_fix_high_rounded,
     _ => Icons.hub_outlined,
-  };
-
-  static const _pngAssets = <NeuronIconKind, String>{
-    NeuronIconKind.aspire: 'assets/brands/aspire.png',
-    NeuronIconKind.artcraft: 'assets/brands/artcraft/artcraft.png',
-    NeuronIconKind.photocraft: 'assets/brands/artcraft/photocraft.png',
-    NeuronIconKind.filmcraft: 'assets/brands/artcraft/filmcraft.png',
-    NeuronIconKind.vectorcraft: 'assets/brands/artcraft/vectorcraft.png',
-    NeuronIconKind.lightcraft: 'assets/brands/artcraft/lightcraft.png',
-    NeuronIconKind.effectcraft: 'assets/brands/artcraft/effectcraft.png',
-    NeuronIconKind.designcraft: 'assets/brands/artcraft/designcraft.png',
-    NeuronIconKind.pdfcraft: 'assets/brands/artcraft/pdfcraft.png',
-    NeuronIconKind.wordcraft: 'assets/brands/artcraft/wordcraft.png',
-    NeuronIconKind.soundcraft: 'assets/brands/artcraft/soundcraft.png',
-    NeuronIconKind.deckcraft: 'assets/brands/artcraft/deckcraft.png',
-    NeuronIconKind.cadcraft: 'assets/brands/artcraft/cadcraft.png',
-    NeuronIconKind.gridcraft: 'assets/brands/artcraft/gridcraft.png',
-    NeuronIconKind.figcraft: 'assets/brands/artcraft/figcraft.png',
-    NeuronIconKind.texturecraft: 'assets/brands/artcraft/texturecraft.png',
-    NeuronIconKind.materialcraft: 'assets/brands/artcraft/materialcraft.png',
-    NeuronIconKind.solidcraft: 'assets/brands/artcraft/solidcraft.png',
-  };
-
-  static const _brandAssets = <NeuronIconKind, String>{
-    NeuronIconKind.gmail: 'assets/brands/gmail.svg',
-    NeuronIconKind.salesforce: 'assets/brands/salesforce.svg',
-    NeuronIconKind.aspire: 'assets/brands/aspire-icon-32.svg',
-    NeuronIconKind.muncly: 'assets/brands/muncly.svg',
-    NeuronIconKind.github: 'assets/brands/github.svg',
-    NeuronIconKind.intochat: 'assets/brands/ic-mark.svg',
-    NeuronIconKind.docker: 'assets/brands/docker.svg',
-    NeuronIconKind.dotnet: 'assets/brands/dotnet.svg',
-    NeuronIconKind.bitcoin: 'assets/brands/bitcoin.svg',
-    NeuronIconKind.anthropic: 'assets/brands/providers/anthropic.svg',
-    NeuronIconKind.openai: 'assets/brands/providers/openai.svg',
-    NeuronIconKind.google: 'assets/brands/providers/google.svg',
-    NeuronIconKind.ollama: 'assets/brands/providers/ollama.svg',
-    NeuronIconKind.qwen: 'assets/brands/providers/qwen.svg',
-    NeuronIconKind.xai: 'assets/brands/providers/xai.svg',
-    NeuronIconKind.openrouter: 'assets/brands/providers/openrouter.svg',
-    NeuronIconKind.foundry: 'assets/brands/providers/foundry.svg',
   };
 }

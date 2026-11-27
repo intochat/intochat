@@ -385,22 +385,17 @@ String humanizeFieldLabel(String rawName) {
 String inferAppIdFromViewPath(String view) {
   final trimmed = view.trim().toLowerCase();
   final appsIdx = trimmed.indexOf('/apps/');
-  if (appsIdx >= 0) {
-    final rest = trimmed.substring(appsIdx + 6);
+  final String? rest = appsIdx >= 0
+      ? trimmed.substring(appsIdx + 6)
+      : trimmed.startsWith('apps/')
+      ? trimmed.substring(5)
+      : null;
+  if (rest != null) {
     final slash = rest.indexOf('/');
     final seg = (slash >= 0 ? rest.substring(0, slash) : rest).trim();
     if (seg.isNotEmpty) {
       final norm = IcAppIcon.normalizeAppId(seg);
-      if (IcAppIcon.builtInSpecs.containsKey(norm)) return norm;
-    }
-  }
-  if (trimmed.startsWith('apps/')) {
-    final rest = trimmed.substring(5);
-    final slash = rest.indexOf('/');
-    final seg = (slash >= 0 ? rest.substring(0, slash) : rest).trim();
-    if (seg.isNotEmpty) {
-      final norm = IcAppIcon.normalizeAppId(seg);
-      if (IcAppIcon.builtInSpecs.containsKey(norm)) return norm;
+      if (IcAppIcon.isKnownAppId(norm)) return norm;
     }
   }
   return 'ino';

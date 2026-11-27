@@ -39,7 +39,7 @@ enum CanvasSector {
 
   static CanvasSector sectorForApp(String appId) {
     final normalized = appId.toLowerCase();
-    if (IcAppIcon.isArtCraftApp(normalized)) {
+    if (isArtCraftApp(normalized)) {
       return switch (normalized) {
         'pdfcraft' ||
         'wordcraft' ||
