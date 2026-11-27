@@ -321,7 +321,7 @@ internal sealed class DeviceWorker : BackgroundService
         while (!sessionCt.IsCancellationRequested)
         {
             var interval = TimeSpan.FromSeconds(Math.Clamp(CurrentComputeOptions().HeartbeatIntervalSeconds, 1, 300));
-            await DelayOrWakeAsync(_heartbeatWake, interval, sessionCt).ConfigureAwait(false);
+            await DelayOrWakeQuietlyAsync(_heartbeatWake, interval, sessionCt).ConfigureAwait(false);
             if (sessionCt.IsCancellationRequested)
             {
                 break;
@@ -358,7 +358,7 @@ internal sealed class DeviceWorker : BackgroundService
                     "Device worker lane 'heartbeat' failed (attempt {Attempt}); backing off {DelayMs:F0} ms.",
                     consecutiveFailures,
                     backoff.TotalMilliseconds);
-                await DelayOrWakeAsync(_heartbeatWake, backoff, sessionCt).ConfigureAwait(false);
+                await DelayOrWakeQuietlyAsync(_heartbeatWake, backoff, sessionCt).ConfigureAwait(false);
             }
         }
     }
@@ -679,6 +679,7 @@ internal sealed class DeviceWorker : BackgroundService
         CancellationToken ct)
     {
         ConnectedSandboxResponse? capturedResult = null;
+        string? capturedError = null;
         var producerRan = false;
 
         using var content = new NdjsonPushContent<SandboxStreamChunk>(
@@ -687,14 +688,54 @@ internal sealed class DeviceWorker : BackgroundService
             {
                 producerRan = true;
                 var emittedDone = false;
+                Exception? sandboxError = null;
+                IAsyncEnumerator<SandboxStreamChunk>? enumerator = null;
                 try
                 {
-                    await foreach (var rawChunk in streamingSandbox.ExecuteStreamingAsync(job, token).ConfigureAwait(false))
+                    try
                     {
+                        enumerator = streamingSandbox.ExecuteStreamingAsync(job, token).GetAsyncEnumerator(token);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception error)
+                    {
+                        sandboxError = error;
+                    }
+
+                    while (sandboxError is null && enumerator is not null)
+                    {
+                        SandboxStreamChunk rawChunk;
+                        try
+                        {
+                            if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                            {
+                                break;
+                            }
+
+                            rawChunk = enumerator.Current;
+                        }
+                        catch (OperationCanceledException) when (token.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception error)
+                        {
+                            sandboxError = error;
+                            break;
+                        }
+
                         var chunk = StampMachineId(rawChunk);
                         if (chunk.Result is not null)
                         {
                             capturedResult = chunk.Result;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(chunk.Error))
+                        {
+                            capturedError = chunk.Error;
                         }
 
                         if (chunk.Done)
@@ -702,34 +743,38 @@ internal sealed class DeviceWorker : BackgroundService
                             emittedDone = true;
                         }
 
+                        // Isolated from sandbox catch so transport write() failures propagate directly.
                         await write(chunk, token).ConfigureAwait(false);
                     }
-
-                    if (!emittedDone)
+                }
+                finally
+                {
+                    if (enumerator is not null)
                     {
-                        capturedResult ??= new ConnectedSandboxResponse(
-                            Handled: true,
-                            ResultJson: null,
-                            UpdatedStateJson: null,
-                            Error: null,
-                            ExecutedByMachineId: _thisMachine.Value);
-                        await write(new SandboxStreamChunk(Done: true, Result: capturedResult), token).ConfigureAwait(false);
+                        await enumerator.DisposeAsync().ConfigureAwait(false);
                     }
                 }
-                catch (OperationCanceledException) when (token.IsCancellationRequested)
+
+                if (sandboxError is not null)
                 {
-                    throw;
-                }
-                catch (Exception error)
-                {
-                    _logger.LogWarning(error, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
+                    _logger.LogWarning(sandboxError, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, sandboxError.GetType().Name);
                     capturedResult = new ConnectedSandboxResponse(
                         Handled: false,
                         ResultJson: null,
                         UpdatedStateJson: null,
-                        Error: error.Message,
+                        Error: sandboxError.Message,
                         ExecutedByMachineId: _thisMachine.Value);
-                    await write(new SandboxStreamChunk(Done: true, Error: error.Message, Result: capturedResult), token).ConfigureAwait(false);
+                    await write(new SandboxStreamChunk(Done: true, Error: sandboxError.Message, Result: capturedResult), token).ConfigureAwait(false);
+                }
+                else if (!emittedDone)
+                {
+                    capturedResult ??= new ConnectedSandboxResponse(
+                        Handled: true,
+                        ResultJson: null,
+                        UpdatedStateJson: null,
+                        Error: null,
+                        ExecutedByMachineId: _thisMachine.Value);
+                    await write(new SandboxStreamChunk(Done: true, Result: capturedResult), token).ConfigureAwait(false);
                 }
             });
 
@@ -740,9 +785,9 @@ internal sealed class DeviceWorker : BackgroundService
         }
 
         // Backward compatibility: older relays return 404/501 for /sandbox/{jobId}/stream.
-        // Report the already-produced terminal result, or execute via the unary path if the server rejected before reading body.
-        var fallback = capturedResult;
-        if (!producerRan || fallback is null)
+        // Only execute via the unary path if the streaming producer never ran; never double-execute.
+        ConnectedSandboxResponse fallback;
+        if (!producerRan)
         {
             try
             {
@@ -766,6 +811,15 @@ internal sealed class DeviceWorker : BackgroundService
                     Error: error.Message,
                     ExecutedByMachineId: _thisMachine.Value);
             }
+        }
+        else
+        {
+            fallback = capturedResult ?? new ConnectedSandboxResponse(
+                Handled: false,
+                ResultJson: null,
+                UpdatedStateJson: null,
+                Error: capturedError ?? "Streaming sandbox execution completed without a terminal result.",
+                ExecutedByMachineId: _thisMachine.Value);
         }
 
         await _cloud.ReportSandboxResultAsync(job.JobId, fallback, ct).ConfigureAwait(false);
@@ -1087,6 +1141,17 @@ internal sealed class DeviceWorker : BackgroundService
         }
 
         return string.IsNullOrWhiteSpace(Environment.MachineName) ? _thisMachine.Value : Environment.MachineName;
+    }
+
+    private async Task DelayOrWakeQuietlyAsync(SemaphoreSlim signal, TimeSpan delay, CancellationToken ct)
+    {
+        try
+        {
+            await DelayOrWakeAsync(signal, delay, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
     }
 
     private async Task DelayQuietlyAsync(TimeSpan delay, CancellationToken ct)

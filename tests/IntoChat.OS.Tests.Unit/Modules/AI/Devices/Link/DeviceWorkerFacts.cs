@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Access;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Modules.AI.Models;
@@ -519,6 +520,253 @@ public sealed class DeviceWorkerFacts
         Assert.Equal(harness.MachineId, fallbackResult.ExecutedByMachineId);
     }
 
+    [Fact]
+    public async Task RevocationDuringHeartbeatDelayClassifiesAsRevokedAndResetsAndPersistsStatus()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var consent = new ClientCodeSandboxConsentStore(initialAllow: true);
+        var sandbox = new FakeLocalSandboxExecutor();
+        var services = new RecordingServiceProvider();
+        var options = new StaticOptionsMonitor<DevicesOptions>(new DevicesOptions
+        {
+            Compute = new ComputeCapabilityOptions
+            {
+                ConsentMode = ComputeConsentMode.ExplicitToggle,
+                AllowClientCodeSandbox = true,
+                HeartbeatIntervalSeconds = 60,
+            },
+        });
+
+        await using var harness = await Open(
+            ready: ["qwen2.5-coder:14b"],
+            options: options,
+            services: services,
+            localSandbox: sandbox,
+            consentStore: consent);
+
+        var sandboxBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var triggerRevoke = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        harness.Server.SandboxPollOverride = async token =>
+        {
+            sandboxBlocked.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return null;
+        };
+
+        harness.Server.ChatPollOverride = async token =>
+        {
+            await triggerRevoke.Task.WaitAsync(token);
+            return null;
+        };
+
+        await harness.Worker.StartAsync(ct);
+        try
+        {
+            // Ensure heartbeat loop is actively parked in DelayOrWakeQuietlyAsync (60s timer)
+            // and sandbox poll is active before triggering 401 SignalRevoked.
+            await Task.WhenAll(
+                harness.Clock.WaitForTimerAsync(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(5), ct),
+                sandboxBlocked.Task.WaitAsync(TimeSpan.FromSeconds(5), ct));
+
+            Assert.Equal(1, harness.Server.ModelsReportsCount);
+            Assert.Equal(1, harness.Server.CapabilityReportsCount);
+
+            harness.Server.RejectWith401 = true;
+            triggerRevoke.TrySetResult();
+
+            // Revocation must complete cleanly without faulting Task.WhenAll and invoke PersistRevokedStatusBestEffortAsync.
+            await WaitUntilAsync(
+                () => harness.Credentials.IsRevoked && services.EdgeAuthorityLookups >= 1,
+                TimeSpan.FromSeconds(5),
+                ct);
+
+            // Wait for ExecuteAsync's post-revocation ErrorDelay timer to be registered.
+            await harness.Clock.WaitForTimerAsync(DeviceWorker.ErrorDelay, TimeSpan.FromSeconds(5), ct);
+
+            // Must NOT be misclassified as a cloud timeout.
+            Assert.DoesNotContain(harness.Logs, static line => line.Contains("cloud call timed out", StringComparison.OrdinalIgnoreCase));
+
+            // Verify ResetAdvertisedAsync executed: re-write credentials WITHOUT calling NotifyLinkChanged()
+            // and advance only ErrorDelay (5s << 60s HeartbeatIntervalSeconds). Models and capabilities
+            // are only re-reported immediately if ResetAdvertisedAsync cleared _reportedOnce and _computeReportedOnce.
+            harness.Server.RejectWith401 = false;
+            using (var key = ECDsa.Create(ECCurve.NamedCurves.nistP256))
+            {
+                await harness.Credentials.Write(new LinkSecrets(
+                    new Uri("https://cloud.test"),
+                    "cred2",
+                    "cred2.access-1",
+                    harness.Clock.GetUtcNow().AddMinutes(15),
+                    "cred2.refresh-1",
+                    harness.Clock.GetUtcNow().AddDays(30),
+                    key.ExportPkcs8PrivateKey()), ct);
+            }
+
+            harness.Clock.Advance(DeviceWorker.ErrorDelay);
+
+            await WaitUntilAsync(
+                () => harness.Server.ModelsReportsCount >= 2 && harness.Server.CapabilityReportsCount >= 2,
+                TimeSpan.FromSeconds(5),
+                ct);
+        }
+        finally
+        {
+            await harness.Worker.StopAsync(ct);
+        }
+    }
+
+    [Fact]
+    public async Task StreamingSandboxTransportWriteErrorIsIsolatedFromSandboxCatchBlock()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var consent = new ClientCodeSandboxConsentStore(initialAllow: true);
+        var streamingExecutor = new FakeStreamingSandboxExecutor(
+            chunks:
+            [
+                new SandboxStreamChunk(Progress: "compiling"),
+                new SandboxStreamChunk(Stdout: "hello stdout\n"),
+                new SandboxStreamChunk(
+                    Done: true,
+                    Result: new ConnectedSandboxResponse(
+                        Handled: true,
+                        ResultJson: "{\"ok\":true}",
+                        UpdatedStateJson: null,
+                        Error: null)),
+            ]);
+
+        await using var harness = await Open(
+            ready: ["qwen2.5-coder:14b"],
+            localSandbox: streamingExecutor,
+            consentStore: consent);
+
+        var failingStream = new FailingWriteStream(new IOException("Simulated transport write failure"));
+        harness.Server.SandboxStreamOverride = async (request, token) =>
+        {
+            await request.Content!.CopyToAsync(failingStream, token);
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        };
+
+        harness.Server.EnqueueSandbox(NewSandboxJob("sb-write-err"));
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() => harness.Worker.Tick(ct));
+        var inner = Assert.IsType<IOException>(ex.InnerException);
+        Assert.Contains("Simulated transport write failure", inner.Message, StringComparison.Ordinal);
+
+        // Sandbox execution catch block must NOT have caught the transport error or emitted a synthetic terminal chunk.
+        Assert.DoesNotContain(harness.Logs, static line => line.Contains("Streaming local sandbox job", StringComparison.Ordinal));
+        Assert.DoesNotContain(failingStream.ObservedPayloads, static payload => payload.Contains("\"done\":true", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, streamingExecutor.StreamingCalls);
+        Assert.Equal(1, streamingExecutor.StreamingChunksYielded);
+        Assert.Equal(0, streamingExecutor.UnaryExecuteCalls);
+        Assert.Null(harness.Server.SandboxResult("sb-write-err"));
+    }
+
+    [Fact]
+    public async Task StreamingSandbox404And501FallbackDoesNotDoubleExecuteWhenProducerRan()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var consent = new ClientCodeSandboxConsentStore(initialAllow: true);
+
+        // (a) 404 after request body was read (producerRan == true, capturedResult != null):
+        //     must report capturedResult without calling unary ExecuteAsync.
+        var executorWithResult = new FakeStreamingSandboxExecutor(
+            chunks:
+            [
+                new SandboxStreamChunk(Progress: "running"),
+                new SandboxStreamChunk(
+                    Done: true,
+                    Result: new ConnectedSandboxResponse(
+                        Handled: true,
+                        ResultJson: "{\"streamed\":true}",
+                        UpdatedStateJson: null,
+                        Error: null)),
+            ]);
+
+        await using (var harness = await Open(
+            ready: ["qwen2.5-coder:14b"],
+            localSandbox: executorWithResult,
+            consentStore: consent))
+        {
+            harness.Server.SandboxStreamOverride = async (request, token) =>
+            {
+                _ = await request.Content!.ReadAsStringAsync(token);
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            };
+
+            harness.Server.EnqueueSandbox(NewSandboxJob("sb-404-after-producer"));
+            await harness.Worker.Tick(ct);
+
+            Assert.Equal(1, executorWithResult.StreamingCalls);
+            Assert.Equal(0, executorWithResult.UnaryExecuteCalls);
+            var reported = harness.Server.SandboxResult("sb-404-after-producer");
+            Assert.NotNull(reported);
+            Assert.True(reported!.Handled);
+            Assert.Equal("{\"streamed\":true}", reported.ResultJson);
+            Assert.Equal(harness.MachineId, reported.ExecutedByMachineId);
+        }
+
+        // (b) 501 after request body was read (producerRan == true, Done=true with Result=null -> capturedResult == null):
+        //     must STILL NOT double-execute unary ExecuteAsync.
+        var executorWithoutResult = new FakeStreamingSandboxExecutor(
+            chunks:
+            [
+                new SandboxStreamChunk(Progress: "side-effect-ran"),
+                new SandboxStreamChunk(Done: true, Result: null),
+            ]);
+
+        await using (var harness = await Open(
+            ready: ["qwen2.5-coder:14b"],
+            localSandbox: executorWithoutResult,
+            consentStore: consent))
+        {
+            harness.Server.SandboxStreamOverride = async (request, token) =>
+            {
+                _ = await request.Content!.ReadAsStringAsync(token);
+                return new HttpResponseMessage(HttpStatusCode.NotImplemented);
+            };
+
+            harness.Server.EnqueueSandbox(NewSandboxJob("sb-501-after-producer-no-result"));
+            await harness.Worker.Tick(ct);
+
+            Assert.Equal(1, executorWithoutResult.StreamingCalls);
+            Assert.Equal(0, executorWithoutResult.UnaryExecuteCalls);
+            var reported = harness.Server.SandboxResult("sb-501-after-producer-no-result");
+            Assert.NotNull(reported);
+            Assert.False(reported!.Handled);
+            Assert.False(string.IsNullOrWhiteSpace(reported.Error));
+            Assert.Equal(harness.MachineId, reported.ExecutedByMachineId);
+        }
+
+        // (c) 501 before producer runs (server rejects without reading request body -> producerRan == false):
+        //     cleanly falls back to unary ExecuteAsync exactly once.
+        var executorBeforeProducer = new FakeStreamingSandboxExecutor(
+            chunks:
+            [
+                new SandboxStreamChunk(Progress: "should-not-run"),
+            ]);
+
+        await using (var harness = await Open(
+            ready: ["qwen2.5-coder:14b"],
+            localSandbox: executorBeforeProducer,
+            consentStore: consent))
+        {
+            harness.Server.SandboxStreamOverride = (_, _) =>
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotImplemented));
+
+            harness.Server.EnqueueSandbox(NewSandboxJob("sb-501-before-producer"));
+            await harness.Worker.Tick(ct);
+
+            Assert.Equal(0, executorBeforeProducer.StreamingCalls);
+            Assert.Equal(1, executorBeforeProducer.UnaryExecuteCalls);
+            var reported = harness.Server.SandboxResult("sb-501-before-producer");
+            Assert.NotNull(reported);
+            Assert.True(reported!.Handled);
+            Assert.Equal("{\"fallback\":true}", reported.ResultJson);
+            Assert.Equal(harness.MachineId, reported.ExecutedByMachineId);
+        }
+    }
+
     private static DeviceChatJob NewChatJob(string jobId) => new(
         jobId,
         "qwen2.5-coder:14b",
@@ -568,6 +816,7 @@ public sealed class DeviceWorkerFacts
         string[]? runtimeAnswers = null,
         bool joined = true,
         IOptionsMonitor<DevicesOptions>? options = null,
+        IServiceProvider? services = null,
         ILocalSandboxExecutor? localSandbox = null,
         IClientCodeSandboxConsent? consentStore = null,
         IClientResourceConsent? resourceConsent = null,
@@ -606,7 +855,7 @@ public sealed class DeviceWorkerFacts
             logger,
             clock,
             () => "vlad-pc",
-            services: null,
+            services: services,
             options: options,
             computeRouter: null,
             localSandbox: localSandbox,
@@ -715,29 +964,94 @@ public sealed class DeviceWorkerFacts
 
     private sealed class FakeStreamingSandboxExecutor(SandboxStreamChunk[] chunks) : IStreamingLocalSandboxExecutor
     {
+        private int _streamingCalls;
+        private int _streamingChunksYielded;
+        private int _unaryExecuteCalls;
+
         public Exception? ThrowAfterFirstChunk { get; set; }
+        public int StreamingCalls => Volatile.Read(ref _streamingCalls);
+        public int StreamingChunksYielded => Volatile.Read(ref _streamingChunksYielded);
+        public int UnaryExecuteCalls => Volatile.Read(ref _unaryExecuteCalls);
 
         public Task<ConnectedSandboxResponse> ExecuteAsync(ConnectedSandboxRequest request, CancellationToken ct = default)
-            => Task.FromResult(new ConnectedSandboxResponse(
+        {
+            Interlocked.Increment(ref _unaryExecuteCalls);
+            return Task.FromResult(new ConnectedSandboxResponse(
                 Handled: true,
                 ResultJson: "{\"fallback\":true}",
                 UpdatedStateJson: null,
                 Error: null));
+        }
 
         public async IAsyncEnumerable<SandboxStreamChunk> ExecuteStreamingAsync(
             ConnectedSandboxRequest request,
             [EnumeratorCancellation] CancellationToken ct = default)
         {
+            Interlocked.Increment(ref _streamingCalls);
             for (var i = 0; i < chunks.Length; i++)
             {
                 ct.ThrowIfCancellationRequested();
                 await Task.Yield();
+                Interlocked.Increment(ref _streamingChunksYielded);
                 yield return chunks[i];
                 if (i == 0 && ThrowAfterFirstChunk is not null)
                 {
                     throw ThrowAfterFirstChunk;
                 }
             }
+        }
+    }
+
+    private sealed class RecordingServiceProvider : IServiceProvider
+    {
+        private int _edgeAuthorityLookups;
+
+        public int EdgeAuthorityLookups => Volatile.Read(ref _edgeAuthorityLookups);
+
+        public object? GetService(Type serviceType)
+        {
+            if (serviceType == typeof(EdgeAuthority))
+            {
+                Interlocked.Increment(ref _edgeAuthorityLookups);
+            }
+
+            return null;
+        }
+    }
+
+    private sealed class FailingWriteStream(Exception error) : Stream
+    {
+        private readonly List<string> _observedPayloads = [];
+
+        public IReadOnlyList<string> ObservedPayloads => _observedPayloads;
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => 0;
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+
+        public override void Flush() => throw error;
+        public override Task FlushAsync(CancellationToken cancellationToken) => Task.FromException(error);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            _observedPayloads.Add(Encoding.UTF8.GetString(buffer, offset, count));
+            throw error;
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            _observedPayloads.Add(Encoding.UTF8.GetString(buffer.Span));
+            return ValueTask.FromException(error);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            _observedPayloads.Add(Encoding.UTF8.GetString(buffer, offset, count));
+            return Task.FromException(error);
         }
     }
 
@@ -760,10 +1074,12 @@ public sealed class DeviceWorkerFacts
         private readonly ConcurrentDictionary<string, ConnectedSandboxResponse> _sandboxResults = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, PcResourceResponse> _resourceResults = new(StringComparer.Ordinal);
         private readonly ConcurrentQueue<string> _requestPaths = new();
+        private int _modelsReportsCount;
         private int _capabilityReportsCount;
 
         public IReadOnlyCollection<string> RequestPaths => _requestPaths;
         public ModelsReport? LastReport { get; private set; }
+        public int ModelsReportsCount => Volatile.Read(ref _modelsReportsCount);
         public int CapabilityReportsCount => Volatile.Read(ref _capabilityReportsCount);
         public volatile bool RejectWith401;
         public volatile bool Return404ForSandboxStream;
@@ -771,6 +1087,7 @@ public sealed class DeviceWorkerFacts
         public Func<CancellationToken, Task<DeviceChatJob?>>? ChatPollOverride { get; set; }
         public Func<CancellationToken, Task<ConnectedSandboxRequest?>>? SandboxPollOverride { get; set; }
         public Func<CancellationToken, Task<PcResourceRequest?>>? ResourcePollOverride { get; set; }
+        public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? SandboxStreamOverride { get; set; }
 
         public void Enqueue(DeviceChatJob job) => _jobs.Enqueue(job);
         public void EnqueueSandbox(ConnectedSandboxRequest job) => _sandboxJobs.Enqueue(job);
@@ -802,6 +1119,7 @@ public sealed class DeviceWorkerFacts
             {
                 var body = await request.Content!.ReadAsStringAsync(cancellationToken);
                 LastReport = JsonSerializer.Deserialize(body, DeviceWireJson.Default.ModelsReport);
+                Interlocked.Increment(ref _modelsReportsCount);
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
 
@@ -867,6 +1185,11 @@ public sealed class DeviceWorkerFacts
                 && path.EndsWith("/stream", StringComparison.Ordinal)
                 && request.Method == HttpMethod.Post)
             {
+                if (SandboxStreamOverride is not null)
+                {
+                    return await SandboxStreamOverride(request, cancellationToken);
+                }
+
                 if (Return404ForSandboxStream)
                 {
                     return new HttpResponseMessage(HttpStatusCode.NotFound);
