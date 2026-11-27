@@ -299,7 +299,7 @@ internal sealed class AgentTurnLoop(
                             {
                                 var cancelled = fault.SourceException is OperationCanceledException;
                                 if (!cancelled) { fault.SourceException.Data["AgentToolFailed"] = true; }
-                                await pump.EmitAndAwaitConsumedAsync(
+                                await pump.EmitAsync(
                                     new AgentTurnEvent.ToolFailed(call.CallId, call.Name, cancelled ? "tool_cancelled" : "tool_failed",
                                         cancelled ? "The tool call was interrupted." : fault.SourceException.Message),
                                     CancellationToken.None).ConfigureAwait(false);
@@ -367,12 +367,12 @@ internal sealed class AgentTurnLoop(
                 }
 
                 var usage = response.Usage;
-                await pump.EmitAndAwaitConsumedAsync(
+                await pump.EmitAsync(
                     new AgentTurnEvent.Completed(
                         [.. response.Messages.Select(InferenceMapping.FromChatMessage)],
                         usage is null ? null : new(usage.InputTokenCount, usage.OutputTokenCount, usage.TotalTokenCount)),
                     runCt).ConfigureAwait(false);
-                await pump.EmitAndAwaitConsumedAsync(new AgentTurnEvent.Finished(), runCt).ConfigureAwait(false);
+                await pump.EmitAsync(new AgentTurnEvent.Finished(), runCt).ConfigureAwait(false);
             }
             finally
             {
