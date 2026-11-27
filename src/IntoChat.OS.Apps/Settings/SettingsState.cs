@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Devices;
+using Link = IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Configuration;
@@ -43,6 +44,16 @@ public sealed record McpServerRow(
     bool Connected,
     int ToolCount,
     string? Error = null);
+
+public sealed record SettingsEnrolledDeviceRow(
+    string MachineId,
+    string DeviceName,
+    bool Online,
+    bool Revoked,
+    DateTimeOffset EnrolledAt,
+    DateTimeOffset? LastHeartbeatAt,
+    string[] AdvertisedCapabilities,
+    string[] ConsentedFolders);
 
 /// <summary>
 /// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
@@ -172,6 +183,55 @@ public sealed record SettingsAppState(
 
     [Id(57)]
     public string? VoicePersona { get; init; }
+
+    // Option A (1-click pairing) & Mode B (PC resource relay consent) read-model fields (never raw secrets/codes persisted!):
+    [Id(58)]
+    public bool IsCloudTopology { get; init; }
+
+    [Id(59)]
+    public string CloudLinkUrl { get; init; } = Link.DeviceEnrollUri.DefaultCloudUrl;
+
+    [Id(60)]
+    public Link.LinkState DeviceLinkState { get; init; } = Link.LinkState.NotJoined;
+
+    [Id(61)]
+    public string? DeviceLinkServer { get; init; }
+
+    [Id(62)]
+    public string? DeviceLinkCircleId { get; init; }
+
+    [Id(63)]
+    public DateTimeOffset? DeviceLinkLastContactedAt { get; init; }
+
+    [Id(64)]
+    public string[] DeviceLinkCapabilities { get; init; } = [];
+
+    [Id(65)]
+    public bool AllowWindowsFolderGateway { get; init; }
+
+    [Id(66)]
+    public bool AllowConsole { get; init; }
+
+    [Id(67)]
+    public bool ShowManualPairingForm { get; init; }
+
+    [Id(68)]
+    public string? DevicePairingFeedback { get; init; }
+
+    [Id(69)]
+    public bool DevicePairingFeedbackIsError { get; init; }
+
+    [Id(70)]
+    public SettingsEnrolledDeviceRow[] EnrolledDevices { get; init; } = [];
+
+    [JsonIgnore]
+    public string? MintedEnrollmentCode { get; init; }
+
+    [JsonIgnore]
+    public DateTimeOffset? MintedEnrollmentExpiresAt { get; init; }
+
+    [JsonIgnore]
+    public string? MintedEnrollmentHandoffUri { get; init; }
 
     [JsonIgnore]
     public Rejected? LastRejection { get; init; }
@@ -622,6 +682,14 @@ public sealed record SettingsAppState(
             storedVariables,
             ClientComputeConsentPolicy.SettingsVariableKey,
             AllowClientCodeSandbox);
+        var allowWindowsFolderGateway = ResolveStoredBool(
+            storedVariables,
+            ClientComputeConsentPolicy.AllowWindowsFolderGatewayVariableKey,
+            AllowWindowsFolderGateway);
+        var allowConsole = ResolveStoredBool(
+            storedVariables,
+            ClientComputeConsentPolicy.AllowConsoleVariableKey,
+            AllowConsole);
         var reasoningEffort = SettingsControls.TryNormalizeReasoningEffort(
             storedVariables.FirstOrDefault(v => string.Equals(v.Key, SettingsControls.ReasoningEffortVariable, StringComparison.Ordinal))?.Value)
             ?? ReasoningEffort;
@@ -649,6 +717,8 @@ public sealed record SettingsAppState(
             DeployedUnits = deployedUnits ?? DeployedUnits ?? [],
             TeamRoster = teamRoster ?? TeamRoster,
             AllowClientCodeSandbox = allowClientCodeSandbox,
+            AllowWindowsFolderGateway = allowWindowsFolderGateway,
+            AllowConsole = allowConsole,
             ReasoningEffort = reasoningEffort,
             VoicePersona = voicePersona,
             HasUnsavedChanges = false,
@@ -735,7 +805,7 @@ public sealed record SettingsAppState(
 
         return token.ToLowerInvariant() switch
         {
-            "appearance" or "profile" => "general",
+            "appearance" or "profile" or "account" or "devices" => "general",
             "compute" => "billing",
             "circles" or "friends" => "team",
             "modules" => "apps",
@@ -947,6 +1017,12 @@ public sealed record SettingsAppState(
             rawSection = segments[0];
             rawSubPage = segments.Length > 1 && !string.IsNullOrWhiteSpace(segments[1]) ? segments[1] : null;
             rawSheet = segments.Length > 2 && !string.IsNullOrWhiteSpace(segments[2]) ? segments[2] : null;
+        }
+
+        var requestedToken = rawSection?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(rawSubPage) && requestedToken is "devices" or "account")
+        {
+            rawSubPage = "devices";
         }
 
         var targetSection = string.IsNullOrWhiteSpace(rawSection) ? Section : NormalizeSection(rawSection);

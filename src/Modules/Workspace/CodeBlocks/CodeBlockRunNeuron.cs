@@ -17,9 +17,11 @@ internal sealed record CodeBlockRunState(
     string Source,
     string Input,
     string[] Needs,
-    string? PlanId)
+    string? PlanId,
+    string? ExecutionTarget = null,
+    string? ExecutedByMachineId = null)
 {
-    public CodeBlockRunState() : this("", CodeBlockStatus.Running, [], null, null, "", "", "", [], null) { }
+    public CodeBlockRunState() : this("", CodeBlockStatus.Running, [], null, null, "", "", "", [], null, null, null) { }
 }
 
 // One code block run (key = run id). It compiles the block, reads its needs from the compiled code, and when that need set is not yet
@@ -113,23 +115,27 @@ internal sealed class CodeBlockRunNeuron(AppPackageCompiler compiler, ISandboxRu
         await grants.Bind(appKey, Id.Key, needs);
         try
         {
-            await sandbox.DeployPackageAsync(Id.Brain.Value, compiled.EnrichedPackage!, compiled.AssemblyBytes, null, null);
+            await Publish(new CodeBlockRunProgress(Id.Key, "routing"));
             steps.Add("deploy");
-            SandboxDispatchResult result;
-            try
+            ICodeSandbox codeSandbox = sandbox;
+            var result = await codeSandbox.ExecuteScopedCommandAsync(
+                Id.Brain,
+                compiled.EnrichedPackage!,
+                compiled.AssemblyBytes,
+                CodeBlockSource.Command,
+                JsonSerializer.Serialize(State.Input),
+                needs);
+            if (!string.IsNullOrWhiteSpace(result.ExecutionTarget))
             {
-                result = await sandbox.DispatchCommandAsync(Id.Brain.Value, appKey, CodeBlockSource.Command, JsonSerializer.Serialize(State.Input));
-            }
-            finally
-            {
-                await sandbox.UnloadAsync(Id.Brain.Value, appKey);
+                steps.Add($"tier:{result.ExecutionTarget}");
+                await Publish(new CodeBlockRunProgress(Id.Key, "executed", result.ExecutionTarget, result.ExecutedByMachineId));
             }
             steps.AddRange((await grants.Steps(appKey)).Select(step => step.Allowed ? $"call {step.Call}" : $"refused {step.Call}"));
             steps.Add("run");
             steps.Add("unload");
             return result.Error is { Length: > 0 } || !result.Handled
-                ? await Finish(steps, null, result.Error ?? "The sandbox did not run the block.")
-                : await Finish(steps, CodeBlockSource.Output(result.ResultJson), null);
+                ? await Finish(steps, null, result.Error ?? "The sandbox did not run the block.", result.ExecutionTarget, result.ExecutedByMachineId)
+                : await Finish(steps, CodeBlockSource.Output(result.ResultJson), null, result.ExecutionTarget, result.ExecutedByMachineId);
         }
         catch (Exception error) when (error is HttpRequestException or InvalidOperationException or KeyNotFoundException or TimeoutException)
         {
@@ -146,14 +152,39 @@ internal sealed class CodeBlockRunNeuron(AppPackageCompiler compiler, ISandboxRu
     private static string Refusal(CompiledAppPackage compiled)
         => "The code does not compile within the sandbox's rules: " + string.Join("; ", compiled.Errors.Take(5));
 
-    private async Task<CodeBlockRunView> Finish(IEnumerable<string> steps, string? output, string? error)
+    private async Task<CodeBlockRunView> Finish(
+        IEnumerable<string> steps,
+        string? output,
+        string? error,
+        string? executionTarget = null,
+        string? executedByMachineId = null)
     {
-        await Save(State with { Status = error is null ? CodeBlockStatus.Completed : CodeBlockStatus.Failed, Steps = [.. steps], Output = output, Error = error, PlanId = null, Needs = _needs ?? State.Needs },
-            new CodeBlockRunDone(Id.Key, error is null, output, error));
+        await Save(
+            State with
+            {
+                Status = error is null ? CodeBlockStatus.Completed : CodeBlockStatus.Failed,
+                Steps = [.. steps],
+                Output = output,
+                Error = error,
+                PlanId = null,
+                Needs = _needs ?? State.Needs,
+                ExecutionTarget = executionTarget ?? State.ExecutionTarget,
+                ExecutedByMachineId = executedByMachineId ?? State.ExecutedByMachineId,
+            },
+            new CodeBlockRunDone(Id.Key, error is null, output, error, ExecutionTarget: executionTarget, ExecutedByMachineId: executedByMachineId));
         return View();
     }
 
-    private CodeBlockRunView View() => new(State.RunId, State.Status, State.Steps, State.Output, State.Error, State.Needs, State.PlanId);
+    private CodeBlockRunView View() => new(
+        State.RunId,
+        State.Status,
+        State.Steps,
+        State.Output,
+        State.Error,
+        State.Needs,
+        State.PlanId,
+        State.ExecutionTarget,
+        State.ExecutedByMachineId);
 
     private IClientGrants Grants() => Context.Get<IClientGrants>(new DigitalBrain.NeuronId(Id.Brain, "client.grants", IClientGrants.DefaultKey));
 

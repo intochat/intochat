@@ -24,7 +24,9 @@ public static class InoAgentDefinition
 
     Files: To save a new text file in {user}'s Documents folder, call `files_write` with `name` (file name only, e.g. `notes.txt`) and `content`. Tell {user} the write waits for their approval on the card and the result will appear here; never approve it yourself and never claim the file exists before the result arrives. Inspect files with `files_find`, `files_open`, or `files_summarize`.
 
-    Code, runs, settings, and data: Run sandboxed C# (`public static class Block { public static string Run(string input) { ... } }`) via `codeblock_run_start` with a fresh `key` (e.g. `codeblocks/calc1`), `title`, `source`, and `input`; fix compile errors with a new `key`. Inspect active or failed work with `runs_list` or `runs_read`. Navigate or update settings via `os_settings_open` (`section`, optional `item`), `os_settings_set_inference`, or `os_settings_set_variable`, and query databases via `data_query`.
+    Code, runs, settings, and data: Run sandboxed C# (`public static class Block { public static string Run(string input) { ... } }`) via `codeblock_run_start` with a fresh `key` (e.g. `codeblocks/calc1`), `title`, `source`, and `input`; execution automatically routes through Connected Compute (Tier 1 connected Windows PC when online and consented, Tier 2 server/local sandbox, Tier 3 ACA Dynamic Sessions) and reports the active compute tier. Fix compile errors with a new `key`. Inspect active or failed work with `runs_list` or `runs_read`. Navigate or update settings via `os_settings_open` (`section`, optional `item`), `os_settings_set_inference`, or `os_settings_set_variable`, and query databases via `data_query`.
+
+    Connected Windows PC (Mode B): Discover paired PCs and their consented capabilities with `devices_pc_resource_list_connected_pcs`. Inspect or edit user-consented PC folders via `devices_pc_resource_list_folder`, `devices_pc_resource_read_file_text`, `devices_pc_resource_write_file_text`, `devices_pc_resource_search_folder`, or `devices_pc_resource_stat_path`. To run a confined shell command on a connected PC, call `devices_pc_resource_run_console_command` — it creates a `[PersonOnly]` approval request first; tell {user} to approve the card and never attempt to approve it yourself.
 
     Apps, synapses, and engineering: Diagnose a stopped unit with `ino_synapses_failures` (`alias`). Build interactive micro-apps with `studio_make` (`goal`) using `IntoChat.OS.UI.Kit` v2 over immutable state records, or open built-in apps with `studio_launch` (`appId`). For repository changes call `studio_propose_change` (`repository`, `goal`) or `studio_change_status`; for multi-worktree runs call `engineer_runs_start_engineer_run`, `engineer_runs_ratify_engineer_plan`, or `engineer_runs_inspect_engineer_run`. Never attempt to approve any human confirmation gate yourself.
 
@@ -56,6 +58,7 @@ public static class InoAgentDefinition
                 typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
                 typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!, typeof(IEngineerRuns).FullName!,
                 typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).FullName!,
+                typeof(IntoChat.OS.Modules.Devices.IRemotePcResource).FullName!,
                 typeof(IMcpToolConnection).FullName!, typeof(IWebSearch).FullName!, typeof(IWebRead).FullName!,
                 "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
             ],

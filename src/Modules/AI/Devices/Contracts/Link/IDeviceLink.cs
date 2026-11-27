@@ -17,7 +17,11 @@ public sealed record LinkStatus(
     string DeviceName,
     DateTimeOffset? LastContactedAt,
     bool AllowClientCodeSandbox = false,
-    string[]? AdvertisedCapabilities = null);
+    string[]? AdvertisedCapabilities = null,
+    string? CircleId = null,
+    bool AllowWindowsFolderGateway = false,
+    bool AllowConsole = false,
+    string[]? ConsentedFolderRoots = null);
 
 // One device-link neuron per brain on the PC at "{brain}/device-link".
 [NeuronAlias("devices.link"), DefaultNeuronType("devices.link")]
@@ -28,6 +32,10 @@ public interface IDeviceLink
     Task<LinkStatus> Status();
 
     Task<LinkStatus> SetAllowClientCodeSandbox(bool allow);
+
+    Task<LinkStatus> SetAllowWindowsFolderGateway(bool allow) => Status();
+
+    Task<LinkStatus> SetAllowConsole(bool allow) => Status();
 
     Task Leave();
 

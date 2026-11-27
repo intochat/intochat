@@ -12,6 +12,7 @@
     <Compile Include="../../src/IntoChat.OS.Desktop/DesktopKeyBackup.cs" Link="Desktop/DesktopKeyBackup.cs" />
     <Compile Include="../../src/IntoChat.OS.Desktop/DesktopBootstrap.cs" Link="Desktop/DesktopBootstrap.cs" />
     <Compile Include="../../src/IntoChat.OS.Desktop/DesktopBootstrap.Status.cs" Link="Desktop/DesktopBootstrap.Status.cs" />
+    <Compile Include="../../src/IntoChat.OS.Desktop/DesktopBootstrap.Enroll.cs" Link="Desktop/DesktopBootstrap.Enroll.cs" />
     <Compile Include="../../src/IntoChat.OS.Desktop/DesktopShutdownCoordinator.cs" Link="Desktop/DesktopShutdownCoordinator.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -45,6 +45,7 @@ public sealed class WindowsModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddHostedService(sp => sp.GetRequiredService<WindowsFolderWatcher>());
         services.TryAddSingleton<LocalWindowsDeviceBootstrap>();
         services.AddHostedService(sp => sp.GetRequiredService<LocalWindowsDeviceBootstrap>());
+        services.TryAddSingleton<IntoChat.OS.Modules.Devices.IConsentedFolderRootProvider, WindowsConsentedFolderRootProvider>();
         var runtimeOptions = DigitalBrain.Runtime.Orleans.RuntimeOptions.Resolve(services);
         if (OperatingSystem.IsWindows()
             && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(configuration, runtimeOptions.CustodyConfigurationKey), ignoreCase: true, out var custody)

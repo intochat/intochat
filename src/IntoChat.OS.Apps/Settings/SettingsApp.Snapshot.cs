@@ -78,6 +78,8 @@ public sealed partial class SettingsApp
             teamRoster,
             section: targetSection);
 
+        next = await RefreshDeviceProjectionAsync(next);
+
         if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
         {
             next = await RefreshGitHubHubProjectionAsync(next);

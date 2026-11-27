@@ -4,6 +4,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Visuals;
@@ -169,11 +170,26 @@ internal static class SettingsViewRenderer
         "notifications" => RenderNotificationsSection(state, children),
         "keyboard" => RenderKeyboardSection(),
         "danger" => RenderDangerSection(),
-        _ => RenderGeneralSection(state, children),
+        _ => RenderGeneralSection(state, subPage, children),
     };
 
-    private static Node RenderGeneralSection(SettingsAppState state, SettingsChildren children)
+    private static Node RenderGeneralSection(SettingsAppState state, string? subPage, SettingsChildren children)
     {
+        if (string.Equals(subPage, "devices", StringComparison.OrdinalIgnoreCase))
+        {
+            return VStack(Space.Md)[
+                state.IsCloudTopology
+                    ? RenderCloudConnectedDevicesCard(state)
+                    : RenderDesktopCloudPairingCard(state, children),
+                HStack(Space.Sm)[
+                    Button("Back to General", "arrow-left")
+                        .Key("devices:back-general")
+                        .Small()
+                        .Sends(new SettingsNavigate("general"))
+                ]
+            ];
+        }
+
         var connectionCount = (state.ConnectionKeys ?? []).Count;
 
         return VStack(Space.Md)[
@@ -232,6 +248,161 @@ internal static class SettingsViewRenderer
                         .Small()
                         .WithIntent(IntentKind.OpenWindow, "os://sheet/conflict")
                 ]
+            ]
+        ];
+    }
+
+    private static Node RenderDesktopCloudPairingCard(SettingsAppState state, SettingsChildren children)
+    {
+        var linked = state.DeviceLinkState == LinkState.Connected;
+        var statusLabel = state.DeviceLinkState switch
+        {
+            LinkState.Connected => string.IsNullOrWhiteSpace(state.DeviceLinkCircleId)
+                ? $"Linked to {state.DeviceLinkServer ?? state.CloudLinkUrl}"
+                : $"Linked to {state.DeviceLinkServer ?? state.CloudLinkUrl} · Circle {state.DeviceLinkCircleId}",
+            LinkState.Offline => $"Offline · {state.DeviceLinkServer ?? state.CloudLinkUrl}",
+            LinkState.Revoked => "Revoked · Re-pair this PC",
+            _ => "Unlinked",
+        };
+        var statusKind = state.DeviceLinkState switch
+        {
+            LinkState.Connected => StatusKind.Done,
+            LinkState.Offline => StatusKind.Working,
+            LinkState.Revoked => StatusKind.Error,
+            _ => StatusKind.Idle,
+        };
+
+        var browserLinkUrl = DeviceEnrollUri.BuildBrowserLinkUrl(
+            Uri.TryCreate(state.CloudLinkUrl, UriKind.Absolute, out var parsedCloud) ? parsedCloud : null).AbsoluteUri;
+        var capabilityPills = (state.DeviceLinkCapabilities is { Length: > 0 } caps ? caps : ["None advertised"])
+            .Select(cap => (Node)new TagPill(cap, "neutral", "cpu"))
+            .ToArray();
+
+        var resourceToggles = SettingsControls.Toggles
+            .Where(t => t.Key is SettingsControls.AllowClientCodeSandbox or SettingsControls.AllowWindowsFolderGateway or SettingsControls.AllowConsole)
+            .Select(t => SettingsControls.ToggleSwitch(children, state, t))
+            .ToArray();
+
+        return Card("Connect this PC to IntoChat Cloud", "Pair this Windows PC with your IntoChat Cloud brain for Tier 1 sandbox execution and consented PC resource access.")
+            .Style(OsMixStyles.Card())[
+            VStack(Space.Md)[
+                HStack(Space.Sm)[
+                    StatusPill(statusKind, statusLabel),
+                    state.DeviceLinkLastContactedAt is { } lastSeen
+                        ? MutedText($"Last heartbeat: {lastSeen.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC").ToNode()
+                        : null
+                ],
+                HStack(Space.Sm, capabilityPills),
+                !string.IsNullOrWhiteSpace(state.DevicePairingFeedback)
+                    ? Banner(
+                        state.DevicePairingFeedbackIsError ? "Pairing notice" : "Device pairing",
+                        state.DevicePairingFeedback!,
+                        tone: state.DevicePairingFeedbackIsError ? "error" : "info")
+                    : null,
+                HStack(Space.Sm)[
+                    PrimaryButton("Connect in Browser", "external-link")
+                        .Key("devices:connect-browser")
+                        .Small()
+                        .Sends(new SettingsLaunchBrowserPairing(state.CloudLinkUrl)),
+                    Button("Copy browser link", "copy")
+                        .Key("devices:copy-browser-link")
+                        .Small()
+                        .WithIntent(IntentKind.Copy, browserLinkUrl),
+                    Button(state.ShowManualPairingForm ? "Hide pairing code form" : "Enter 6-character pairing code", Icons.KeyRound)
+                        .Key("devices:toggle-manual-code")
+                        .Small()
+                        .Sends(new SettingsToggleManualPairing()),
+                    linked
+                        ? DangerButton("Disconnect PC", "unlink")
+                            .Key("devices:disconnect")
+                            .Small()
+                            .Sends(new SettingsDisconnectDevice())
+                            .ToNode()
+                        : null
+                ],
+                state.ShowManualPairingForm
+                    ? SettingsControls.PairDeviceForm(children, state)
+                    : null,
+                Divider("PC Resource Consent"),
+                VStack(Space.Sm, resourceToggles)
+            ]
+        ];
+    }
+
+    private static Node RenderCloudConnectedDevicesCard(SettingsAppState state)
+    {
+        var devices = state.EnrolledDevices ?? [];
+        var rows = new List<Node>();
+        if (devices.Length == 0)
+        {
+            rows.Add(MutedText("No Windows PCs connected yet. Generate a pairing code to connect your desktop.").ToNode());
+        }
+        else
+        {
+            foreach (var device in devices)
+            {
+                var caps = device.AdvertisedCapabilities is { Length: > 0 }
+                    ? device.AdvertisedCapabilities
+                    : [];
+                var rowItems = new List<Node?>
+                {
+                    Text(device.DeviceName).ToNode(),
+                    StatusPill(
+                        device.Revoked ? StatusKind.Error : device.Online ? StatusKind.Done : StatusKind.Idle,
+                        device.Revoked ? "Revoked" : device.Online ? "Online" : "Offline"),
+                };
+                foreach (var cap in caps)
+                {
+                    rowItems.Add(new TagPill(cap, "neutral", "cpu"));
+                }
+                rowItems.Add(FlexSpacer());
+                if (!device.Revoked)
+                {
+                    rowItems.Add(DangerButton("Revoke", Icons.Trash2)
+                        .Key($"devices:revoke:{device.MachineId}")
+                        .Small()
+                        .Sends(new SettingsRevokeEnrolledDevice(device.MachineId))
+                        .ToNode());
+                }
+
+                rows.Add(HStack(Space.Sm, rowItems.ToArray()));
+            }
+        }
+
+        return Card("Connected Devices", "Manage paired Windows PCs enrolled in this Cloud brain and inspect their live capabilities.")
+            .Style(OsMixStyles.Card())[
+            VStack(Space.Md)[
+                !string.IsNullOrWhiteSpace(state.DevicePairingFeedback)
+                    ? Banner(
+                        state.DevicePairingFeedbackIsError ? "Enrollment notice" : "Connected Devices",
+                        state.DevicePairingFeedback!,
+                        tone: state.DevicePairingFeedbackIsError ? "error" : "info")
+                    : null,
+                HStack(Space.Sm)[
+                    PrimaryButton("Link New PC / Generate Code", Icons.Plus)
+                        .Key("devices:mint-code")
+                        .Small()
+                        .Sends(new SettingsMintEnrollmentCode(state.CloudLinkUrl)),
+                    !string.IsNullOrWhiteSpace(state.MintedEnrollmentHandoffUri)
+                        ? Button("Copy handoff link", "copy")
+                            .Key("devices:copy-handoff")
+                            .Small()
+                            .WithIntent(IntentKind.Copy, state.MintedEnrollmentHandoffUri!)
+                            .ToNode()
+                        : null
+                ],
+                !string.IsNullOrWhiteSpace(state.MintedEnrollmentCode)
+                    ? Card("New Pairing Code", state.MintedEnrollmentExpiresAt is { } exp ? $"Expires {exp.UtcDateTime:yyyy-MM-dd HH:mm} UTC" : "Short-lived single-use code")
+                        .Style(OsMixStyles.Card(elevated: true))[
+                        VStack(Space.Xs)[
+                            Text($"Code: {state.MintedEnrollmentCode}"),
+                            !string.IsNullOrWhiteSpace(state.MintedEnrollmentHandoffUri)
+                                ? MutedText($"Handoff URI: {state.MintedEnrollmentHandoffUri}").ToNode()
+                                : null
+                        ]
+                    ].ToNode()
+                    : null,
+                VStack(Space.Sm, rows.ToArray())
             ]
         ];
     }

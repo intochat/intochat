@@ -105,11 +105,13 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<CloudRelayServiceClient>()));
-        services.TryAddSingleton<IConnectedComputeTransport>(static sp => new RelayConnectedComputeTransport(
+        services.TryAddSingleton<RelayConnectedComputeTransport>(static sp => new RelayConnectedComputeTransport(
             sp.GetRequiredService<CloudClient>(),
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetService<IOptionsMonitor<DevicesOptions>>(),
             sp.GetService<CloudRelayServiceClient>()));
+        services.TryAddSingleton<IConnectedComputeTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
+        services.TryAddSingleton<IConnectedResourceTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
         services.TryAddSingleton<IConnectedComputeRouter>(static sp => new ConnectedComputeRouter(
             sp.GetRequiredService<CloudClient>(),
             sp.GetRequiredService<DeviceCredentials>(),
@@ -118,13 +120,21 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<IConnectedComputeTransport>(),
             sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>(),
-            sp.GetService<CloudRelayServiceClient>()));
-        services.TryAddSingleton<IClientCodeSandboxConsent>(static sp =>
+            sp.GetService<CloudRelayServiceClient>(),
+            sp.GetService<IConnectedResourceTransport>()));
+        services.TryAddSingleton<ClientCodeSandboxConsentStore>(static sp =>
         {
             var initialAllow = sp.GetService<IOptionsMonitor<DevicesOptions>>()?.CurrentValue.Compute.AllowClientCodeSandbox
                 ?? ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
             return new ClientCodeSandboxConsentStore(initialAllow);
         });
+        services.TryAddSingleton<IClientCodeSandboxConsent>(static sp => sp.GetRequiredService<ClientCodeSandboxConsentStore>());
+        services.TryAddSingleton<IClientResourceConsent>(static sp => sp.GetRequiredService<ClientCodeSandboxConsentStore>());
+        services.TryAddSingleton<ILocalPcResourceExecutor>(static sp => new LocalPcResourceExecutor(
+            sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
+            sp.GetRequiredService<IClientResourceConsent>(),
+            sp.GetService<IConsentedFolderRootProvider>(),
+            logger: sp.GetService<global::Microsoft.Extensions.Logging.ILogger<LocalPcResourceExecutor>>()));
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());

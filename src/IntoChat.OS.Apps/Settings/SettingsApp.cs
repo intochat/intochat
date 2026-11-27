@@ -35,6 +35,7 @@ using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -104,6 +105,24 @@ public sealed record SettingsMcpAdd(string? Name = null, string? Url = null, str
 [Signal("settings.mcp-remove")]
 public sealed record SettingsMcpRemove(string? Name = null) : Signal;
 
+[Signal("settings.launch-browser-pairing")]
+public sealed record SettingsLaunchBrowserPairing(string? CloudUrl = null) : Signal;
+
+[Signal("settings.toggle-manual-pairing")]
+public sealed record SettingsToggleManualPairing : Signal;
+
+[Signal("settings.pair-device")]
+public sealed record SettingsPairDevice(string? Server = null, string? Code = null) : Signal;
+
+[Signal("settings.disconnect-device")]
+public sealed record SettingsDisconnectDevice : Signal;
+
+[Signal("settings.mint-enrollment-code")]
+public sealed record SettingsMintEnrollmentCode(string? ServerUrl = null) : Signal;
+
+[Signal("settings.revoke-enrolled-device")]
+public sealed record SettingsRevokeEnrolledDevice(string MachineId = "") : Signal;
+
 [Neuron("app.settings")]
 [Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 10)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
@@ -124,6 +143,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Key = "approvals/index", Required = false)] private partial IApprovals? Approvals { get; }
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
     [Slot(Key = "device-link", Required = false)] private partial IDeviceLink? DeviceLink { get; }
+    [Slot(Key = "device-enrollment", Required = false)] private partial IDeviceEnrollment? DeviceEnrollment { get; }
     [Slot(Required = false)] private partial SlotCollection<IConnectionInbound> ConnectionInbounds { get; }
     [Slot(Required = false)] private partial SlotCollection<IConnection> Connections { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
@@ -135,7 +155,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
     private MachineId? ThisMachine { get; }
 
-    public SettingsApp() : this(null, null, null, null, null, null, null) { }
+    public SettingsApp() : this(null, null, null, null, null, null, null, null, null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
     public SettingsApp(
@@ -145,7 +165,11 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         IBrainObserver? observer = null,
         IOptions<WebModuleOptions>? webOptions = null,
         IOptions<McpModuleOptions>? mcpOptions = null,
-        IClientCodeSandboxConsent? clientComputeConsent = null)
+        IClientCodeSandboxConsent? clientComputeConsent = null,
+        IClientResourceConsent? clientResourceConsent = null,
+        IConnectedComputeRouter? connectedComputeRouter = null,
+        IConfiguration? configuration = null,
+        Action<Uri>? openBrowser = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
@@ -154,6 +178,10 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         WebOptions = webOptions;
         McpOptions = mcpOptions;
         ClientComputeConsent = clientComputeConsent;
+        ClientResourceConsent = clientResourceConsent;
+        ConnectedComputeRouter = connectedComputeRouter;
+        Configuration = configuration;
+        OpenBrowserAction = openBrowser;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -219,6 +247,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         await FollowChild<IFormControl, Submitted>(SettingsControls.McpAddForm);
         await FollowChild<IFormControl, Submitted>(SettingsControls.ApiKeys);
         await FollowChild<IFormControl, Submitted>(SettingsControls.GitHubPat);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.PairDevice);
         if (ThisMachine is { Value.Length: > 0 } machine)
         {
             try
@@ -272,6 +301,40 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             catch (Exception ex)
             {
                 IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping IDeviceLink.SetAllowClientCodeSandbox in minimal test host.");
+            }
+#pragma warning restore CA1031
+        }
+        else if (string.Equals(toggle.Key, SettingsControls.AllowWindowsFolderGateway, StringComparison.Ordinal))
+        {
+            ClientResourceConsent?.SetAllowWindowsFolderGateway(toggled.IsOn);
+            try
+            {
+                if (DeviceLink is { } link)
+                {
+                    await link.SetAllowWindowsFolderGateway(toggled.IsOn);
+                }
+            }
+#pragma warning disable CA1031 // Device link neuron is optional in minimal test hosts.
+            catch (Exception ex)
+            {
+                IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping IDeviceLink.SetAllowWindowsFolderGateway in minimal test host.");
+            }
+#pragma warning restore CA1031
+        }
+        else if (string.Equals(toggle.Key, SettingsControls.AllowConsole, StringComparison.Ordinal))
+        {
+            ClientResourceConsent?.SetAllowConsole(toggled.IsOn);
+            try
+            {
+                if (DeviceLink is { } link)
+                {
+                    await link.SetAllowConsole(toggled.IsOn);
+                }
+            }
+#pragma warning disable CA1031 // Device link neuron is optional in minimal test hosts.
+            catch (Exception ex)
+            {
+                IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping IDeviceLink.SetAllowConsole in minimal test host.");
             }
 #pragma warning restore CA1031
         }
@@ -329,6 +392,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             SettingsControls.McpAddForm => McpAdd(new SettingsMcpAdd(Value("name"), Value("url"))),
             SettingsControls.ApiKeys => SealApiKeysAsync(submitted.SecretRefs),
             SettingsControls.GitHubPat => ConnectGitHubAsync(Value("Repository"), Value("ConnectionSlug"), submitted.SecretRefs),
+            SettingsControls.PairDevice => PairDevice(new SettingsPairDevice(Value("server"), Value("code"))),
             _ => Task.CompletedTask,
         };
     }
@@ -357,6 +421,10 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public IOptions<WebModuleOptions>? WebOptions { get; set; }
     public IOptions<McpModuleOptions>? McpOptions { get; set; }
     public IClientCodeSandboxConsent? ClientComputeConsent { get; set; }
+    public IClientResourceConsent? ClientResourceConsent { get; set; }
+    public IConnectedComputeRouter? ConnectedComputeRouter { get; set; }
+    public IConfiguration? Configuration { get; set; }
+    public Action<Uri>? OpenBrowserAction { get; set; }
 
     private ILogger Log => GetLogger();
 

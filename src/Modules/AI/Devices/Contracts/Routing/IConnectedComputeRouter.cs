@@ -60,8 +60,26 @@ public static class ClientComputeConsentPolicy
     /// <summary>Persisted user settings variable key backing the Connected Client Compute toggle.</summary>
     public const string SettingsVariableKey = "settings.toggle." + SettingsToggleKey;
 
+    /// <summary>Settings toggle child key for Mode B consented Windows folder relay access.</summary>
+    public const string AllowWindowsFolderGatewayToggleKey = "allow-windows-folder-gateway";
+
+    /// <summary>Persisted user settings variable key backing the Mode B consented folders toggle.</summary>
+    public const string AllowWindowsFolderGatewayVariableKey = "settings.toggle." + AllowWindowsFolderGatewayToggleKey;
+
+    /// <summary>Settings toggle child key for Mode B [PersonOnly] Windows shell relay access.</summary>
+    public const string AllowConsoleToggleKey = "allow-console";
+
+    /// <summary>Persisted user settings variable key backing the Mode B [PersonOnly] shell toggle.</summary>
+    public const string AllowConsoleVariableKey = "settings.toggle." + AllowConsoleToggleKey;
+
     /// <summary>Canonical capability identifier advertised over the paired P-256 relay.</summary>
     public const string CodeSandboxCapability = ICodeSandbox.CapabilityId;
+
+    /// <summary>Mode B capability identifier for consented Windows folders over the Circle relay.</summary>
+    public const string WindowsFolderGatewayCapability = "IWindowsFolderGateway";
+
+    /// <summary>Mode B capability identifier for [PersonOnly]-gated Windows console over the Circle relay.</summary>
+    public const string ConsoleCapability = "IConsole";
 
     public static ClientDevicePlatform DetectCurrentPlatform()
     {
@@ -151,8 +169,40 @@ public static class ClientComputeConsentPolicy
         => advertisedCapabilities is { Length: > 0 }
             && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), CodeSandboxCapability, StringComparison.Ordinal));
 
+    public static bool HasWindowsFolderGatewayCapability(string[]? advertisedCapabilities)
+        => advertisedCapabilities is { Length: > 0 }
+            && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), WindowsFolderGatewayCapability, StringComparison.Ordinal));
+
+    public static bool HasConsoleCapability(string[]? advertisedCapabilities)
+        => advertisedCapabilities is { Length: > 0 }
+            && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), ConsoleCapability, StringComparison.Ordinal));
+
     public static string[] CapabilitiesFor(bool advertiseCodeSandbox)
-        => advertiseCodeSandbox ? [CodeSandboxCapability] : [];
+        => CapabilitiesFor(advertiseCodeSandbox, advertiseWindowsFolderGateway: false, advertiseConsole: false);
+
+    public static string[] CapabilitiesFor(
+        bool advertiseCodeSandbox,
+        bool advertiseWindowsFolderGateway,
+        bool advertiseConsole)
+    {
+        var list = new List<string>(3);
+        if (advertiseCodeSandbox)
+        {
+            list.Add(CodeSandboxCapability);
+        }
+
+        if (advertiseWindowsFolderGateway)
+        {
+            list.Add(WindowsFolderGatewayCapability);
+        }
+
+        if (advertiseConsole)
+        {
+            list.Add(ConsoleCapability);
+        }
+
+        return [.. list];
+    }
 
     public static bool IsEligibleForCodeSandbox(
         ComputeConsentMode consentMode,
@@ -217,7 +267,11 @@ public sealed record ComputeCapabilityAdvertisement(
     [property: Id(7)] DateTimeOffset HeartbeatAt,
     [property: Id(8)] string? KeyThumbprint = null,
     [property: Id(9)] bool AllowClientCodeSandbox = false,
-    [property: Id(10)] string[]? AdvertisedCapabilities = null);
+    [property: Id(10)] string[]? AdvertisedCapabilities = null,
+    [property: Id(11)] bool AllowWindowsFolderGateway = false,
+    [property: Id(12)] bool AllowConsole = false,
+    [property: Id(13)] string[]? ConsentedFolderLabels = null,
+    [property: Id(14)] bool ConsoleRequiresPersonApproval = true);
 
 /// <summary>Observed online/offline status and compute capability of an enrolled device belonging to a brain.</summary>
 [GenerateSerializer, Alias("devices.compute.node")]
@@ -232,11 +286,23 @@ public sealed record ConnectedComputeNode(
     [property: Id(7)] DateTimeOffset LastHeartbeatAt,
     [property: Id(8)] string? KeyThumbprint = null,
     [property: Id(9)] bool AllowClientCodeSandbox = false,
-    [property: Id(10)] string[]? AdvertisedCapabilities = null)
+    [property: Id(10)] string[]? AdvertisedCapabilities = null,
+    [property: Id(11)] bool AllowWindowsFolderGateway = false,
+    [property: Id(12)] bool AllowConsole = false,
+    [property: Id(13)] string[]? ConsentedFolderLabels = null,
+    [property: Id(14)] bool ConsoleRequiresPersonApproval = true)
 {
     /// <summary>True when this node explicitly advertises the <see cref="ICodeSandbox"/> capability.</summary>
     public bool AdvertisesCodeSandbox =>
         ClientComputeConsentPolicy.HasCodeSandboxCapability(AdvertisedCapabilities);
+
+    /// <summary>True when this node explicitly advertises <c>IWindowsFolderGateway</c>.</summary>
+    public bool AdvertisesWindowsFolderGateway =>
+        ClientComputeConsentPolicy.HasWindowsFolderGatewayCapability(AdvertisedCapabilities);
+
+    /// <summary>True when this node explicitly advertises <c>IConsole</c> ([PersonOnly]-gated).</summary>
+    public bool AdvertisesConsole =>
+        ClientComputeConsentPolicy.HasConsoleCapability(AdvertisedCapabilities);
 
     /// <summary>
     /// True only when the node is online, advertises local sandbox readiness, and satisfies RFC-2 consent enforcement
@@ -250,6 +316,18 @@ public sealed record ConnectedComputeNode(
             AllowClientCodeSandbox,
             SandboxReady,
             AdvertisedCapabilities);
+
+    /// <summary>True only when the node is online and explicitly consents to Mode B folder relay access.</summary>
+    public bool IsEligibleForWindowsFolderGateway =>
+        Status == ComputeNodeStatus.Online
+        && AllowWindowsFolderGateway
+        && AdvertisesWindowsFolderGateway;
+
+    /// <summary>True only when the node is online and explicitly consents to Mode B [PersonOnly] console relay access.</summary>
+    public bool IsEligibleForConsole =>
+        Status == ComputeNodeStatus.Online
+        && AllowConsole
+        && AdvertisesConsole;
 }
 
 /// <summary>Routing decision produced by <see cref="IConnectedComputeRouter"/> for a brain's sandbox dispatch.</summary>
@@ -380,4 +458,15 @@ public interface IConnectedComputeRouter
         BrainId brainId,
         ConnectedSandboxRequest request,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Dispatches a Mode B PC resource operation (consented folder or [PersonOnly]-approved console)
+    /// to an online consented connected PC. Returns <see langword="null"/> if no eligible device is online.
+    /// </summary>
+    Task<ConnectedResourceResponse?> TryExecuteResourceOnConnectedClientAsync(
+        BrainId brainId,
+        ConnectedResourceRequest request,
+        string? preferredMachineId = null,
+        CancellationToken ct = default)
+        => Task.FromResult<ConnectedResourceResponse?>(null);
 }

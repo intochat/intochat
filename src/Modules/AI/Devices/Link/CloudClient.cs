@@ -225,6 +225,61 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<ConnectedResourceResponse?> DispatchBrainResourceAsync(
+        BrainResourceDispatchRequest dispatch,
+        TimeSpan availabilityTimeout,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(dispatch);
+        using var availabilityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        availabilityCts.CancelAfter(availabilityTimeout);
+
+        using var response = await SendSignedAsync(
+            HttpMethod.Post,
+            DeviceRoutes.ResourceDispatch,
+            () => JsonContent(dispatch, DeviceWireJson.Default.BrainResourceDispatchRequest),
+            availabilityCts.Token,
+            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedResourceResponse, ct).ConfigureAwait(false);
+    }
+
+    public async Task<ConnectedResourceRequest?> PollNextResourceAsync(CancellationToken ct = default)
+    {
+        using var response = await SendSignedAsync(
+            HttpMethod.Get,
+            DeviceRoutes.ResourceNext,
+            createContent: null,
+            ct).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedResourceRequest, ct).ConfigureAwait(false);
+    }
+
+    public async Task ReportResourceResultAsync(string jobId, ConnectedResourceResponse result, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        ArgumentNullException.ThrowIfNull(result);
+        using var response = await SendSignedAsync(
+            HttpMethod.Post,
+            DeviceRoutes.ResourceResultFor(jobId),
+            () => JsonContent(result, DeviceWireJson.Default.ConnectedResourceResponse),
+            ct).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task StreamAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);

@@ -17,7 +17,7 @@ internal sealed class RelayConnectedComputeTransport(
     CloudClient cloud,
     DeviceCredentials credentials,
     IOptionsMonitor<DevicesOptions>? options = null,
-    CloudRelayServiceClient? serviceRelay = null) : IConnectedComputeTransport
+    CloudRelayServiceClient? serviceRelay = null) : IConnectedComputeTransport, IConnectedResourceTransport
 {
     public async Task<bool> ProbeAsync(
         BrainId brainId,
@@ -41,11 +41,13 @@ internal sealed class RelayConnectedComputeTransport(
 
         return response.Nodes.Any(advertised =>
             string.Equals(advertised.MachineId, node.MachineId, StringComparison.Ordinal)
-            && ClientComputeConsentPolicy.IsEligibleForCodeSandbox(
-                advertised.ConsentMode,
-                advertised.AllowClientCodeSandbox,
-                advertised.SandboxReady,
-                advertised.AdvertisedCapabilities));
+            && (ClientComputeConsentPolicy.IsEligibleForCodeSandbox(
+                    advertised.ConsentMode,
+                    advertised.AllowClientCodeSandbox,
+                    advertised.SandboxReady,
+                    advertised.AdvertisedCapabilities)
+                || (advertised.AllowWindowsFolderGateway && ClientComputeConsentPolicy.HasWindowsFolderGatewayCapability(advertised.AdvertisedCapabilities))
+                || (advertised.AllowConsole && ClientComputeConsentPolicy.HasConsoleCapability(advertised.AdvertisedCapabilities))));
     }
 
     public async Task<ConnectedSandboxResponse?> ExecuteAsync(
@@ -68,6 +70,26 @@ internal sealed class RelayConnectedComputeTransport(
             ? await cloud.DispatchBrainSandboxAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false)
             : await serviceRelay!.DispatchBrainSandboxAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false);
     }
+
+    public async Task<ConnectedResourceResponse?> ExecuteResourceAsync(
+        BrainId brainId,
+        ConnectedComputeNode node,
+        ConnectedResourceRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(request);
+        if (await credentials.Read(ct).ConfigureAwait(false) is null)
+        {
+            return null;
+        }
+
+        var timeoutMs = Math.Clamp(options?.CurrentValue.Compute.AvailabilityTimeoutMs ?? 400, 50, 500);
+        return await cloud.DispatchBrainResourceAsync(
+            new BrainResourceDispatchRequest(brainId.Value, node.MachineId, request),
+            TimeSpan.FromMilliseconds(timeoutMs),
+            ct).ConfigureAwait(false);
+    }
 }
 
 /// <summary>
@@ -83,7 +105,8 @@ internal sealed class ConnectedComputeRouter(
     TimeProvider? clock = null,
     IConnectedComputeTransport? transport = null,
     ILogger<ConnectedComputeRouter>? logger = null,
-    CloudRelayServiceClient? serviceRelay = null) : IConnectedComputeRouter
+    CloudRelayServiceClient? serviceRelay = null,
+    IConnectedResourceTransport? resourceTransport = null) : IConnectedComputeRouter
 {
     internal static readonly TimeSpan RelayCacheFor = TimeSpan.FromSeconds(5);
 
@@ -136,6 +159,12 @@ internal sealed class ConnectedComputeRouter(
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
+        var folderLabels = advertisement.ConsentedFolderLabels?
+            .Where(static l => !string.IsNullOrWhiteSpace(l))
+            .Select(static l => l.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         var tracked = new TrackedComputeNode(
             BrainId: brainId.Value,
             MachineId: advertisement.MachineId.Trim(),
@@ -147,6 +176,10 @@ internal sealed class ConnectedComputeRouter(
             KeyThumbprint: advertisement.KeyThumbprint,
             AllowClientCodeSandbox: advertisement.AllowClientCodeSandbox,
             AdvertisedCapabilities: capabilities,
+            AllowWindowsFolderGateway: advertisement.AllowWindowsFolderGateway,
+            AllowConsole: advertisement.AllowConsole,
+            ConsentedFolderLabels: folderLabels,
+            ConsoleRequiresPersonApproval: advertisement.ConsoleRequiresPersonApproval,
             ExplicitlyOffline: false);
 
         brainNodes[tracked.MachineId] = tracked;
@@ -319,6 +352,72 @@ internal sealed class ConnectedComputeRouter(
         return null;
     }
 
+    public async Task<ConnectedResourceResponse?> TryExecuteResourceOnConnectedClientAsync(
+        BrainId brainId,
+        ConnectedResourceRequest request,
+        string? preferredMachineId = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId.Value);
+        ArgumentNullException.ThrowIfNull(request);
+        ct.ThrowIfCancellationRequested();
+
+        var effectiveResourceTransport = resourceTransport ?? transport as IConnectedResourceTransport;
+        if (effectiveResourceTransport is null)
+        {
+            return null;
+        }
+
+        var nodes = await ListNodesAsync(brainId, ct).ConfigureAwait(false);
+        var isConsole = request.Kind == ConnectedResourceKind.ConsoleRun;
+        var candidates = nodes
+            .Where(n => isConsole ? n.IsEligibleForConsole : n.IsEligibleForWindowsFolderGateway)
+            .Where(n => string.IsNullOrWhiteSpace(preferredMachineId)
+                || string.Equals(n.MachineId, preferredMachineId.Trim(), StringComparison.Ordinal))
+            .ToArray();
+        if (candidates.Length == 0)
+        {
+            return null;
+        }
+
+        var availabilityBudget = AvailabilityTimeout;
+        foreach (var candidate in candidates)
+        {
+            if (transport is not null && !await ProbeWithinBudgetAsync(brainId, candidate, availabilityBudget, ct).ConfigureAwait(false))
+            {
+                await MarkOfflineAsync(brainId, candidate.MachineId, ct).ConfigureAwait(false);
+                continue;
+            }
+
+            try
+            {
+                var response = await effectiveResourceTransport.ExecuteResourceAsync(brainId, candidate, request, ct).ConfigureAwait(false);
+                if (response is null)
+                {
+                    await MarkOfflineAsync(brainId, candidate.MachineId, ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                return string.IsNullOrWhiteSpace(response.ExecutedByMachineId)
+                    ? response with { ExecutedByMachineId = candidate.MachineId }
+                    : response;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error) when (IsDisconnectOrUnavailable(error, ct))
+            {
+                (logger ?? OsConsoleLog.For<ConnectedComputeRouter>()).LogSwallowed(
+                    error,
+                    $"connected client '{candidate.MachineId}' failed during Mode B resource dispatch for brain '{brainId.Value}'");
+                await MarkOfflineAsync(brainId, candidate.MachineId, ct).ConfigureAwait(false);
+            }
+        }
+
+        return null;
+    }
+
     private async Task<ProofResult> RecordAndReturnValidAsync(
         BrainId brainId,
         ComputeCapabilityAdvertisement advertisement,
@@ -436,7 +535,11 @@ internal sealed class ConnectedComputeRouter(
             LastHeartbeatAt: tracked.LastHeartbeatAt,
             KeyThumbprint: tracked.KeyThumbprint,
             AllowClientCodeSandbox: tracked.AllowClientCodeSandbox,
-            AdvertisedCapabilities: tracked.AdvertisedCapabilities);
+            AdvertisedCapabilities: tracked.AdvertisedCapabilities,
+            AllowWindowsFolderGateway: tracked.AllowWindowsFolderGateway,
+            AllowConsole: tracked.AllowConsole,
+            ConsentedFolderLabels: tracked.ConsentedFolderLabels,
+            ConsoleRequiresPersonApproval: tracked.ConsoleRequiresPersonApproval);
     }
 
     private sealed record TrackedComputeNode(
@@ -450,5 +553,9 @@ internal sealed class ConnectedComputeRouter(
         string? KeyThumbprint,
         bool AllowClientCodeSandbox,
         string[]? AdvertisedCapabilities,
+        bool AllowWindowsFolderGateway,
+        bool AllowConsole,
+        string[]? ConsentedFolderLabels,
+        bool ConsoleRequiresPersonApproval,
         bool ExplicitlyOffline);
 }
