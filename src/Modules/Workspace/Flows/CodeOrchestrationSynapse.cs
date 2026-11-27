@@ -160,7 +160,7 @@ internal sealed partial class CodeOrchestrationSynapse(
         CancellationToken ct = default)
     {
         var caller = Context.Caller;
-        var viaInoShell = caller is { Actor: DigitalBrain.Access.Actor.Person, For.Principal.Length: > 0 }
+        var viaInoShell = caller is { Actor: DigitalBrain.Access.Actor.Person, Inside: true, Conversation: null, For.Principal.Length: > 0 }
             && caller.Brain == Id.Brain
             && caller.Via is { Type: "app.ino" } via
             && via.Brain == Id.Brain;

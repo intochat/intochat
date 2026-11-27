@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -366,6 +367,89 @@ public sealed class CodeOrchestrationSecurityFacts
         using (os.Edge.Enter(os.Edge.Person("other", "other", new BrainId("other-brain"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+    }
+
+    public interface ITestInoCrystallizeRelay
+    {
+        Task<CrystallizedAppReceipt> RelayCrystallizeAsync(NeuronId flowId, string alias, string title, CancellationToken ct = default);
+    }
+
+    [Neuron("app.ino")]
+    private sealed class TestInoCrystallizeRelay : Neuron, ITestInoCrystallizeRelay
+    {
+        public Task<CrystallizedAppReceipt> RelayCrystallizeAsync(NeuronId flowId, string alias, string title, CancellationToken ct = default)
+            => Context.Get<ICodeOrchestration>(flowId).CrystallizeAsync(alias, title, ct);
+    }
+
+    [Fact]
+    public async Task CrystallizeAsync_EnforcesViaInoShellRelayBoundary()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var bridge = new RecordingSandboxBridge();
+        await using var os = CreateTestOs(new CodeOrchestrationAstSanitizer(), bridge)
+            .Register<TestInoCrystallizeRelay>();
+
+        var brain = new BrainId("orch-via-ino-boundary");
+        var otherBrain = new BrainId("other-brain");
+        var flowId = new NeuronId(brain, CodeOrchestrationSynapse.Alias, "run-cryst-relay");
+        var neuron = os.Get<ICodeOrchestration>(flowId);
+        var sameBrainIno = new NeuronId(brain, "app.ino", "default");
+        var sameBrainFriends = new NeuronId(brain, "app.friends", "default");
+        var crossBrainIno = new NeuronId(otherBrain, "app.ino", "default");
+
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
+        {
+            _ = await neuron.RunAsync("Digest", "Run digest", allowedContracts: ["notifications"], preauthoredScript: CleanNotificationScript, ct: ct);
+            await os.Idle();
+        }
+
+        // REJECT: null / unstamped caller
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+
+        // REJECT: Conversation != null even when Inside=true and Via=app.ino
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", brain, via: sameBrainIno, conversation: "main", inside: true)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+
+        // REJECT: Inside == false with Via=app.ino
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", brain, via: sameBrainIno, conversation: null, inside: false)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+
+        // REJECT: Via.Type != "app.ino" (e.g., app.friends)
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", brain, via: sameBrainFriends, conversation: null, inside: true)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+
+        // REJECT: Via.Brain != Id.Brain (cross-brain app.ino)
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", brain, via: crossBrainIno, conversation: null, inside: true)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+
+        // REJECT: Actor.Agent relayed through a real same-brain app.ino hop (Inside=true, Via=app.ino)
+        var relay = os.Get<ITestInoCrystallizeRelay>(sameBrainIno);
+        using (os.Edge.Enter(os.Edge.Agent(new DigitalBrain.Access.Actor.Person("owner", "owner"), brain)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => relay.RelayCrystallizeAsync(flowId, "daily.digest", "Daily Digest", ct));
+        }
+
+        // ALLOW: Direct person (Inside=false, Via=null, Conversation=null)
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
+        {
+            var directReceipt = await neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct);
+            Assert.True(directReceipt.Succeeded);
+        }
+
+        // ALLOW: Same-brain app.ino-relayed person (Actor.Person, Inside=true, Conversation=null, Via={Brain==Id.Brain, Type=="app.ino"})
+        using (os.Edge.Enter(os.Edge.RelayedPerson("owner", "owner", brain, via: sameBrainIno, conversation: null, inside: true)))
+        {
+            var relayedReceipt = await neuron.CrystallizeAsync("daily.digest.relayed", "Daily Digest Relayed", ct);
+            Assert.True(relayedReceipt.Succeeded);
         }
     }
 }

@@ -70,7 +70,7 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
         var ct = TestContext.Current.CancellationToken;
         await using var context = await host.NewBrowserContextAsync(ViewportWidth, ViewportHeight, ct);
         var page = await context.NewPageAsync();
-        var httpErrors = TrackHttpErrors(page, ignoreRoomChecklistEmbed403: true);
+        var httpErrors = TrackHttpErrors(page);
 
         try
         {
@@ -387,7 +387,7 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
 
         await using var context = await host.NewBrowserContextAsync(ViewportWidth, ViewportHeight, ct);
         var page = await context.NewPageAsync();
-        var httpErrors = TrackHttpErrors(page, ignoreRoomChecklistEmbed403: true);
+        var httpErrors = TrackHttpErrors(page);
 
         try
         {
@@ -432,6 +432,7 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
 
         await using var context = await host.NewBrowserContextAsync(ViewportWidth, ViewportHeight, ct);
         var page = await context.NewPageAsync();
+        // FriendsApp embeds pinned room.checklist via /apps/node, which intentionally returns 403 for direct node loads in #526 (mutations route through IRoom.Act).
         var httpErrors = TrackHttpErrors(page, ignoreRoomChecklistEmbed403: true);
 
         try

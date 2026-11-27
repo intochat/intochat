@@ -224,8 +224,7 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedOption);
         var caller = RequireSameBrain(() => new UnauthorizedAccessException("Only a signed-in person of this brain may answer a task question."));
         var answerer = Answerer.Of(caller, Id.Brain);
-        var viaInoShell = caller.Actor is Actor.Person
-            && caller.For is { Principal.Length: > 0 }
+        var viaInoShell = caller is { Actor: Actor.Person, Inside: true, Conversation: null, For.Principal.Length: > 0 }
             && caller.Brain == Id.Brain
             && caller.Via is { Type: "app.ino" } via
             && via.Brain == Id.Brain;
