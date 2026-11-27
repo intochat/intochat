@@ -14,7 +14,7 @@ using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Capabilities.Secrets;
-using IntoChat.OS.Host.Surface;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -139,7 +139,7 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
         {
             services.AddSingleton<IChatClient>(StubChatClient.StreamingOnly(Endless));
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(new NeuronSurface());
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

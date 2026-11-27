@@ -51,6 +51,37 @@ public sealed class NeuronBinder(int maximumArgumentBytes = NeuronBinder.Default
         };
     }
 
+    /// <summary>
+    /// Deserializes an <see cref="ArrangedCall"/>'s JSON arguments into CLR values matching <see cref="ArrangedCall.Method"/>'s parameter list,
+    /// injecting <paramref name="cancellationToken"/> into every <see cref="CancellationToken"/> parameter slot.
+    /// </summary>
+    public static object?[] DeserializeArguments(ArrangedCall call, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        var parameters = call.Method.GetParameters();
+        var values = new object?[parameters.Length];
+        for (int index = 0, argument = 0; index < parameters.Length; index++)
+        {
+            var parameter = parameters[index];
+            if (parameter.ParameterType == typeof(CancellationToken))
+            {
+                values[index] = cancellationToken;
+                continue;
+            }
+
+            try
+            {
+                values[index] = RuntimeProtocol.Deserialize(call.Arguments[argument++], parameter.ParameterType);
+            }
+            catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException)
+            {
+                throw new ArgumentException($"Argument {argument - 1} of {call.Method.Name}: {error.Message}", nameof(call), error);
+            }
+        }
+
+        return values;
+    }
+
     /// <exception cref="BindingException">No method, more than one, wrong arguments or arguments over the bound.</exception>
     internal CallDescriptor Bind(Type contract, RuntimeInvocation call)
     {

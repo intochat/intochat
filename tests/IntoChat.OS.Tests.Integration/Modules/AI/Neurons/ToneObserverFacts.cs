@@ -2,8 +2,8 @@ using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Testing;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
@@ -102,7 +102,7 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
         {
             services.AddSingleton<IChatClient>(StubChatClient.Replying("ok"));
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(new NeuronSurface());
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

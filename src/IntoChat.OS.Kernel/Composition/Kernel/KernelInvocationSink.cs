@@ -75,39 +75,13 @@ public sealed class KernelInvocationSink(
         await foreach (var item in host.Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
     }
 
-    // A contract by its wire name: one registered, else a loaded interface of that full name, else a loaded interface whose
-    // [NeuronAlias] it is. The alias step matters for the access policy: a neuron's own Get never registers its contract, so
-    // without it a module-internal contract read the owner rule in a process where no IPlainNeurons.Get named it first.
+    // A contract by its wire name: one registered, else a loaded interface of that full name or [NeuronAlias] via LoadedContracts.
     internal static Type? ContractOf(string name)
     {
         if (Contracts.TryGetValue(name, out var known)) { return known; }
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic).ToArray();
-        var found = assemblies.Select(assembly => assembly.GetType(name, throwOnError: false)).FirstOrDefault(type => type is { IsInterface: true })
-            ?? assemblies.Where(References)
-                .SelectMany(Loadable).FirstOrDefault(type => type.IsInterface
-                    && type.GetCustomAttribute<DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false) is { } alias
-                    && (alias.Alias == name || alias.Formerly.Contains(name, StringComparer.Ordinal)));
+        var found = DigitalBrain.Runtime.Http.Surface.LoadedContracts.TryFindInterface(name);
         if (found is not null) { Contracts.TryAdd(name, found); }
         return found;
-    }
-
-    // Only assemblies that can declare a contract (they reference DigitalBrain) are scanned for aliases.
-    private static bool References(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetReferencedAssemblies().Any(reference => reference.Name == typeof(DigitalBrain.Contracts.NeuronAliasAttribute).Assembly.GetName().Name);
-        }
-        catch (PlatformNotSupportedException)
-        {
-            return true;
-        }
-    }
-
-    private static IEnumerable<Type> Loadable(Assembly assembly)
-    {
-        try { return assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
     }
 
     private async Task<INeuronHost> Host(DigitalBrain.NeuronId target, CancellationToken cancellationToken)

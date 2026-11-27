@@ -1,7 +1,7 @@
 using System.Text;
 using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Host.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -34,7 +34,7 @@ public static class KernelPlatformHosting
         services.TryAddSingleton<IBrainKeyCustody>(provider => new MasterKeyBrainCustodyAdapter(provider.GetRequiredService<IMasterKeyCustody>()));
         services.TryAddSingleton<BrainStorageKeys>();
         services.AddGrpc();
-        services.TryAddSingleton<OsNeuronSurface>();
+        services.TryAddSingleton<NeuronSurface>();
     }
 
     public static IEndpointRouteBuilder MapKernelPlatform(this IEndpointRouteBuilder endpoints)

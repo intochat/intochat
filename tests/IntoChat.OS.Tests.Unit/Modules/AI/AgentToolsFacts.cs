@@ -1,6 +1,6 @@
 using System.Text.Json;
 using DigitalBrain.Contracts;
-using IntoChat.OS.Host.Surface;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.CodeBlocks;
@@ -57,7 +57,7 @@ public sealed class AgentToolsFacts
     [Fact]
     public void MetaExposesOnlySearchListAndContext()
     {
-        var meta = AgentTools.Meta(null, new OsNeuronSurface(null!, null!, null!), "conv-1");
+        var meta = AgentTools.Meta(null, new NeuronSurface(), "conv-1");
         Assert.Equal(["neurons_search", "neurons_list", "neurons_context"], meta.Select(static t => t.Name));
     }
 }

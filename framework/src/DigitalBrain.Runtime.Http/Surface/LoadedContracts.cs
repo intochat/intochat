@@ -2,108 +2,307 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
 
 namespace DigitalBrain.Runtime.Http.Surface;
 
 /// <summary>
-/// The CLR contract behind a neuron type, from what this process references.
+/// Resolves CLR neuron contract interfaces and hosted neuron types from an explicit exact-assembly catalog
+/// (or from currently loaded non-dynamic assemblies when no explicit allowlist is supplied).
 /// </summary>
 public static class LoadedContracts
 {
-    private static readonly string[] DefaultPrefixes = ["DigitalBrain"];
-    private static readonly IReadOnlyDictionary<string, Type> EmptyFormer = new Dictionary<string, Type>(StringComparer.Ordinal);
-    private static readonly ConditionalWeakTable<Assembly, IReadOnlyDictionary<string, Type>> FormerByAssembly = [];
-    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Type?>> Found = new(StringComparer.Ordinal);
+    private static readonly string DigitalBrainAssemblyName = typeof(NeuronAliasAttribute).Assembly.GetName().Name!;
+    private static readonly ConditionalWeakTable<Assembly, AssemblyContractIndex> Indexes = [];
+    private static readonly ConcurrentDictionary<Type, string> ResolvedNeuronTypes = new();
 
+    /// <summary>Finds a plain neuron contract by full name, alias, or former name across currently loaded assemblies.</summary>
     public static Type Find(string name)
-        => Find(name, allowedPrefixes: null);
+        => Find(name, assemblies: (IEnumerable<Assembly>?)null);
 
-    public static Type Find(string name, string[]? allowedPrefixes)
+    /// <summary>Finds a plain neuron contract within the exact assemblies supplied by <paramref name="source"/>.</summary>
+    public static Type Find(string name, IContractAssemblySource? source)
+        => Find(name, source?.ContractAssemblies());
+
+    /// <summary>Finds a plain neuron contract within the exact <paramref name="assemblies"/> (or loaded assemblies when null).</summary>
+    public static Type Find(string name, IEnumerable<Assembly>? assemblies)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return Resolve(name, allowedPrefixes)
+        return TryFind(name, assemblies)
             ?? throw new TypeLoadException($"{name} is a neuron type of this brain, but this host does not carry its contract.");
     }
 
-    /// <summary>Maps a contract's former alias or full type name to its current full type name, or returns <paramref name="name"/> unchanged.</summary>
-    public static string CurrentName(string name)
-        => CurrentName(name, allowedPrefixes: null);
-
-    /// <summary>Maps a contract's former alias or full type name to its current full type name using <paramref name="allowedPrefixes"/>, or returns <paramref name="name"/> unchanged.</summary>
-    public static string CurrentName(string name, string[]? allowedPrefixes)
-        => string.IsNullOrWhiteSpace(name) ? name : Resolve(name, allowedPrefixes)?.FullName ?? name;
-
-    private static Type? Resolve(string name, string[]? allowedPrefixes)
+    /// <summary>Finds a plain neuron contract within assemblies whose simple names exactly match <paramref name="allowedAssemblyNames"/>.</summary>
+    public static Type Find(string name, IReadOnlyCollection<string>? allowedAssemblyNames)
     {
-        var prefixes = NormalizePrefixes(allowedPrefixes);
-        var cacheKey = string.Join('\0', prefixes);
-        var cache = Found.GetOrAdd(cacheKey, static _ => new ConcurrentDictionary<string, Type?>(StringComparer.Ordinal));
-        return cache.GetOrAdd(name, static (typeName, p) => Search(typeName, p), prefixes);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return TryFind(name, allowedAssemblyNames)
+            ?? throw new TypeLoadException($"{name} is a neuron type of this brain, but this host does not carry its contract.");
     }
 
-    private static string[] NormalizePrefixes(string[]? allowedPrefixes)
-    {
-        if (allowedPrefixes is null || allowedPrefixes.Length == 0) { return DefaultPrefixes; }
-        var normalized = allowedPrefixes
-            .Where(static prefix => !string.IsNullOrWhiteSpace(prefix))
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        return normalized.Length > 0 ? normalized : DefaultPrefixes;
-    }
+    /// <summary>Tries to resolve a plain neuron contract within <paramref name="source"/> (or loaded assemblies when null).</summary>
+    public static Type? TryFind(string name, IContractAssemblySource? source = null)
+        => TryFind(name, source?.ContractAssemblies());
 
-    private static Type? Search(string name, string[] prefixes)
-        => Loaded(name) ?? (LoadReferenced(prefixes) ? Loaded(name) : null);
-
-    private static Type? Loaded(string name)
+    /// <summary>Tries to resolve a plain neuron contract within the exact <paramref name="assemblies"/> (or loaded assemblies when null).</summary>
+    public static Type? TryFind(string name, IEnumerable<Assembly>? assemblies)
     {
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(static assembly => !assembly.IsDynamic).ToArray();
-        var exact = assemblies
-            .Select(assembly => assembly.GetType(name, throwOnError: false))
-            .FirstOrDefault(static type => type is not null && PlainNeuronContracts.Is(type));
-        if (exact is not null)
+        if (string.IsNullOrWhiteSpace(name))
         {
-            return exact;
+            return null;
+        }
+
+        var scope = assemblies is not null
+            ? [.. assemblies.Where(static assembly => assembly is not null && !assembly.IsDynamic).Distinct()]
+            : LoadedAssemblies();
+        return SearchPlain(name, scope);
+    }
+
+    /// <summary>Tries to resolve a plain neuron contract within assemblies whose simple names exactly match <paramref name="allowedAssemblyNames"/>.</summary>
+    public static Type? TryFind(string name, IReadOnlyCollection<string>? allowedAssemblyNames)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (allowedAssemblyNames is null)
+        {
+            return SearchPlain(name, LoadedAssemblies());
+        }
+
+        var allowed = ExactNames(allowedAssemblyNames);
+        if (allowed.Count == 0)
+        {
+            return null;
+        }
+
+        var scope = ResolveExactNamedAssemblies(allowed);
+        return SearchPlain(name, scope);
+    }
+
+    /// <summary>
+    /// Tries to resolve any interface (including internal or non-plain contracts) by exact full name or <see cref="NeuronAliasAttribute"/>
+    /// (current alias or former names) within <paramref name="source"/> (or loaded assemblies when null).
+    /// </summary>
+    public static Type? TryFindInterface(string name, IContractAssemblySource? source = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var scope = source is not null
+            ? [.. source.ContractAssemblies().Where(static assembly => assembly is not null && !assembly.IsDynamic).Distinct()]
+            : LoadedAssemblies();
+
+        foreach (var assembly in scope)
+        {
+            if (assembly.GetType(name, throwOnError: false) is { IsInterface: true } exact)
+            {
+                return exact;
+            }
+        }
+
+        foreach (var assembly in scope)
+        {
+            if (IndexOf(assembly).TryGetInterface(name, out var aliased))
+            {
+                return aliased;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Maps a contract's alias, former alias, or former full type name to its current full type name, or returns <paramref name="name"/> unchanged.</summary>
+    public static string CurrentName(string name)
+        => CurrentName(name, assemblies: (IEnumerable<Assembly>?)null);
+
+    /// <summary>Maps a contract's alias or former name to its current full type name using <paramref name="source"/>.</summary>
+    public static string CurrentName(string name, IContractAssemblySource? source)
+        => CurrentName(name, source?.ContractAssemblies());
+
+    /// <summary>Maps a contract's alias or former name to its current full type name using exact <paramref name="assemblies"/>.</summary>
+    public static string CurrentName(string name, IEnumerable<Assembly>? assemblies)
+        => string.IsNullOrWhiteSpace(name) ? name : TryFind(name, assemblies)?.FullName ?? name;
+
+    /// <summary>Maps a contract's alias or former name to its current full type name using exact <paramref name="allowedAssemblyNames"/>.</summary>
+    public static string CurrentName(string name, IReadOnlyCollection<string>? allowedAssemblyNames)
+        => string.IsNullOrWhiteSpace(name) ? name : TryFind(name, allowedAssemblyNames)?.FullName ?? name;
+
+    /// <summary>
+    /// Resolves the canonical neuron type string for <paramref name="contract"/>:
+    /// <see cref="DefaultNeuronTypeAttribute"/> / <see cref="PlainNeuronContracts.TypeOf"/>, else a hosted concrete
+    /// <see cref="NeuronAttribute"/> class implementing <paramref name="contract"/>, else <see cref="NeuronAliasAttribute.Alias"/>.
+    /// </summary>
+    public static string? ResolveNeuronType(Type contract, IEnumerable<Assembly>? implementationAssemblies = null)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+
+        if (contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type is { Length: > 0 } defaultType)
+        {
+            return defaultType;
+        }
+
+        if (PlainNeuronContracts.TypeOf(contract) is { Length: > 0 } plainType)
+        {
+            return plainType;
+        }
+
+        if (implementationAssemblies is null && ResolvedNeuronTypes.TryGetValue(contract, out var cached))
+        {
+            return cached;
+        }
+
+        var scope = implementationAssemblies is not null
+            ? [.. implementationAssemblies.Where(static assembly => assembly is not null && !assembly.IsDynamic).Distinct()]
+            : LoadedAssemblies();
+
+        foreach (var assembly in scope)
+        {
+            foreach (var candidate in IndexOf(assembly).NeuronImplementations)
+            {
+                if (contract.IsAssignableFrom(candidate.Class))
+                {
+                    if (implementationAssemblies is null)
+                    {
+                        ResolvedNeuronTypes.TryAdd(contract, candidate.NeuronType);
+                    }
+
+                    return candidate.NeuronType;
+                }
+            }
+        }
+
+        var alias = contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias;
+        if (!string.IsNullOrWhiteSpace(alias) && implementationAssemblies is null)
+        {
+            ResolvedNeuronTypes.TryAdd(contract, alias);
+        }
+
+        return alias;
+    }
+
+    private static Type? SearchPlain(string name, Assembly[] assemblies)
+    {
+        foreach (var assembly in assemblies)
+        {
+            if (assembly.GetType(name, throwOnError: false) is { } exact && PlainNeuronContracts.Is(exact))
+            {
+                return exact;
+            }
         }
 
         foreach (var assembly in assemblies)
         {
-            if (FormerNamesOf(assembly).TryGetValue(name, out var matched))
+            if (IndexOf(assembly).TryGetPlainByAlias(name, out var aliased))
             {
-                return matched;
+                return aliased;
             }
         }
+
+        foreach (var assembly in assemblies)
+        {
+            if (IndexOf(assembly).TryGetPlainByFormer(name, out var former))
+            {
+                return former;
+            }
+        }
+
         return null;
     }
 
-    private static IReadOnlyDictionary<string, Type> FormerNamesOf(Assembly assembly)
-        => FormerByAssembly.GetValue(assembly, static asm => BuildFormerMap(asm));
+    private static Assembly[] LoadedAssemblies()
+        => [.. AppDomain.CurrentDomain.GetAssemblies().Where(static assembly => !assembly.IsDynamic)];
 
-    private static IReadOnlyDictionary<string, Type> BuildFormerMap(Assembly assembly)
+    private static HashSet<string> ExactNames(IReadOnlyCollection<string> allowedAssemblyNames)
     {
-        Dictionary<string, Type>? map = null;
-        foreach (var type in SafeTypes(assembly))
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var raw in allowedAssemblyNames)
         {
-            if (!type.IsInterface || !PlainNeuronContracts.Is(type))
+            if (!string.IsNullOrWhiteSpace(raw))
             {
-                continue;
-            }
-            var alias = type.GetCustomAttribute<NeuronAliasAttribute>(inherit: false);
-            if (alias is not { Formerly.Length: > 0 })
-            {
-                continue;
-            }
-            foreach (var former in alias.Formerly)
-            {
-                if (!string.IsNullOrWhiteSpace(former))
-                {
-                    map ??= new Dictionary<string, Type>(StringComparer.Ordinal);
-                    map.TryAdd(former, type);
-                }
+                set.Add(raw.Trim());
             }
         }
-        return map ?? EmptyFormer;
+
+        return set;
     }
+
+    private static Assembly[] ResolveExactNamedAssemblies(HashSet<string> allowed)
+    {
+        var loaded = new Dictionary<string, Assembly>(StringComparer.Ordinal);
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic)
+            {
+                continue;
+            }
+
+            var simpleName = assembly.GetName().Name;
+            if (simpleName is not null && allowed.Contains(simpleName))
+            {
+                loaded.TryAdd(simpleName, assembly);
+            }
+        }
+
+        foreach (var missing in allowed)
+        {
+            if (loaded.ContainsKey(missing))
+            {
+                continue;
+            }
+
+            if (TryLoadExact(missing) is { } assembly)
+            {
+                loaded.TryAdd(missing, assembly);
+            }
+        }
+
+        return [.. loaded.Values];
+    }
+
+    private static Assembly? TryLoadExact(string simpleName)
+    {
+        try
+        {
+            return Assembly.Load(new AssemblyName(simpleName));
+        }
+        catch (Exception error) when (error is FileNotFoundException or FileLoadException or BadImageFormatException or PlatformNotSupportedException)
+        {
+            // Fall through to exact file probe in AppContext.BaseDirectory.
+        }
+
+        if (!Directory.Exists(AppContext.BaseDirectory))
+        {
+            return null;
+        }
+
+        var candidatePath = Path.Combine(AppContext.BaseDirectory, simpleName + ".dll");
+        if (!File.Exists(candidatePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var assemblyName = AssemblyName.GetAssemblyName(candidatePath);
+            if (!string.Equals(assemblyName.Name, simpleName, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return Assembly.Load(assemblyName);
+        }
+        catch (Exception error) when (error is FileNotFoundException or FileLoadException or BadImageFormatException or PlatformNotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static AssemblyContractIndex IndexOf(Assembly assembly)
+        => Indexes.GetValue(assembly, static asm => AssemblyContractIndex.Build(asm));
 
     private static IEnumerable<Type> SafeTypes(Assembly assembly)
     {
@@ -121,45 +320,142 @@ public static class LoadedContracts
         }
     }
 
-    private static bool LoadReferenced(string[] prefixes)
+    private static bool CanDeclareContracts(Assembly assembly)
     {
-        var seen = AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetName().Name).ToHashSet(StringComparer.Ordinal);
-        var pending = new Queue<AssemblyName>();
-        if (Assembly.GetEntryAssembly() is { } entry)
+        var name = assembly.GetName().Name;
+        if (string.Equals(name, DigitalBrainAssemblyName, StringComparison.Ordinal))
         {
-            try
-            {
-                foreach (var reference in entry.GetReferencedAssemblies()) { pending.Enqueue(reference); }
-            }
-            catch (PlatformNotSupportedException) { }
+            return true;
         }
-        if (Directory.Exists(AppContext.BaseDirectory))
+
+        try
         {
-            foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll"))
-            {
-                var fileName = Path.GetFileNameWithoutExtension(file);
-                if (StartsWithAny(fileName, prefixes))
-                {
-                    try { pending.Enqueue(AssemblyName.GetAssemblyName(file)); }
-                    catch (PlatformNotSupportedException) { continue; }
-                    catch (BadImageFormatException) { continue; }
-                    catch (FileLoadException) { continue; }
-                }
-            }
+            return assembly.GetReferencedAssemblies().Any(reference => string.Equals(reference.Name, DigitalBrainAssemblyName, StringComparison.Ordinal));
         }
-        while (pending.TryDequeue(out var reference))
+        catch (PlatformNotSupportedException)
         {
-            if (!StartsWithAny(reference.Name, prefixes)
-                || !seen.Add(reference.Name!)) { continue; }
-            try { foreach (var next in Assembly.Load(reference).GetReferencedAssemblies()) { pending.Enqueue(next); } }
-            catch (PlatformNotSupportedException) { continue; }
-            catch (FileNotFoundException) { continue; }
-            catch (FileLoadException) { continue; }
-            catch (BadImageFormatException) { continue; }
+            return true;
         }
-        return true;
     }
 
-    private static bool StartsWithAny(string? name, string[] prefixes)
-        => name is not null && prefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal));
+    private sealed class AssemblyContractIndex(
+        Dictionary<string, Type>? plainAliases,
+        Dictionary<string, Type>? plainFormer,
+        Dictionary<string, Type>? allInterfaceAliases,
+        (Type Class, string NeuronType)[] neuronImplementations)
+    {
+        private static readonly AssemblyContractIndex Empty = new(null, null, null, []);
+
+        public (Type Class, string NeuronType)[] NeuronImplementations => neuronImplementations;
+
+        public bool TryGetPlainByAlias(string name, out Type type)
+        {
+            if (plainAliases is not null && plainAliases.TryGetValue(name, out var found))
+            {
+                type = found;
+                return true;
+            }
+
+            type = null!;
+            return false;
+        }
+
+        public bool TryGetPlainByFormer(string name, out Type type)
+        {
+            if (plainFormer is not null && plainFormer.TryGetValue(name, out var found))
+            {
+                type = found;
+                return true;
+            }
+
+            type = null!;
+            return false;
+        }
+
+        public bool TryGetInterface(string name, out Type type)
+        {
+            if (allInterfaceAliases is not null && allInterfaceAliases.TryGetValue(name, out var found))
+            {
+                type = found;
+                return true;
+            }
+
+            type = null!;
+            return false;
+        }
+
+        public static AssemblyContractIndex Build(Assembly assembly)
+        {
+            if (!CanDeclareContracts(assembly))
+            {
+                return Empty;
+            }
+
+            Dictionary<string, Type>? plainAliases = null;
+            Dictionary<string, Type>? plainFormer = null;
+            Dictionary<string, Type>? allInterfaceAliases = null;
+            List<(Type Class, string NeuronType)>? implementations = null;
+
+            foreach (var type in SafeTypes(assembly))
+            {
+                if (type.IsInterface)
+                {
+                    var alias = type.GetCustomAttribute<NeuronAliasAttribute>(inherit: false);
+                    var isPlain = PlainNeuronContracts.Is(type);
+                    if (alias is not null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(alias.Alias))
+                        {
+                            allInterfaceAliases ??= new Dictionary<string, Type>(StringComparer.Ordinal);
+                            allInterfaceAliases.TryAdd(alias.Alias, type);
+                            if (isPlain)
+                            {
+                                plainAliases ??= new Dictionary<string, Type>(StringComparer.Ordinal);
+                                plainAliases.TryAdd(alias.Alias, type);
+                            }
+                        }
+
+                        if (alias.Formerly is { Length: > 0 })
+                        {
+                            foreach (var former in alias.Formerly)
+                            {
+                                if (string.IsNullOrWhiteSpace(former))
+                                {
+                                    continue;
+                                }
+
+                                allInterfaceAliases ??= new Dictionary<string, Type>(StringComparer.Ordinal);
+                                allInterfaceAliases.TryAdd(former, type);
+                                if (isPlain)
+                                {
+                                    plainFormer ??= new Dictionary<string, Type>(StringComparer.Ordinal);
+                                    plainFormer.TryAdd(former, type);
+                                }
+                            }
+                        }
+                    }
+
+                    continue;
+                }
+
+                if (type.IsClass && !type.IsAbstract
+                    && type.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type is { Length: > 0 } neuronType)
+                {
+                    implementations ??= [];
+                    implementations.Add((type, neuronType));
+                }
+            }
+
+            if (plainAliases is null && plainFormer is null && allInterfaceAliases is null && implementations is null)
+            {
+                return Empty;
+            }
+
+            return new AssemblyContractIndex(
+                plainAliases,
+                plainFormer,
+                allInterfaceAliases,
+                implementations is null ? [] : [.. implementations]);
+        }
+    }
 }

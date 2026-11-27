@@ -1,13 +1,15 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Kernel;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Access;
 using DigitalBrain.Signals.Watch;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using IntoChat.OS.Host.Brains;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Host.Http;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Platform;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
@@ -34,10 +36,11 @@ public static class McpHosting
             return provider.GetRequiredService<IIntoChatOSBrains>().Open(caller.Brain.Value);
         });
         services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.OsKernel.For);
+        services.TryAddSingleton<IContractAssemblySource>(_ => new ModuleInventory(OperatingSystemModules.Modules));
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();
         services.TryAddSingleton<Auth.InternalPageInspector>();
-        services.TryAddScoped<OsNeuronSurface>();
+        services.TryAddScoped<NeuronSurface>();
         var mcpSerializerOptions = new System.Text.Json.JsonSerializerOptions(ModelContextProtocol.McpJsonUtilities.DefaultOptions);
         mcpSerializerOptions.TypeInfoResolverChain.Insert(0, KernelMcpJsonContext.Default);
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)

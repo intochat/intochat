@@ -13,7 +13,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
 using Grpc.Core;
 using IntoChat.OS.Host.Kernel;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Kernel.Platform;
 using IntoChat.OS.Kernel.Platform.Proto;
 using IntoChat.OS.Modules.Identity.Contracts;
@@ -264,7 +263,7 @@ public sealed class BrainKeysMoveFacts
         os.SeedStoredState(FriendsDefaults.Id(Kim), JsonSerializer.Serialize(roster, FriendsJson.Default.FriendsRecord));
 
         var observer = new ContractTable(os, new CompiledTypes([typeof(IFriends).Assembly, typeof(IBrainKeys).Assembly]).Entries);
-        var surface = new OsNeuronSurface(os.Proxies, observer, new NeuronTypeSearch(observer, [], embeddings: null, callers: os.Callers), plain: root);
+        var surface = new NeuronSurface(os.Proxies, observer, new NeuronTypeSearch(observer, [], embeddings: null, callers: os.Callers), callers: os.Callers);
         var channel = new NeuronsGrpcService(surface, observer, new ChannelLog(), root);
         RequestCall Request() => new(new DefaultHttpContext { RequestServices = root });
         static NeuronStateRequest StateOf(Type contract, string key) => new() { BrainId = Kim, Contract = contract.FullName, Key = $"{Kim}/{key}" };

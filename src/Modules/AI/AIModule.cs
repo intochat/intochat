@@ -74,7 +74,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
         services.TryAddSingleton<IModelInference>(provider => provider.GetRequiredService<InferenceService>());
-        services.TryAddSingleton<OsNeuronSurface>();
+        services.TryAddSingleton<NeuronSurface>();
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
         var topology = configuration[IntoChatOSNames.TopologyKey];
         AIClients.AddImageGeneration(services, options, topology);

@@ -1,5 +1,7 @@
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.Aspire;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.Composition.Kernel;
 
 namespace IntoChat.OS.Tests.Unit.Components.Aspire;
@@ -9,6 +11,7 @@ namespace IntoChat.OS.Tests.Unit.Components.Aspire;
 public sealed class AspireFormerNamesFacts
 {
     private const string Former = "IntoChat.OS.Modules.Microsoft.Aspire.";
+    private static readonly IContractAssemblySource Assemblies = new ModuleInventory(OperatingSystemModules.Modules);
 
     public static TheoryData<string, Type> Contracts() => new()
     {
@@ -27,8 +30,10 @@ public sealed class AspireFormerNamesFacts
     [MemberData(nameof(Contracts))]
     public void LoadedContractsMapAFormerFullNameToTheCurrentOne(string former, Type current)
     {
-        Assert.Same(current, LoadedContracts.Find(former, ["IntoChat.OS", "IntoChat.Aspire"]));
-        Assert.Equal(current.FullName, LoadedContracts.CurrentName(former, ["IntoChat.OS", "IntoChat.Aspire"]));
+        Assert.Same(current, LoadedContracts.Find(former, Assemblies));
+        Assert.Equal(current.FullName, LoadedContracts.CurrentName(former, Assemblies));
+        Assert.Null(LoadedContracts.TryFind(former, ["IntoChat.AspireX"]));
+        Assert.Null(LoadedContracts.TryFind(former, ["IntoChat"]));
     }
 
     [Fact]
