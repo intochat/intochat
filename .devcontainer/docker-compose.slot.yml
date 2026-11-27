@@ -32,7 +32,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${SLOT_HTTP_PORT:-5300}:5080"
+      - "127.0.0.1:${SLOT_HTTP_PORT:-5300}:5080"
     volumes:
       - "${SLOT_WORKSPACE_DIR:-..}:/workspace:cached"
       - slot-home:/home/agent
@@ -80,8 +80,8 @@ services:
       - --skipApiVersionCheck
       - --loose
     ports:
-      - "${SLOT_AZURITE_BLOB_PORT:-5302}:10000"
-      - "${SLOT_AZURITE_TABLE_PORT:-5303}:10002"
+      - "127.0.0.1:${SLOT_AZURITE_BLOB_PORT:-5302}:10000"
+      - "127.0.0.1:${SLOT_AZURITE_TABLE_PORT:-5303}:10002"
     networks:
       - slot-net
     labels:
@@ -97,7 +97,7 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_PASSWORD: "${SLOT_POSTGRES_PASSWORD:-slot-ephemeral-postgres}"
     ports:
-      - "${SLOT_POSTGRES_PORT:-5304}:5432"
+      - "127.0.0.1:${SLOT_POSTGRES_PORT:-5304}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s
@@ -117,7 +117,7 @@ services:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: "${SLOT_CLICKHOUSE_PASSWORD:-slot-ephemeral-clickhouse}"
     ports:
-      - "${SLOT_CLICKHOUSE_PORT:-5305}:8123"
+      - "127.0.0.1:${SLOT_CLICKHOUSE_PORT:-5305}:8123"
     healthcheck:
       test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
       interval: 1s

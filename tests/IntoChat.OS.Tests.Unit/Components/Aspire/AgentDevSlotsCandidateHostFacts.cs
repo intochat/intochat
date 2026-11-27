@@ -93,7 +93,18 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
         AssertFlagPair(args, "--memory", AgentDevSlotsCandidateHost.CandidateMemoryLimit);
         AssertFlagPair(args, "--cpus", AgentDevSlotsCandidateHost.CandidateCpuLimit);
         AssertFlagPair(args, "-v", $"{lease.EphemeralHome}:{AgentDevSlotsCandidateHost.ContainerHomePath}");
-        AssertFlagPair(args, "-p", $"{lease.Ports.HttpPort}:5080");
+        AssertFlagPair(args, "-p", $"127.0.0.1:{lease.Ports.HttpPort}:5080");
+
+        // All sidecar published ports must also bind exclusively to host loopback 127.0.0.1.
+        var azuriteRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("run") && c.Args.Contains(AgentDevSlotsCandidateHost.AzuriteOf(lease.SlotId)));
+        AssertFlagPair(azuriteRun.Args, "-p", $"127.0.0.1:{lease.Ports.AzuriteBlobPort}:10000");
+        AssertFlagPair(azuriteRun.Args, "-p", $"127.0.0.1:{lease.Ports.AzuriteTablePort}:10002");
+
+        var postgresRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("run") && c.Args.Contains(AgentDevSlotsCandidateHost.PostgresOf(lease.SlotId)));
+        AssertFlagPair(postgresRun.Args, "-p", $"127.0.0.1:{lease.Ports.PostgresPort}:5432");
+
+        var clickHouseRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("run") && c.Args.Contains(AgentDevSlotsCandidateHost.ClickHouseOf(lease.SlotId)));
+        AssertFlagPair(clickHouseRun.Args, "-p", $"127.0.0.1:{lease.Ports.ClickHousePort}:8123");
 
         // Dynamic port must never collide with live 5080/5081 or legacy 5190.
         Assert.NotEqual(5080, lease.Ports.HttpPort);
@@ -419,9 +430,11 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
         // PreWarmSlotsAsync gracefully returns 0 when Docker daemon is unavailable.
         Assert.Equal(0, await host.PreWarmSlotsAsync(1, Ct));
 
-        // Orphans delegates cleanly to ProcessCandidateHost when Docker daemon is unavailable.
+        // Orphans sweeps fallback processes even if the Docker daemon comes back online afterward.
+        runner.DockerDaemonUnavailable = false;
         var orphans = await host.Orphans([], Ct);
-        Assert.Equal(["f00ba12"], orphans);
+        Assert.Contains("f00ba12", orphans);
+        Assert.False(host.IsUsingProcessFallback("f00ba12"));
         Assert.True(killed);
 
         // No docker run or docker build calls were attempted.

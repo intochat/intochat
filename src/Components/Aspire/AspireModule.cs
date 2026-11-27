@@ -66,7 +66,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
         switch (parsedMode)
         {
             case CandidateHostMode.Process:
-                services.TryAddSingleton<Candidates.ICandidateHost, Candidates.ProcessCandidateHost>();
+                services.TryAddSingleton<Candidates.ICandidateHost>(static sp => sp.GetRequiredService<Candidates.ProcessCandidateHost>());
                 break;
             default:
                 services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AgentDevSlotsCandidateHost>();

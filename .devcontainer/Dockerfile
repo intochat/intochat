@@ -71,7 +71,7 @@ RUN set -eux; \
         "/home/${USER_NAME}/tmp" \
         "/home/${USER_NAME}/intochat-home" \
         /workspace; \
-    chown -R "${USER_UID}:${USER_GID}" "/home/${USER_NAME}" /workspace
+    chown -R "${USER_UID}:${USER_GID}" "/home/${USER_NAME}" /workspace "${FLUTTER_HOME}"
 
 ENV HOME=/home/agent \
     XDG_CONFIG_HOME=/home/agent/.config \

@@ -361,7 +361,13 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         ArgumentNullException.ThrowIfNull(known);
         if (await ShouldUseProcessFallbackAsync(sha: null, "orphans", ct).ConfigureAwait(false))
         {
-            return await _processFallback.Orphans(known, ct).ConfigureAwait(false);
+            var fallbackOrphans = await _processFallback.Orphans(known, ct).ConfigureAwait(false);
+            foreach (var sha in fallbackOrphans)
+            {
+                _processFallbackShas.TryRemove(sha, out _);
+            }
+
+            return fallbackOrphans;
         }
 
         var listed = await _processes.RunAsync(
@@ -395,6 +401,16 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             if (_slotPool.TryGetActiveLease(sha, out _))
             {
                 await _slotPool.ReleaseAsync(sha, preserveWarmDependencies: false, ct).ConfigureAwait(false);
+            }
+        }
+
+        if (!_processFallbackShas.IsEmpty)
+        {
+            var fallbackOrphans = await _processFallback.Orphans(known, ct).ConfigureAwait(false);
+            foreach (var sha in fallbackOrphans)
+            {
+                _processFallbackShas.TryRemove(sha, out _);
+                removed.Add(sha);
             }
         }
 
@@ -570,7 +586,7 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             "--memory", CandidateMemoryLimit,
             "--cpus", CandidateCpuLimit,
             "-v", $"{lease.EphemeralHome}:{ContainerHomePath}",
-            "-p", $"{lease.Ports.HttpPort}:5080",
+            "-p", $"127.0.0.1:{lease.Ports.HttpPort}:5080",
             "--add-host", "host.docker.internal:host-gateway",
             "--label", $"{DevSlotLabelKey}=true",
             "--label", $"{DevSlotLabelKey}.slot={lease.SlotId}",
@@ -624,8 +640,8 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             "--label", $"{DevSlotLabelKey}=true",
             "--label", $"{DevSlotLabelKey}.role=sidecar",
             "--label", $"{DevSlotLabelKey}.slot={lease.SlotId}",
-            "-p", $"{lease.Ports.AzuriteBlobPort}:10000",
-            "-p", $"{lease.Ports.AzuriteTablePort}:10002",
+            "-p", $"127.0.0.1:{lease.Ports.AzuriteBlobPort}:10000",
+            "-p", $"127.0.0.1:{lease.Ports.AzuriteTablePort}:10002",
             AzuriteImage,
             "azurite", "--blobHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck", "--loose").ConfigureAwait(false);
 
@@ -643,7 +659,7 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             "--label", $"{DevSlotLabelKey}=true",
             "--label", $"{DevSlotLabelKey}.role=sidecar",
             "--label", $"{DevSlotLabelKey}.slot={lease.SlotId}",
-            "-p", $"{lease.Ports.PostgresPort}:5432",
+            "-p", $"127.0.0.1:{lease.Ports.PostgresPort}:5432",
             "--health-cmd", "pg_isready -U postgres",
             "--health-interval", "1s",
             "-e", "POSTGRES_PASSWORD",
@@ -664,7 +680,7 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             "--label", $"{DevSlotLabelKey}=true",
             "--label", $"{DevSlotLabelKey}.role=sidecar",
             "--label", $"{DevSlotLabelKey}.slot={lease.SlotId}",
-            "-p", $"{lease.Ports.ClickHousePort}:8123",
+            "-p", $"127.0.0.1:{lease.Ports.ClickHousePort}:8123",
             "--health-cmd", "clickhouse-client --query 'SELECT 1'",
             "--health-interval", "1s",
             "-e", "CLICKHOUSE_USER",
