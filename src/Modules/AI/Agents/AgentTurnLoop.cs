@@ -426,6 +426,9 @@ internal sealed class AgentTurnLoop(
 
         public ChannelReader<(AgentTurnEvent Event, TaskCompletionSource? Ack)> Reader => _channel.Reader;
 
+        public async Task EmitAsync(AgentTurnEvent ev, CancellationToken ct)
+            => await _channel.Writer.WriteAsync((ev, null), ct).ConfigureAwait(false);
+
         public async Task EmitAndAwaitConsumedAsync(AgentTurnEvent ev, CancellationToken ct)
         {
             var ack = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -505,7 +508,7 @@ internal sealed class AgentTurnLoop(
                     _firstTokenRecorded = true;
                     AgentTelemetry.FirstToken(turn ?? Activity.Current, Stopwatch.GetElapsedTime(_modelStart));
                 }
-                await pump.EmitAndAwaitConsumedAsync(new AgentTurnEvent.TextChunk(response.Text), cancellationToken).ConfigureAwait(false);
+                await pump.EmitAsync(new AgentTurnEvent.TextChunk(response.Text), cancellationToken).ConfigureAwait(false);
             }
 
             ValidateAndPrepareCalls(response.Messages.SelectMany(static m => m.Contents).OfType<FunctionCallContent>());
@@ -549,7 +552,7 @@ internal sealed class AgentTurnLoop(
                             _firstTokenRecorded = true;
                             AgentTelemetry.FirstToken(turn ?? Activity.Current, Stopwatch.GetElapsedTime(_modelStart));
                         }
-                        await pump.EmitAndAwaitConsumedAsync(new AgentTurnEvent.TextChunk(update.Text), cancellationToken).ConfigureAwait(false);
+                        await pump.EmitAsync(new AgentTurnEvent.TextChunk(update.Text), cancellationToken).ConfigureAwait(false);
                     }
                     else if (update.Contents.Any(static c => c is not UsageContent))
                     {
@@ -572,7 +575,7 @@ internal sealed class AgentTurnLoop(
                             _firstTokenRecorded = true;
                             AgentTelemetry.FirstToken(turn ?? Activity.Current, Stopwatch.GetElapsedTime(_modelStart));
                         }
-                        await pump.EmitAndAwaitConsumedAsync(new AgentTurnEvent.TextChunk(update.Text), cancellationToken).ConfigureAwait(false);
+                        await pump.EmitAsync(new AgentTurnEvent.TextChunk(update.Text), cancellationToken).ConfigureAwait(false);
                     }
                 }
             }

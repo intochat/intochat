@@ -167,7 +167,7 @@ internal sealed class InferenceChatClient(
             var converted = new List<InferenceTool>(chatTools.Count);
             foreach (var tool in chatTools)
             {
-                if (tool is AIFunction fn)
+                if (tool is AIFunctionDeclaration fn)
                 {
                     var schemaJson = fn.JsonSchema.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
                         ? """{"type":"object","properties":{}}"""
