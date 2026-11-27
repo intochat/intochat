@@ -56,7 +56,7 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"      policyDefinitionId: \"${{{ruleADefLogical}.id}}\"");
         sb.AppendLine("      enforcementMode: Default");
 
-        // Rule B: Deny non-Consumption ACA workload profiles and runaway ContainerApp scale/CPU.
+        // Rule B: Deny non-Consumption ACA workload profiles, runaway ContainerApp scale/CPU, and non-compliant Microsoft.App/jobs.
         var ruleBName = PolicyName(c, PolicyDenyAcaDedicatedAndScaleSuffix);
         var ruleBDefLogical = $"policy-def-{SanitizeLogicalName(ruleBName)}";
         var ruleBAssignLogical = $"policy-assign-{SanitizeLogicalName(ruleBName)}";
@@ -65,7 +65,7 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("    properties:");
         sb.AppendLine($"      policyDefinitionName: \"{ruleBName}\"");
         sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny Dedicated ACA Profiles and Runaway Scale\"");
-        sb.AppendLine("      description: \"Blocks non-Consumption ACA workload profiles and ContainerApps exceeding maxReplicas=2 or cpu=1.0.\"");
+        sb.AppendLine("      description: \"Blocks non-Consumption ACA workload profiles, ContainerApps exceeding maxReplicas=2 or cpu=1.0, and ACA Jobs violating Consumption/Manual/parallelism<=2/timeout<=900/retry==0/cpu<=2.0/memory<=4Gi ceilings.\"");
         sb.AppendLine("      mode: All");
         sb.AppendLine("      policyType: Custom");
         sb.AppendLine("      policyRule:");
@@ -91,6 +91,36 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("                        where:");
         sb.AppendLine("                          field: Microsoft.App/containerApps/template.containers[*].resources.cpu");
         sb.AppendLine("                          greater: 1");
+        sb.AppendLine("                      greater: 0");
+        sb.AppendLine("            - allOf:");
+        sb.AppendLine("                - field: type");
+        sb.AppendLine("                  equals: Microsoft.App/jobs");
+        sb.AppendLine("                - anyOf:");
+        sb.AppendLine("                    - field: Microsoft.App/jobs/workloadProfileName");
+        sb.AppendLine("                      notEquals: Consumption");
+        sb.AppendLine("                    - field: Microsoft.App/jobs/configuration.triggerType");
+        sb.AppendLine("                      notEquals: Manual");
+        sb.AppendLine("                    - field: Microsoft.App/jobs/configuration.manualTriggerConfig.parallelism");
+        sb.AppendLine("                      greater: 2");
+        sb.AppendLine("                    - field: Microsoft.App/jobs/configuration.replicaTimeout");
+        sb.AppendLine("                      greater: 900");
+        sb.AppendLine("                    - field: Microsoft.App/jobs/configuration.replicaRetryLimit");
+        sb.AppendLine("                      notEquals: 0");
+        sb.AppendLine("                    - count:");
+        sb.AppendLine("                        field: Microsoft.App/jobs/template.containers[*]");
+        sb.AppendLine("                        where:");
+        sb.AppendLine("                          field: Microsoft.App/jobs/template.containers[*].resources.cpu");
+        sb.AppendLine("                          greater: 2");
+        sb.AppendLine("                      greater: 0");
+        sb.AppendLine("                    - count:");
+        sb.AppendLine("                        field: Microsoft.App/jobs/template.containers[*]");
+        sb.AppendLine("                        where:");
+        sb.AppendLine("                          field: Microsoft.App/jobs/template.containers[*].resources.memory");
+        sb.AppendLine("                          notIn:");
+        foreach (var tier in DevSlotJobConfig.AllowedMemoryTiers)
+        {
+            sb.AppendLine($"                            - \"{tier}\"");
+        }
         sb.AppendLine("                      greater: 0");
         sb.AppendLine("        then:");
         sb.AppendLine("          effect: deny");
@@ -484,7 +514,44 @@ public static partial class PulumiStackSynthesizer
                 $stoppedResources.Add([string]$app.id)
             }
 
-            # 2. Stop all running Microsoft.DBforPostgreSQL/flexibleServers in the matching intochat-* RG.
+            # 2. Stop all active Microsoft.App/jobs executions and prevent non-Manual triggers in the matching intochat-* RG.
+            $jobsUri = 'https://management.azure.com/subscriptions/' + $SubscriptionId + '/resourceGroups/' + $rgName + '/providers/Microsoft.App/jobs?api-version=2025-01-01'
+            $jobsResponse = Invoke-RestMethod -Method GET -Uri $jobsUri -Headers $headers
+            foreach ($job in $jobsResponse.value) {
+                $jobManagedBy = ''
+                if ($null -ne $job.tags -and $null -ne $job.tags.'managed-by') {
+                    $jobManagedBy = [string]$job.tags.'managed-by'
+                }
+                $isManaged = $rgHasManagedByTag -or [string]::Equals($jobManagedBy, 'intochat', [System.StringComparison]::OrdinalIgnoreCase)
+                if (-not $isManaged) {
+                    Write-Output ('SKIP untagged ContainerApps Job (missing managed-by=intochat): ' + $job.id)
+                    continue
+                }
+                $execsUri = 'https://management.azure.com' + $job.id + '/executions?api-version=2025-01-01'
+                $execsResponse = Invoke-RestMethod -Method GET -Uri $execsUri -Headers $headers
+                foreach ($exec in $execsResponse.value) {
+                    $execStatus = [string]$exec.properties.status
+                    if ([string]::Equals($execStatus, 'Running', [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($execStatus, 'Processing', [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $stopExecUri = 'https://management.azure.com' + $job.id + '/executions/' + $exec.name + '/stop?api-version=2025-01-01'
+                        Write-Output ('STOPPING ContainerApps Job execution: ' + $job.id + '/executions/' + $exec.name)
+                        Invoke-RestMethod -Method POST -Uri $stopExecUri -Headers $headers | Out-Null
+                        $stoppedResources.Add([string]$job.id + '/executions/' + [string]$exec.name)
+                    }
+                }
+                $triggerType = ''
+                if ($null -ne $job.properties -and $null -ne $job.properties.configuration -and $null -ne $job.properties.configuration.triggerType) {
+                    $triggerType = [string]$job.properties.configuration.triggerType
+                }
+                if (-not [string]::Equals($triggerType, 'Manual', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $disableTriggerBody = @{ properties = @{ configuration = @{ triggerType = 'Manual'; replicaRetryLimit = 0; manualTriggerConfig = @{ parallelism = 1; replicaCompletionCount = 1 } } } } | ConvertTo-Json -Depth 5 -Compress
+                    $patchJobUri = 'https://management.azure.com' + $job.id + '?api-version=2025-01-01'
+                    Write-Output ('DISABLING non-Manual trigger on ContainerApps Job: ' + $job.id)
+                    Invoke-RestMethod -Method PATCH -Uri $patchJobUri -Headers $headers -Body $disableTriggerBody | Out-Null
+                    $stoppedResources.Add([string]$job.id + '#trigger-disabled')
+                }
+            }
+
+            # 3. Stop all running Microsoft.DBforPostgreSQL/flexibleServers in the matching intochat-* RG.
             $pgUri = 'https://management.azure.com/subscriptions/' + $SubscriptionId + '/resourceGroups/' + $rgName + '/providers/Microsoft.DBforPostgreSQL/flexibleServers?api-version=2024-08-01'
             $pgResponse = Invoke-RestMethod -Method GET -Uri $pgUri -Headers $headers
             foreach ($server in $pgResponse.value) {

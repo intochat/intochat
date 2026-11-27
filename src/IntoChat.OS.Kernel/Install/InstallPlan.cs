@@ -42,9 +42,9 @@ public static class InstallPlan
 
     public static ResourceSpec[] Build(InstallConfig config) => Build(config, new Dictionary<string, string>(), []);
 
-    // Everything the OS app runs on: its resources, without the app(s) themselves.
+    // Everything the OS app runs on: its resources, without the app(s) or optional cloud devslot job themselves.
     public static ResourceSpec[] Foundation(InstallConfig config)
-        => [.. Build(config).Where(static spec => spec is not ContainerAppSpec)];
+        => [.. Build(config).Where(static spec => spec is not ContainerAppSpec and not ContainerAppsJobSpec)];
 
     // The OS app, with the variables and secrets the module deployments asked for.
     public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
@@ -57,6 +57,10 @@ public static class InstallPlan
     // Optional separate Sandbox container app (internal ingress, scaling to 0 when idle).
     public static ContainerAppSpec? SandboxApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
         Build(config, variables, secrets).OfType<ContainerAppSpec>().FirstOrDefault(spec => string.Equals(spec.Name, config.Validated().SandboxName, StringComparison.Ordinal));
+
+    // Optional Cloud Devcontainer ACA Consumption Job (intochat-{env}-devslot): Manual trigger, €0 idle, zero cluster secrets.
+    public static ContainerAppsJobSpec? DevSlotJob(InstallConfig config) =>
+        Build(config).OfType<ContainerAppsJobSpec>().FirstOrDefault(spec => string.Equals(spec.Name, config.Validated().DevSlotJobName, StringComparison.Ordinal));
 
     public static FoundationRefs Refs(InstallConfig config)
     {
@@ -281,6 +285,38 @@ public static class InstallPlan
                 Registries = c.GhcrUsername.Length > 0
                     ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
                     : [],
+            }));
+        }
+        if (c.DevSlotJob.Enabled)
+        {
+            specs.Add(In(new ContainerAppsJobSpec
+            {
+                Name = c.DevSlotJobName,
+                Environment = environment,
+                Identity = identity,
+                Image = c.DevSlotJob.Image,
+                RegistryServer = c.LoginServer,
+                Cpu = c.DevSlotJob.Cpu,
+                Memory = c.DevSlotJob.Memory,
+                Parallelism = c.DevSlotJob.Parallelism,
+                ReplicaCompletionCount = 1,
+                ReplicaTimeoutSeconds = c.DevSlotJob.ReplicaTimeoutSeconds,
+                ReplicaRetryLimit = c.DevSlotJob.ReplicaRetryLimit,
+                // Zero cluster secrets or custody keys injected; unprivileged UID 1000 /home/agent matches .devcontainer/Dockerfile.
+                Variables = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["HOME"] = "/home/agent",
+                    ["XDG_CONFIG_HOME"] = "/home/agent/.config",
+                    ["XDG_DATA_HOME"] = "/home/agent/.local/share",
+                    ["XDG_CACHE_HOME"] = "/home/agent/.cache",
+                    ["TMPDIR"] = "/home/agent/tmp",
+                    ["DOTNET_CLI_HOME"] = "/home/agent",
+                    ["GIT_CONFIG_NOSYSTEM"] = "1",
+                    ["GIT_CONFIG_GLOBAL"] = "/dev/null",
+                    ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/playwright",
+                    [Variable(IntoChatOSNames.HomeKey)] = "/home/agent/intochat-home",
+                    [Variable(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
+                },
             }));
         }
         return [.. specs];

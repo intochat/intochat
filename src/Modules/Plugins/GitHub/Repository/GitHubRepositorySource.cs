@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Log;
+using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
@@ -18,15 +19,21 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     private readonly Octokit.Internal.HttpClientAdapter _http;
     private readonly GitHubJsonSerializer _json = new();
     private readonly TimeProvider _time;
+    private readonly Func<ProcessStartInfo, CancellationToken, Task<(int ExitCode, string StdOut, string StdErr)>> _gitPushRunner;
 
-    public GitHubRepositorySource(GitHubInstallationTokens tokens) : this(tokens, null, null)
+    public GitHubRepositorySource(GitHubInstallationTokens tokens) : this(tokens, null, null, null)
     {
     }
 
-    internal GitHubRepositorySource(GitHubInstallationTokens tokens, HttpMessageHandler? handler, TimeProvider? time)
+    internal GitHubRepositorySource(
+        GitHubInstallationTokens tokens,
+        HttpMessageHandler? handler,
+        TimeProvider? time,
+        Func<ProcessStartInfo, CancellationToken, Task<(int ExitCode, string StdOut, string StdErr)>>? gitPushRunner = null)
     {
         _tokens = tokens;
         _time = time ?? TimeProvider.System;
+        _gitPushRunner = gitPushRunner ?? RunGitProcessAsync;
         var ownsHandler = handler is null;
         _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? GitHubInstallationTokens.CreateDefaultHandler(), ownsHandler));
         _http.SetRequestTimeout(TimeSpan.FromSeconds(20));
@@ -458,12 +465,19 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         using var activity = Activities.StartActivity("github.push_branch");
         activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.branch", request.Branch);
 
-        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.ContentsWrite, cancellationToken).ConfigureAwait(false);
-        var client = new Octokit.GitHubClient(connection);
         var branchName = request.Branch.StartsWith("refs/heads/", StringComparison.Ordinal)
             ? request.Branch["refs/heads/".Length..]
             : request.Branch;
         var refName = $"heads/{branchName}";
+
+        if (!string.IsNullOrWhiteSpace(request.LocalWorktreePath) && Directory.Exists(request.LocalWorktreePath))
+        {
+            await PushLocalWorktreeWithEphemeralTokenAsync(repository, request.LocalWorktreePath, branchName, request.CommitSha, request.Force, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.ContentsWrite, cancellationToken).ConfigureAwait(false);
+        var client = new Octokit.GitHubClient(connection);
 
         try
         {
@@ -473,6 +487,107 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         {
             await client.Git.Reference.Create(repository.RepositoryId, new Octokit.NewReference($"refs/{refName}", request.CommitSha)).WaitAsync(cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    // Uploads local commit objects to GitHub over HTTPS using a short-lived ContentsWrite installation token
+    // passed exclusively via ephemeral GIT_CONFIG_* process environment (never CLI args, never .git/config, never logged).
+    private async Task PushLocalWorktreeWithEphemeralTokenAsync(
+        GitHubRepository repository,
+        string worktreePath,
+        string branchName,
+        string commitSha,
+        bool force,
+        CancellationToken cancellationToken)
+    {
+        var bearer = repository.IsDirectToken
+            ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
+            : await _tokens.GetWriteTokenAsync(repository, GitHubWriteScope.ContentsWrite, cancellationToken).ConfigureAwait(false);
+
+        var basicAuth = Convert.ToBase64String(Encoding.ASCII.GetBytes($"x-access-token:{bearer}"));
+        var remoteUrl = $"https://github.com/{Uri.EscapeDataString(repository.Owner)}/{Uri.EscapeDataString(repository.Name)}.git";
+        var psi = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = worktreePath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        psi.ArgumentList.Add("-C");
+        psi.ArgumentList.Add(worktreePath);
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("core.fsmonitor=false");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("core.hooksPath=/dev/null");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add("protocol.file.allow=never");
+        psi.ArgumentList.Add("push");
+        psi.ArgumentList.Add("--no-verify");
+        if (force)
+        {
+            psi.ArgumentList.Add("--force");
+        }
+        psi.ArgumentList.Add(remoteUrl);
+        psi.ArgumentList.Add($"{commitSha}:refs/heads/{branchName}");
+
+        ChildEnvironmentPolicy.Scrub(psi);
+        psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        psi.Environment["GCM_INTERACTIVE"] = "never";
+        psi.Environment["GIT_CONFIG_NOSYSTEM"] = "1";
+        psi.Environment["GIT_CONFIG_GLOBAL"] = "/dev/null";
+        psi.Environment["GIT_CONFIG_COUNT"] = "1";
+        psi.Environment["GIT_CONFIG_KEY_0"] = "http.https://github.com/.extraheader";
+        psi.Environment["GIT_CONFIG_VALUE_0"] = $"AUTHORIZATION: basic {basicAuth}";
+
+        var (exitCode, stdOut, stdErr) = await _gitPushRunner(psi, cancellationToken).ConfigureAwait(false);
+        if (exitCode != 0)
+        {
+            var rawDetail = string.IsNullOrWhiteSpace(stdErr) ? stdOut.Trim() : stdErr.Trim();
+            var redacted = RedactToken(rawDetail, bearer, basicAuth);
+            throw new GitHubUnavailableException($"Git push to '{repository.Owner}/{repository.Name}' failed (exit {exitCode}): {redacted}");
+        }
+    }
+
+    internal static string RedactToken(string text, string bearer, string basicAuth)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        var result = text;
+        if (!string.IsNullOrEmpty(bearer))
+        {
+            result = result.Replace(bearer, "[REDACTED]", StringComparison.Ordinal);
+        }
+        if (!string.IsNullOrEmpty(basicAuth))
+        {
+            result = result.Replace(basicAuth, "[REDACTED]", StringComparison.Ordinal);
+        }
+        return result;
+    }
+
+    private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitProcessAsync(
+        ProcessStartInfo psi,
+        CancellationToken cancellationToken)
+    {
+        using var process = new Process { StartInfo = psi };
+        if (!process.Start())
+        {
+            throw new GitHubUnavailableException("Failed to start 'git' process for native repository push.");
+        }
+
+        process.StandardInput.Close();
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(60));
+        var outTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+        var errTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+        await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+        return (process.ExitCode, await outTask.ConfigureAwait(false), await errTask.ConfigureAwait(false));
     }
 
     public async Task<PullRequestView> CreatePullRequestAsync(GitHubRepository repository, CreatePullRequest request, CancellationToken cancellationToken)

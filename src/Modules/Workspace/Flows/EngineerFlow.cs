@@ -7,6 +7,7 @@ using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Flows.Rules;
+using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.Configuration;
@@ -32,7 +33,8 @@ internal sealed class EngineerFlow(
     IWorktreeRoslyn? roslyn = null,
     IConfirmationRequests? confirmationRequests = null,
     IEngineeringHarness? engineeringHarness = null,
-    IServiceProvider? services = null) : Flow<EngineerRun>, IFlowStarter, IEngineerFlow
+    IServiceProvider? services = null,
+    IRepository? repository = null) : Flow<EngineerRun>, IFlowStarter, IEngineerFlow
 {
     public const string Alias = IEngineerRuns.EngineerFlow;
     public const string ConfirmationKind = "engineer.publish";
@@ -1324,6 +1326,7 @@ internal sealed class EngineerFlow(
         var winner = inner.SelectedInstance ?? throw new FlowFailed("push", "Selected worktree instance is missing.");
         var commit = winner.Commit ?? throw new FlowFailed("push", "Verified CommitSha is missing.");
         var planId = inner.Approval?.PlanId ?? BuildPlanId(EffectiveRunId(inner), commit.Commit.Value);
+        var nativeRepository = await TryResolveRepositoryAsync(inner, winner.Lease).ConfigureAwait(true);
         var (approvedBy, pushedCommit, pushedRef) = await EngineerPipelineStages.ExecutePushAsync(
             WorkTree,
             ConfirmationRequests,
@@ -1331,7 +1334,8 @@ internal sealed class EngineerFlow(
             commit,
             planId,
             inner.EnsureCanPublish,
-            ct).ConfigureAwait(true);
+            ct,
+            repository: nativeRepository).ConfigureAwait(true);
 
         return inner.WithPushed(approvedBy, pushedCommit, pushedRef).Advance();
     }
@@ -1344,6 +1348,7 @@ internal sealed class EngineerFlow(
         }
 
         var winner = inner.SelectedInstance ?? throw new FlowFailed("pr", "Selected worktree instance is missing.");
+        var nativeRepository = await TryResolveRepositoryAsync(inner, winner.Lease).ConfigureAwait(true);
         var prUrl = await EngineerPipelineStages.ExecutePullRequestAsync(
             WorkTree,
             winner.Lease,
@@ -1354,9 +1359,70 @@ internal sealed class EngineerFlow(
             winner.Edit?.Summary,
             winner.Edit?.ModelId,
             new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner, inner.RankCandidates(), inner.Verification),
-            ct).ConfigureAwait(true);
+            ct,
+            repository: nativeRepository).ConfigureAwait(true);
 
         return inner.WithPullRequest(prUrl).Advance();
+    }
+
+    // Resolves a connected native GitHub IRepository neuron (backed by short-lived GitHub App installation tokens
+    // and REST API) so cloud/headless runs push branches and open Draft PRs without requiring a host `gh` CLI.
+    // Returns null cleanly for local runs without a configured GitHub connection so WorkTree fallback remains intact.
+    private async Task<IRepository?> TryResolveRepositoryAsync(EngineerRun inner, WorkTreeLease? lease)
+    {
+        if (repository is not null)
+        {
+            return repository;
+        }
+
+        if (services?.GetService(typeof(IRepository)) is IRepository injected)
+        {
+            return injected;
+        }
+
+        var candidateKeys = new List<string>(4);
+        if (!string.IsNullOrWhiteSpace(inner.Repository?.Value))
+        {
+            candidateKeys.Add($"connection/github/{inner.Repository.Value.Trim()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(lease?.GitHubRepo))
+        {
+            var ghRepo = lease.GitHubRepo.Trim();
+            candidateKeys.Add($"connection/github/{ghRepo}");
+            var slash = ghRepo.IndexOf('/', StringComparison.Ordinal);
+            if (slash > 0 && slash + 1 < ghRepo.Length)
+            {
+                candidateKeys.Add($"connection/github/{ghRepo[(slash + 1)..]}");
+            }
+        }
+
+        candidateKeys.Add("connection/github/main");
+
+        foreach (var key in candidateKeys.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var neuronId = new NeuronId(Id.Brain, "github", key);
+                if (!Implements<IRepository>(neuronId))
+                {
+                    continue;
+                }
+
+                var candidate = Context.Get<IRepository>(neuronId);
+                var view = await candidate.Read().ConfigureAwait(true);
+                if (view.Connected)
+                {
+                    return candidate;
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+            {
+                ConsoleLogger.LogDebug(ex, "Skipping unavailable GitHub IRepository candidate '{Key}'.", key);
+            }
+        }
+
+        return null;
     }
 
     private async Task<StepResult<EngineerRun>> CleanStepAsync(EngineerRun inner, CancellationToken ct)

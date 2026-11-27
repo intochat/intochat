@@ -155,7 +155,7 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains($"policyDefinitionId: \"${{policy-def-{ruleAName}.id}}\"", ruleAAssign, StringComparison.Ordinal);
         Assert.DoesNotContain("notScopes:", ruleAAssign, StringComparison.Ordinal);
 
-        // Rule B: Deny non-Consumption ACA profiles and runaway ContainerApp scale/CPU; excludes LeedGenerator + sv + custom.
+        // Rule B: Deny non-Consumption ACA profiles, runaway ContainerApp scale/CPU, and non-compliant Microsoft.App/jobs; excludes LeedGenerator + sv + NetworkWatcherRG + custom.
         var ruleBDef = ResourceBlock(yaml, $"policy-def-{ruleBName}");
         Assert.Contains("type: azure-native:authorization:PolicyDefinition", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("Microsoft.App/managedEnvironments/workloadProfiles[*].workloadProfileType", ruleBDef, StringComparison.Ordinal);
@@ -164,6 +164,17 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("greater: 2", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("Microsoft.App/containerApps/template.containers[*].resources.cpu", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("greater: 1", ruleBDef, StringComparison.Ordinal);
+        // All 7 Security-approved Policy Rule B ceilings on Microsoft.App/jobs:
+        Assert.Contains("equals: Microsoft.App/jobs", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/workloadProfileName\n                      notEquals: Consumption", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/configuration.triggerType\n                      notEquals: Manual", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/configuration.manualTriggerConfig.parallelism\n                      greater: 2", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/configuration.replicaTimeout\n                      greater: 900", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/configuration.replicaRetryLimit\n                      notEquals: 0", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/template.containers[*].resources.cpu\n                          greater: 2", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("field: Microsoft.App/jobs/template.containers[*].resources.memory\n                          notIn:", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains("- \"4Gi\"", ruleBDef, StringComparison.Ordinal);
+        Assert.DoesNotContain("- \"8Gi\"", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("effect: deny", ruleBDef, StringComparison.Ordinal);
 
         var ruleBAssign = ResourceBlock(yaml, $"policy-assign-{ruleBName}");
@@ -250,8 +261,13 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("IDENTITY_HEADER", publishBlock, StringComparison.Ordinal);
         Assert.Contains("Microsoft.App/containerApps", publishBlock, StringComparison.Ordinal);
         Assert.Contains("/stop?api-version=2025-01-01", publishBlock, StringComparison.Ordinal);
+        Assert.Contains("Microsoft.App/jobs", publishBlock, StringComparison.Ordinal);
+        Assert.Contains("/executions?api-version=2025-01-01", publishBlock, StringComparison.Ordinal);
+        Assert.Contains("/executions/' + $exec.name + '/stop?api-version=2025-01-01", publishBlock, StringComparison.Ordinal);
+        Assert.Contains("DISABLING non-Manual trigger on ContainerApps Job", publishBlock, StringComparison.Ordinal);
         Assert.Contains("Microsoft.DBforPostgreSQL/flexibleServers", publishBlock, StringComparison.Ordinal);
         Assert.Contains("/stop?api-version=2024-08-01", publishBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("/resourceGroups/NetworkWatcherRG", rbacBlock, StringComparison.OrdinalIgnoreCase);
 
         // Verify zero unescaped Pulumi YAML interpolations inside command create scripts.
         var publishCreateIdx = publishBlock.IndexOf("      create: |\n", StringComparison.Ordinal);
