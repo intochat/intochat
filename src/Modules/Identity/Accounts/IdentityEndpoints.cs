@@ -46,7 +46,7 @@ internal static class IdentityEndpoints
         routes.MapPost("/identity/logout", LogoutAsync).WithMetadata(GuestSurface.Door.Instance);
         routes.MapPost("/identity/brains", CreateBrainAsync);
         routes.MapGet("/identity/brains", BrainsAsync).WithMetadata(GuestSurface.Door.Instance);
-        var grants = OsBrainRoutes.Group(routes, "/grants").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
+        var grants = BrainRouteGroups.Brain(routes, "/grants").WithMetadata(BrainRouteGroups.GuestClosed.Instance);
         grants.MapGet("", async (string brainId, HttpContext http, [FromServices] IIdentityClient identity, CancellationToken ct) =>
             Results.Ok(await identity.ListGrants(BrainScope.Create(HttpCaller.RequiredPerson(http).Account, brainId).Id).WaitAsync(ct)));
         grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>

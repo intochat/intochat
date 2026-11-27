@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using System.Net;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.AspNetCore.Builder;
@@ -9,7 +10,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using BrainRoutes = IntoChat.OS.Host.Http.OsBrainRoutes;
 using IntoChat.OS.Modules.Identity.Handles;
 using IntoChat.OS.Modules.Identity.Contracts.Handles;
 
@@ -61,7 +61,7 @@ public sealed class HandleRoutesFacts
             }
         });
 
-        var appsGroup = BrainRoutes.Group(app, "/apps");
+        var appsGroup = BrainRouteGroups.Brain(app, "/apps");
         appsGroup.MapGet("/{name}", (string name) => Results.Ok(new { App = name }));
 
         HandleRoutes.Map(app);

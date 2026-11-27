@@ -5,9 +5,9 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Errors;
 using DigitalBrain.Identity.Local.Machine;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -37,7 +37,7 @@ internal static class DevicesEndpoints
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        var group = OsBrainRoutes.Group(endpoints, "/devices").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
+        var group = BrainRouteGroups.Brain(endpoints, "/devices").WithMetadata(BrainRouteGroups.GuestClosed.Instance);
         group.MapGet("/this", GetThisAsync);
         group.MapGet("/compute/nodes", GetComputeNodesAsync);
         group.MapGet("/{machineId}", GetDeviceAsync);

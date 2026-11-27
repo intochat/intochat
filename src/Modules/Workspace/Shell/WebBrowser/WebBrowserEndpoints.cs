@@ -1,7 +1,7 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -20,7 +20,7 @@ internal static class WebBrowserEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        var browsers = OsBrainRoutes.Group(endpoints, "/browsers").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var browsers = BrainRouteGroups.Brain(endpoints, "/browsers").AddEndpointFilter(ModuleRouteGuard.Guard);
         browsers.MapPost("/connect", (BrowserConnect input, INeuronProxies brain, CancellationToken ct)
             => Connect(input, brain, BrainScope.CurrentId(), ct));
         browsers.MapPost("/disconnect", (BrowserDisconnect input, INeuronProxies brain, CancellationToken ct)

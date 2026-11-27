@@ -12,9 +12,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Logging;
-using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -36,7 +36,7 @@ internal static class AppsEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var apps = OsBrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var apps = BrainRouteGroups.Brain(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
         MapPackages(apps);
         MapUnits(apps);
         MapRuns(apps);

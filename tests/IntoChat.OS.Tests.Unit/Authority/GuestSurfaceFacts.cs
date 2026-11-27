@@ -180,10 +180,10 @@ public sealed class GuestSurfaceFacts
         });
         app.UseAccountSession();
         app.MapGet("/brains/{brainId}/door", Probe).WithMetadata(GuestSurface.Door.Instance);
-        app.MapGet("/brains/{brainId}/brain-door", Probe).WithMetadata(IntoChat.OS.Host.Http.OsBrainRoutes.GuestBrainDoor.Instance);
+        app.MapGet("/brains/{brainId}/brain-door", Probe).WithMetadata(DigitalBrain.Runtime.Http.BrainRouteGroups.GuestBrainDoor.Instance);
         app.MapGet("/brains/{brainId}/brain-closed", Probe)
-            .WithMetadata(IntoChat.OS.Host.Http.OsBrainRoutes.GuestBrainDoor.Instance)
-            .WithMetadata(IntoChat.OS.Host.Http.OsBrainRoutes.GuestClosed.Instance);
+            .WithMetadata(DigitalBrain.Runtime.Http.BrainRouteGroups.GuestBrainDoor.Instance)
+            .WithMetadata(DigitalBrain.Runtime.Http.BrainRouteGroups.GuestClosed.Instance);
         app.MapGet("/brains/{brainId}/shut", Probe);
         await app.StartAsync(Ct);
         using var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };

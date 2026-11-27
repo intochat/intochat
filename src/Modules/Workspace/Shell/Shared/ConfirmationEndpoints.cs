@@ -1,8 +1,8 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -23,7 +23,7 @@ internal static class ConfirmationEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        OsBrainRoutes.Group(endpoints, "/confirmations").AddEndpointFilter(ModuleRouteGuard.Guard)
+        BrainRouteGroups.Brain(endpoints, "/confirmations").AddEndpointFilter(ModuleRouteGuard.Guard)
             .MapPost("/{**planId}", (HttpContext http, string planId, ConfirmationAnswer input, INeuronProxies brain, CancellationToken ct)
                 => Answer(planId, input, brain, BrainScope.CurrentId(), HttpCaller.Current(http), ct));
     }

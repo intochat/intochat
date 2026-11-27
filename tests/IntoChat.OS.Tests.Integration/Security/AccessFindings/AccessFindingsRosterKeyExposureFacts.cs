@@ -16,7 +16,7 @@ namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 // material is ever in it.
 //
 // Who is admitted: NeuronsGrpcService.ReadState calls BrainCall.Enter, which admits only a Person or Guest session that
-// also passes BrainAccessFilter.Decide for that brain -- not another brain, not by itself an app/agent HTTP session.
+// also passes BrainRouteGroups.Decide for that brain -- not another brain, not by itself an app/agent HTTP session.
 [Trait("Category", "AccessFindings")]
 public sealed class AccessFindingsRosterKeyExposureFacts
 {

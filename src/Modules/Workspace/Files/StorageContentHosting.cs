@@ -51,7 +51,7 @@ internal static class StorageContentHosting
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        var hosted = endpoints.MapGroup("");
+        var hosted = endpoints.MapGroup("").WithMetadata(BrainRouteGroups.GuestClosed.Instance);
         hosted.AddEndpointFilter(ActInTheRoutesBrain);
         StorageContentEndpoints.Map(hosted);
         BrainRoutes.Group(hosted, "/storage").MapPost("/{storage}/overwrites/{planId}", Answer);

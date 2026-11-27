@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Kernel;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Access;
@@ -59,7 +60,7 @@ public static class McpHosting
                 return Results.Unauthorized();
             }
 
-            if (await BrainAccessFilter.Decide(context.HttpContext, caller.Brain.Value) is { } denied)
+            if (await BrainRouteGroups.Decide(context.HttpContext, caller.Brain.Value) is { } denied)
             {
                 return denied;
             }
@@ -71,7 +72,7 @@ public static class McpHosting
             }
         });
         // The one door a /try guest has. The root /mcp map above is not one.
-        OsBrainRoutes.Group(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
+        BrainRouteGroups.Brain(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
         {
             if (context.HttpContext.RequestServices.GetService<ICallerAmbient>()?.Current is not { } caller)
             {

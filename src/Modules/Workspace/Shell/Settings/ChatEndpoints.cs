@@ -1,8 +1,8 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
@@ -21,7 +21,7 @@ internal static class ChatEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/chats");
+        var group = BrainRouteGroups.Brain(endpoints, "/chats");
         group.MapGet("", List);
         group.MapPost("/{id}/unarchive", Unarchive);
     }

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Host.Http;
+using DigitalBrain.Runtime.Http;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
@@ -19,7 +19,7 @@ internal static class ConnectionEndpoints
 {
     internal static void MapConnectionNeurons(this IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/connections").WithMetadata(GuestSurface.Door.Instance);
+        var group = BrainRouteGroups.Brain(endpoints, "/connections").WithMetadata(GuestSurface.Door.Instance);
 
         group.MapGet("", async (AuthorityNeurons neurons, [FromServices] IReadOnlyList<ConnectorDefinition> connectors) =>
         {
