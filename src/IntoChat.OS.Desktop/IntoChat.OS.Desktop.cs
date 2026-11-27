@@ -52,6 +52,34 @@ try
         return RunVerifyBoot(layout, kernelUrl);
     }
 
+    var hasEnrollArg = DesktopBootstrap.TryExtractEnrollUri(args, out var enrollUri);
+    if (hasEnrollArg)
+    {
+        if (!DesktopBootstrap.TryParseEnrollUri(enrollUri, out _, out _, out var enrollValidationError))
+        {
+            throw new InvalidOperationException(enrollValidationError ?? "Invalid intochat://enroll URI.");
+        }
+
+        var pipeName = DesktopBootstrap.GetSingleInstancePipeName(layout);
+        if (await DesktopBootstrap.TryForwardEnrollUriAsync(pipeName, enrollUri!, TimeSpan.FromMilliseconds(350)))
+        {
+            return 0;
+        }
+
+        if (DesktopBootstrap.IsPortListening(kernelUrl.Port))
+        {
+            var runningPresence = DesktopBootstrap.EnsurePresenceToken(layout.PresenceFilePath, createNew: false);
+            using var enrollHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            var (ok, enrollError) = await DesktopBootstrap.SendEnrollToKernelAsync(enrollHttp, kernelUrl, runningPresence, enrollUri!);
+            if (!ok)
+            {
+                throw new InvalidOperationException(enrollError ?? "Device pairing failed.");
+            }
+
+            return 0;
+        }
+    }
+
     var backgroundDaemon = DesktopBootstrap.IsBackgroundDaemon(args);
     var kernelOnly = args.Contains("--kernel-only") || backgroundDaemon;
     var keepKernelAliveOnClose = DesktopBootstrap.ShouldKeepKernelAliveOnWindowClose(args);
@@ -143,6 +171,26 @@ try
     {
         OpenBrowser($"{kernelUrl}#presence={presenceToken}");
     }
+
+    if (hasEnrollArg && !string.IsNullOrWhiteSpace(enrollUri))
+    {
+        using var enrollHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var (ok, enrollError) = await DesktopBootstrap.SendEnrollToKernelAsync(enrollHttp, kernelUrl, presenceToken, enrollUri, shutdownCoordinator.ShutdownToken);
+        if (!ok)
+        {
+            throw new InvalidOperationException(enrollError ?? "Device pairing failed.");
+        }
+    }
+
+    using var enrollPipeServer = DesktopBootstrap.StartEnrollPipeServer(
+        DesktopBootstrap.GetSingleInstancePipeName(layout),
+        async (forwardedUri, ct) =>
+        {
+            using var forwardHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            var (ok, _) = await DesktopBootstrap.SendEnrollToKernelAsync(forwardHttp, kernelUrl, presenceToken, forwardedUri, ct);
+            return ok;
+        },
+        shutdownCoordinator.ShutdownToken);
 
     if (kernelOnly)
     {

@@ -288,6 +288,63 @@ function Remove-WindowsShortcut {
     return $false
 }
 
+function Register-IntoChatProtocolHandler {
+    param([Parameter(Mandatory = $true)][string]$DesktopExePath)
+    if (-not (Test-IsWindowsHost)) {
+        return
+    }
+
+    $protocolRoot = 'Registry::HKEY_CURRENT_USER\Software\Classes\intochat'
+    $iconKey = Join-Path $protocolRoot 'DefaultIcon'
+    $commandKey = Join-Path $protocolRoot 'shell\open\command'
+
+    New-Item -Path $protocolRoot -Force | Out-Null
+    Set-ItemProperty -Path $protocolRoot -Name '(Default)' -Value 'URL:IntoChat OS Protocol'
+    Set-ItemProperty -Path $protocolRoot -Name 'URL Protocol' -Value ''
+
+    New-Item -Path $iconKey -Force | Out-Null
+    Set-ItemProperty -Path $iconKey -Name '(Default)' -Value "`"$DesktopExePath`",0"
+
+    New-Item -Path $commandKey -Force | Out-Null
+    Set-ItemProperty -Path $commandKey -Name '(Default)' -Value "`"$DesktopExePath`" `"%1`""
+}
+
+function Unregister-IntoChatProtocolHandler {
+    param([Parameter(Mandatory = $true)][string]$BinDirectory)
+    if (-not (Test-IsWindowsHost)) {
+        return $false
+    }
+
+    $protocolRoot = 'Registry::HKEY_CURRENT_USER\Software\Classes\intochat'
+    if (-not (Test-Path -LiteralPath $protocolRoot)) {
+        return $false
+    }
+
+    $commandKey = Join-Path $protocolRoot 'shell\open\command'
+    $shouldRemove = $true
+    if (Test-Path -LiteralPath $commandKey) {
+        try {
+            $cmdValue = (Get-ItemProperty -LiteralPath $commandKey -Name '(Default)' -ErrorAction SilentlyContinue).'(Default)'
+            if (-not [string]::IsNullOrWhiteSpace($cmdValue)) {
+                $normalizedBin = [System.IO.Path]::GetFullPath($BinDirectory).TrimEnd('\') + '\'
+                if (-not $cmdValue.Contains($normalizedBin, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $shouldRemove = $false
+                }
+            }
+        }
+        catch {
+            $shouldRemove = $false
+        }
+    }
+
+    if ($shouldRemove) {
+        Remove-Item -LiteralPath $protocolRoot -Recurse -Force -ErrorAction SilentlyContinue
+        return $true
+    }
+
+    return $false
+}
+
 function Stop-RunningIntoChat {
     param(
         [Parameter(Mandatory = $true)][string]$BinDirectory,
@@ -373,6 +430,10 @@ if ($Uninstall) {
     $desktopLink = Get-DesktopShortcutPath
     if (Remove-WindowsShortcut -ShortcutPath $desktopLink -BinDirectory $binDir) {
         Write-Step "Removed Desktop shortcut: $desktopLink"
+    }
+
+    if (Unregister-IntoChatProtocolHandler -BinDirectory $binDir) {
+        Write-Step "Removed HKCU intochat: protocol handler."
     }
 
     # HARD INVARIANT: Never delete $secretsDir (master.key custody) or $stateDir (user data).
@@ -527,6 +588,11 @@ try {
     }
 
     $desktopExe = Join-Path $binDir 'IntoChat.OS.Desktop.exe'
+
+    if (Test-IsWindowsHost -and (Test-Path -LiteralPath $desktopExe -PathType Leaf)) {
+        Register-IntoChatProtocolHandler -DesktopExePath $desktopExe
+        Write-Step "Registered HKCU intochat: protocol handler -> $desktopExe"
+    }
 
     if (-not $skipShortcuts) {
         if (Test-IsWindowsHost) {

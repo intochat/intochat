@@ -12,16 +12,35 @@ namespace IntoChat.OS.Modules.Apps.CodeBlocks;
 public enum CodeBlockStatus { Running, Completed, Failed, Waiting, Cancelled }
 
 // Needs are the contracts the block's code reaches through the brain client (inferred); PlanId is the approval it waits for.
-public sealed record CodeBlockRunView(string RunId, CodeBlockStatus Status, string[] Steps, string? Output, string? Error, string[]? Needs = null, string? PlanId = null);
+public sealed record CodeBlockRunView(
+    string RunId,
+    CodeBlockStatus Status,
+    string[] Steps,
+    string? Output,
+    string? Error,
+    string[]? Needs = null,
+    string? PlanId = null,
+    string? ExecutionTarget = null,
+    string? ExecutedByMachineId = null);
 
 [Signal("codeblock.run-started")]
 public sealed record CodeBlockRunStarted(string RunId, string Title) : DigitalBrain.Signal;
+
+[Signal("codeblock.run-progress")]
+public sealed record CodeBlockRunProgress(string RunId, string Stage, string? ExecutionTarget = null, string? ExecutedByMachineId = null) : DigitalBrain.Signal;
 
 [Signal("codeblock.run-waiting")]
 public sealed record CodeBlockRunWaiting(string RunId, string PlanId, string[] Needs) : DigitalBrain.Signal;
 
 [Signal("codeblock.run-done")]
-public sealed record CodeBlockRunDone(string RunId, bool Succeeded, string? Output, string? Error, bool Cancelled = false) : DigitalBrain.Signal;
+public sealed record CodeBlockRunDone(
+    string RunId,
+    bool Succeeded,
+    string? Output,
+    string? Error,
+    bool Cancelled = false,
+    string? ExecutionTarget = null,
+    string? ExecutedByMachineId = null) : DigitalBrain.Signal;
 
 [NeuronAlias("codeblock.run"), DefaultNeuronType("codeblock.run")]
 [Description("Run a small piece of C# in the sandbox container. source declares `public static class Block { public static string Run(string input) { ... } }`; only safe APIs compile.")]

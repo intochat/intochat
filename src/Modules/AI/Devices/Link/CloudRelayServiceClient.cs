@@ -88,6 +88,30 @@ internal sealed class CloudRelayServiceClient(HttpClient http, IServiceAssertion
         return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedSandboxResponse, ct).ConfigureAwait(false);
     }
 
+    public async Task<PcResourceResponse?> DispatchBrainResourceAsync(
+        BrainResourceDispatchRequest dispatch,
+        TimeSpan availabilityTimeout,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(dispatch);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dispatch.Brain);
+
+        using var availabilityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        availabilityCts.CancelAfter(availabilityTimeout);
+
+        var bodyBytes = SerializeJson(dispatch, DeviceWireJson.Default.BrainResourceDispatchRequest);
+        using var request = BuildAssertedRequest(dispatch.Brain, HttpMethod.Post, DeviceRoutes.ResourceDispatch, bodyBytes);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, availabilityCts.Token).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.PcResourceResponse, ct).ConfigureAwait(false);
+    }
+
     private HttpRequestMessage BuildAssertedRequest(string brainId, HttpMethod method, string route, byte[]? bodyBytes)
     {
         if (signer is not { IsConfigured: true, ServiceUri: { } baseUri })

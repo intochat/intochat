@@ -34,7 +34,9 @@ internal sealed class DeviceWorker(
     IOptionsMonitor<DevicesOptions>? options = null,
     IConnectedComputeRouter? computeRouter = null,
     ILocalSandboxExecutor? localSandbox = null,
-    IClientCodeSandboxConsent? consentStore = null) : BackgroundService
+    IClientCodeSandboxConsent? consentStore = null,
+    IClientResourceConsent? resourceConsent = null,
+    ILocalPcResourceExecutor? localResourceExecutor = null) : BackgroundService
 {
     private static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Devices");
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
@@ -43,14 +45,31 @@ internal sealed class DeviceWorker(
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly ILocalRuntime[] _runtimes = OrderRuntimes(runtimes);
     private readonly Dictionary<string, (ILocalRuntime Runtime, ModelCard Card)> _advertised = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _wakeSignal = new(0, 1);
 
     private volatile bool _modelsDirty = true;
     private bool _reportedOnce;
     private bool _computeReportedOnce;
     private bool _lastAdvertisedSandboxReady;
     private bool _lastAdvertisedAllowClientCodeSandbox;
+    private bool _lastAdvertisedAllowFolders;
+    private bool _lastAdvertisedAllowConsole;
     private ComputeConsentMode _lastAdvertisedConsentMode = ComputeConsentMode.ExplicitToggle;
     private DateTimeOffset _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
+
+    internal void NotifyLinkChanged()
+    {
+        _modelsDirty = true;
+        _computeReportedOnce = false;
+        if (_wakeSignal.CurrentCount == 0)
+        {
+            try { _wakeSignal.Release(); }
+            catch (SemaphoreFullException ex)
+            {
+                logger.LogDebug(ex, "DeviceWorker wake signal already queued.");
+            }
+        }
+    }
 
     internal void NotifyInstallChanged(InstallChanged signal)
     {
@@ -72,7 +91,7 @@ internal sealed class DeviceWorker(
                 if (await credentials.Read(stoppingToken).ConfigureAwait(false) is null)
                 {
                     ResetAdvertised();
-                    await Task.Delay(IdleDelay, _clock, stoppingToken).ConfigureAwait(false);
+                    await DelayOrWakeAsync(IdleDelay, stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
@@ -133,6 +152,15 @@ internal sealed class DeviceWorker(
             }
         }
 
+        if (localResourceExecutor is not null)
+        {
+            var resourceJob = await cloud.PollNextResourceAsync(ct).ConfigureAwait(false);
+            if (resourceJob is not null)
+            {
+                await ExecuteResourceJobAsync(resourceJob, ct).ConfigureAwait(false);
+            }
+        }
+
         var job = await cloud.PollNextAsync(ct).ConfigureAwait(false);
         if (job is null)
         {
@@ -142,11 +170,14 @@ internal sealed class DeviceWorker(
         await ExecuteJobAsync(job, ct).ConfigureAwait(false);
     }
 
-    internal ComputeCapabilityAdvertisement BuildComputeCapabilityAdvertisement(LinkSecrets secrets)
+    internal ComputeCapabilityAdvertisement BuildComputeCapabilityAdvertisement(LinkSecrets secrets, string[]? consentedFolderLabels = null)
     {
         var compute = CurrentComputeOptions();
         var allowClientCodeSandbox = EffectiveAllowClientCodeSandbox(compute);
         var sandboxReady = compute.IsClientCodeSandboxConsentedWith(allowClientCodeSandbox);
+        var allowFolders = EffectiveAllowWindowsFolderGateway();
+        var allowConsole = EffectiveAllowConsole();
+        var safeFolderLabels = allowFolders ? consentedFolderLabels : null;
         return new ComputeCapabilityAdvertisement(
             MachineId: thisMachine.Value,
             DeviceName: DeviceName(),
@@ -158,7 +189,11 @@ internal sealed class DeviceWorker(
             HeartbeatAt: _clock.GetUtcNow(),
             KeyThumbprint: ComputeKeyThumbprint(secrets.PrivateKeyPkcs8),
             AllowClientCodeSandbox: allowClientCodeSandbox,
-            AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(sandboxReady));
+            AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(sandboxReady, allowFolders, allowConsole),
+            AllowWindowsFolderGateway: allowFolders,
+            AllowConsole: allowConsole,
+            ConsentedFolderLabels: safeFolderLabels,
+            ConsoleRequiresPersonApproval: true);
     }
 
     private async Task ReportComputeCapabilityIfNeededAsync(LinkSecrets secrets, CancellationToken ct)
@@ -168,11 +203,16 @@ internal sealed class DeviceWorker(
         var interval = TimeSpan.FromSeconds(Math.Clamp(compute.HeartbeatIntervalSeconds, 1, 300));
         var allowClientCodeSandbox = EffectiveAllowClientCodeSandbox(compute);
         var sandboxReady = compute.IsClientCodeSandboxConsentedWith(allowClientCodeSandbox);
+        var allowFolders = EffectiveAllowWindowsFolderGateway();
+        var allowConsole = EffectiveAllowConsole();
+        var anyConsented = sandboxReady || allowFolders || allowConsole;
 
         var stateChanged = !_computeReportedOnce
             || _lastAdvertisedSandboxReady != sandboxReady
             || _lastAdvertisedConsentMode != compute.ConsentMode
-            || _lastAdvertisedAllowClientCodeSandbox != allowClientCodeSandbox;
+            || _lastAdvertisedAllowClientCodeSandbox != allowClientCodeSandbox
+            || _lastAdvertisedAllowFolders != allowFolders
+            || _lastAdvertisedAllowConsole != allowConsole;
         var heartbeatDue = now - _lastComputeHeartbeatAt >= interval;
 
         if (!stateChanged && !heartbeatDue)
@@ -180,21 +220,34 @@ internal sealed class DeviceWorker(
             return;
         }
 
-        // Only send periodic heartbeats while consented; when unconsented, send once on initial report or toggle revocation.
-        if (!sandboxReady && !stateChanged)
+        // Only send periodic heartbeats while at least one capability is consented; when all are unconsented, send once on initial report or toggle revocation.
+        if (!anyConsented && !stateChanged)
         {
             _lastComputeHeartbeatAt = now;
             return;
         }
 
-        var advertisement = BuildComputeCapabilityAdvertisement(secrets);
+        string[]? folderLabels = null;
+        if (allowFolders && localResourceExecutor is not null)
+        {
+            try
+            {
+                folderLabels = await localResourceExecutor.GetConsentedFolderLabelsAsync(ct).ConfigureAwait(false);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                logger.LogDebug(error, "Could not enumerate consented folder labels for capability heartbeat.");
+            }
+        }
+
+        var advertisement = BuildComputeCapabilityAdvertisement(secrets, folderLabels);
         await cloud.ReportComputeCapabilityAsync(advertisement, ct).ConfigureAwait(false);
 
         if (computeRouter is not null)
         {
             var ownerBrain = new BrainId(IntoChatOSNames.DefaultOwnerBrainId);
             await computeRouter.RecordHeartbeatAsync(ownerBrain, advertisement, ct).ConfigureAwait(false);
-            if (!sandboxReady)
+            if (!anyConsented)
             {
                 await computeRouter.MarkOfflineAsync(ownerBrain, thisMachine.Value, ct).ConfigureAwait(false);
             }
@@ -203,8 +256,94 @@ internal sealed class DeviceWorker(
         _computeReportedOnce = true;
         _lastAdvertisedSandboxReady = sandboxReady;
         _lastAdvertisedAllowClientCodeSandbox = allowClientCodeSandbox;
+        _lastAdvertisedAllowFolders = allowFolders;
+        _lastAdvertisedAllowConsole = allowConsole;
         _lastAdvertisedConsentMode = compute.ConsentMode;
         _lastComputeHeartbeatAt = now;
+    }
+
+    private async Task ExecuteResourceJobAsync(PcResourceRequest job, CancellationToken ct)
+    {
+        var isConsole = string.Equals(job.Capability, ClientComputeConsentPolicy.ConsoleCapability, StringComparison.Ordinal);
+        var isFolder = string.Equals(job.Capability, ClientComputeConsentPolicy.WindowsFolderGatewayCapability, StringComparison.Ordinal);
+        var allowFolders = EffectiveAllowWindowsFolderGateway();
+        var allowConsole = EffectiveAllowConsole();
+
+        if (!isConsole && !isFolder)
+        {
+            logger.LogInformation("Refused Mode B resource job {JobId}: unsupported capability '{Capability}'.", job.JobId, job.Capability);
+            await cloud.ReportResourceResultAsync(
+                job.JobId,
+                new PcResourceResponse(
+                    Ok: false,
+                    Error: $"unsupported-capability: '{job.Capability}' is not supported on this PC.",
+                    ExecutedByMachineId: thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (isFolder && !allowFolders)
+        {
+            logger.LogInformation("Refused Mode B folder job {JobId}: IWindowsFolderGateway consent is OFF.", job.JobId);
+            await cloud.ReportResourceResultAsync(
+                job.JobId,
+                new PcResourceResponse(
+                    Ok: false,
+                    Error: "consent-disabled: IWindowsFolderGateway is disabled on this PC.",
+                    ExecutedByMachineId: thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (isConsole && !allowConsole)
+        {
+            logger.LogInformation("Refused Mode B console job {JobId}: IConsole consent is OFF.", job.JobId);
+            await cloud.ReportResourceResultAsync(
+                job.JobId,
+                new PcResourceResponse(
+                    Ok: false,
+                    Error: "consent-disabled: IConsole is disabled on this PC.",
+                    ExecutedByMachineId: thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (isConsole && string.IsNullOrWhiteSpace(job.ApprovalToken))
+        {
+            logger.LogInformation("Refused Mode B console job {JobId}: missing [PersonOnly] approval proof.", job.JobId);
+            await cloud.ReportResourceResultAsync(
+                job.JobId,
+                new PcResourceResponse(
+                    Ok: false,
+                    Error: "person-approval-required: IConsole requires [PersonOnly] human approval proof.",
+                    ExecutedByMachineId: thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        PcResourceResponse response;
+        try
+        {
+            response = await localResourceExecutor!.ExecuteAsync(job, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(response.ExecutedByMachineId))
+            {
+                response = response with { ExecutedByMachineId = thisMachine.Value };
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            logger.LogWarning(error, "Mode B local PC resource job {JobId} ({Capability}/{Operation}) failed with {ErrorType}.", job.JobId, job.Capability, job.Operation, error.GetType().Name);
+            response = new PcResourceResponse(
+                Ok: false,
+                Error: error.Message,
+                ExecutedByMachineId: thisMachine.Value);
+        }
+
+        await cloud.ReportResourceResultAsync(job.JobId, response, ct).ConfigureAwait(false);
     }
 
     private async Task ExecuteSandboxJobAsync(ConnectedSandboxRequest job, CancellationToken ct)
@@ -454,6 +593,8 @@ internal sealed class DeviceWorker(
         _computeReportedOnce = false;
         _lastAdvertisedSandboxReady = false;
         _lastAdvertisedAllowClientCodeSandbox = false;
+        _lastAdvertisedAllowFolders = false;
+        _lastAdvertisedAllowConsole = false;
         _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
     }
 
@@ -464,6 +605,25 @@ internal sealed class DeviceWorker(
         => consentStore is not null
             ? consentStore.Resolve(compute.AllowClientCodeSandbox)
             : compute.AllowClientCodeSandbox;
+
+    private bool EffectiveAllowWindowsFolderGateway()
+        => resourceConsent?.AllowWindowsFolderGateway ?? false;
+
+    private bool EffectiveAllowConsole()
+        => resourceConsent?.AllowConsole ?? false;
+
+    private async Task DelayOrWakeAsync(TimeSpan delay, CancellationToken ct)
+    {
+        using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var delayTask = Task.Delay(delay, _clock, delayCts.Token);
+        var wakeTask = _wakeSignal.WaitAsync(delayCts.Token);
+        var completed = await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
+        await delayCts.CancelAsync().ConfigureAwait(false);
+        if (completed == wakeTask)
+        {
+            await wakeTask.ConfigureAwait(false);
+        }
+    }
 
     private static string? ComputeKeyThumbprint(byte[]? pkcs8)
     {

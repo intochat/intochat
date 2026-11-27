@@ -22,6 +22,8 @@ internal static class SettingsControls
     public const string ManagedVariable = "SETTINGS_MANAGED";
 
     public const string AllowClientCodeSandbox = ClientComputeConsentPolicy.SettingsToggleKey;
+    public const string AllowWindowsFolderGateway = ClientComputeConsentPolicy.AllowWindowsFolderGatewayToggleKey;
+    public const string AllowConsole = ClientComputeConsentPolicy.AllowConsoleToggleKey;
 
     internal sealed record SettingSwitch(string Key, string Section, string Label, Func<SettingsAppState, bool> Get, Func<SettingsAppState, bool, SettingsAppState> Set);
 
@@ -34,7 +36,9 @@ internal static class SettingsControls
         new("notify-jobs", "notifications", "Background jobs & long-running agent completions", s => s.NotifyBackgroundJobs, (s, on) => s with { NotifyBackgroundJobs = on }),
         new("notify-connections", "notifications", "Connection expirations & health probe failures", s => s.NotifyConnectionHealth, (s, on) => s with { NotifyConnectionHealth = on }),
         new("quiet-hours", "notifications", "Quiet hours schedule (22:00 – 07:00)", s => s.QuietHoursEnabled, (s, on) => s with { QuietHoursEnabled = on }),
-        new(AllowClientCodeSandbox, "models", "Connected Client Compute (ICodeSandbox) — run orchestrated code on this device", s => s.AllowClientCodeSandbox, (s, on) => s with { AllowClientCodeSandbox = on }),
+        new(AllowClientCodeSandbox, "models", "Run code on this PC", s => s.AllowClientCodeSandbox, (s, on) => s with { AllowClientCodeSandbox = on }),
+        new(AllowWindowsFolderGateway, "devices", "Shared folders", s => s.AllowWindowsFolderGateway, (s, on) => s with { AllowWindowsFolderGateway = on }),
+        new(AllowConsole, "devices", "Interactive shell", s => s.AllowConsole, (s, on) => s with { AllowConsole = on }),
     ];
 
     public const string ThemeMode = "theme-mode";
@@ -47,6 +51,7 @@ internal static class SettingsControls
     public const string McpAddForm = "mcp-add";
     public const string ApiKeys = "api-keys";
     public const string GitHubPat = "github-pat";
+    public const string PairDevice = "pair-device";
     public const string ReasoningEffort = "reasoning-effort";
     public const string VoicePersona = "voice-persona";
     public const string WebSearchProviderVariable = "web.search.provider";
@@ -301,5 +306,18 @@ internal static class SettingsControls
             "Seal & connect repository",
             IsEnabled: !managed,
             AutomationName: "Connect GitHub repository"));
+    }
+
+    public static Node PairDeviceForm(SettingsChildren children, SettingsAppState state)
+    {
+        var managed = IsManaged(state, PairDevice);
+        return children.Form(PairDevice, new FormProps(
+            [
+                new FormInput("server", "Cloud server URL", Value: state.CloudLinkUrl, Placeholder: "https://intochat.io", MaxLength: 256),
+                new FormInput("code", "Pairing code", Value: "", Placeholder: "ABCD-EFGH-JKMN", MaxLength: 64),
+            ],
+            "Link this PC",
+            IsEnabled: !managed,
+            AutomationName: "Enter pairing code"));
     }
 }

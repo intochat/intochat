@@ -55,12 +55,24 @@ public static class DeviceRoutes
     public const string SandboxNext = CircleRoutes.Prefix + "/compute/sandbox/next";
     public const string SandboxDispatch = CircleRoutes.Prefix + "/compute/sandbox/dispatch";
     public const string SandboxResult = CircleRoutes.Prefix + "/compute/sandbox/{jobId}/result";
+    public const string SandboxStream = CircleRoutes.Prefix + "/compute/sandbox/{jobId}/stream";
+
+    // Mode B PC resource access (consented folders + [PersonOnly] console) over the Circle relay.
+    public const string ResourceNext = CircleRoutes.Prefix + "/compute/resource/next";
+    public const string ResourceDispatch = CircleRoutes.Prefix + "/compute/resource/dispatch";
+    public const string ResourceResult = CircleRoutes.Prefix + "/compute/resource/{jobId}/result";
 
     public static string StreamFor(string jobId)
         => CircleRoutes.Prefix + "/compute/" + Uri.EscapeDataString(jobId) + "/stream";
 
     public static string SandboxResultFor(string jobId)
         => CircleRoutes.Prefix + "/compute/sandbox/" + Uri.EscapeDataString(jobId) + "/result";
+
+    public static string SandboxStreamFor(string jobId)
+        => CircleRoutes.Prefix + "/compute/sandbox/" + Uri.EscapeDataString(jobId) + "/stream";
+
+    public static string ResourceResultFor(string jobId)
+        => CircleRoutes.Prefix + "/compute/resource/" + Uri.EscapeDataString(jobId) + "/result";
 }
 
 // MachinePublicKeySpki is the base64url SubjectPublicKeyInfo of the machine P-256 key.
@@ -144,12 +156,29 @@ public sealed record BrainComputeNodesResponse(string Brain, ComputeCapabilityAd
 // Scoped sandbox dispatch targeted at one connected auto-all device of the credential's brain.
 public sealed record BrainSandboxDispatchRequest(string Brain, string MachineId, ConnectedSandboxRequest Request);
 
+// Mode B PC resource dispatch targeted at one connected consented device of the credential's brain.
+public sealed record BrainResourceDispatchRequest(string Brain, string MachineId, PcResourceRequest Request);
+
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(BrainDeviceModels))]
 [JsonSerializable(typeof(BrainDevicesResponse))]
 [JsonSerializable(typeof(BrainChatRequest))]
 [JsonSerializable(typeof(BrainComputeNodesResponse))]
 [JsonSerializable(typeof(BrainSandboxDispatchRequest))]
+[JsonSerializable(typeof(BrainResourceDispatchRequest))]
+[JsonSerializable(typeof(PcResourceRequest))]
+[JsonSerializable(typeof(PcResourceResponse))]
+[JsonSerializable(typeof(SandboxStreamChunk))]
+[JsonSerializable(typeof(FolderResourcePayload))]
+[JsonSerializable(typeof(ConsoleResourcePayload))]
+[JsonSerializable(typeof(FolderResourceResult))]
+[JsonSerializable(typeof(ConsoleResourceResult))]
+[JsonSerializable(typeof(ConnectedResourceEntry))]
+[JsonSerializable(typeof(ConnectedResourceEntry[]))]
+[JsonSerializable(typeof(ConnectedPcResourceNode))]
+[JsonSerializable(typeof(ConnectedPcResourceNode[]))]
+[JsonSerializable(typeof(RemotePcShellOutcome))]
+[JsonSerializable(typeof(PendingDeviceEnrollmentInfo))]
 [JsonSerializable(typeof(ComputeConsentMode))]
 [JsonSerializable(typeof(ClientDevicePlatform))]
 [JsonSerializable(typeof(ComputeNodeStatus))]

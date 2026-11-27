@@ -10,7 +10,7 @@ namespace IntoChat.OS.Cli;
 
 public static class CliCommands
 {
-    public const string Usage = "usage: IntoChat.OS.Cli runs | send <app> <command> [json] | start <workflow> [input] | cancel <run> [reason] | approve <plan> | deny <plan>  [--base url] [--brain id] [--limit n]";
+    public const string Usage = "usage: IntoChat.OS.Cli runs | send <app> <command> [json] | start <workflow> [input] | cancel <run> [reason] | approve <plan> | deny <plan> | link <server> <code> | link status | unlink  [--base url] [--brain id] [--limit n]";
 
     // handler replaces the HTTP stack (a test's in-process server); null uses the machine's.
     public static async Task<int> Run(string[] args, TextWriter output, TextWriter error, Func<string, string?> environment, HttpMessageHandler? handler = null)
@@ -29,6 +29,8 @@ public static class CliCommands
             return options.Verb switch
             {
                 "approve" or "deny" => await Answer(options, options.Verb == "approve", output, error, handler),
+                "link" => await LinkAsync(options, output, error, handler),
+                "unlink" => await UnlinkAsync(options, output, error, handler),
                 "runs" or "send" or "start" or "cancel" => await OverTheEdge(options, output, error, handler),
                 _ => await Fail(error, Usage, 2),
             };
@@ -102,6 +104,83 @@ public static class CliCommands
         using var response = await http.SendAsync(request);
         await output.WriteLineAsync($"{(int)response.StatusCode} {(approve ? "approved" : "denied")} {plan}");
         return response.IsSuccessStatusCode ? 0 : 1;
+    }
+
+    private static async Task<int> LinkAsync(CliOptions options, TextWriter output, TextWriter error, HttpMessageHandler? handler)
+    {
+        using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        http.BaseAddress = options.Base;
+
+        if (options.Arguments is ["status"])
+        {
+            using var statusReq = CreateEdgeRequest(HttpMethod.Get, $"/brains/{Uri.EscapeDataString(options.Brain)}/devices/link/status", options);
+            using var statusResp = await http.SendAsync(statusReq);
+            var statusBody = await statusResp.Content.ReadAsStringAsync();
+            if (!statusResp.IsSuccessStatusCode)
+            {
+                await error.WriteLineAsync($"link status: {(int)statusResp.StatusCode} {statusBody}".Trim());
+                return 1;
+            }
+
+            await output.WriteLineAsync(statusBody);
+            return 0;
+        }
+
+        object payload;
+        if (options.Arguments is [var singleUri] && singleUri.StartsWith("intochat://", StringComparison.OrdinalIgnoreCase))
+        {
+            payload = new { uri = singleUri };
+        }
+        else if (options.Arguments is [var server, var code])
+        {
+            payload = new { server, code };
+        }
+        else
+        {
+            return await Fail(error, "usage: link <server> <code> | link <intochat://enroll?...> | link status", 2);
+        }
+
+        using var req = CreateEdgeRequest(HttpMethod.Post, $"/brains/{Uri.EscapeDataString(options.Brain)}/devices/link/enroll", options);
+        req.Content = JsonContent.Create(payload);
+        using var response = await http.SendAsync(req);
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+        {
+            await error.WriteLineAsync($"link: {(int)response.StatusCode} {body}".Trim());
+            return 1;
+        }
+
+        await output.WriteLineAsync(body);
+        return 0;
+    }
+
+    private static async Task<int> UnlinkAsync(CliOptions options, TextWriter output, TextWriter error, HttpMessageHandler? handler)
+    {
+        using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        http.BaseAddress = options.Base;
+        using var req = CreateEdgeRequest(HttpMethod.Post, $"/brains/{Uri.EscapeDataString(options.Brain)}/devices/link/leave", options);
+        using var response = await http.SendAsync(req);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            await error.WriteLineAsync($"unlink: {(int)response.StatusCode} {body}".Trim());
+            return 1;
+        }
+
+        await output.WriteLineAsync("Unlinked this device from IntoChat Cloud.");
+        return 0;
+    }
+
+    private static HttpRequestMessage CreateEdgeRequest(HttpMethod method, string relativePath, CliOptions options)
+    {
+        var request = new HttpRequestMessage(method, relativePath);
+        foreach (var (name, value) in options.Proof?.Headers() ?? [])
+        {
+            request.Headers.TryAddWithoutValidation(name, value);
+        }
+
+        request.Headers.Add("Origin", options.Base.GetLeftPart(UriPartial.Authority));
+        return request;
     }
 
     private static async Task<int> Fail(TextWriter error, string message, int code)

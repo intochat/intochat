@@ -5,11 +5,13 @@ namespace IntoChat.OS.Modules.Devices;
 /// Falls back to platform-aware <see cref="ComputeCapabilityOptions"/> defaults (Desktop: ON, Mobile: OFF)
 /// until explicitly toggled via Settings or <see cref="Link.IDeviceLink"/>.
 /// </summary>
-internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent
+internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent, IClientResourceConsent
 {
     private readonly Lock _gate = new();
     private bool _allowClientCodeSandbox;
     private bool _hasExplicitOverride;
+    private bool _allowWindowsFolderGateway;
+    private bool _allowConsole;
 
     public ClientCodeSandboxConsentStore(bool initialAllow)
     {
@@ -22,6 +24,14 @@ internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent
     }
 
     public event Action<bool>? Changed;
+
+    private event Action? ResourceChanged;
+
+    event Action? IClientResourceConsent.Changed
+    {
+        add => ResourceChanged += value;
+        remove => ResourceChanged -= value;
+    }
 
     public bool AllowClientCodeSandbox
     {
@@ -41,6 +51,28 @@ internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent
             lock (_gate)
             {
                 return _hasExplicitOverride;
+            }
+        }
+    }
+
+    public bool AllowWindowsFolderGateway
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _allowWindowsFolderGateway;
+            }
+        }
+    }
+
+    public bool AllowConsole
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _allowConsole;
             }
         }
     }
@@ -66,6 +98,37 @@ internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent
         if (changed)
         {
             Changed?.Invoke(allow);
+            ResourceChanged?.Invoke();
+        }
+    }
+
+    public void SetAllowWindowsFolderGateway(bool allow)
+    {
+        bool changed;
+        lock (_gate)
+        {
+            changed = _allowWindowsFolderGateway != allow;
+            _allowWindowsFolderGateway = allow;
+        }
+
+        if (changed)
+        {
+            ResourceChanged?.Invoke();
+        }
+    }
+
+    public void SetAllowConsole(bool allow)
+    {
+        bool changed;
+        lock (_gate)
+        {
+            changed = _allowConsole != allow;
+            _allowConsole = allow;
+        }
+
+        if (changed)
+        {
+            ResourceChanged?.Invoke();
         }
     }
 }
