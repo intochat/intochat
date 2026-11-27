@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+import 'package:mix/mix.dart';
 
 void main() {
   group('WCAG contrast calculation', () {
@@ -189,6 +190,70 @@ void main() {
         expect(observedColors.preset, IcStylePreset.cyberSynaptic);
         expect(observedColors, UiColors.cyberSynapticDark);
         expect(observedMixAccent, UiColors.cyberSynapticDark.accent);
+      },
+    );
+
+    testWidgets(
+      'Mix 2.5 callable tokens resolve lazily in BoxStyler both inside MixScope and without MixScope',
+      (tester) async {
+        final boxStyle = BoxStyler()
+            .color(UiMixTokens.accent())
+            .padding(
+              EdgeInsetsGeometryMix.symmetric(
+                horizontal: UiMixTokens.spaceMedium(),
+                vertical: UiMixTokens.spaceSmall(),
+              ),
+            )
+            .borderRadius(
+              BorderRadiusGeometryMix.all(UiMixTokens.controlRadius()),
+            );
+
+        // 1. Inside UiSeedThemeScope (MixScope override wins).
+        await tester.pumpWidget(
+          MaterialApp(
+            home: UiSeedThemeScope(
+              seeds: UiThemeSeeds.compactPro,
+              child: Box(style: boxStyle, child: const SizedBox.shrink()),
+            ),
+          ),
+        );
+        var container = tester.widget<Container>(find.byType(Container).first);
+        var dec = container.decoration! as BoxDecoration;
+        final compactTokens = UiThemeSeeds.compactPro.toUiTokens();
+        expect(dec.color, UiThemeSeeds.compactPro.accent);
+        expect(
+          container.padding,
+          EdgeInsets.symmetric(
+            horizontal: compactTokens.spaceMedium,
+            vertical: compactTokens.spaceSmall,
+          ),
+        );
+        expect(
+          dec.borderRadius,
+          BorderRadius.circular(compactTokens.controlRadius),
+        );
+
+        // 2. Without MixScope (ContextToken falls back to UiColors/UiTokens).
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: UiTheme.light(null),
+            home: Box(style: boxStyle, child: const SizedBox.shrink()),
+          ),
+        );
+        container = tester.widget<Container>(find.byType(Container).first);
+        dec = container.decoration! as BoxDecoration;
+        expect(dec.color, UiColors.intochatLight.accent);
+        expect(
+          container.padding,
+          EdgeInsets.symmetric(
+            horizontal: UiTokens.defaults.spaceMedium,
+            vertical: UiTokens.defaults.spaceSmall,
+          ),
+        );
+        expect(
+          dec.borderRadius,
+          BorderRadius.circular(UiTokens.defaults.controlRadius),
+        );
       },
     );
   });

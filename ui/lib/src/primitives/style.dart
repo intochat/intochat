@@ -5,7 +5,6 @@ import '../theme/mix_tokens.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';
-import '../theme/ui_tokens.dart';
 import 'ui_control_surface.dart';
 
 /// Optional state-specific style overrides mirroring C# `Mix.Style()`
@@ -308,49 +307,28 @@ abstract final class UiStyleMapper {
         _ => colors.surface,
       };
 
-  static Color _resolveToneBackgroundFromContext(
-    BuildContext context,
-    UiColors colors,
-    String tone,
-  ) => switch (tone.trim().toLowerCase()) {
-    'accent' || 'primary' => UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.accent,
-      colors.accent,
-    ),
-    'accentstrong' || 'accent-strong' => UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.accentHover,
-      colors.accentHover,
-    ),
-    'accenttint' || 'accent-tint' => UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.accentTint,
-      colors.accentTint,
-    ),
-    'success' ||
-    'done' => UiMixTokens.resolveOr(context, UiMixTokens.done, colors.done),
-    'warning' || 'working' => UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.working,
-      colors.working,
-    ),
-    'danger' ||
-    'error' => UiMixTokens.resolveOr(context, UiMixTokens.error, colors.error),
-    'subtle' || 'recessed' => UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.recessed,
-      colors.recessed,
-    ),
-    'elevated' => UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.elevated,
-      colors.elevated,
-    ),
-    'ghost' || 'link' || 'transparent' => Colors.transparent,
-    'canvas' => UiMixTokens.resolveOr(context, UiMixTokens.page, colors.page),
-    _ => UiMixTokens.resolveOr(context, UiMixTokens.surface, colors.surface),
-  };
+  /// Returns a lazy Mix 2.5 callable [Color] token reference for [tone],
+  /// resolved at render time via [MixScope] / [ContextToken].
+  static Color resolveToneBackgroundToken(String tone) =>
+      switch (tone.trim().toLowerCase()) {
+        'accent' || 'primary' => UiMixTokens.accent(),
+        'accentstrong' || 'accent-strong' => UiMixTokens.accentHover(),
+        'accenttint' || 'accent-tint' => UiMixTokens.accentTint(),
+        'success' || 'done' => UiMixTokens.done(),
+        'warning' || 'working' => UiMixTokens.working(),
+        'danger' || 'error' => UiMixTokens.error(),
+        'subtle' || 'recessed' => UiMixTokens.recessed(),
+        'elevated' => UiMixTokens.elevated(),
+        'ghost' || 'link' || 'transparent' => Colors.transparent,
+        'canvas' => UiMixTokens.page(),
+        _ => UiMixTokens.surface(),
+      };
+
+  static bool _isTransparentTone(String tone) =>
+      switch (tone.trim().toLowerCase()) {
+        'ghost' || 'link' || 'transparent' => true,
+        _ => false,
+      };
 
   static Color resolveToneForeground(UiColors colors, String tone) =>
       switch (tone.trim().toLowerCase()) {
@@ -474,7 +452,6 @@ abstract final class UiStyleMapper {
     bool isEnabled = true,
   }) {
     final colors = UiColors.of(context);
-    final tokens = UiTokens.of(context);
 
     final activeHover = isHovered && isEnabled;
     final activePress = isPressed && isEnabled;
@@ -489,68 +466,43 @@ abstract final class UiStyleMapper {
     final hasExplicitPressTone = activePress && style.press?.tone != null;
     final hasExplicitHoverTone = activeHover && style.hover?.tone != null;
 
-    final baseBg = _resolveToneBackgroundFromContext(
-      context,
-      colors,
-      resolved.tone,
-    );
-    final recessed = UiMixTokens.resolveOr(
-      context,
-      UiMixTokens.recessed,
-      colors.recessed,
-    );
+    final isTransparent = _isTransparentTone(resolved.tone);
+    final baseBg = resolveToneBackgroundToken(resolved.tone);
+    final recessed = UiMixTokens.recessed();
     final Color effectiveBg;
     if (!isEnabled) {
-      effectiveBg = baseBg == Colors.transparent
+      effectiveBg = isTransparent
           ? Colors.transparent
           : baseBg.withValues(alpha: 0.45);
     } else if (activePress && !hasExplicitPressTone) {
-      effectiveBg = baseBg == Colors.transparent
-          ? recessed
-          : baseBg.withValues(alpha: 0.82);
+      effectiveBg = isTransparent ? recessed : baseBg.withValues(alpha: 0.82);
     } else if (activeHover && !hasExplicitHoverTone) {
-      effectiveBg = baseBg == Colors.transparent
+      effectiveBg = isTransparent
           ? recessed.withValues(alpha: 0.7)
           : baseBg.withValues(alpha: 0.92);
     } else {
       effectiveBg = baseBg;
     }
 
-    final px =
-        resolved.paddingX ??
-        UiMixTokens.resolveOr(
-          context,
-          UiMixTokens.spaceMedium,
-          tokens.spaceMedium,
-        );
-    final py =
-        resolved.paddingY ??
-        UiMixTokens.resolveOr(
-          context,
-          UiMixTokens.spaceSmall,
-          tokens.spaceSmall,
-        );
-    final r =
-        resolved.radius ??
-        UiMixTokens.resolveOr(
-          context,
-          UiMixTokens.controlRadius,
-          Radius.circular(tokens.controlRadius),
-        ).x;
+    final px = resolved.paddingX ?? UiMixTokens.spaceMedium();
+    final py = resolved.paddingY ?? UiMixTokens.spaceSmall();
+    final borderRadius = resolved.radius != null
+        ? BorderRadiusGeometryMix.circular(resolved.radius!)
+        : BorderRadiusGeometryMix.all(UiMixTokens.controlRadius());
 
     final isGhostOrLink = resolved.tone == 'ghost' || resolved.tone == 'link';
     final borderColor = activeFocus
-        ? UiMixTokens.resolveOr(context, UiMixTokens.focus, colors.focus)
+        ? UiMixTokens.focus()
         : activeHover
-        ? UiMixTokens.resolveOr(context, UiMixTokens.accent, colors.accent)
+        ? UiMixTokens.accent()
         : isGhostOrLink
         ? Colors.transparent
-        : UiMixTokens.resolveOr(context, UiMixTokens.hairline, colors.hairline);
+        : UiMixTokens.hairline();
 
     var styler = BoxStyler()
         .color(effectiveBg)
         .padding(EdgeInsetsGeometryMix.symmetric(horizontal: px, vertical: py))
-        .borderRadius(BorderRadiusGeometryMix.circular(r))
+        .borderRadius(borderRadius)
         .border(
           BoxBorderMix.all(
             BorderSideMix.color(borderColor).width(activeFocus ? 1.5 : 1.0),

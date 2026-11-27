@@ -70,45 +70,97 @@ String wcagContrastGrade(double ratio) {
   return 'Fail';
 }
 
-/// Canonical `mix` 2.4.0 design tokens populated by [UiThemeSeeds.toMixTokens],
-/// provided via [MixScope], and consumed by [UiStyleMapper] and Mix primitives.
+/// Canonical `mix` 2.5.0 design tokens populated by [UiThemeSeeds.toMixTokens],
+/// provided via [MixScope], and consumed lazily via callable references
+/// (`UiMixTokens.accent()`, `UiMixTokens.spaceMedium()`,
+/// `UiMixTokens.controlRadius()`, etc.) in [UiStyleMapper] and Mix primitives.
+///
+/// Backed by [ContextToken] so every token reads [MixScope] overrides first and
+/// falls back cleanly to [UiColors.of] / [UiTokens.of] when rendered outside a
+/// [MixScope] (for example, isolated widget tests).
 abstract final class UiMixTokens {
+  static Color _accent(BuildContext context) => UiColors.of(context).accent;
+  static Color _accentHover(BuildContext context) =>
+      UiColors.of(context).accentHover;
+  static Color _accentTint(BuildContext context) =>
+      UiColors.of(context).accentTint;
+  static Color _accentCopy(BuildContext context) =>
+      UiColors.of(context).accentCopy;
+  static Color _onAccent(BuildContext context) => UiColors.of(context).onAccent;
+  static Color _focus(BuildContext context) => UiColors.of(context).focus;
+
+  static Color _page(BuildContext context) => UiColors.of(context).page;
+  static Color _elevated(BuildContext context) => UiColors.of(context).elevated;
+  static Color _surface(BuildContext context) => UiColors.of(context).surface;
+  static Color _recessed(BuildContext context) => UiColors.of(context).recessed;
+
+  static Color _strong(BuildContext context) => UiColors.of(context).strong;
+  static Color _body(BuildContext context) => UiColors.of(context).body;
+  static Color _hairline(BuildContext context) => UiColors.of(context).hairline;
+
+  static Color _done(BuildContext context) => UiColors.of(context).done;
+  static Color _working(BuildContext context) => UiColors.of(context).working;
+  static Color _error(BuildContext context) => UiColors.of(context).error;
+
+  static double _spaceSmall(BuildContext context) =>
+      UiTokens.of(context).spaceSmall;
+  static double _spaceMedium(BuildContext context) =>
+      UiTokens.of(context).spaceMedium;
+  static double _spaceLarge(BuildContext context) =>
+      UiTokens.of(context).spaceLarge;
+
+  static Radius _controlRadius(BuildContext context) =>
+      Radius.circular(UiTokens.of(context).controlRadius);
+  static Radius _cardRadius(BuildContext context) =>
+      Radius.circular(UiTokens.of(context).card);
+  static Radius _surfaceRadius(BuildContext context) =>
+      Radius.circular(UiTokens.of(context).surfaceRadius);
+  static Radius _pillRadius(BuildContext context) =>
+      Radius.circular(UiTokens.of(context).pill);
+
+  static Duration _fastDuration(BuildContext context) =>
+      UiTokens.of(context).fast;
+  static Duration _baseDuration(BuildContext context) =>
+      UiTokens.of(context).base;
+  static Duration _slowDuration(BuildContext context) =>
+      UiTokens.of(context).slow;
+
   // Colour tokens
-  static const accent = ColorToken('ui.color.accent');
-  static const accentHover = ColorToken('ui.color.accentHover');
-  static const accentTint = ColorToken('ui.color.accentTint');
-  static const accentCopy = ColorToken('ui.color.accentCopy');
-  static const onAccent = ColorToken('ui.color.onAccent');
-  static const focus = ColorToken('ui.color.focus');
+  static const accent = ContextToken<Color>(_accent);
+  static const accentHover = ContextToken<Color>(_accentHover);
+  static const accentTint = ContextToken<Color>(_accentTint);
+  static const accentCopy = ContextToken<Color>(_accentCopy);
+  static const onAccent = ContextToken<Color>(_onAccent);
+  static const focus = ContextToken<Color>(_focus);
 
-  static const page = ColorToken('ui.color.page');
-  static const elevated = ColorToken('ui.color.elevated');
-  static const surface = ColorToken('ui.color.surface');
-  static const recessed = ColorToken('ui.color.recessed');
+  static const page = ContextToken<Color>(_page);
+  static const elevated = ContextToken<Color>(_elevated);
+  static const surface = ContextToken<Color>(_surface);
+  static const recessed = ContextToken<Color>(_recessed);
 
-  static const strong = ColorToken('ui.color.strong');
-  static const body = ColorToken('ui.color.body');
-  static const hairline = ColorToken('ui.color.hairline');
+  static const strong = ContextToken<Color>(_strong);
+  static const body = ContextToken<Color>(_body);
+  static const hairline = ContextToken<Color>(_hairline);
 
-  static const done = ColorToken('ui.color.done');
-  static const working = ColorToken('ui.color.working');
-  static const error = ColorToken('ui.color.error');
+  static const done = ContextToken<Color>(_done);
+  static const working = ContextToken<Color>(_working);
+  static const error = ContextToken<Color>(_error);
 
   // Spacing tokens
-  static const spaceSmall = SpaceToken('ui.space.small');
-  static const spaceMedium = SpaceToken('ui.space.medium');
-  static const spaceLarge = SpaceToken('ui.space.large');
+  static const spaceSmall = ContextToken<double>(_spaceSmall);
+  static const spaceMedium = ContextToken<double>(_spaceMedium);
+  static const spaceLarge = ContextToken<double>(_spaceLarge);
 
   // Radius tokens
-  static const controlRadius = RadiusToken('ui.radius.control');
-  static const cardRadius = RadiusToken('ui.radius.card');
-  static const surfaceRadius = RadiusToken('ui.radius.surface');
-  static const pillRadius = RadiusToken('ui.radius.pill');
+  static const controlRadius = ContextToken<Radius>(_controlRadius);
+  static const cardRadius = ContextToken<Radius>(_cardRadius);
+  static const surfaceRadius = ContextToken<Radius>(_surfaceRadius);
+  static const pillRadius = ContextToken<Radius>(_pillRadius);
 
   // Motion duration tokens
-  static const fastDuration = DurationToken('ui.motion.fast');
-  static const baseDuration = DurationToken('ui.motion.base');
-  static const slowDuration = DurationToken('ui.motion.slow');
+  static const fastDuration = ContextToken<Duration>(_fastDuration);
+  static const baseDuration = ContextToken<Duration>(_baseDuration);
+  static const slowDuration = ContextToken<Duration>(_slowDuration);
 
   /// Resolves [token] from the enclosing [MixScope], falling back cleanly to
   /// [fallback] when rendered outside a [MixScope] (e.g., isolated widget tests).
@@ -394,7 +446,7 @@ final class UiThemeSeeds {
     );
   }
 
-  /// Builds the `mix` 2.4.0 [MixScope] token map synchronized with [toUiColors]
+  /// Builds the `mix` 2.5.0 [MixScope] token map synchronized with [toUiColors]
   /// and [toUiTokens].
   Map<MixToken, Object> toMixTokens() {
     final c = toUiColors();
