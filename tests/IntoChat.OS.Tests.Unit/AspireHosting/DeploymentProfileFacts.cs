@@ -22,7 +22,14 @@ public sealed class DeploymentProfileFacts
         LocalRunDefaults.Apply(configuration);
 
         Assert.True(LocalRunDefaults.IsEnabled(configuration, "postgres"));
-        Assert.False(LocalRunDefaults.IsEnabled(configuration, "qdrant"));
+        Assert.False(LocalRunDefaults.IsEnabled(configuration, "clickhouse"));
+    }
+
+    [Fact]
+    public void LocalDisabledModulesContainsNoDeletedGhostModules()
+    {
+        Assert.DoesNotContain("qdrant", IntoChatOSNames.LocalDisabledModules, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("supabase", IntoChatOSNames.LocalDisabledModules, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -42,7 +49,7 @@ public sealed class DeploymentProfileFacts
         configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [LocalRunDefaults.EnabledKey("postgres")] = "true",
-            [LocalRunDefaults.EnabledKey("qdrant")] = "false",
+            [LocalRunDefaults.EnabledKey("clickhouse")] = "false",
             [LocalRunDefaults.EnabledKey("github")] = "false",
         });
 

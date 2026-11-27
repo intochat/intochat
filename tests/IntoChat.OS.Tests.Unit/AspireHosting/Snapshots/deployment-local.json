@@ -2,7 +2,6 @@
   "Modules": [
     "ai",
     "aspire",
-    "github",
     "orleans",
     "sandbox",
     "webtools"
@@ -13,7 +12,6 @@
     "__dotnet-project-build",
     "ai",
     "aspire",
-    "github",
     "intochat",
     "orleans",
     "os",

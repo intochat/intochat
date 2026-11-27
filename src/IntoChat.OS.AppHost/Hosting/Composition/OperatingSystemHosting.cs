@@ -101,7 +101,7 @@ public static class OperatingSystemHosting
                 .WithOsEnvironment(ModuleConfiguration.ConnectionsPublicOriginKey, $"http://localhost:{profile.UiPort}")
                 .WithModuleOverrides(builder, profile)
                 .WithHttpHealthCheck("/health", endpointName: "http");
-            if (profile.UsesDevice)
+            if (profile.UsesDevice && os.Modules.Contains("devices", StringComparer.OrdinalIgnoreCase))
             {
                 silo.WithInstallModelCommand(os);
             }

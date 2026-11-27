@@ -13,8 +13,12 @@ builder.AddIntoChatOS("Modules")
                       .Prefetch(KnownModels.Gemma412B, KnownModels.WhisperLargeV3Turbo, KnownModels.Kokoro82M, KnownModels.EmbeddingGemma))
         .Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash).Think(KnownModels.Gpt56Luna).Embed(KnownModels.TextEmbedding3Small).Speak(KnownModels.Gpt4oMiniTts).Talk(KnownModels.GptRealtime)))
         .Web(w => w.SearXng().MicrosoftLearn().Brave(cloudOnly: true)))
-    .WithPostgres("intochat_os").WithGitHub().WithPlaywright()
-    .WithClickHouse().WithArtCraft().WithSandbox()
+    .WithInfrastructure(infra => infra
+        .Postgres(ResourceBacking.LocalContainer)
+        .ClickHouse(ResourceBacking.LocalContainer)
+        .Playwright(ResourceBacking.LocalContainer)
+        .ArtCraft(ResourceBacking.LocalContainer)
+        .Sandbox(ResourceBacking.LocalContainer))
     .AddKernel("../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj");
 
 builder.Build().Run();

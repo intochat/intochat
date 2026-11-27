@@ -263,3 +263,24 @@ public sealed record PostgresDatabaseSpec : ResourceSpec
 
     public override string Kind => ResourceKinds.PostgresDatabase;
 }
+
+// Azure AI Foundry (Cognitive Services AIServices account) with Entra ID / Managed Identity auth.
+public sealed record FoundrySpec : ResourceSpec
+{
+    public string Sku { get; init; } = "S0";
+
+    public override string Kind => ResourceKinds.Foundry;
+}
+
+public sealed record FoundryDeploymentSpec : ResourceSpec
+{
+    // The Foundry account name, in the spec's resource group.
+    public string Account { get; init; } = "";
+    public string ModelName { get; init; } = "";
+    public string ModelFormat { get; init; } = "OpenAI";
+    public string ModelVersion { get; init; } = "";
+    public string SkuName { get; init; } = "GlobalStandard";
+    public int Capacity { get; init; } = 10;
+
+    public override string Kind => ResourceKinds.FoundryDeployment;
+}

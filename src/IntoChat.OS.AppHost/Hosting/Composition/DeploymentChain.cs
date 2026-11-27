@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Aspire.Hosting;
 using IntoChat.OS.Modules.ArtCraft;
@@ -33,6 +34,15 @@ public static class DeploymentChain
             }
             os = os.WithModule<DevicesModule, DevicesOptions>(plan.Devices);
         }
+        else if (plan.Devices is null)
+        {
+            // No local device runtimes declared (e.g. local host + cloud AI): suppress auto-starting
+            // Ollama, FoundryLocal, and SherpaOnnx/Silero unless explicitly overridden in configuration.
+            var devicesOptions = ModuleConfiguration.ModuleOptionsSection("devices");
+            os.SetDefaultSetting($"{devicesOptions}:Ollama:Enabled", "false");
+            os.SetDefaultSetting($"{devicesOptions}:FoundryLocal:Enabled", "false");
+            os.SetDefaultSetting($"{devicesOptions}:SherpaOnnx:Enabled", "false");
+        }
 
         if (plan.Web is not null && profile.IsEnabled("webtools"))
         {
@@ -47,6 +57,16 @@ public static class DeploymentChain
         return os;
     }
 
+    public static IntoChatOSBuilder WithInfrastructure(this IntoChatOSBuilder os, Action<InfrastructureBackingBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var profile = RequireProfile(os, nameof(WithInfrastructure));
+        var builder = new InfrastructureBackingBuilder();
+        configure(builder);
+        return builder.ApplyTo(os, profile);
+    }
+
+    [Obsolete("Use WithInfrastructure(infra => infra.Postgres(...)) instead.")]
     public static IntoChatOSBuilder WithPostgres(this IntoChatOSBuilder os, string databaseName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
@@ -56,6 +76,7 @@ public static class DeploymentChain
             : os;
     }
 
+    [Obsolete("Use WithInfrastructure(infra => infra.ClickHouse(...)) instead.")]
     public static IntoChatOSBuilder WithClickHouse(this IntoChatOSBuilder os)
     {
         var profile = RequireProfile(os, nameof(WithClickHouse));
@@ -64,6 +85,7 @@ public static class DeploymentChain
             : os;
     }
 
+    [Obsolete("GitHub is auto-discovered by OperatingSystemModules; no AppHost composition call is required.")]
     public static IntoChatOSBuilder WithGitHub(this IntoChatOSBuilder os)
     {
         var profile = RequireProfile(os, nameof(WithGitHub));
@@ -72,6 +94,7 @@ public static class DeploymentChain
             : os;
     }
 
+    [Obsolete("Use WithInfrastructure(infra => infra.Playwright(...)) instead.")]
     public static IntoChatOSBuilder WithPlaywright(this IntoChatOSBuilder os)
     {
         var profile = RequireProfile(os, nameof(WithPlaywright));
@@ -80,6 +103,7 @@ public static class DeploymentChain
             : os;
     }
 
+    [Obsolete("Use WithInfrastructure(infra => infra.ArtCraft(...)) instead.")]
     public static IntoChatOSBuilder WithArtCraft(this IntoChatOSBuilder os)
     {
         var profile = RequireProfile(os, nameof(WithArtCraft));
@@ -88,6 +112,7 @@ public static class DeploymentChain
             : os;
     }
 
+    [Obsolete("Use WithInfrastructure(infra => infra.Sandbox(...)) instead.")]
     public static IntoChatOSBuilder WithSandbox(this IntoChatOSBuilder os)
     {
         var profile = RequireProfile(os, nameof(WithSandbox));

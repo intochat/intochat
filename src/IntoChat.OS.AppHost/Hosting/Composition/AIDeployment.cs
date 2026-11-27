@@ -51,6 +51,8 @@ public sealed class AIDeployment
 
         var ai = new AIOptions();
         DevicesOptions? devices = null;
+        var hasDevice = _device is not null;
+        var hasCloud = _cloud is not null;
 
         if (profile.UsesDevice)
         {
@@ -119,9 +121,10 @@ public sealed class AIDeployment
             }
         }
 
-        if (profile.UsesCloud && _cloud is not null)
+        // Bind Cloud roles whenever topology uses cloud, OR when running local-host with Cloud-only AI (.Device omitted).
+        if (hasCloud && (profile.UsesCloud || !hasDevice))
         {
-            foreach (var (role, card) in _cloud.RoleBindings.Bindings)
+            foreach (var (role, card) in _cloud!.RoleBindings.Bindings)
             {
                 ai.WithRole(role, card, Where.Cloud);
             }
@@ -131,9 +134,9 @@ public sealed class AIDeployment
         McpModuleOptions? mcp = null;
         if (_web is not null)
         {
-            var provider = _web.SearXngEnabled && profile.UsesDevice
+            var provider = _web.SearXngEnabled && profile.UsesDevice && (hasDevice || !hasCloud)
                 ? SearchProvider.Searxng
-                : _web.BraveEnabled && (!_web.BraveCloudOnly || profile.Cloud)
+                : _web.BraveEnabled && (!_web.BraveCloudOnly || profile.Cloud || !hasDevice)
                     ? SearchProvider.Brave
                     : SearchProvider.Off;
 

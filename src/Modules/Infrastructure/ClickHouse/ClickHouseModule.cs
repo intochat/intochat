@@ -16,7 +16,7 @@ public sealed class ClickHouseModule : DigitalBrain.Modules.Module
     public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [],
+        Needs: [DigitalBrain.Modules.Need.State("clickhouse")],
         Settings: [DigitalBrain.Modules.Setting.Of<ClickHouseModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
         Secrets: [DigitalBrain.Modules.Secret.Named("connection-string")]);
 

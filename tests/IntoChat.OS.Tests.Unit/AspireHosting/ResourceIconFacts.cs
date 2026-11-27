@@ -50,7 +50,7 @@ public sealed class ResourceIconFacts
             Args = ["--operation", "publish", "--output-path", Path.Combine(Path.GetTempPath(), "intochat-icons-publish"), "--IntoChatOS:Topology=local"],
             DisableDashboard = true,
         });
-        var os = builder.AddIntoChatOS("Modules").WithGitHub();
+        var os = builder.AddIntoChatOS("Modules").WithModule<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule>();
         os.AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
         var resources = builder.Resources;
 

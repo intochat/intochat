@@ -368,7 +368,7 @@ public sealed class ModelCatalog
         }
 
         // 2. Stock deployment defaults (KnownModels.Defaults) for the active topology.
-        foreach (var defaultId in RoleMaps.Candidates(KnownModels.Defaults, Topology, role))
+        foreach (var defaultId in RoleMaps.Candidates(RoleMaps.DefaultsFor(configuration), Topology, role))
         {
             if (cardsById.TryGetValue(defaultId.Value, out var defaultCard)
                 && (defaultCard.Can & needed) == needed)

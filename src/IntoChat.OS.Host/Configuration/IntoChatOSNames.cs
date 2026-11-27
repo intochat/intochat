@@ -50,7 +50,7 @@ public static class IntoChatOSNames
 
     // The modules switched off by default in local and local+cloud runs: the one list every host and the kernel read.
     public static readonly IReadOnlyList<string> LocalDisabledModules =
-        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "azure"];
+        ["postgres", "clickhouse", "artcraft", "playwright", "azure"];
 
     // The canonical spelling of a topology value: unset is local, the earlier local-cloud spelling is local+cloud, and an
     // unknown value is null (the caller decides whether that stops the run).

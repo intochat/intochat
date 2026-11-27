@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using Npgsql;
@@ -14,7 +12,7 @@ internal sealed class BrainDatabases(IIntegrationHandle integration, Func<string
     private readonly ConcurrentDictionary<string, string> _ensured = new(StringComparer.Ordinal);
 
     public static string DatabaseName(string brainId)
-        => "brain_" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(brainId)))[..16];
+        => PostgresModuleOptions.DeriveDatabaseName(brainId);
 
     public async Task<string> Ensure(string brainId, CancellationToken ct)
     {

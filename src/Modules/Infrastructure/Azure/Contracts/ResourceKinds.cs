@@ -19,4 +19,6 @@ public static class ResourceKinds
     public const string Registry = "registry";
     public const string Postgres = "postgres";
     public const string PostgresDatabase = "postgres-database";
+    public const string Foundry = "foundry";
+    public const string FoundryDeployment = "foundry-deployment";
 }

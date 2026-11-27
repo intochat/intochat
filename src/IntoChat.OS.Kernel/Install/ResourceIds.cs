@@ -19,6 +19,7 @@ public static class ResourceIds
             ResourceKinds.ContainerApp => Provider(group, "Microsoft.App/containerApps", name),
             ResourceKinds.Registry => Provider(group, "Microsoft.ContainerRegistry/registries", name),
             ResourceKinds.Postgres => Provider(group, "Microsoft.DBforPostgreSQL/flexibleServers", name),
+            ResourceKinds.Foundry => Provider(group, "Microsoft.CognitiveServices/accounts", name),
             ResourceKinds.NetworkSecurityGroup => Provider(group, "Microsoft.Network/networkSecurityGroups", name),
             ResourceKinds.VirtualNetwork => Provider(group, "Microsoft.Network/virtualNetworks", name),
             _ => $"{group}/providers/IntoChat.OS/{kind}/{name}",
@@ -32,6 +33,7 @@ public static class ResourceIds
         {
             SubnetSpec subnet => $"{For(subscription, ResourceKinds.VirtualNetwork, spec.ResourceGroup, subnet.VirtualNetwork)}/subnets/{spec.Name}",
             PostgresDatabaseSpec database => $"{For(subscription, ResourceKinds.Postgres, spec.ResourceGroup, database.Server)}/databases/{spec.Name}",
+            FoundryDeploymentSpec deployment => $"{For(subscription, ResourceKinds.Foundry, spec.ResourceGroup, deployment.Account)}/deployments/{spec.Name}",
             _ => For(subscription, spec.Kind, spec.ResourceGroup, spec.Name),
         };
     }

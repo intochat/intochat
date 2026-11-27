@@ -121,6 +121,17 @@ public static class AzureInstaller
                             {
                                 existingVaultSecrets.Add(secret.VaultSecret);
                             }
+                            else
+                            {
+                                foreach (var legacyName in ManifestEnvironment.LegacySecretFallbacks(secret.VaultSecret))
+                                {
+                                    if (await arm.ReadSecret(secret.Vault, legacyName, ct) is not null)
+                                    {
+                                        existingVaultSecrets.Add(legacyName);
+                                        break;
+                                    }
+                                }
+                            }
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
@@ -162,14 +173,6 @@ public static class AzureInstaller
                 await error.WriteLineAsync($"install: {ex.Message}", ct);
                 return 2;
             }
-        }
-
-        IReadOnlyList<ModuleDeploymentBinding> deployments;
-        try { deployments = ModuleDeployments.Discover(modules); }
-        catch (InvalidOperationException ex)
-        {
-            await error.WriteLineAsync($"install: {ex.Message}", ct);
-            return 2;
         }
 
         var provided = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -228,18 +231,8 @@ public static class AzureInstaller
                 }
             }
 
-            var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);
             var variables = new Dictionary<string, string>(StringComparer.Ordinal);
             var secrets = new List<KeyVaultSecretRef>();
-            foreach (var (module, deployment) in deployments)
-            {
-                var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct, provided, dryRun,
-                    (vault, name, token) => arm.ReadSecret(vault, name, token));
-                current = $"deploy module {module}";
-                await deployment.Deploy(context);
-                foreach (var (name, value) in context.RuntimeVariables) { variables[name] = value; }
-                secrets.AddRange(context.RuntimeSecrets);
-            }
             // The manifests' own settings (values the deployment input supplies) and secrets (Key Vault references).
             var (settingVariables, manifestSecrets) = ManifestEnvironment.Render(config, manifests);
             foreach (var (name, value) in settingVariables) { variables[name] = value; }
@@ -263,7 +256,7 @@ public static class AzureInstaller
                     await Ensure(new SecretSpec
                     {
                         Name = secret.VaultSecret,
-                        ResourceGroup = validated.ResourceGroup,
+                        ResourceGroup = validated.GroupName,
                         Location = validated.Location,
                         Vault = secret.Vault,
                         Value = secretValue,
@@ -274,6 +267,31 @@ public static class AzureInstaller
                 else if (!dryRun && await arm.ReadSecret(secret.Vault, secret.VaultSecret, ct) is not null)
                 {
                     secrets.Add(secret);
+                }
+                else if (!dryRun)
+                {
+                    foreach (var legacyName in ManifestEnvironment.LegacySecretFallbacks(secret.VaultSecret))
+                    {
+                        if (provided.TryGetValue(legacyName, out var legacyValue) && !string.IsNullOrEmpty(legacyValue))
+                        {
+                            await Ensure(new SecretSpec
+                            {
+                                Name = secret.VaultSecret,
+                                ResourceGroup = validated.GroupName,
+                                Location = validated.Location,
+                                Vault = secret.Vault,
+                                Value = legacyValue,
+                                Overwrite = true,
+                            }, ct);
+                            secrets.Add(secret);
+                            break;
+                        }
+                        if (await arm.ReadSecret(secret.Vault, legacyName, ct) is not null)
+                        {
+                            secrets.Add(secret with { VaultSecret = legacyName });
+                            break;
+                        }
+                    }
                 }
             }
             var osApp = InstallPlan.OsApp(config, variables, secrets);

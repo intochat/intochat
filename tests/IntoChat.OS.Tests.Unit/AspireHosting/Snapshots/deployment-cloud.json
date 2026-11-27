@@ -4,7 +4,6 @@
     "artcraft",
     "aspire",
     "clickhouse",
-    "github",
     "orleans",
     "playwright",
     "postgres",
@@ -32,7 +31,6 @@
     "aspire",
     "azure-environment",
     "clickhouse",
-    "github",
     "intochat",
     "orleans",
     "os",
@@ -108,7 +106,7 @@
     "IntoChatOS:Modules:playwright:Options:appOrigins:7": "http://localhost:18088",
     "IntoChatOS:Modules:playwright:Options:appOrigins:8": "http://localhost:18089",
     "IntoChatOS:Modules:playwright:Options:appOrigins:9": "http://localhost:18090",
-    "IntoChatOS:Modules:postgres:Options:hosting:databaseName": "intochat_os",
+    "IntoChatOS:Modules:postgres:Options:hosting:databaseName": "brain_840a8dcfeae95966",
     "IntoChatOS:Modules:postgres:Options:hosting:enabled": "True",
     "IntoChatOS:Modules:webtools:Options:provider": "2"
   }

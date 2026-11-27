@@ -16,6 +16,8 @@ public static class ResourceNames
 
     public static string Postgres(string prefix, string env) => For(prefix, env, "pg");
 
+    public static string Foundry(string prefix, string env) => For(prefix, env, "foundry");
+
     // Registry names are alphanumeric, 5 to 50 characters.
     public static string Registry(string prefix, string env) =>
         Limit(new string([.. $"acr{prefix}{env}".ToLowerInvariant().Where(char.IsAsciiLetterOrDigit)]), 50);

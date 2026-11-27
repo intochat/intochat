@@ -11,7 +11,11 @@ public static class InstallPlan
 {
     public const string MasterKeySecret = "master-key";
     public const string PostgresPasswordSecret = "postgres-admin-password";
+    public const string PostgresConnectionSecret = "postgres-connectionstring";
+    // Legacy Key Vault secret names retained strictly for backward-compatible fallback reading on existing vaults.
     public const string DbConnectionSecret = "db-connection";
+    public const string LegacyPostgresConnectionSecret = "postgres-connection-string";
+    public const string FoundryEndpointVariable = "IntoChatOS__Modules__ai__Options__AzureFoundry__Endpoint";
     public const string GhcrTokenSecret = "ghcr-read-token";
     public const string SandboxEnrollKeySecret = "sandbox-enroll-key";
     public const string GhcrServer = "ghcr.io";
@@ -28,6 +32,8 @@ public static class InstallPlan
     private const string AcrPull = "7f951dda-4ed3-4680-a7ca-43fe172d538d";
     private const string StorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe";
     private const string StorageTableDataContributor = "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3";
+    public const string CognitiveServicesOpenAIUser = "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd";
+    public const string CognitiveServicesUser = "a97b65f3-24c7-4388-baec-2e87135dc908";
     private const string BrainLogVolume = "brainlog";
     private const int AppUid = 1654;
     private const int AppGid = 1654;
@@ -71,6 +77,12 @@ public static class InstallPlan
     {
         ArgumentNullException.ThrowIfNull(config);
         return config.PostgresName + ".postgres.database.azure.com";
+    }
+
+    public static string FoundryEndpoint(InstallConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return $"https://{config.FoundryName}.services.ai.azure.com/";
     }
 
     private static ResourceSpec[] Build(InstallConfig config, IReadOnlyDictionary<string, string> extraVariables, IReadOnlyList<KeyVaultSecretRef> extraSecrets)
@@ -121,6 +133,7 @@ public static class InstallPlan
             specs.Add(In(new RoleGrantSpec { Name = $"{app}-installer-secrets", Principal = c.InstallerPrincipalId, RoleDefinitionId = KeyVaultSecretsOfficer, Scope = vaultScope }));
         }
         if (c.Postgres.Enabled) { specs.AddRange(PostgresSpecs(c, vault).Select(In)); }
+        if (c.Foundry.Enabled) { specs.AddRange(FoundrySpecs(c).Select(In)); }
         specs.Add(In(new ManagedEnvironmentSpec
         {
             Name = environment,
@@ -137,6 +150,12 @@ public static class InstallPlan
         specs.Add(Grant("storage-blobs", StorageBlobDataContributor, accountScope));
         specs.Add(Grant("storage-tables", StorageTableDataContributor, accountScope));
         if (c.Registry.Enabled) { specs.Add(Grant("registry-pull", AcrPull, registryScope)); }
+        if (c.Foundry.Enabled)
+        {
+            var foundryScope = $"{scopePrefix}/Microsoft.CognitiveServices/accounts/{c.FoundryName}";
+            specs.Add(Grant("foundry-openai-user", CognitiveServicesOpenAIUser, foundryScope));
+            specs.Add(Grant("foundry-cognitive-user", CognitiveServicesUser, foundryScope));
+        }
         // Losing the master key loses the brain: a later install never overwrites it.
         specs.Add(In(new SecretSpec { Name = MasterKeySecret, Vault = vault, Overwrite = false }));
         if (!string.IsNullOrWhiteSpace(c.SandboxImage))
@@ -264,8 +283,8 @@ public static class InstallPlan
         return [.. specs];
     }
 
-    // The admin password is generated once (Overwrite false) unless the secrets file carries it. db-connection is
-    // rewritten on every install from the server host and that password, so apps read one secret.
+    // The admin password is generated once (Overwrite false) unless the secrets file carries it. The canonical
+    // IntegrationSchema secret (postgres-connectionstring) is rewritten on every install from the server host and password.
     private static IEnumerable<ResourceSpec> PostgresSpecs(InstallConfig c, string vault)
     {
         yield return new SecretSpec { Name = PostgresPasswordSecret, Vault = vault, Overwrite = false };
@@ -289,17 +308,32 @@ public static class InstallPlan
             var connectionString = $"Host={PostgresHost(c)};Database={database};Username={c.Postgres.AdminLogin};Password={SecretSpec.Reference(PostgresPasswordSecret)}";
             yield return new SecretSpec
             {
-                Name = i == 0 ? DbConnectionSecret : $"{DbConnectionSecret}-{database}",
+                Name = i == 0 ? PostgresConnectionSecret : $"{PostgresConnectionSecret}-{database}",
                 Vault = vault,
                 Overwrite = true,
                 Value = connectionString,
             };
-            yield return new SecretSpec
+        }
+    }
+
+    private static IEnumerable<ResourceSpec> FoundrySpecs(InstallConfig c)
+    {
+        yield return new FoundrySpec
+        {
+            Name = c.FoundryName,
+            Sku = c.Foundry.Sku,
+        };
+        foreach (var deployment in c.Foundry.Deployments)
+        {
+            yield return new FoundryDeploymentSpec
             {
-                Name = i == 0 ? "postgres-connectionstring" : $"postgres-connectionstring-{database}",
-                Vault = vault,
-                Overwrite = true,
-                Value = connectionString,
+                Name = deployment.Name,
+                Account = c.FoundryName,
+                ModelName = deployment.ModelName,
+                ModelFormat = deployment.ModelFormat,
+                ModelVersion = deployment.ModelVersion,
+                SkuName = deployment.SkuName,
+                Capacity = deployment.Capacity,
             };
         }
     }
@@ -334,8 +368,6 @@ public static class InstallPlan
             ["IntoChatOS__ForwardedHeaders__KnownNetworks__4"] = "127.0.0.0/8",
             ["IntoChatOS__Modules__artcraft__Enabled"] = "false",
             ["IntoChatOS__Modules__clickhouse__Enabled"] = "false",
-            ["IntoChatOS__Modules__qdrant__Enabled"] = "false",
-            ["IntoChatOS__Modules__supabase__Enabled"] = "false",
             ["Logging__LogLevel__IntoChat.OS.Authority.Integrations.IntegrationSeeder"] = "Information",
             // DefaultAzureCredential picks the user-assigned identity by this client id (Orleans stores, lease, vault).
             ["AZURE_CLIENT_ID"] = ContainerAppSpec.IdentityClientIdToken,
@@ -362,6 +394,10 @@ public static class InstallPlan
         if (!c.Postgres.Enabled)
         {
             variables["IntoChatOS__Modules__postgres__Enabled"] = "false";
+        }
+        if (c.Foundry.Enabled)
+        {
+            variables[FoundryEndpointVariable] = FoundryEndpoint(c);
         }
         if (!string.IsNullOrWhiteSpace(c.SandboxImage))
         {
