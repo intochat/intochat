@@ -30,6 +30,9 @@ public sealed partial class PulumiCostGuardrailsFacts
     [GeneratedRegex(@"^\s+policyAssignmentName:\s*""([^""]+)""", RegexOptions.Multiline)]
     private static partial Regex PolicyAssignmentNameRegex();
 
+    [GeneratedRegex(@"^\s+budgetName:\s*""([^""]+)""", RegexOptions.Multiline)]
+    private static partial Regex BudgetNameRegex();
+
     [Fact]
     public void UniversalConfigDefaultsPostgresToBurstableInTestAndProdAndEnablesCostGuardrails()
     {
@@ -136,20 +139,24 @@ public sealed partial class PulumiCostGuardrailsFacts
         var nwScope = $"{subScope}/resourceGroups/NetworkWatcherRG";
         var customScope = $"{subScope}/resourceGroups/CustomProtectedRG";
 
+        var ruleAName = PulumiStackSynthesizer.PolicyName(config, PulumiStackSynthesizer.PolicyDenyAcaSessionPoolsSuffix);
+        var ruleBName = PulumiStackSynthesizer.PolicyName(config, PulumiStackSynthesizer.PolicyDenyAcaDedicatedAndScaleSuffix);
+        var ruleCName = PulumiStackSynthesizer.PolicyName(config, PulumiStackSynthesizer.PolicyDenyExpensiveComputeAndDbSkusSuffix);
+
         // Rule A: Subscription-wide Deny on Microsoft.App/sessionPools with 0 exceptions (no notScopes).
-        var ruleADef = ResourceBlock(yaml, $"policy-def-{PulumiStackSynthesizer.PolicyDenyAcaSessionPools}");
+        var ruleADef = ResourceBlock(yaml, $"policy-def-{ruleAName}");
         Assert.Contains("type: azure-native:authorization:PolicyDefinition", ruleADef, StringComparison.Ordinal);
         Assert.Contains("equals: Microsoft.App/sessionPools", ruleADef, StringComparison.Ordinal);
         Assert.Contains("effect: deny", ruleADef, StringComparison.Ordinal);
 
-        var ruleAAssign = ResourceBlock(yaml, $"policy-assign-{PulumiStackSynthesizer.PolicyDenyAcaSessionPools}");
+        var ruleAAssign = ResourceBlock(yaml, $"policy-assign-{ruleAName}");
         Assert.Contains("type: azure-native:authorization:PolicyAssignment", ruleAAssign, StringComparison.Ordinal);
         Assert.Contains($"scope: \"{subScope}\"", ruleAAssign, StringComparison.Ordinal);
-        Assert.Contains($"policyDefinitionId: \"${{policy-def-{PulumiStackSynthesizer.PolicyDenyAcaSessionPools}.id}}\"", ruleAAssign, StringComparison.Ordinal);
+        Assert.Contains($"policyDefinitionId: \"${{policy-def-{ruleAName}.id}}\"", ruleAAssign, StringComparison.Ordinal);
         Assert.DoesNotContain("notScopes:", ruleAAssign, StringComparison.Ordinal);
 
         // Rule B: Deny non-Consumption ACA profiles and runaway ContainerApp scale/CPU; excludes LeedGenerator + sv + custom.
-        var ruleBDef = ResourceBlock(yaml, $"policy-def-{PulumiStackSynthesizer.PolicyDenyAcaDedicatedAndScale}");
+        var ruleBDef = ResourceBlock(yaml, $"policy-def-{ruleBName}");
         Assert.Contains("type: azure-native:authorization:PolicyDefinition", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("Microsoft.App/managedEnvironments/workloadProfiles[*].workloadProfileType", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("notEquals: Consumption", ruleBDef, StringComparison.Ordinal);
@@ -159,7 +166,7 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("greater: 1", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("effect: deny", ruleBDef, StringComparison.Ordinal);
 
-        var ruleBAssign = ResourceBlock(yaml, $"policy-assign-{PulumiStackSynthesizer.PolicyDenyAcaDedicatedAndScale}");
+        var ruleBAssign = ResourceBlock(yaml, $"policy-assign-{ruleBName}");
         Assert.Contains("type: azure-native:authorization:PolicyAssignment", ruleBAssign, StringComparison.Ordinal);
         Assert.Contains($"scope: \"{subScope}\"", ruleBAssign, StringComparison.Ordinal);
         Assert.Contains("notScopes:", ruleBAssign, StringComparison.Ordinal);
@@ -169,7 +176,7 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains($"- \"{customScope}\"", ruleBAssign, StringComparison.Ordinal);
 
         // Rule C: Deny non-Burstable PostgreSQL, AKS, VMs, VMSS, and Provisioned Throughput Cognitive Services deployments; excludes LeedGenerator + sv.
-        var ruleCDef = ResourceBlock(yaml, $"policy-def-{PulumiStackSynthesizer.PolicyDenyExpensiveComputeAndDbSkus}");
+        var ruleCDef = ResourceBlock(yaml, $"policy-def-{ruleCName}");
         Assert.Contains("type: azure-native:authorization:PolicyDefinition", ruleCDef, StringComparison.Ordinal);
         Assert.Contains("Microsoft.DBforPostgreSQL/flexibleServers/sku.tier", ruleCDef, StringComparison.Ordinal);
         Assert.Contains("notEquals: Burstable", ruleCDef, StringComparison.Ordinal);
@@ -180,7 +187,7 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("GlobalProvisionedManaged", ruleCDef, StringComparison.Ordinal);
         Assert.Contains("effect: deny", ruleCDef, StringComparison.Ordinal);
 
-        var ruleCAssign = ResourceBlock(yaml, $"policy-assign-{PulumiStackSynthesizer.PolicyDenyExpensiveComputeAndDbSkus}");
+        var ruleCAssign = ResourceBlock(yaml, $"policy-assign-{ruleCName}");
         Assert.Contains("type: azure-native:authorization:PolicyAssignment", ruleCAssign, StringComparison.Ordinal);
         Assert.Contains($"scope: \"{subScope}\"", ruleCAssign, StringComparison.Ordinal);
         Assert.Contains("notScopes:", ruleCAssign, StringComparison.Ordinal);
@@ -254,6 +261,7 @@ public sealed partial class PulumiCostGuardrailsFacts
         var webhookUriBlock = ResourceBlock(yaml, "automation-webhook-intochat-test-cost-aa-uri");
         Assert.Contains("type: command:local:Command", webhookUriBlock, StringComparison.Ordinal);
         Assert.Contains("      additionalSecretOutputs:\n        - stdout\n", webhookUriBlock, StringComparison.Ordinal);
+        Assert.Contains("      logging: stderr\n", webhookUriBlock, StringComparison.Ordinal);
 
         var webhookBlock = ResourceBlock(yaml, "automation-webhook-intochat-test-cost-aa");
         Assert.Contains("type: azure-native:automation:Webhook", webhookBlock, StringComparison.Ordinal);
@@ -274,12 +282,19 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.True(shortNameMatch.Groups[1].Value.Length <= 12, $"ActionGroup groupShortName '{shortNameMatch.Groups[1].Value}' exceeds 12-char ARM limit.");
 
         // 5. Subscription-scoped Consumption Budget (185 EUR, 50/80/90 Forecasted/95/100 thresholds, ActionGroup on 95% & 100%).
-        var budgetBlock = ResourceBlock(yaml, "consumption-budget-intochat-hard-cap-185eur");
+        var budgetBlock = ResourceBlock(yaml, "consumption-budget-intochat-test-hard-cap-185eur");
         Assert.Contains("type: azure-native:consumption:Budget", budgetBlock, StringComparison.Ordinal);
         Assert.Contains($"scope: \"{subScope}\"", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("amount: 185\n", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("timeGrain: Monthly", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("category: Cost", budgetBlock, StringComparison.Ordinal);
+
+        var utcNow = DateTimeOffset.UtcNow;
+        var expectedStartDate = $"{utcNow.Year:D4}-{utcNow.Month:D2}-01T00:00:00Z";
+        var expectedEndDate = $"{utcNow.Year + 5:D4}-{utcNow.Month:D2}-01T00:00:00Z";
+        Assert.Contains($"startDate: \"{expectedStartDate}\"", budgetBlock, StringComparison.Ordinal);
+        Assert.Contains($"endDate: \"{expectedEndDate}\"", budgetBlock, StringComparison.Ordinal);
+        Assert.Contains("      ignoreChanges:\n        - timePeriod.startDate\n        - timePeriod.endDate\n", budgetBlock, StringComparison.Ordinal);
 
         Assert.Contains("actual-50pct:", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("threshold: 50\n", budgetBlock, StringComparison.Ordinal);
@@ -330,6 +345,40 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.DoesNotContain("azure-native:automation:AutomationAccount", yaml, StringComparison.Ordinal);
         Assert.DoesNotContain("azure-native:monitor:ActionGroup", yaml, StringComparison.Ordinal);
         Assert.DoesNotContain("azure-native:consumption:Budget", yaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TestAndProdStacksOnSameSubscriptionHaveZeroOverlappingPolicyOrBudgetNames()
+    {
+        var testConfig = InstallConfig.Universal(env: "test", subscription: SubscriptionId);
+        var prodConfig = InstallConfig.Universal(env: "prod", subscription: SubscriptionId);
+
+        var testYaml = PulumiStackSynthesizer.Synthesize(testConfig, OperatingSystemModules.Modules).PulumiYaml;
+        var prodYaml = PulumiStackSynthesizer.Synthesize(prodConfig, OperatingSystemModules.Modules).PulumiYaml;
+
+        static HashSet<string> Extract(Regex regex, string yaml)
+            => regex.Matches(yaml).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var testPolicyDefs = Extract(PolicyDefinitionNameRegex(), testYaml);
+        var prodPolicyDefs = Extract(PolicyDefinitionNameRegex(), prodYaml);
+        Assert.Equal(3, testPolicyDefs.Count);
+        Assert.Equal(3, prodPolicyDefs.Count);
+        Assert.Empty(testPolicyDefs.Intersect(prodPolicyDefs, StringComparer.OrdinalIgnoreCase));
+        Assert.All(testPolicyDefs.Concat(prodPolicyDefs), name => Assert.True(name.Length <= 64, $"PolicyDefinition name '{name}' exceeds 64 chars."));
+
+        var testPolicyAssigns = Extract(PolicyAssignmentNameRegex(), testYaml);
+        var prodPolicyAssigns = Extract(PolicyAssignmentNameRegex(), prodYaml);
+        Assert.Equal(3, testPolicyAssigns.Count);
+        Assert.Equal(3, prodPolicyAssigns.Count);
+        Assert.Empty(testPolicyAssigns.Intersect(prodPolicyAssigns, StringComparer.OrdinalIgnoreCase));
+        Assert.All(testPolicyAssigns.Concat(prodPolicyAssigns), name => Assert.True(name.Length <= 64, $"PolicyAssignment name '{name}' exceeds 64 chars."));
+
+        var testBudgets = Extract(BudgetNameRegex(), testYaml);
+        var prodBudgets = Extract(BudgetNameRegex(), prodYaml);
+        Assert.Single(testBudgets);
+        Assert.Single(prodBudgets);
+        Assert.Empty(testBudgets.Intersect(prodBudgets, StringComparer.OrdinalIgnoreCase));
+        Assert.All(testBudgets.Concat(prodBudgets), name => Assert.True(name.Length <= 63, $"Budget name '{name}' exceeds 63 chars."));
     }
 
     private static string ResourceBlock(string yaml, string logicalName)

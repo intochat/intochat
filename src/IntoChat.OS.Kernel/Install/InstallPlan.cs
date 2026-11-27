@@ -344,9 +344,14 @@ public static class InstallPlan
     private static IEnumerable<ResourceSpec> CostGuardrailSpecs(InstallConfig c)
     {
         var budgetEur = c.CostGuardrails.MonthlyBudgetEur;
-        var budgetName = Math.Abs(budgetEur - 185.0) < 0.001
-            ? "intochat-hard-cap-185eur"
-            : string.Create(CultureInfo.InvariantCulture, $"intochat-hard-cap-{(int)Math.Round(budgetEur)}eur");
+        var budgetSuffix = Math.Abs(budgetEur - 185.0) < 0.001
+            ? "hard-cap-185eur"
+            : string.Create(CultureInfo.InvariantCulture, $"hard-cap-{(int)Math.Round(budgetEur)}eur");
+        var budgetName = ResourceNames.For(c.Prefix, c.Env, budgetSuffix);
+        if (budgetName.Length > 63)
+        {
+            budgetName = budgetName[..63].TrimEnd('-');
+        }
 
         yield return new CostGuardrailSpec
         {

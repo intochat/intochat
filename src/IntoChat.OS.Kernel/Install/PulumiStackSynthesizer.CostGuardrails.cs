@@ -7,15 +7,20 @@ namespace IntoChat.OS.Kernel.Install;
 
 public static partial class PulumiStackSynthesizer
 {
-    public const string PolicyDenyAcaSessionPools = "intochat-deny-aca-session-pools";
-    public const string PolicyDenyAcaDedicatedAndScale = "intochat-deny-aca-dedicated-and-runaway-scale";
-    public const string PolicyDenyExpensiveComputeAndDbSkus = "intochat-deny-expensive-compute-and-db-skus";
+    public const string PolicyDenyAcaSessionPoolsSuffix = "deny-aca-session-pools";
+    public const string PolicyDenyAcaDedicatedAndScaleSuffix = "deny-aca-dedicated-and-runaway-scale";
+    public const string PolicyDenyExpensiveComputeAndDbSkusSuffix = "deny-expensive-compute-and-db-skus";
     public const string CostBreakerRunbookName = "Stop-IntoChatCostBreaker";
 
     private const string ContributorRoleDefinitionId = "b24988ac-6180-42a0-ab88-20f7382dd24c";
-    private const string BudgetStartDateUtc = "2026-11-01T00:00:00Z";
-    private const string BudgetEndDateUtc = "2031-11-01T00:00:00Z";
-    private const string WebhookExpiryTimeUtc = "2030-12-31T00:00:00Z";
+
+    public static string PolicyName(InstallConfig config, string suffix)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
+        var name = ResourceNames.For(config.Prefix, config.Env, suffix);
+        return name.Length <= 64 ? name : name[..64].TrimEnd('-');
+    }
 
     private static void AppendCostGuardrailPoliciesYaml(StringBuilder sb, InstallConfig c, CostGuardrailSpec spec)
     {
@@ -23,13 +28,14 @@ public static partial class PulumiStackSynthesizer
         var notScopes = ResolveProtectedNotScopes(c.Subscription, spec.ProtectedResourceGroups);
 
         // Rule A: Permanently ban Microsoft.App/sessionPools across the entire subscription (0 exceptions, no notScopes).
-        const string ruleADefLogical = $"policy-def-{PolicyDenyAcaSessionPools}";
-        const string ruleAAssignLogical = $"policy-assign-{PolicyDenyAcaSessionPools}";
+        var ruleAName = PolicyName(c, PolicyDenyAcaSessionPoolsSuffix);
+        var ruleADefLogical = $"policy-def-{SanitizeLogicalName(ruleAName)}";
+        var ruleAAssignLogical = $"policy-assign-{SanitizeLogicalName(ruleAName)}";
         sb.AppendLine($"  {ruleADefLogical}:");
         sb.AppendLine("    type: azure-native:authorization:PolicyDefinition");
         sb.AppendLine("    properties:");
-        sb.AppendLine($"      policyDefinitionName: \"{PolicyDenyAcaSessionPools}\"");
-        sb.AppendLine("      displayName: \"IntoChat: Deny ACA Dynamic Session Pools\"");
+        sb.AppendLine($"      policyDefinitionName: \"{ruleAName}\"");
+        sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny ACA Dynamic Session Pools\"");
         sb.AppendLine("      description: \"Permanently bans Microsoft.App/sessionPools across the entire subscription (zero exceptions).\"");
         sb.AppendLine("      mode: All");
         sb.AppendLine("      policyType: Custom");
@@ -43,21 +49,22 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"  {ruleAAssignLogical}:");
         sb.AppendLine("    type: azure-native:authorization:PolicyAssignment");
         sb.AppendLine("    properties:");
-        sb.AppendLine($"      policyAssignmentName: \"{PolicyDenyAcaSessionPools}\"");
-        sb.AppendLine("      displayName: \"IntoChat: Deny ACA Dynamic Session Pools\"");
+        sb.AppendLine($"      policyAssignmentName: \"{ruleAName}\"");
+        sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny ACA Dynamic Session Pools\"");
         sb.AppendLine("      description: \"Subscription-wide hard deny on Microsoft.App/sessionPools with zero exceptions.\"");
         sb.AppendLine($"      scope: \"{subscriptionScope}\"");
         sb.AppendLine($"      policyDefinitionId: \"${{{ruleADefLogical}.id}}\"");
         sb.AppendLine("      enforcementMode: Default");
 
         // Rule B: Deny non-Consumption ACA workload profiles and runaway ContainerApp scale/CPU.
-        const string ruleBDefLogical = $"policy-def-{PolicyDenyAcaDedicatedAndScale}";
-        const string ruleBAssignLogical = $"policy-assign-{PolicyDenyAcaDedicatedAndScale}";
+        var ruleBName = PolicyName(c, PolicyDenyAcaDedicatedAndScaleSuffix);
+        var ruleBDefLogical = $"policy-def-{SanitizeLogicalName(ruleBName)}";
+        var ruleBAssignLogical = $"policy-assign-{SanitizeLogicalName(ruleBName)}";
         sb.AppendLine($"  {ruleBDefLogical}:");
         sb.AppendLine("    type: azure-native:authorization:PolicyDefinition");
         sb.AppendLine("    properties:");
-        sb.AppendLine($"      policyDefinitionName: \"{PolicyDenyAcaDedicatedAndScale}\"");
-        sb.AppendLine("      displayName: \"IntoChat: Deny Dedicated ACA Profiles and Runaway Scale\"");
+        sb.AppendLine($"      policyDefinitionName: \"{ruleBName}\"");
+        sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny Dedicated ACA Profiles and Runaway Scale\"");
         sb.AppendLine("      description: \"Blocks non-Consumption ACA workload profiles and ContainerApps exceeding maxReplicas=2 or cpu=1.0.\"");
         sb.AppendLine("      mode: All");
         sb.AppendLine("      policyType: Custom");
@@ -91,8 +98,8 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"  {ruleBAssignLogical}:");
         sb.AppendLine("    type: azure-native:authorization:PolicyAssignment");
         sb.AppendLine("    properties:");
-        sb.AppendLine($"      policyAssignmentName: \"{PolicyDenyAcaDedicatedAndScale}\"");
-        sb.AppendLine("      displayName: \"IntoChat: Deny Dedicated ACA Profiles and Runaway Scale\"");
+        sb.AppendLine($"      policyAssignmentName: \"{ruleBName}\"");
+        sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny Dedicated ACA Profiles and Runaway Scale\"");
         sb.AppendLine("      description: \"Enforces Consumption-only ACA environments and bounded ContainerApp scale/CPU, excluding protected resource groups.\"");
         sb.AppendLine($"      scope: \"{subscriptionScope}\"");
         sb.AppendLine($"      policyDefinitionId: \"${{{ruleBDefLogical}.id}}\"");
@@ -100,13 +107,14 @@ public static partial class PulumiStackSynthesizer
         AppendNotScopes(sb, notScopes);
 
         // Rule C: Deny expensive non-Burstable PostgreSQL SKUs, AKS, VMs, VMSS, and Provisioned Throughput Cognitive Services deployments.
-        const string ruleCDefLogical = $"policy-def-{PolicyDenyExpensiveComputeAndDbSkus}";
-        const string ruleCAssignLogical = $"policy-assign-{PolicyDenyExpensiveComputeAndDbSkus}";
+        var ruleCName = PolicyName(c, PolicyDenyExpensiveComputeAndDbSkusSuffix);
+        var ruleCDefLogical = $"policy-def-{SanitizeLogicalName(ruleCName)}";
+        var ruleCAssignLogical = $"policy-assign-{SanitizeLogicalName(ruleCName)}";
         sb.AppendLine($"  {ruleCDefLogical}:");
         sb.AppendLine("    type: azure-native:authorization:PolicyDefinition");
         sb.AppendLine("    properties:");
-        sb.AppendLine($"      policyDefinitionName: \"{PolicyDenyExpensiveComputeAndDbSkus}\"");
-        sb.AppendLine("      displayName: \"IntoChat: Deny Expensive Compute and DB SKUs\"");
+        sb.AppendLine($"      policyDefinitionName: \"{ruleCName}\"");
+        sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny Expensive Compute and DB SKUs\"");
         sb.AppendLine("      description: \"Blocks non-Burstable PostgreSQL Flexible Servers, AKS, VMs, VMSS, and Provisioned Throughput AI deployments.\"");
         sb.AppendLine("      mode: All");
         sb.AppendLine("      policyType: Custom");
@@ -136,8 +144,8 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"  {ruleCAssignLogical}:");
         sb.AppendLine("    type: azure-native:authorization:PolicyAssignment");
         sb.AppendLine("    properties:");
-        sb.AppendLine($"      policyAssignmentName: \"{PolicyDenyExpensiveComputeAndDbSkus}\"");
-        sb.AppendLine("      displayName: \"IntoChat: Deny Expensive Compute and DB SKUs\"");
+        sb.AppendLine($"      policyAssignmentName: \"{ruleCName}\"");
+        sb.AppendLine($"      displayName: \"IntoChat ({c.Env}): Deny Expensive Compute and DB SKUs\"");
         sb.AppendLine("      description: \"Enforces Burstable PostgreSQL and blocks expensive compute SKUs while excluding protected resource groups.\"");
         sb.AppendLine($"      scope: \"{subscriptionScope}\"");
         sb.AppendLine($"      policyDefinitionId: \"${{{ruleCDefLogical}.id}}\"");
@@ -161,7 +169,15 @@ public static partial class PulumiStackSynthesizer
         var actionGroupName = string.IsNullOrWhiteSpace(spec.ActionGroupName)
             ? ResourceNames.For(c.Prefix, c.Env, "cost-ag")
             : spec.ActionGroupName;
-        var budgetName = string.IsNullOrWhiteSpace(spec.BudgetName) ? "intochat-hard-cap-185eur" : spec.BudgetName;
+        var budgetName = string.IsNullOrWhiteSpace(spec.BudgetName)
+            ? ResourceNames.For(c.Prefix, c.Env, "hard-cap-185eur")
+            : spec.BudgetName;
+
+        var utcNow = DateTimeOffset.UtcNow;
+        var currentMonthStartUtc = new DateTimeOffset(utcNow.Year, utcNow.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var budgetStartDateUtc = currentMonthStartUtc.ToString("yyyy-MM-dd'T'00:00:00'Z'", CultureInfo.InvariantCulture);
+        var budgetEndDateUtc = currentMonthStartUtc.AddYears(5).ToString("yyyy-MM-dd'T'00:00:00'Z'", CultureInfo.InvariantCulture);
+        var webhookExpiryTimeUtc = currentMonthStartUtc.AddYears(4).ToString("yyyy-MM-dd'T'00:00:00'Z'", CultureInfo.InvariantCulture);
 
         var aaLogical = $"automation-account-{SanitizeLogicalName(aaName)}";
         var rbacLogical = $"role-grant-{SanitizeLogicalName(aaName)}-rg-contributor";
@@ -229,7 +245,7 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("      create: |");
         sb.AppendLine(PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(publishCommand), 8));
 
-        // 5. Generate Azure Automation webhook URI once per Automation Account lifecycle (encrypt stdout as a Pulumi secret).
+        // 5. Generate Azure Automation webhook URI once per Automation Account lifecycle (suppress stdout logging and encrypt stdout as a Pulumi secret).
         var generateWebhookUriCommand = BuildGenerateWebhookUriShellScript(c.Subscription, c.GroupName, aaName);
         sb.AppendLine($"  {webhookUriLogical}:");
         sb.AppendLine("    type: command:local:Command");
@@ -238,6 +254,7 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("      additionalSecretOutputs:");
         sb.AppendLine("        - stdout");
         sb.AppendLine("    properties:");
+        sb.AppendLine("      logging: stderr");
         sb.AppendLine("      create: |");
         sb.AppendLine(PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(generateWebhookUriCommand), 8));
 
@@ -255,7 +272,7 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"      automationAccountName: \"${{{aaLogical}.name}}\"");
         sb.AppendLine($"      resourceGroupName: \"${{{rgLogical}.name}}\"");
         sb.AppendLine("      isEnabled: true");
-        sb.AppendLine($"      expiryTime: \"{WebhookExpiryTimeUtc}\"");
+        sb.AppendLine($"      expiryTime: \"{webhookExpiryTimeUtc}\"");
         sb.AppendLine($"      uri: \"${{{webhookUriLogical}.stdout}}\"");
         sb.AppendLine("      runbook:");
         sb.AppendLine($"        name: \"${{{runbookLogical}.name}}\"");
@@ -290,6 +307,9 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("    type: azure-native:consumption:Budget");
         sb.AppendLine("    options:");
         sb.AppendLine($"      dependsOn: [\"${{{agLogical}}}\"]");
+        sb.AppendLine("      ignoreChanges:");
+        sb.AppendLine("        - timePeriod.startDate");
+        sb.AppendLine("        - timePeriod.endDate");
         sb.AppendLine("    properties:");
         sb.AppendLine($"      budgetName: \"{budgetName}\"");
         sb.AppendLine($"      scope: \"{subscriptionScope}\"");
@@ -297,8 +317,8 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine($"      amount: {spec.MonthlyBudgetEur.ToString(CultureInfo.InvariantCulture)}");
         sb.AppendLine("      timeGrain: Monthly");
         sb.AppendLine("      timePeriod:");
-        sb.AppendLine($"        startDate: \"{BudgetStartDateUtc}\"");
-        sb.AppendLine($"        endDate: \"{BudgetEndDateUtc}\"");
+        sb.AppendLine($"        startDate: \"{budgetStartDateUtc}\"");
+        sb.AppendLine($"        endDate: \"{budgetEndDateUtc}\"");
         sb.AppendLine("      notifications:");
         AppendBudgetNotification(sb, "actual-50pct", threshold: 50, thresholdType: "Actual", spec.AlertEmail, actionGroupLogical: null);
         AppendBudgetNotification(sb, "actual-80pct", threshold: 80, thresholdType: "Actual", spec.AlertEmail, actionGroupLogical: null);
