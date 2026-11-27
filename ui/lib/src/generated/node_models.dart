@@ -349,6 +349,39 @@ final class ApprovalRowNode {
       );
 }
 
+final class AttachmentNode {
+  const AttachmentNode({
+    required this.id,
+    required this.kind,
+    required this.fileName,
+    required this.mediaType,
+    required this.sizeBytes,
+    required this.url,
+    required this.durationMs,
+    required this.transcript,
+  });
+
+  final String id;
+  final String kind;
+  final String fileName;
+  final String mediaType;
+  final int sizeBytes;
+  final String url;
+  final int? durationMs;
+  final String? transcript;
+
+  factory AttachmentNode.fromJson(Map<String, dynamic> json) => AttachmentNode(
+    id: _string(json['id']),
+    kind: _string(json['kind']),
+    fileName: _string(json['fileName']),
+    mediaType: _string(json['mediaType']),
+    sizeBytes: _int(json['sizeBytes']),
+    url: _string(json['url']),
+    durationMs: _intOrNull(json['durationMs']),
+    transcript: _stringOrNull(json['transcript']),
+  );
+}
+
 final class BadgeNode extends Node {
   const BadgeNode({
     required this.label,
@@ -1886,6 +1919,7 @@ final class MessageNode {
     required this.modelLabel,
     required this.providerIcon,
     required this.error,
+    required this.attachments,
   });
 
   final String id;
@@ -1899,6 +1933,7 @@ final class MessageNode {
   final String? modelLabel;
   final String? providerIcon;
   final ErrorLineNode? error;
+  final List<AttachmentNode>? attachments;
 
   factory MessageNode.fromJson(Map<String, dynamic> json) => MessageNode(
     id: _string(json['id']),
@@ -1923,6 +1958,12 @@ final class MessageNode {
     error: json['error'] is Map
         ? ErrorLineNode.fromJson(_map(json['error']))
         : null,
+    attachments: json['attachments'] == null
+        ? null
+        : [
+            for (final item in _list(json['attachments']))
+              AttachmentNode.fromJson(_map(item)),
+          ],
   );
 }
 

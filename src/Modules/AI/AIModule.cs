@@ -13,6 +13,7 @@ using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Attachments;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
@@ -80,6 +81,8 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         var topology = configuration[IntoChatOSNames.TopologyKey];
         AIClients.AddImageGeneration(services, options, topology);
         services.TryAddSingleton<IAudioConverter, OggOpusToWavConverter>();
+        services.TryAddSingleton<FileAttachmentStore>();
+        services.TryAddSingleton<TalkTicketStore>();
         services.TryAddSingleton<IVoiceClients, VoiceClients>();
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
@@ -111,12 +114,42 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
                 http.RequestAborted).ConfigureAwait(false);
             await result.ExecuteAsync(http).ConfigureAwait(false);
         });
+        endpoints.MapPost("/ai/attachments", async http =>
+        {
+            var result = await AttachmentEndpoints.UploadAsync(
+                http,
+                http.RequestServices.GetRequiredService<FileAttachmentStore>(),
+                http.RequestServices.GetRequiredService<IVoiceClients>(),
+                http.RequestServices.GetService<IAudioConverter>(),
+                http.RequestServices.GetService<DigitalBrain.Capabilities.Secrets.ISecretRedactor>(),
+                http.RequestAborted).ConfigureAwait(false);
+            await result.ExecuteAsync(http).ConfigureAwait(false);
+        });
+        endpoints.MapGet("/ai/attachments/{id}", async (HttpContext http, string id) =>
+        {
+            var result = await AttachmentEndpoints.DownloadAsync(
+                http,
+                id,
+                http.RequestServices.GetRequiredService<FileAttachmentStore>(),
+                http.RequestAborted).ConfigureAwait(false);
+            await result.ExecuteAsync(http).ConfigureAwait(false);
+        });
+        endpoints.MapPost("/ai/talk/ticket", async http =>
+        {
+            var result = await TalkEndpoint.MintTicketAsync(
+                http,
+                http.RequestServices.GetRequiredService<TalkTicketStore>(),
+                http.RequestAborted).ConfigureAwait(false);
+            await result.ExecuteAsync(http).ConfigureAwait(false);
+        });
         endpoints.Map("/ai/talk", http => TalkEndpoint.Run(
             http,
             http.RequestServices.GetRequiredService<INeuronProxies>(),
             http.RequestServices.GetRequiredService<IVoiceClients>(),
             http.RequestServices.GetRequiredService<IntoChat.OS.Host.Brains.IIntoChatOSBrains>(),
-            http.RequestAborted));
+            http.RequestAborted))
+            .AllowAnonymous()
+            .WithMetadata(IntoChat.OS.Host.Http.OptionalSessionMetadata.Instance);
     }
 
     internal static Caller? StampedCaller(HttpContext http) => http.RequestServices.GetService<ICallerAmbient>()?.Current;

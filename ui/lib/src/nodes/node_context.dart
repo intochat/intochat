@@ -49,6 +49,24 @@ typedef VoiceTalker = Future<TalkSocket> Function(String conversation);
 /// Synthesizes [text] into playable audio bytes (WAV) for read-aloud.
 typedef VoiceSpeaker = Future<Uint8List> Function(String text);
 
+/// Downloads brain-owned attachment bytes (audio/image/file) from a relative URL.
+typedef AttachmentFetcher = Future<Uint8List> Function(String url);
+
+/// Uploads an attachment or voice-note clip and returns the persisted [AttachmentNode].
+typedef AttachmentUploader = Future<AttachmentNode> Function(
+  Uint8List bytes,
+  String fileName, {
+  required String mediaType,
+  bool isVoiceNote,
+  int? durationMs,
+});
+
+/// Submits a multimodal turn with text and structured attachments.
+typedef MultimodalSubmitter = Future<void> Function(
+  String text,
+  List<AttachmentNode> attachments,
+);
+
 /// One ordered event channel for a rendered view. An activation is sent only
 /// after the field edits before it, regardless of network latency or focus.
 class NeuronEventQueue extends ChangeNotifier {
@@ -104,6 +122,9 @@ class NodeContext {
     this.transcribe,
     this.talk,
     this.speak,
+    this.fetchAttachment,
+    this.uploadAttachment,
+    this.sendWithAttachments,
     this.storeSecret,
     this.createAudioOut,
     this.createMicStream,
@@ -173,6 +194,15 @@ class NodeContext {
   /// Synthesizes assistant replies into playable audio bytes for read-aloud.
   final VoiceSpeaker? speak;
 
+  /// Downloads brain-owned attachment bytes for playback or image preview.
+  final AttachmentFetcher? fetchAttachment;
+
+  /// Uploads an attachment or voice-note clip to `/ai/attachments`.
+  final AttachmentUploader? uploadAttachment;
+
+  /// Sends a multimodal turn with text and uploaded attachments.
+  final MultimodalSubmitter? sendWithAttachments;
+
   /// Stores a form's secret field in the person's vault; null where no person
   /// is signed in (a secret field is then drawn disabled).
   final SecretStore? storeSecret;
@@ -214,6 +244,9 @@ class NodeContext {
     transcribe: transcribe,
     talk: talk,
     speak: speak,
+    fetchAttachment: fetchAttachment,
+    uploadAttachment: uploadAttachment,
+    sendWithAttachments: sendWithAttachments,
     storeSecret: storeSecret,
     createAudioOut: createAudioOut,
     createMicStream: createMicStream,

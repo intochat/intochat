@@ -410,6 +410,81 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
         Assert.Equal(WebSocketCloseStatus.InternalServerError, closeStatus);
     }
 
+    [Fact]
+    public async Task TicketFlowAuthenticatesWebSocketSingleUseAndRejectsQueryBearerTokens()
+    {
+        var realtime = new ScriptedRealtimeClient(onFirstAudio: session =>
+        {
+            session.Emit(new RealtimeServerMessage
+            {
+                Type = LocalTalk.ToolEvent,
+                RawRepresentation = new TalkTool("call_local_1", "memory_search", "running", "Memory search"),
+            });
+            session.Emit(new ResponseCreatedRealtimeServerMessage(
+                RealtimeServerMessageType.ResponseDone)
+            {
+                ResponseId = "local_ticket_1",
+                Status = RealtimeResponseStatus.Completed,
+            });
+        });
+
+        var stub = new StubVoiceClients(
+            talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, Model: null, RecordsItself: true, InputRate: 16_000, Unavailable: null)));
+
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
+        var conversation = ConversationId.New();
+
+        // Mint a single-use opaque ticket via POST /ai/talk/ticket.
+        using var mintResponse = await host.PostJsonAsync(
+            "/ai/talk/ticket",
+            JsonSerializer.Serialize(new { conversation = conversation.Value }),
+            Ct);
+        Assert.Equal(HttpStatusCode.OK, mintResponse.StatusCode);
+        var mintJson = await mintResponse.Content.ReadAsStringAsync(Ct);
+        using var doc = JsonDocument.Parse(mintJson);
+        var ticket = doc.RootElement.GetProperty("ticket").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(ticket));
+        Assert.Equal(30, doc.RootElement.GetProperty("expiresInSeconds").GetInt32());
+
+        // Connect WITHOUT Presence/Authorization headers using only ?conversation=...&ticket=... (browser WebSocket flow).
+        var ticketUri = new UriBuilder(TalkUri(host, conversation.Value))
+        {
+            Query = $"conversation={Uri.EscapeDataString(conversation.Value)}&ticket={Uri.EscapeDataString(ticket!)}",
+        }.Uri;
+
+        using (var ws = new ClientWebSocket())
+        {
+            await ws.ConnectAsync(ticketUri, Ct);
+            await ws.SendAsync(new byte[320], WebSocketMessageType.Binary, endOfMessage: true, Ct);
+            var frames = await ReadUntilAsync(ws, static frame => frame is TalkState { State: "listening" }, Ct);
+            var tool = Assert.Single(frames.OfType<TalkTool>());
+            Assert.Equal("call_local_1", tool.CallId);
+            Assert.Equal("memory_search", tool.Name);
+            Assert.Equal("running", tool.Status);
+            await SendEventAsync(ws, new TalkEnd(), Ct);
+        }
+
+        // Replaying the same single-use ticket must be rejected with 401.
+        using (var replayWs = new ClientWebSocket())
+        {
+            replayWs.Options.CollectHttpResponseDetails = true;
+            _ = await Assert.ThrowsAsync<WebSocketException>(() => replayWs.ConnectAsync(ticketUri, Ct));
+            Assert.Equal(HttpStatusCode.Unauthorized, replayWs.HttpStatusCode);
+        }
+
+        // Query-string bearer tokens must always be rejected with 401.
+        var bearerQueryUri = new UriBuilder(TalkUri(host, conversation.Value))
+        {
+            Query = $"conversation={Uri.EscapeDataString(conversation.Value)}&access_token=stolen-bearer",
+        }.Uri;
+        using var bearerWs = new ClientWebSocket();
+        bearerWs.Options.SetRequestHeader(PresenceProof.HeaderName, host.PresenceToken);
+        bearerWs.Options.CollectHttpResponseDetails = true;
+        _ = await Assert.ThrowsAsync<WebSocketException>(() => bearerWs.ConnectAsync(bearerQueryUri, Ct));
+        Assert.Equal(HttpStatusCode.Unauthorized, bearerWs.HttpStatusCode);
+    }
+
     private static Uri TalkUri(VoiceHostHarness host, string conversation)
     {
         var builder = new UriBuilder(host.BaseAddress)

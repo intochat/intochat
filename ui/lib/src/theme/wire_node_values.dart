@@ -14,6 +14,15 @@ enum UiNodeTone { neutral, accent, done, working, error }
 
 enum WireMessageRole { user, assistant, other }
 
+enum WireAttachmentKind { image, file, voiceNote }
+
+WireAttachmentKind parseAttachmentKind(String? raw) =>
+    switch (raw?.trim().toLowerCase()) {
+      'voice-note' => WireAttachmentKind.voiceNote,
+      'image' => WireAttachmentKind.image,
+      _ => WireAttachmentKind.file,
+    };
+
 enum WireMessageStatus { sending, running, failed, interrupted, other }
 
 enum WireActivityStatus { running, failed, done }

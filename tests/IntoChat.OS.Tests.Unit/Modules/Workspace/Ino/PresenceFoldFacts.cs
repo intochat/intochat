@@ -37,7 +37,7 @@ public sealed class FakeConversation : DigitalBrain.Neurons.Neuron<FakeConversat
         => Task.FromResult(State.View ?? new ConversationView(ConvId, 0, [], [], null, [], false, []));
 
     public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
-    public Task Say(string text, ModelId? model = null) => throw new NotSupportedException();
+    public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) => throw new NotSupportedException();
     public Task Stop() => Task.CompletedTask;
     public Task Regenerate(EntryId reply) => throw new NotSupportedException();
     public Task Post(string text, string id) => Task.CompletedTask;

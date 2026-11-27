@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Brains;
@@ -42,6 +43,67 @@ internal static class TalkEndpoint
         + "briefly acknowledge in 3 to 5 natural words (for example, \"On it, checking now...\") while calling the 'run_brain_turn' tool "
         + "with their request, and then speak a concise summary of the result.";
 
+    private static readonly string[] ForbiddenQueryAuthParameters =
+        ["access_token", "token", "authorization", "bearer"];
+
+    public static async Task<IResult> MintTicketAsync(
+        HttpContext http,
+        TalkTicketStore tickets,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(tickets);
+
+        http.Response.Headers.CacheControl = "no-store";
+
+        if (AIModule.StampedCaller(http) is not { } caller)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!AIModule.IsDirectPersonCaller(caller))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        string? rawConversation = null;
+        if (http.Request.ContentLength is > 0 || http.Request.HasJsonContentType())
+        {
+            try
+            {
+                var body = await JsonSerializer.DeserializeAsync(
+                    http.Request.Body,
+                    TalkJson.Default.TalkTicketRequest,
+                    ct).ConfigureAwait(false);
+                rawConversation = body?.Conversation;
+            }
+            catch (JsonException)
+            {
+                return Results.Problem("Supply a JSON body with a 'conversation' id.", statusCode: StatusCodes.Status400BadRequest);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(rawConversation))
+        {
+            rawConversation = http.Request.Query["conversation"].ToString();
+        }
+
+        if (string.IsNullOrWhiteSpace(rawConversation) || !ConversationId.TryParse(rawConversation, out var conversationId))
+        {
+            return Results.Problem("A valid conversation id is required.", statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        try
+        {
+            var (ticket, expiresInSeconds) = tickets.Issue(caller, conversationId);
+            return Results.Json(new TalkTicketResponse(ticket, expiresInSeconds), TalkJson.Default.TalkTicketResponse);
+        }
+        catch (InvalidOperationException error)
+        {
+            return Results.Problem(error.Message, statusCode: StatusCodes.Status429TooManyRequests);
+        }
+    }
+
     public static async Task Run(
         HttpContext http,
         INeuronProxies brain,
@@ -60,15 +122,10 @@ internal static class TalkEndpoint
             return;
         }
 
-        if (AIModule.StampedCaller(http) is not { } caller)
+        // Reject query-string bearer tokens explicitly (never accept secrets in URLs).
+        if (HasForbiddenQueryAuthToken(http.Request.Query))
         {
             http.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return;
-        }
-
-        if (!AIModule.IsDirectPersonCaller(caller))
-        {
-            http.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
         }
 
@@ -83,6 +140,50 @@ internal static class TalkEndpoint
         if (string.IsNullOrWhiteSpace(rawConversation) || !ConversationId.TryParse(rawConversation, out var conversationId))
         {
             http.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        var stampedCaller = AIModule.StampedCaller(http);
+        var rawTicket = http.Request.Query["ticket"].ToString();
+        Caller caller;
+        IDisposable? ticketCallerScope = null;
+
+        if (!string.IsNullOrWhiteSpace(rawTicket))
+        {
+            var ticketStore = http.RequestServices.GetService<TalkTicketStore>();
+            if (ticketStore is null || !ticketStore.TryRedeem(rawTicket, conversationId, out var redeemedCaller))
+            {
+                http.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+
+            if (stampedCaller is not null && !SamePrincipal(stampedCaller, redeemedCaller))
+            {
+                http.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
+            caller = redeemedCaller;
+            if (stampedCaller is null)
+            {
+                ticketCallerScope = http.RequestServices.GetService<EdgeAuthority>()?.Enter(caller);
+            }
+        }
+        else if (stampedCaller is not null)
+        {
+            caller = stampedCaller;
+        }
+        else
+        {
+            http.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        using var _ = ticketCallerScope;
+
+        if (!AIModule.IsDirectPersonCaller(caller))
+        {
+            http.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
         }
 
@@ -194,6 +295,24 @@ internal static class TalkEndpoint
             await CloseSafelyAsync(ws, WebSocketCloseStatus.NormalClosure, "Session ended.").ConfigureAwait(false);
         }
     }
+
+    internal static bool HasForbiddenQueryAuthToken(IQueryCollection query)
+    {
+        foreach (var name in ForbiddenQueryAuthParameters)
+        {
+            if (query.ContainsKey(name))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool SamePrincipal(Caller left, Caller right)
+        => left.Brain == right.Brain
+            && string.Equals(left.For?.Principal, right.For?.Principal, StringComparison.Ordinal)
+            && string.Equals(left.For?.Account, right.For?.Account, StringComparison.Ordinal);
 
     internal static bool IsOriginAllowed(HttpRequest request, KernelCorsOptions? cors)
     {
@@ -444,6 +563,12 @@ internal static class TalkEndpoint
                     turnState.Reset();
                     pendingToolCalls.Clear();
                     await SendEventAsync(ws, sendLock, new TalkCancel(), pumpCts.Token).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (message.Type == LocalTalk.ToolEvent && message.RawRepresentation is TalkTool toolEvent)
+                {
+                    await SendEventAsync(ws, sendLock, toolEvent, pumpCts.Token).ConfigureAwait(false);
                     continue;
                 }
 

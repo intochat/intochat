@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../generated/node_models.dart';
 import '../widgets/voice/talk_socket.dart';
 import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
