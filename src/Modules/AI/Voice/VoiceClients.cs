@@ -90,6 +90,7 @@ internal sealed class VoiceClients : IVoiceClients
             verb: "hear",
             fromRuntime: static (runtime, id) => runtime.Hear(id),
             fromCloud: static (client, deployment) => client.GetAudioClient(deployment).AsISpeechToTextClient(),
+            fromGoogle: static (modelId, apiKey) => new GeminiSpeechToTextClient(modelId, apiKey),
             wrapTelemetry: raw => raw.AsBuilder().UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource).Build(),
             ct);
 
@@ -101,6 +102,7 @@ internal sealed class VoiceClients : IVoiceClients
             verb: "speak",
             fromRuntime: static (runtime, id) => runtime.Speak(id),
             fromCloud: static (client, deployment) => client.GetAudioClient(deployment).AsITextToSpeechClient(),
+            fromGoogle: static (modelId, apiKey) => new GeminiTextToSpeechClient(modelId, apiKey),
             wrapTelemetry: raw => raw.AsBuilder().UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource).Build(),
             ct);
 
@@ -117,6 +119,21 @@ internal sealed class VoiceClients : IVoiceClients
             {
                 return new TalkVoice(null, binding, RecordsItself: false, InputRate: 24_000,
                     $"{card?.Name ?? binding.Value} cannot talk in this build.");
+            }
+
+            if (card.Provider == AiProvider.Google)
+            {
+                var (googleKey, googleError) = await ResolveGoogleApiKeyAsync(brain, card, ModelRole.Talk, ct).ConfigureAwait(false);
+                if (googleKey is null)
+                {
+                    return new TalkVoice(null, card.Id, RecordsItself: false, InputRate: GeminiLiveRealtimeClient.InputSampleRate, googleError);
+                }
+
+                IRealtimeClient googleWrapped = new GeminiLiveRealtimeClient(card.Id.Value, googleKey)
+                    .AsBuilder()
+                    .UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource)
+                    .Build();
+                return new TalkVoice(googleWrapped, card.Id, RecordsItself: false, InputRate: GeminiLiveRealtimeClient.InputSampleRate, Unavailable: null);
             }
 
             if (card.Provider is not (AiProvider.OpenAI or AiProvider.AzureFoundry))
@@ -178,6 +195,7 @@ internal sealed class VoiceClients : IVoiceClients
         string verb,
         Func<ILocalRuntime, ModelId, T?> fromRuntime,
         Func<OpenAIClient, string, T> fromCloud,
+        Func<string, string, T> fromGoogle,
         Func<T, T> wrapTelemetry,
         CancellationToken ct) where T : class
     {
@@ -218,6 +236,18 @@ internal sealed class VoiceClients : IVoiceClients
                 return new Voice<T>(null, card.Id, $"{card.Name} cannot {verb} in this build.");
             }
 
+            return new Voice<T>(wrapTelemetry(raw), card.Id, Unavailable: null);
+        }
+
+        if (card.Provider == AiProvider.Google)
+        {
+            var (apiKey, googleError) = await ResolveGoogleApiKeyAsync(brain, card, role, ct).ConfigureAwait(false);
+            if (apiKey is null)
+            {
+                return new Voice<T>(null, card.Id, googleError);
+            }
+
+            var raw = fromGoogle(card.Id.Value, apiKey);
             return new Voice<T>(wrapTelemetry(raw), card.Id, Unavailable: null);
         }
 
@@ -386,6 +416,34 @@ internal sealed class VoiceClients : IVoiceClients
         catch (InvalidOperationException)
         {
             return (null, null, $"{card.Name} needs an OpenAI API key for the {role} role.");
+        }
+    }
+
+    private async Task<(string? ApiKey, string? Error)> ResolveGoogleApiKeyAsync(
+        string brain,
+        ModelCard card,
+        ModelRole role,
+        CancellationToken ct)
+    {
+        if (BrainScope.IsValidId(brain)
+            && await _credentials.BrainKey(brain, AiProvider.Google, ct).ConfigureAwait(false) is { Length: > 0 } brainKey)
+        {
+            return (brainKey, null);
+        }
+
+        try
+        {
+            var material = await _credentials.MaterializeAsync(AiIntegrations.IdOf(AiProvider.Google), ct).ConfigureAwait(false);
+            if (!material.Values.TryGetValue(AiIntegrations.ApiKeyField, out var apiKey) || string.IsNullOrWhiteSpace(apiKey))
+            {
+                return (null, $"{card.Name} needs a Google Gemini API key for the {role} role.");
+            }
+
+            return (apiKey, null);
+        }
+        catch (InvalidOperationException)
+        {
+            return (null, $"{card.Name} needs a Google Gemini API key for the {role} role.");
         }
     }
 

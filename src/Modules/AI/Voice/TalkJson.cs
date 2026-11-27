@@ -7,6 +7,7 @@ namespace IntoChat.OS.Modules.AI.Voice;
 [JsonDerivedType(typeof(TalkHeard), "heard")]
 [JsonDerivedType(typeof(TalkReply), "reply")]
 [JsonDerivedType(typeof(TalkCancel), "cancel")]
+[JsonDerivedType(typeof(TalkTool), "tool")]
 [JsonDerivedType(typeof(TalkError), "error")]
 [JsonDerivedType(typeof(TalkInterrupt), "interrupt")]
 [JsonDerivedType(typeof(TalkEnd), "end")]
@@ -19,6 +20,8 @@ internal sealed record TalkHeard(string Text) : TalkEvent;
 internal sealed record TalkReply(string Text) : TalkEvent;       // a text delta of the reply
 
 internal sealed record TalkCancel : TalkEvent;                   // drop queued playback (barge-in)
+
+internal sealed record TalkTool(string CallId, string Name, string Status, string? Label = null) : TalkEvent; // running | done | failed
 
 internal sealed record TalkError(string Message) : TalkEvent;
 

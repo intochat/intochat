@@ -222,6 +222,59 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
     }
 
     [Fact]
+    public async Task MidToolBargeInIsNonBlockingAndEmitsCancelImmediately()
+    {
+        var toolCallEmitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ScriptedRealtimeSession? activeSession = null;
+
+        var realtime = new ScriptedRealtimeClient(
+            onFirstAudio: session =>
+            {
+                activeSession = session;
+                session.Emit(new InputAudioTranscriptionRealtimeServerMessage(
+                    RealtimeServerMessageType.InputAudioTranscriptionCompleted)
+                {
+                    Transcription = "do a slow tool",
+                });
+                session.Emit(new ResponseOutputItemRealtimeServerMessage(
+                    RealtimeServerMessageType.ResponseOutputItemDone)
+                {
+                    ResponseId = "resp_barge_1",
+                    Item = new RealtimeConversationItem(
+                    [
+                        new FunctionCallContent("call_barge_1", TalkEndpoint.BrainTurnToolName, new Dictionary<string, object?> { ["request"] = "do a slow tool" }),
+                    ]),
+                });
+                session.Emit(new ResponseCreatedRealtimeServerMessage(
+                    RealtimeServerMessageType.ResponseDone)
+                {
+                    ResponseId = "resp_barge_1",
+                    Status = RealtimeResponseStatus.Completed,
+                });
+                toolCallEmitted.TrySetResult();
+            });
+
+        var stub = new StubVoiceClients(
+            talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, KnownModels.FoundryGptRealtime.Id, RecordsItself: false, InputRate: 24_000, Unavailable: null)));
+
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
+
+        var conversation = ConversationId.New();
+        using var ws = await ConnectTalkAsync(host, conversation.Value, Ct);
+        await ws.SendAsync(new byte[320], WebSocketMessageType.Binary, endOfMessage: true, Ct);
+        await toolCallEmitted.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        // Trigger server-side barge-in while run_brain_turn is running in the background.
+        activeSession!.Emit(new RealtimeServerMessage { Type = LocalTalk.Interrupted });
+
+        var frames = await ReadUntilAsync(ws, static frame => frame is TalkCancel, Ct);
+        Assert.Contains(frames, static f => f is TalkCancel);
+
+        await SendEventAsync(ws, new TalkEnd(), Ct);
+    }
+
+    [Fact]
     public async Task ALocalExchangeIsNotRecordedTwice()
     {
         var realtime = new ScriptedRealtimeClient(onFirstAudio: session =>

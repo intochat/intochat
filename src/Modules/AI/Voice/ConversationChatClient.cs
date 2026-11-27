@@ -12,7 +12,10 @@ namespace IntoChat.OS.Modules.AI.Voice;
 
 // Streams a spoken turn through IConversation.Say + S5's ephemeral TextDelta so voice turns run through the real
 // conversation aggregate (tools, memory, masking) and cancelling the stream stops the active conversation run.
-internal sealed class ConversationChatClient(IConversation conversation, ISignalWatch watch) : IChatClient
+internal sealed class ConversationChatClient(
+    IConversation conversation,
+    ISignalWatch watch,
+    Func<TalkTool, CancellationToken, Task>? onToolEvent = null) : IChatClient
 {
     public async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
@@ -95,6 +98,8 @@ internal sealed class ConversationChatClient(IConversation conversation, ISignal
             string? targetRunId = null;
             var emittedLength = 0;
             var seenEntries = new List<ConversationEntry>();
+            var emittedToolStarts = new HashSet<string>(StringComparer.Ordinal);
+            var emittedToolFinishes = new HashSet<string>(StringComparer.Ordinal);
 
             await foreach (var item in events.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -125,7 +130,11 @@ internal sealed class ConversationChatClient(IConversation conversation, ISignal
                     {
                         var heal = await conversation.Read(since).WaitAsync(cancellationToken).ConfigureAwait(false);
                         if (heal.Revision > since) { since = heal.Revision; }
-                        if (heal.Entries.Length > 0) { seenEntries.AddRange(heal.Entries); }
+                        if (heal.Entries.Length > 0)
+                        {
+                            seenEntries.AddRange(heal.Entries);
+                            await EmitToolEventsAsync(heal.Entries, emittedToolStarts, emittedToolFinishes, cancellationToken).ConfigureAwait(false);
+                        }
                         if (heal.Active?.Reply is { Length: > 0 } stored && stored.Length > emittedLength)
                         {
                             yield return new ChatResponseUpdate(ChatRole.Assistant, stored[emittedLength..]);
@@ -165,6 +174,7 @@ internal sealed class ConversationChatClient(IConversation conversation, ISignal
                 if (view.Entries.Length > 0)
                 {
                     seenEntries.AddRange(view.Entries);
+                    await EmitToolEventsAsync(view.Entries, emittedToolStarts, emittedToolFinishes, cancellationToken).ConfigureAwait(false);
                 }
 
                 targetRunId ??= view.Active?.RunId
@@ -280,6 +290,45 @@ internal sealed class ConversationChatClient(IConversation conversation, ISignal
         {
             OsConsoleLog.For<ConversationChatClient>().LogSwallowed(error, "shutting down conversation signal watch pump");
         }
+    }
+
+    private async Task EmitToolEventsAsync(
+        ConversationEntry[] entries,
+        HashSet<string> emittedStarts,
+        HashSet<string> emittedFinishes,
+        CancellationToken ct)
+    {
+        if (onToolEvent is null || entries.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            switch (entry)
+            {
+                case Called called when emittedStarts.Add(called.Id.Value):
+                    var startCallId = EntryIds.CallOf(called.Id) ?? called.Id.Value;
+                    await onToolEvent(new TalkTool(startCallId, called.Tool, "running", FormatToolLabel(called.Tool)), ct).ConfigureAwait(false);
+                    break;
+
+                case Returned returned when emittedFinishes.Add(returned.Id.Value):
+                    var endCallId = EntryIds.CallOf(returned.Id) ?? returned.Id.Value;
+                    await onToolEvent(new TalkTool(endCallId, returned.Tool, returned.Ok ? "done" : "failed", FormatToolLabel(returned.Tool)), ct).ConfigureAwait(false);
+                    break;
+            }
+        }
+    }
+
+    internal static string FormatToolLabel(string toolName)
+    {
+        if (string.IsNullOrWhiteSpace(toolName))
+        {
+            return "Tool";
+        }
+
+        var normalized = toolName.Trim().Replace('_', ' ').Replace('-', ' ');
+        return char.ToUpperInvariant(normalized[0]) + normalized[1..];
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null)
