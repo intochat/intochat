@@ -92,10 +92,10 @@ internal sealed partial class ServiceAssertionSigner : IServiceAssertionSigner, 
             return $"{key}:Audience must name the target service (1-500 characters).";
         }
         if (!Uri.TryCreate(signer.ServiceUrl.Trim(), UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || (uri.Scheme != Uri.UriSchemeHttps && (uri.Scheme != Uri.UriSchemeHttp || (!uri.IsLoopback && uri.Host.Contains('.'))))
             || !string.IsNullOrEmpty(uri.UserInfo))
         {
-            return $"{key}:ServiceUrl must be an absolute http(s) URL without credentials.";
+            return $"{key}:ServiceUrl must be an absolute https URL (or loopback/internal http URL) without credentials.";
         }
         try
         {
@@ -125,7 +125,12 @@ internal sealed partial class ServiceAssertionSigner : IServiceAssertionSigner, 
             }
             else
             {
-                key.ImportPkcs8PrivateKey(Convert.FromBase64String(trimmed), out _);
+                var rawBytes = Convert.FromBase64String(trimmed);
+                key.ImportPkcs8PrivateKey(rawBytes, out var read);
+                if (read != rawBytes.Length)
+                {
+                    throw new CryptographicException("Trailing bytes in PKCS#8 private key.");
+                }
             }
 
             if (key.KeySize != 256)

@@ -1,6 +1,8 @@
 using System.Reflection;
+using System.Security.Cryptography;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Modules.Identity.External;
 
 namespace IntoChat.OS.Authority;
 
@@ -27,5 +29,55 @@ public sealed class AuthKeysFacts
     public void KeysAndOptionsNameTheSameSettings()
     {
         Assert.Equal(Properties, Keys.Keys.Order(StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public void ServiceSignerRejectsTrailingBytesInBase64Pkcs8PrivateKey()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var validPkcs8 = key.ExportPkcs8PrivateKey();
+        byte[] withTrailing = [.. validPkcs8, 0x00];
+
+        Assert.Throws<CryptographicException>(() => ServiceAssertionSigner.ImportPrivateKey(Convert.ToBase64String(withTrailing)));
+
+        var problem = ServiceAssertionSigner.Problem(new ServiceSignerOptions
+        {
+            Issuer = "os.test.intochat.io",
+            Audience = "https://cloud.example",
+            ServiceUrl = "https://cloud.example",
+            PrivateKey = Convert.ToBase64String(withTrailing),
+        });
+        Assert.NotNull(problem);
+        Assert.Contains("PrivateKey", problem, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("https://cloud.example", true)]
+    [InlineData("http://127.0.0.1:5080", true)]
+    [InlineData("http://localhost:5080", true)]
+    [InlineData("http://intochat-test-cloud", true)]
+    [InlineData("http://cloud.example", false)]
+    [InlineData("http://relay.test.intochat.io", false)]
+    [InlineData("https://user:pass@cloud.example", false)]
+    public void ServiceSignerEnforcesHttpsForExternalHosts(string serviceUrl, bool expectedValid)
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var problem = ServiceAssertionSigner.Problem(new ServiceSignerOptions
+        {
+            Issuer = "os.test.intochat.io",
+            Audience = "https://cloud.example",
+            ServiceUrl = serviceUrl,
+            PrivateKey = Convert.ToBase64String(key.ExportPkcs8PrivateKey()),
+        });
+
+        if (expectedValid)
+        {
+            Assert.Null(problem);
+        }
+        else
+        {
+            Assert.NotNull(problem);
+            Assert.Contains("ServiceUrl", problem, StringComparison.Ordinal);
+        }
     }
 }
