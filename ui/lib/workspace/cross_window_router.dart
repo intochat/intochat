@@ -154,36 +154,34 @@ OpenWindowRoute? openWindowRouteOf(
   );
 }
 
-Map<String, dynamic> buildNavigateFromActEvent({
+ActAction buildNavigateFromActEvent({
   required String fromNeuron,
   required String toNeuron,
   String? route,
   bool force = false,
-}) => <String, dynamic>{
-  'kind': 'act',
-  'neuron': fromNeuron,
-  'target': '.',
-  'signal': 'ui.navigate-from',
-  'args': <String, Object?>{
+}) => ActAction(
+  neuron: fromNeuron,
+  target: '.',
+  signal: 'ui.navigate-from',
+  args: <String, Object?>{
     'toNeuron': toNeuron,
     if (route != null && route.isNotEmpty) 'route': route,
     'force': force,
   },
-};
+);
 
-Map<String, dynamic> buildNavigateToActEvent({
+ActAction buildNavigateToActEvent({
   required String targetNeuron,
   String? fromNeuron,
   String? argsJson,
   String transition = 'fade-through',
   String? input,
   String? correlationId,
-}) => <String, dynamic>{
-  'kind': 'act',
-  'neuron': targetNeuron,
-  'target': '.',
-  'signal': 'ui.navigate-to',
-  'args': <String, Object?>{
+}) => ActAction(
+  neuron: targetNeuron,
+  target: '.',
+  signal: 'ui.navigate-to',
+  args: <String, Object?>{
     if (argsJson != null && argsJson.isNotEmpty) 'argsJson': argsJson,
     if (fromNeuron != null && fromNeuron.isNotEmpty) 'fromNeuron': fromNeuron,
     'transition': normalizeViewTransition(transition),
@@ -191,7 +189,7 @@ Map<String, dynamic> buildNavigateToActEvent({
       'correlationId': correlationId,
     if (input != null && input.isNotEmpty) 'input': input,
   },
-};
+);
 
 /// Extracts a human-readable refusal message ONLY when `/act` rejected
 /// `ui.navigate-from` due to a domain `Rule`. Returns `null` when the screen
@@ -238,7 +236,7 @@ String? extractRuleRejectionMessage(Map<String, dynamic>? payload) {
 /// Fails open (`null`) when the screen does not handle `ui.navigate-from`;
 /// returns the refusal message only when `/act` returns a `Rule` rejection.
 Future<String?> checkDepartureGuard({
-  required Future<Object?> Function(Map<String, dynamic> event) sendAct,
+  required Future<Object?> Function(UiAction action) sendAct,
   required String fromNeuron,
   required String toNeuron,
   String? route,
@@ -275,7 +273,7 @@ Future<String?> checkDepartureGuard({
 /// Dispatches `ui.navigate-to` to [targetNeuron] via `/act`, failing open if
 /// the target is a legacy app without `AggregateScreen` navigation handlers.
 Future<bool> dispatchNavigateTo({
-  required Future<Object?> Function(Map<String, dynamic> event) sendAct,
+  required Future<Object?> Function(UiAction action) sendAct,
   required String targetNeuron,
   String? fromNeuron,
   String? argsJson,

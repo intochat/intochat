@@ -64,7 +64,7 @@ void main() {
     final ctx = NodeContext(
       view: 'local/apps/creator/view',
       send: (event) async {
-        events.add(event);
+        events.add(event.toJson());
         return null;
       },
     );

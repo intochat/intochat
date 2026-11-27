@@ -180,10 +180,10 @@ void main() {
               knowsApp: (_) => false,
               kind: 'view',
               name: 'brain-1/apps/ino/view',
-              load: (_, _) async => {
+              load: (_, _) async => PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {'title': 'Ino', 'root': root},
-              },
+              }),
               watch: (_, _) => const Stream.empty(),
               onAction: (_) async => null,
             ),
@@ -374,13 +374,16 @@ void main() {
         ),
         loadNode: (kind, name) async {
           if (kind == 'viewport') {
-            return {
-              'revision': 1,
-              'root': {'kind': 'view', 'name': 'brain-1/apps/helloworld/view'},
-            };
+            return const ViewportPayload(
+              revision: 1,
+              root: UiViewRef(
+                kind: 'view',
+                name: 'brain-1/apps/helloworld/view',
+              ),
+            );
           }
           if (name == 'brain-1/apps/helloworld/view') {
-            return {
+            return PublishedViewPayload.fromJson({
               'generation': 1,
               'view': {
                 'title': 'Hello World',
@@ -389,20 +392,21 @@ void main() {
                   'value': 'Hello from live runtime grain!',
                 },
               },
-            };
+            });
           }
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async {
-          if (event['signal'] == 'desktop.open' &&
-              (event['args'] as Map?)?['app'] == 'helloworld') {
+          if (event is ActAction &&
+              event.signal == 'desktop.open' &&
+              (event.args as Map?)?['app'] == 'helloworld') {
             windows.add(
               const DesktopWindowProjection(
                 id: 'w-1',

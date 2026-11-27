@@ -230,7 +230,7 @@ void main() {
           final ctx = NodeContext(
             view: 'local/apps/files/view',
             send: (event) async {
-              activatedKey = event['signal'] as String?;
+              activatedKey = event is ActAction ? event.signal : null;
               return null;
             },
           );
@@ -376,7 +376,7 @@ void main() {
             final ctx = NodeContext(
               view: 'local/apps/data/view',
               send: (event) async {
-                clickedPoint = event['value'] as String?;
+                clickedPoint = event is ActAction ? event.value : null;
                 return null;
               },
             );
@@ -631,7 +631,7 @@ void main() {
           final ctx = NodeContext(
             view: 'local/apps/files/view',
             send: (event) async {
-              lastKey = event['signal'] as String?;
+              lastKey = event is ActAction ? event.signal : null;
               return null;
             },
           );
@@ -722,7 +722,7 @@ void main() {
               kind: 'view',
               name: 'local/apps/data/ledger',
               knowsApp: (_) => false,
-              load: (_, _) async => {
+              load: (_, _) async => PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {
                   'title': 'Ledger',
@@ -739,7 +739,7 @@ void main() {
                     ],
                   },
                 },
-              },
+              }),
             ),
             brightness: Brightness.light,
             width: 800,

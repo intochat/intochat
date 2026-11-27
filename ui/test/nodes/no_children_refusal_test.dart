@@ -23,7 +23,7 @@ void main() {
               '{"error":"child of local/apps/notes refused the command.",'
                   '"reason":"NoChildren"}',
             ),
-            load: (_, _) async => {
+            load: (_, _) async => PublishedViewPayload.fromJson({
               'generation': 1,
               'view': {
                 'title': 'Notes',
@@ -34,7 +34,7 @@ void main() {
                   'command': {'target': 'child', 'signal': 'Toggle'},
                 },
               },
-            },
+            }),
           ),
         ),
       ),

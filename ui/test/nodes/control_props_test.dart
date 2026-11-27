@@ -14,7 +14,7 @@ NodeContext _ctx(
   generation: 1,
   childProps: props,
   send: (event) async {
-    sent.add(event);
+    sent.add(event.toJson());
     return {'delivered': true};
   },
 );

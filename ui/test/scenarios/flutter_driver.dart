@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 /// One step of a scenario: `act`, `expect` or `expectShown` by its `step` discriminator.
@@ -220,8 +221,9 @@ class FlutterDriver {
             key: rootKey,
             kind: 'view',
             name: ReplayHost.viewName(host.scenario.appId),
-            load: host.load,
-            onAction: host.send,
+            load: (kind, name) async =>
+                UiNodePayload.fromJson(kind, await host.load(kind, name)),
+            onAction: (action) => host.send(action.toJson()),
             knowsApp: (_) => false,
             watch: (_, _) => const Stream.empty(),
             revision: host.revision,

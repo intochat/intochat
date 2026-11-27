@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
@@ -12,7 +13,7 @@ void main() {
             kind: 'view',
             name: 'test',
             watch: (_, _) => const Stream<void>.empty(),
-            load: (_, _) async => {'version': 1, 'markdown': 'hello'},
+            load: (_, _) async => const PublishedViewPayload(),
           ),
         ),
       ),
@@ -31,7 +32,7 @@ void main() {
           kind: 'view',
           name: name,
           watch: (_, _) => const Stream<void>.empty(),
-          load: (_, _) async => {'version': 1, 'markdown': 'hello'},
+          load: (_, _) async => const PublishedViewPayload(),
         ),
       ),
     );

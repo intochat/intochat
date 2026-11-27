@@ -1,8 +1,9 @@
-﻿import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:intochat_os_flutter_shell/src/components/browser/embedded_browser_windows.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+import 'package:intochat_os_flutter_shell/src/components/browser/embedded_browser_windows.dart';
 
 void main() {
   final originalEnvironmentFactory = environmentFactory;
@@ -21,7 +22,8 @@ void main() {
             knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => {'title': 'Customer Researcher', 'uri': ''},
+            load: (_, _) async =>
+                const WebBrowserPayload(title: 'Customer Researcher'),
             onAction: (_) async =>
                 fail('Unsupported browser must not send an attachment'),
           ),
@@ -50,7 +52,7 @@ void main() {
                   knowsApp: (_) => false,
                   kind: 'webbrowser',
                   name: 'workspace/app/browser',
-                  load: (_, _) async => {'title': title, 'uri': ''},
+                  load: (_, _) async => WebBrowserPayload(title: title),
                   onAction: (_) async => null,
                 ),
               ),
@@ -83,7 +85,10 @@ void main() {
             knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => {'title': 'Preview', 'uri': 'http://intent/'},
+            load: (_, _) async => const WebBrowserPayload(
+              title: 'Preview',
+              uri: 'http://intent/',
+            ),
           ),
         ),
       ),
@@ -99,7 +104,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
 
     environmentFactory = () async => throw StateError('WebView2 missing');
-    final events = <Map<String, dynamic>>[];
+    final events = <UiAction>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -107,7 +112,10 @@ void main() {
             knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
+            load: (_, _) async => const WebBrowserPayload(
+              title: 'Browser',
+              uri: 'http://intent/',
+            ),
             onAction: (event) async => events.add(event),
           ),
         ),
@@ -115,10 +123,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     final unavailable = events
-        .where((event) => event['action'] == 'unavailable')
+        .whereType<WebBrowserUnavailableAction>()
         .toList();
     expect(unavailable, isNotEmpty);
-    expect(unavailable.last['reason'] as String, contains('WebView2 missing'));
+    expect(unavailable.last.reason, contains('WebView2 missing'));
     debugDefaultTargetPlatformOverride = null;
   });
 
@@ -139,7 +147,10 @@ void main() {
             knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
+            load: (_, _) async => const WebBrowserPayload(
+              title: 'Browser',
+              uri: 'http://intent/',
+            ),
             onAction: (_) async => null,
           ),
         ),
@@ -163,13 +174,12 @@ void main() {
             knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => {
-              'title': 'Browser',
-              'uri': 'http://intended.example/',
-              'actualUrl': 'http://observed.example/page',
-              'connection': 'attached',
-              'error': '',
-            },
+            load: (_, _) async => const WebBrowserPayload(
+              title: 'Browser',
+              uri: 'http://intended.example/',
+              actualUrl: 'http://observed.example/page',
+              connection: 'attached',
+            ),
             onAction: (_) async => null,
           ),
         ),

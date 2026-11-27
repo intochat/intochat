@@ -5,27 +5,75 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/browser/ui_web_browser.dart';
 import '../components/workspace/ui_workspace_components.dart';
-import '../focus_registry.dart';
 import '../core/neuron_method_caller.dart';
-import '../runtime/models/window_state.dart';
+import '../focus_registry.dart';
 import '../nodes/brain_scene.dart';
 import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
+import '../runtime/models/window_state.dart';
 import 'brain_session_controller.dart';
 import 'child_route.dart';
 
+/// Cohesive value object holding optional host capability overrides for
+/// [ViewHost]. Any omitted field falls back to [BrainSessionScope.readOf].
+@immutable
+final class ViewHostOverrides {
+  const ViewHostOverrides({
+    this.load,
+    this.onActivate,
+    this.onAction,
+    this.knowsApp,
+    this.watch,
+    this.watchSignal,
+    this.callNeuron,
+    this.transcribe,
+    this.talk,
+    this.speak,
+    this.storeSecret,
+  });
+
+  final NeuronLoader? load;
+  final ValueChanged<Map<String, dynamic>>? onActivate;
+  final NeuronAction? onAction;
+  final bool Function(String app)? knowsApp;
+  final Stream<void> Function(String kind, String name)? watch;
+  final NeuronSignalWatcher? watchSignal;
+  final NeuronMethodCaller? callNeuron;
+  final VoiceTranscriber? transcribe;
+  final VoiceTalker? talk;
+  final VoiceSpeaker? speak;
+  final SecretStore? storeSecret;
+
+  /// Returns a copy with [watch] cleared, used when hosting inline screen
+  /// children that have no watchable neuron name of their own.
+  ViewHostOverrides withoutWatch() => ViewHostOverrides(
+    load: load,
+    onActivate: onActivate,
+    onAction: onAction,
+    knowsApp: knowsApp,
+    watchSignal: watchSignal,
+    callNeuron: callNeuron,
+    transcribe: transcribe,
+    talk: talk,
+    speak: speak,
+    storeSecret: storeSecret,
+  );
+}
+
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
-/// window onto another app's view (`viewport`), a live nested child or embed (`neuronRef`),
-/// or the hosted web browser (`webbrowser`). A chat transcript and its composer
-/// are view nodes. It reads the node once on mount and once per change signal
-/// (`ViewChanged` for a view) and hands a view to [NodeRenderer].
+/// window onto another app's view (`viewport`), a live nested child or embed
+/// (`neuronRef`), or the hosted web browser (`webbrowser`). A chat transcript
+/// and its composer are view nodes. It reads the node once on mount and once
+/// per change signal (`ViewChanged` for a view) and hands a view to
+/// [NodeRenderer].
 class ViewHost extends StatefulWidget {
   const ViewHost({
     super.key,
     required this.kind,
     required this.name,
+    this.overrides,
     this.load,
     this.onActivate,
     this.onAction,
@@ -51,34 +99,45 @@ class ViewHost extends StatefulWidget {
     this.storeSecret,
     this.embedded = false,
   });
+
   final String kind, name;
 
-  /// True for a host reached through another (a viewport's root, a view's `neuronRef`): it never answers a confirmation,
-  /// whatever its kind, so an approval card inside an app or unit view stays display-only.
+  /// Grouped host capability overrides forwarded as a single object to nested
+  /// child and reference hosts.
+  final ViewHostOverrides? overrides;
+
+  /// True for a host reached through another (a viewport's root, a view's
+  /// `neuronRef`): it never answers a confirmation, whatever its kind, so an
+  /// approval card inside an app or unit view stays display-only.
   final bool embedded;
 
-  /// True when mounted inline via a `NeuronRef` (`Screen.Child<T>`, wire `refKind: 'child'`) inside a parent view or chat turn.
+  /// True when mounted inline via a `NeuronRef` (`Screen.Child<T>`, wire
+  /// `refKind: 'child'`) inside a parent view or chat turn.
   final bool inlineChild;
 
-  /// Current `NeuronRef` (`Screen.Child<T>`) recursion depth (capped at [maxEmbedDepth] = 4).
+  /// Current `NeuronRef` (`Screen.Child<T>`) recursion depth (capped at
+  /// [maxEmbedDepth] = 4).
   final int childDepth;
 
   /// Visited `neuronUri` / resolved view names along the active child-ref chain.
   final Set<String> childAncestors;
 
-  /// For a UI child (wire `refKind: 'child'`): the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
+  /// For a UI child (wire `refKind: 'child'`): the root neuron its acts name
+  /// and its key path from it (see [NodeContext.actNeuron]).
   final String? actNeuron;
   final String childPath;
 
-  /// For a UI child: the props its parent wrote on the `NeuronRef` node (see [NodeContext.childProps]).
+  /// For a UI child: the props its parent wrote on the `NeuronRef` node (see
+  /// [NodeContext.childProps]).
   final Map<String, dynamic> childProps;
 
   final NeuronLoader? load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
 
-  /// The app keys the shell can open; an `OpenWindow` intent for any other is refused. Defaults to
-  /// [BrainSessionScope] when present, or `(_) => false` when mounted standalone.
+  /// The app keys the shell can open; an `OpenWindow` intent for any other is
+  /// refused. Defaults to [BrainSessionScope] when present, or `(_) => false`
+  /// when mounted standalone.
   final bool Function(String app)? knowsApp;
   final Set<String> ancestors;
   final int revision;
@@ -91,19 +150,20 @@ class ViewHost extends StatefulWidget {
   @visibleForTesting
   static void Function(String name, NodeContext ctx)? debugOnContext;
 
-  /// The node's change events. With a watch the host never polls: it reads once on mount and
-  /// once per event. Without one it falls back to [refreshEvery].
+  /// The node's change events. With a watch the host never polls: it reads once
+  /// on mount and once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
 
   /// Watches one signal type on a neuron contract, yielding decoded payloads.
   final NeuronSignalWatcher? watchSignal;
   final NeuronMethodCaller? callNeuron;
 
-  /// The brain's journal tail from its head: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
-  /// Creator's window passes one.
+  /// The brain's journal tail from its head: given, the view's brain scenes
+  /// draw it as pulses ([BrainSignals]). Only the Creator's window passes one.
   final Stream<List<JournalTailSignal>> Function()? signals;
 
-  /// Host capability used by dictation composers to transcribe captured audio into a draft.
+  /// Host capability used by dictation composers to transcribe captured audio
+  /// into a draft.
   final VoiceTranscriber? transcribe;
 
   /// Host capability used to open full-duplex voice mode on a conversation.
@@ -120,7 +180,7 @@ class ViewHost extends StatefulWidget {
 }
 
 class _ViewHostState extends State<ViewHost> {
-  Map<String, dynamic>? _data;
+  UiNodePayload? _payload;
   Object? _error;
   Timer? _timer, _resubscribe;
   StreamSubscription<void>? _watch;
@@ -135,8 +195,38 @@ class _ViewHostState extends State<ViewHost> {
 
   BrainSessionController? get _session => BrainSessionScope.readOf(context);
 
+  ViewHostOverrides? get _effectiveOverrides {
+    final o = widget.overrides;
+    final hasDirect =
+        widget.load != null ||
+        widget.onActivate != null ||
+        widget.onAction != null ||
+        widget.knowsApp != null ||
+        widget.watch != null ||
+        widget.watchSignal != null ||
+        widget.callNeuron != null ||
+        widget.transcribe != null ||
+        widget.talk != null ||
+        widget.speak != null ||
+        widget.storeSecret != null;
+    if (!hasDirect) return o;
+    return ViewHostOverrides(
+      load: widget.load ?? o?.load,
+      onActivate: widget.onActivate ?? o?.onActivate,
+      onAction: widget.onAction ?? o?.onAction,
+      knowsApp: widget.knowsApp ?? o?.knowsApp,
+      watch: widget.watch ?? o?.watch,
+      watchSignal: widget.watchSignal ?? o?.watchSignal,
+      callNeuron: widget.callNeuron ?? o?.callNeuron,
+      transcribe: widget.transcribe ?? o?.transcribe,
+      talk: widget.talk ?? o?.talk,
+      speak: widget.speak ?? o?.speak,
+      storeSecret: widget.storeSecret ?? o?.storeSecret,
+    );
+  }
+
   NeuronLoader get _effectiveLoad {
-    final load = widget.load ?? _session?.loadNode;
+    final load = widget.load ?? widget.overrides?.load ?? _session?.loadNode;
     assert(
       load != null,
       'ViewHost requires either an explicit load callback or an ancestor BrainSessionScope.',
@@ -145,27 +235,37 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   Stream<void> Function(String kind, String name)? get _effectiveWatch {
-    if (widget.watch != null) return widget.watch;
+    final explicit = widget.watch ?? widget.overrides?.watch;
+    if (explicit != null) return explicit;
     final session = _session;
     return session != null && session.hasNodeWatch ? session.watchNode : null;
   }
 
   NeuronSignalWatcher? get _effectiveWatchSignal =>
-      widget.watchSignal ?? _session?.watchSignal;
+      widget.watchSignal ??
+      widget.overrides?.watchSignal ??
+      _session?.watchSignal;
   NeuronMethodCaller? get _effectiveCallNeuron =>
-      widget.callNeuron ?? _session?.callNeuron;
+      widget.callNeuron ?? widget.overrides?.callNeuron ?? _session?.callNeuron;
   NeuronAction? get _effectiveOnAction =>
-      widget.onAction ?? _session?.sendAction;
+      widget.onAction ?? widget.overrides?.onAction ?? _session?.sendAction;
   ValueChanged<Map<String, dynamic>>? get _effectiveOnActivate =>
-      widget.onActivate ?? _session?.activate;
+      widget.onActivate ?? widget.overrides?.onActivate ?? _session?.activate;
   bool Function(String app) get _effectiveKnowsApp =>
-      widget.knowsApp ?? _session?.knowsApp ?? (_) => false;
+      widget.knowsApp ??
+      widget.overrides?.knowsApp ??
+      _session?.knowsApp ??
+      (_) => false;
   VoiceTranscriber? get _effectiveTranscribe =>
-      widget.transcribe ?? _session?.transcribe;
-  VoiceTalker? get _effectiveTalk => widget.talk ?? _session?.talk;
-  VoiceSpeaker? get _effectiveSpeak => widget.speak ?? _session?.speak;
+      widget.transcribe ?? widget.overrides?.transcribe ?? _session?.transcribe;
+  VoiceTalker? get _effectiveTalk =>
+      widget.talk ?? widget.overrides?.talk ?? _session?.talk;
+  VoiceSpeaker? get _effectiveSpeak =>
+      widget.speak ?? widget.overrides?.speak ?? _session?.speak;
   SecretStore? get _effectiveStoreSecret =>
-      widget.storeSecret ?? _session?.storeSecret;
+      widget.storeSecret ??
+      widget.overrides?.storeSecret ??
+      _session?.storeSecret;
 
   // One tail per host, opened on first use and shared by the view's scenes.
   Stream<List<JournalTailSignal>>? get _brainSignals {
@@ -203,22 +303,21 @@ class _ViewHostState extends State<ViewHost> {
     return (widget.kind, widget.name);
   }
 
-  void _syncWatchForData(Map<String, dynamic> data) {
+  void _syncWatchForPayload(UiNodePayload payload) {
     final watch = _effectiveWatch;
     if (watch == null || (widget.kind != 'view' && widget.kind != 'screen')) {
       return;
     }
-    final rawView = data['view'] is Map ? data['view'] as Map : data;
+    if (payload is! PublishedViewPayload) return;
     final isScreen =
-        rawView['acts'] == 'act' ||
+        payload.isScreenView ||
         widget.kind == 'screen' ||
         IntoChatOSUiClient.isExplicitScreenAddress(widget.name);
     if (!isScreen) return;
-    final alias = data['alias'] is String ? data['alias'] as String : null;
     final screenKey = IntoChatOSUiClient.screenNeuronKey(
       '',
       widget.name,
-      alias: alias,
+      alias: payload.alias,
     );
     if (screenKey == null) return;
     if (_watchedKind == 'screen' && _watchedName == screenKey) return;
@@ -243,8 +342,9 @@ class _ViewHostState extends State<ViewHost> {
     );
   }
 
-  // A stream that ends or breaks (a proxy idle-close, a silo roll) is reopened after a pause;
-  // the pause reads the node once so nothing published meanwhile is missed.
+  // A stream that ends or breaks (a proxy idle-close, a silo roll) is reopened
+  // after a pause; the pause reads the node once so nothing published meanwhile
+  // is missed.
   void _reopen(Stream<void> Function(String, String) watch, int subGeneration) {
     if (!mounted || subGeneration != _watchGeneration || _resubscribe != null) {
       return;
@@ -263,14 +363,17 @@ class _ViewHostState extends State<ViewHost> {
     final moved = old.name != widget.name || old.kind != widget.kind;
     if (moved) {
       _generation++;
-      _data = null;
+      _payload = null;
       _error = null;
       FocusRegistry.instance.unregister(_focusTarget, _focusKey);
       _focusTarget = '${widget.kind}:${widget.name}';
       FocusRegistry.instance.register(_focusTarget, _focusKey);
     }
     if (moved || old.revision != widget.revision) _reload();
-    if (moved || old.watch != widget.watch) {
+    final watchChanged =
+        old.watch != widget.watch ||
+        old.overrides?.watch != widget.overrides?.watch;
+    if (moved || watchChanged) {
       _timer?.cancel();
       _timer = null;
       final watch = _effectiveWatch;
@@ -300,23 +403,23 @@ class _ViewHostState extends State<ViewHost> {
     final generation = _generation;
     final version = _events.version;
     try {
-      final data = await _effectiveLoad(widget.kind, widget.name);
+      final payload = await _effectiveLoad(widget.kind, widget.name);
       if (mounted && generation == _generation && version == _events.version) {
         setState(() {
-          _data = data;
+          _payload = payload;
           _error = null;
         });
-        _syncWatchForData(data);
+        _syncWatchForPayload(payload);
       }
     } catch (error) {
       if (mounted &&
           generation == _generation &&
           version == _events.version &&
-          (_data == null ||
+          (_payload == null ||
               (error is UiRequestException &&
                   (error.statusCode == 401 || error.statusCode == 403)))) {
         setState(() {
-          _data = null;
+          _payload = null;
           _error = error;
         });
       }
@@ -329,11 +432,11 @@ class _ViewHostState extends State<ViewHost> {
     }
   }
 
-  Future<Object?> _dispatch(Map<String, dynamic> event) async {
+  Future<Object?> _dispatch(UiAction action) async {
     final send = _effectiveOnAction;
     if (!widget.enabled || send == null) return null;
     try {
-      return await _events.dispatch(send, event);
+      return await _events.dispatch(send, action);
     } catch (error) {
       // A refusal (a stale generation, a changed view) reads the view again;
       // a 409 marked stale is retried silently by the caller without a snackbar.
@@ -351,28 +454,18 @@ class _ViewHostState extends State<ViewHost> {
     }
   }
 
-  Widget _child(Map child, {Key? key}) => ViewHost(
-    key: key ?? ValueKey('${child['kind']}:${child['name']}'),
-    kind: child['kind'] as String,
-    name: child['name'] as String,
-    load: widget.load,
-    onActivate: widget.onActivate,
-    onAction: widget.onAction,
-    knowsApp: widget.knowsApp,
+  Widget _child(UiViewRef child, {Key? key}) => ViewHost(
+    key: key ?? ValueKey('${child.kind}:${child.name}'),
+    kind: child.kind,
+    name: child.name,
+    overrides: _effectiveOverrides,
     events: _events,
     refreshEvery: widget.refreshEvery,
-    watch: widget.watch,
-    watchSignal: widget.watchSignal,
-    callNeuron: widget.callNeuron,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     childDepth: widget.childDepth,
     childAncestors: widget.childAncestors,
     revision: widget.revision,
     enabled: widget.enabled,
-    transcribe: widget.transcribe,
-    talk: widget.talk,
-    speak: widget.speak,
-    storeSecret: widget.storeSecret,
     embedded: true,
   );
 
@@ -393,7 +486,7 @@ class _ViewHostState extends State<ViewHost> {
 
     if (_referable.contains(kind)) {
       if (NodeContracts.tryResolve(kind) == null) return null;
-      final childHost = _child({'kind': kind, 'name': rawName});
+      final childHost = _child(UiViewRef(kind: kind, name: rawName));
       return LayoutBuilder(
         builder: (context, constraints) =>
             constraints.hasBoundedHeight && constraints.maxHeight.isFinite
@@ -407,9 +500,10 @@ class _ViewHostState extends State<ViewHost> {
     final trimmedUri = rawName.trim();
     if (trimmedUri.isEmpty) return null;
 
-    // A `child` naming a bare key is this view's child: it is read and acted on through this view's root
-    // app with its key path (`{root}/children/{path}`), never by the child's own neuron name (the kernel
-    // sends a screen's children by key only). A child naming a whole address (`local/units/bank`) embeds
+    // A `child` naming a bare key is this view's child: it is read and acted on
+    // through this view's root app with its key path (`{root}/children/{path}`),
+    // never by the child's own neuron name (the kernel sends a screen's children
+    // by key only). A child naming a whole address (`local/units/bank`) embeds
     // that neuron's own view by name.
     final isChild = isScreenChild(kind, trimmedUri);
     final root =
@@ -451,6 +545,7 @@ class _ViewHostState extends State<ViewHost> {
       );
     }
 
+    final forwarded = _effectiveOverrides;
     return ViewHost(
       key: ValueKey('child:$resolvedName'),
       actNeuron: isChild ? root : null,
@@ -458,25 +553,16 @@ class _ViewHostState extends State<ViewHost> {
       childProps: props,
       kind: isChild ? 'child' : 'view',
       name: resolvedName,
-      load: widget.load,
-      onActivate: widget.onActivate,
-      onAction: widget.onAction,
-      knowsApp: widget.knowsApp,
+      // A child has no watchable name of its own: it reloads with its parent's
+      // events and on the refresh timer.
+      overrides: isChild ? forwarded?.withoutWatch() : forwarded,
       events: _events,
       refreshEvery: widget.refreshEvery,
-      watchSignal: widget.watchSignal,
-      callNeuron: widget.callNeuron,
-      // A child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
-      watch: isChild ? null : widget.watch,
       ancestors: {...widget.ancestors, identity},
       childDepth: widget.childDepth + 1,
       childAncestors: {...activeChildAncestors, resolvedName},
       revision: widget.revision,
       enabled: widget.enabled,
-      transcribe: widget.transcribe,
-      talk: widget.talk,
-      speak: widget.speak,
-      storeSecret: widget.storeSecret,
       embedded: true,
       inlineChild: true,
     );
@@ -514,8 +600,8 @@ class _ViewHostState extends State<ViewHost> {
       );
     }
 
-    final data = _data;
-    if (data == null) {
+    final payload = _payload;
+    if (payload == null) {
       return _ReadState(
         viewName: widget.name,
         inlineChild: widget.inlineChild,
@@ -531,156 +617,169 @@ class _ViewHostState extends State<ViewHost> {
         widget.enabled &&
         action != null &&
         !(widget.kind == 'confirmation' && widget.embedded);
-    switch (widget.kind) {
-      case 'view':
-      case 'child':
-      case 'confirmation':
-        // An app view reads as {generation, view}; the confirmation inbox as the view itself.
-        final rawView = data['view'] is Map ? data['view'] as Map : data;
-        if (rawView['root'] is! Map) {
-          return Center(
-            child: Semantics(
-              liveRegion: true,
-              child: const Text('Preparing this view'),
-            ),
-          );
-        }
-        final activeChildAncestors = {...widget.childAncestors, widget.name};
-        final ctx = NodeContext(
-          view: widget.name,
-          generation: data['generation'] is num
-              ? (data['generation'] as num).toInt()
-              : 0,
-          send: action == null ? null : _dispatch,
-          load: _effectiveLoad,
-          reload: _reload,
-          watch: _effectiveWatch,
-          watchSignal: _effectiveWatchSignal,
-          callNeuron: _effectiveCallNeuron,
-          onActivate: _effectiveOnActivate,
-          knowsApp: _effectiveKnowsApp,
-          reference: (kind, name, props) => _buildReference(
-            kind,
-            name,
-            identity,
-            activeChildAncestors,
-            props,
-          ),
-          confirmation: widget.kind == 'confirmation' && !widget.embedded,
+    return switch (payload) {
+      PublishedViewPayload(:final view, :final generation) =>
+        _buildPublishedView(
+          view: view,
+          generation: generation,
+          identity: identity,
+          action: action,
           enabled: enabled,
-          childDepth: widget.childDepth,
-          childAncestors: activeChildAncestors,
-          actNeuron: widget.actNeuron,
-          childPath: widget.childPath,
-          childProps: widget.childProps,
-          transcribe: _effectiveTranscribe,
-          talk: _effectiveTalk,
-          speak: _effectiveSpeak,
-          storeSecret: _effectiveStoreSecret,
-        );
-        ViewHost.debugOnContext?.call(widget.name, ctx);
-        final appView = AppView.fromJson(Map<String, dynamic>.from(rawView));
-        final fills = NodeRenderer.fills(appView.root);
-        final renderedView = FocusTraversalGroup(
-          policy: OrderedTraversalPolicy(),
-          child: NodeRenderer.view(appView, ctx),
-        );
-        final rendered = fills
-            ? LayoutBuilder(
-                builder: (context, constraints) => constraints.hasBoundedHeight
-                    ? SizedBox.expand(child: renderedView)
-                    : SizedBox(
-                        height: widget.inlineChild ? 420 : 560,
-                        child: renderedView,
-                      ),
-              )
-            : widget.inlineChild
-            ? renderedView
-            : SingleChildScrollView(primary: false, child: renderedView);
-        final signals = _brainSignals;
-        return signals == null
-            ? rendered
-            : BrainSignals(signals: signals, child: rendered);
-      case 'viewport':
-        final root = data['root'];
-        if (root is Map && root['kind'] is String && root['name'] is String) {
-          final motion = UiMotion(
-            contentKey: '${root['kind']}:${root['name']}',
-            child: _child(root),
-          );
-          final error = data['error'];
-          if (error is String && error.isNotEmpty) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Text(
-                    error,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+        ),
+      ViewportPayload(:final root, :final error) => _buildViewport(
+        context,
+        root: root,
+        error: error,
+      ),
+      WebBrowserPayload() => _buildWebBrowser(payload, action),
+      ConnectPayload(:final root) =>
+        root == null
+            ? const Center(child: Text('This component cannot be displayed.'))
+            : _child(root),
+      ErrorPayload(:final error) => Center(
+        child: Text(
+          error.isEmpty ? 'This component cannot be displayed.' : error,
+        ),
+      ),
+    };
+  }
+
+  Widget _buildPublishedView({
+    required AppView? view,
+    required int generation,
+    required String identity,
+    required NeuronAction? action,
+    required bool enabled,
+  }) {
+    if (view == null) {
+      return Center(
+        child: Semantics(
+          liveRegion: true,
+          child: const Text('Preparing this view'),
+        ),
+      );
+    }
+    final activeChildAncestors = {...widget.childAncestors, widget.name};
+    final ctx = NodeContext(
+      view: widget.name,
+      generation: generation,
+      send: action == null ? null : _dispatch,
+      load: _effectiveLoad,
+      reload: _reload,
+      watch: _effectiveWatch,
+      watchSignal: _effectiveWatchSignal,
+      callNeuron: _effectiveCallNeuron,
+      onActivate: _effectiveOnActivate,
+      knowsApp: _effectiveKnowsApp,
+      reference: (kind, name, props) =>
+          _buildReference(kind, name, identity, activeChildAncestors, props),
+      confirmation: widget.kind == 'confirmation' && !widget.embedded,
+      enabled: enabled,
+      childDepth: widget.childDepth,
+      childAncestors: activeChildAncestors,
+      actNeuron: widget.actNeuron,
+      childPath: widget.childPath,
+      childProps: widget.childProps,
+      transcribe: _effectiveTranscribe,
+      talk: _effectiveTalk,
+      speak: _effectiveSpeak,
+      storeSecret: _effectiveStoreSecret,
+    );
+    ViewHost.debugOnContext?.call(widget.name, ctx);
+    final fills = NodeRenderer.fills(view.root);
+    final renderedView = FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: NodeRenderer.view(view, ctx),
+    );
+    final rendered = fills
+        ? LayoutBuilder(
+            builder: (context, constraints) => constraints.hasBoundedHeight
+                ? SizedBox.expand(child: renderedView)
+                : SizedBox(
+                    height: widget.inlineChild ? 420 : 560,
+                    child: renderedView,
                   ),
-                ),
-                Expanded(child: motion),
-              ],
-            );
-          }
-          return motion;
-        }
-        return Center(child: Text('${data['error'] ?? ''}'));
-      case 'webbrowser':
-        final send = action;
-        if (send == null) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+          )
+        : widget.inlineChild
+        ? renderedView
+        : SingleChildScrollView(primary: false, child: renderedView);
+    final signals = _brainSignals;
+    return signals == null
+        ? rendered
+        : BrainSignals(signals: signals, child: rendered);
+  }
+
+  Widget _buildViewport(
+    BuildContext context, {
+    required UiViewRef? root,
+    required String? error,
+  }) {
+    if (root != null) {
+      final motion = UiMotion(
+        contentKey: '${root.kind}:${root.name}',
+        child: _child(root),
+      );
+      if (error != null && error.isNotEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8),
               child: Text(
-                '${data['title'] ?? ''}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                error,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
-          );
-        }
-        final definition = Map<String, dynamic>.from(
-          data['definition'] as Map? ?? data,
+            Expanded(child: motion),
+          ],
         );
-        return UiWebBrowser(
-          part: UiWebBrowserPart.fromMetadata({
-            ...definition,
-            'name': widget.name,
-          }),
-          height: null,
-          connection: '${data['connection'] ?? ''}',
-          error: '${data['error'] ?? ''}',
-          actualUrl: '${data['actualUrl'] ?? ''}',
-          // Browser reports go to the brain's browser routes
-          // (IntoChatOSUiClient.webBrowser), not to the UI event route.
-          onConnect: (port, sessionId) => send({
-            'kind': 'webbrowser',
-            'action': 'connect',
-            'name': widget.name,
-            'port': port,
-            'sessionId': sessionId,
-          }),
-          onDisconnect: (sessionId) => send({
-            'kind': 'webbrowser',
-            'action': 'disconnect',
-            'name': widget.name,
-            'sessionId': sessionId,
-          }),
-          onUnavailable: (reason) => send({
-            'kind': 'webbrowser',
-            'action': 'unavailable',
-            'name': widget.name,
-            'reason': reason,
-          }),
-        );
+      }
+      return motion;
     }
-    return const Center(child: Text('This component cannot be displayed.'));
+    return Center(child: Text(error ?? ''));
+  }
+
+  Widget _buildWebBrowser(WebBrowserPayload payload, NeuronAction? action) {
+    if (action == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            payload.title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+    }
+    return UiWebBrowser(
+      part: UiWebBrowserPart(
+        name: widget.name,
+        uri: payload.uri,
+        title: payload.title,
+      ),
+      height: null,
+      connection: payload.connection,
+      error: payload.error,
+      actualUrl: payload.actualUrl,
+      // Browser reports go to the brain's browser routes
+      // (IntoChatOSUiClient.webBrowser), not to the UI event route.
+      onConnect: (port, sessionId) => action(
+        WebBrowserConnectAction(
+          name: widget.name,
+          port: port,
+          sessionId: sessionId,
+        ),
+      ),
+      onDisconnect: (sessionId) => action(
+        WebBrowserDisconnectAction(name: widget.name, sessionId: sessionId),
+      ),
+      onUnavailable: (reason) => action(
+        WebBrowserUnavailableAction(name: widget.name, reason: reason),
+      ),
+    );
   }
 
   @override

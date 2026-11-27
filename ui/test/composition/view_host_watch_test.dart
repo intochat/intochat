@@ -1,8 +1,9 @@
 ﻿import 'dart:async';
 
-import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
   _resubscribe();
@@ -20,13 +21,13 @@ void main() {
             name: 'local/apps/hello/view',
             load: (kind, name) async {
               loads++;
-              return {
+              return PublishedViewPayload.fromJson({
                 'generation': loads,
                 'view': {
                   'title': 'Hello',
                   'root': {'kind': 'text', 'value': 'load $loads'},
                 },
-              };
+              });
             },
             watch: (kind, name) => events.stream,
           ),
@@ -68,13 +69,13 @@ void _resubscribe() {
             name: 'local/apps/hello/view',
             load: (kind, name) async {
               loads++;
-              return {
+              return PublishedViewPayload.fromJson({
                 'generation': loads,
                 'view': {
                   'title': 'Hello',
                   'root': {'kind': 'text', 'value': 'load $loads'},
                 },
-              };
+              });
             },
             // Each subscription delivers one event and ends, as a proxy idle-close would.
             watch: (kind, name) {

@@ -15,7 +15,7 @@ void main() {
       view: 'local/apps/settings/view',
       generation: 3,
       send: (event) async {
-        sent.add(event);
+        sent.add(event.toJson());
         return {'delivered': true};
       },
     );
@@ -61,10 +61,10 @@ void main() {
             name: view,
             watch: (_, _) => const Stream.empty(),
             onAction: (event) async {
-              sent.add(event);
+              sent.add(event.toJson());
               return {'delivered': true};
             },
-            load: (kind, name) async => {
+            load: (kind, name) async => PublishedViewPayload.fromJson({
               'generation': 4,
               'view': {
                 'title': 'Root',
@@ -80,7 +80,7 @@ void main() {
                   },
                 },
               },
-            },
+            }),
           ),
         ),
       ),
@@ -151,11 +151,11 @@ void main() {
             name: 'local/units/bank',
             watch: (_, _) => const Stream.empty(),
             onAction: (event) async {
-              sent.add(event);
+              sent.add(event.toJson());
               return {'delivered': true};
             },
             onActivate: performed.add,
-            load: (kind, name) async => {
+            load: (kind, name) async => PublishedViewPayload.fromJson({
               'generation': 4,
               'view': {
                 'title': 'Root',
@@ -170,7 +170,7 @@ void main() {
                   },
                 },
               },
-            },
+            }),
           ),
         ),
       ),
@@ -196,7 +196,7 @@ void main() {
       view: 'local/apps/notes/view',
       generation: 2,
       send: (event) async {
-        sent.add(event);
+        sent.add(event.toJson());
         return {'delivered': true};
       },
     );
@@ -255,7 +255,7 @@ void main() {
       view: 'local/apps/gallery/view',
       generation: 2,
       send: (event) async {
-        sent.add(event);
+        sent.add(event.toJson());
         return {'delivered': true};
       },
     );
@@ -364,7 +364,7 @@ void main() {
             load: (kind, name) async {
               loads[name] = (loads[name] ?? 0) + 1;
               kinds[name] = kind;
-              return switch (name) {
+              return PublishedViewPayload.fromJson(switch (name) {
                 parent => {
                   'generation': 1,
                   'view': {
@@ -393,7 +393,7 @@ void main() {
                   },
                 },
                 _ => throw StateError('Unknown $name'),
-              };
+              });
             },
           ),
         ),
@@ -430,36 +430,33 @@ Map<String, dynamic> _view(String title, List<Map<String, dynamic>> children) =>
       },
     };
 
-Widget _host(Future<Object?> Function(Map<String, dynamic>) onAction) =>
-    MaterialApp(
-      theme: UiTheme.intochat(Brightness.light),
-      home: Scaffold(
-        body: ViewHost(
-          knowsApp: (_) => false,
-          kind: 'view',
-          name: _root,
-          watch: (_, _) => const Stream.empty(),
-          onAction: onAction,
-          load: (kind, name) async => switch (name) {
-            _root => _view('Settings', [
-              {
-                'kind': 'neuronRef',
-                'refKind': 'child',
-                'neuronUri': 'dark-mode',
-              },
-            ]),
-            _slot => _view('Dark', [
-              {'kind': 'text', 'value': 'Dark'},
-              {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'accent'},
-            ]),
-            _nested => _view('Accent', [
-              {'kind': 'text', 'value': 'Accent'},
-            ]),
-            _ => throw StateError('Unknown $name'),
-          },
-        ),
-      ),
-    );
+Widget _host(
+  Future<Object?> Function(Map<String, dynamic>) onAction,
+) => MaterialApp(
+  theme: UiTheme.intochat(Brightness.light),
+  home: Scaffold(
+    body: ViewHost(
+      knowsApp: (_) => false,
+      kind: 'view',
+      name: _root,
+      watch: (_, _) => const Stream.empty(),
+      onAction: (action) => onAction(action.toJson()),
+      load: (kind, name) async => PublishedViewPayload.fromJson(switch (name) {
+        _root => _view('Settings', [
+          {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'dark-mode'},
+        ]),
+        _slot => _view('Dark', [
+          {'kind': 'text', 'value': 'Dark'},
+          {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'accent'},
+        ]),
+        _nested => _view('Accent', [
+          {'kind': 'text', 'value': 'Accent'},
+        ]),
+        _ => throw StateError('Unknown $name'),
+      }),
+    ),
+  ),
+);
 
 void childTests() {
   late Map<String, NodeContext> contexts;

@@ -113,7 +113,7 @@ void main() {
         brainId: 'brain-1',
         loadProjection: (_) async => projection,
         onAction: (event) async {
-          if (event['signal'] case final String sig) sentSignals.add(sig);
+          if (event is ActAction) sentSignals.add(event.signal);
           return const {'delivered': true};
         },
       );
@@ -263,17 +263,17 @@ void main() {
             openWidgets: const [],
           ),
           loadNode: (kind, name) async => switch (kind) {
-            'viewport' => {
-              'revision': 1,
-              'root': {'kind': 'view', 'name': 'brain-1/apps/ino/view'},
-            },
-            _ => {
+            'viewport' => const ViewportPayload(
+              revision: 1,
+              root: UiViewRef(kind: 'view', name: 'brain-1/apps/ino/view'),
+            ),
+            _ => PublishedViewPayload.fromJson({
               'generation': 1,
               'view': {
                 'title': 'Ino',
                 'root': {'kind': 'text', 'value': 'Hello'},
               },
-            },
+            }),
           },
           watchNode: (_, _) => const Stream.empty(),
           desktopEnabled: true,

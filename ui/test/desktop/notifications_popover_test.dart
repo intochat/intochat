@@ -34,13 +34,13 @@ void main() {
         brainId: 'brain-1',
         client: client,
         loadProjection: (_) async => _sampleProjection(),
-        loadNode: (kind, name) async => {
+        loadNode: (kind, name) async => PublishedViewPayload.fromJson({
           'generation': 1,
           'view': {
             'title': name,
             'root': {'kind': 'text', 'value': 'Viewport: $name'},
           },
-        },
+        }),
         watchNode: (_, _) => const Stream.empty(),
         watchSignal: (_, _, _) => const Stream.empty(),
         readContract: (_, _, _) async => null,

@@ -23,7 +23,7 @@ void main() {
           openWidgets: [],
         ),
         onAction: (event) async {
-          sent.add(event);
+          sent.add(event.toJson());
           return const {'delivered': true};
         },
       );

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 const _view = 'local/apps/workspace/view';
 
-Map<String, dynamic> _published(Map<String, dynamic> root) => {
-  'generation': 5,
-  'view': {'title': 'Workspace', 'root': root},
-};
+PublishedViewPayload _published(Map<String, dynamic> root) =>
+    PublishedViewPayload.fromJson({
+      'generation': 5,
+      'view': {'title': 'Workspace', 'root': root},
+    });
 
 Future<void> _host(
   WidgetTester tester,
@@ -25,7 +27,7 @@ Future<void> _host(
           load: (kind, name) async => _published(root),
           watch: (kind, name) => const Stream.empty(),
           onAction: (event) async {
-            events?.add(event);
+            events?.add(event.toJson());
             return null;
           },
         ),

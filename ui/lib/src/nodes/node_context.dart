@@ -21,15 +21,12 @@ typedef NeuronSignalWatcher = Stream<Map<String, dynamic>> Function(
 /// Reads one node of the brain: `GET /apps/node?kind=…&name=…`, or for a
 /// `child` (named `{brain}/apps/{app}/children/{path}`) its app's key path
 /// `GET /apps/{app}/children/{path}` (see `appNodePath` in child_route.dart).
-typedef NeuronLoader = Future<Map<String, dynamic>> Function(
-  String kind,
-  String name,
-);
+typedef NeuronLoader = Future<UiNodePayload> Function(String kind, String name);
 
-/// Sends one action of a view (a command on `POST /act`, a confirmation answer
-/// or a browser report; `IntoChatOSUiClient.uiEvent` picks the route) and
-/// returns the response body, if any.
-typedef NeuronAction = Future<Object?> Function(Map<String, dynamic> event);
+/// Sends one typed [UiAction] of a view (an [ActAction] on `POST /act`, a
+/// [ConfirmationAction], or a [WebBrowserAction]; `IntoChatOSUiClient.uiEvent`
+/// picks the route) and returns the response body, if any.
+typedef NeuronAction = Future<Object?> Function(UiAction action);
 
 /// Stores a typed secret in the signed-in person's vault
 /// (`POST /secrets/{owner}`) and returns its reference (`secret://…`); the
@@ -59,13 +56,10 @@ class NeuronEventQueue extends ChangeNotifier {
   int version = 0, pending = 0;
   bool _disposed = false;
   Future<void> flush() => _tail;
-  Future<T> dispatch<T>(
-    Future<T> Function(Map<String, dynamic>) send,
-    Map<String, dynamic> event,
-  ) {
+  Future<T> dispatch<T>(Future<T> Function(UiAction) send, UiAction action) {
     version++;
     pending++;
-    final operation = _tail.then((_) => send(event));
+    final operation = _tail.then((_) => send(action));
     _tail = operation.then<void>((_) {}).catchError((Object _) {});
     return operation.whenComplete(() {
       pending--;
@@ -235,11 +229,11 @@ class NodeContext {
     return last > 0 ? view.substring(0, last) : view;
   }
 
-  Future<Object?> _send(Map<String, dynamic> event) {
+  Future<Object?> _send(UiAction action) {
     final send = this.send;
     if (send == null) return Future.value();
     final queue = events;
-    return queue == null ? send(event) : queue.dispatch(send, event);
+    return queue == null ? send(action) : queue.dispatch(send, action);
   }
 
   /// The top-level neuron this view belongs to: [actNeuron], or the view
@@ -257,10 +251,9 @@ class NodeContext {
     return '$childPath/$key';
   }
 
-  /// Acts on a neuron [address] relative to this view:
-  /// `{kind:"act", neuron, target, signal, args, value?}`, posted to
-  /// `POST /brains/{brain}/act`, the one route of a person's action, whatever
-  /// kind of screen drew the view (a compiled or agent app's screen, a
+  /// Acts on a neuron [address] relative to this view via [ActAction], posted
+  /// to `POST /brains/{brain}/act`, the one route of a person's action,
+  /// whatever kind of screen drew the view (a compiled or agent app's screen, a
   /// sandboxed app's view, a unit); [args] are the command's JSON args as the
   /// node carries them, and [value] is a field's text, which the server adds
   /// to the args as `value`. A refusal (`409` with its reason) or a
@@ -275,14 +268,15 @@ class NodeContext {
   }) async {
     if (!interactive) return ActivationOutcome.refused;
     try {
-      await _send({
-        'kind': 'act',
-        'neuron': neuron,
-        'target': actTarget(address),
-        'signal': signal,
-        'args': args,
-        'value': ?value,
-      });
+      await _send(
+        ActAction(
+          neuron: neuron,
+          target: actTarget(address),
+          signal: signal,
+          args: args,
+          value: value,
+        ),
+      );
     } on UiRequestException {
       return ActivationOutcome.refused;
     } on StateError {
@@ -291,12 +285,12 @@ class NodeContext {
     return ActivationOutcome.accepted;
   }
 
-  /// Answers a confirmation plan as the person: `{kind:"confirmation",
-  /// planId, approve}`, which the client posts to the brain's confirmation
-  /// route (`IntoChatOSUiClient.answerConfirmation`), not as a UI event.
+  /// Answers a confirmation plan as the person via [ConfirmationAction], which
+  /// the client posts to the brain's confirmation route
+  /// (`IntoChatOSUiClient.answerConfirmation`), not as a UI event.
   Future<void> resolve(String planId, {required bool approve}) async {
     if (!interactive) return;
-    await _send({'kind': 'confirmation', 'planId': planId, 'approve': approve});
+    await _send(ConfirmationAction(planId: planId, approve: approve));
   }
 
   /// Performs a client-local intent if the gate allows it; returns whether it ran.

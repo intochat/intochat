@@ -120,7 +120,7 @@ void main() {
               name: 'local/apps/bank/view',
               watch: (_, _) => const Stream.empty(),
               onAction: (_) async => null,
-              load: (_, _) async => {
+              load: (_, _) async => PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {
                   'title': 'Bank',
@@ -152,7 +152,7 @@ void main() {
                     ],
                   },
                 },
-              },
+              }),
             ),
           ),
         );

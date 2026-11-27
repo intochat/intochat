@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 const _view = 'local/apps/change/view';
 
-Map<String, dynamic> _published(Map<String, dynamic> root) => {
-  'generation': 2,
-  'view': {'title': 'Change Review', 'root': root},
-};
+PublishedViewPayload _published(Map<String, dynamic> root) =>
+    PublishedViewPayload.fromJson({
+      'generation': 2,
+      'view': {'title': 'Change Review', 'root': root},
+    });
 
 Future<void> _host(WidgetTester tester, Map<String, dynamic> root) async {
   await tester.pumpWidget(

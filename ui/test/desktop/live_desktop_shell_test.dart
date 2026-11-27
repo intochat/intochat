@@ -80,19 +80,19 @@ class FakeDesktopBackend {
     openWidgets: List.unmodifiable(_openWidgets),
   );
 
-  Map<String, dynamic> viewportFor(String uri) {
+  ViewportPayload viewportFor(String uri) {
     final winId = uri.substring(uri.lastIndexOf('/') + 1);
     final appId = _windowApps[winId] ?? winId;
-    return {
-      'revision': 1,
-      'root': {'kind': 'view', 'name': '$brain/apps/$appId/view'},
-    };
+    return ViewportPayload(
+      revision: 1,
+      root: UiViewRef(kind: 'view', name: '$brain/apps/$appId/view'),
+    );
   }
 
-  Map<String, dynamic> handleAction(Map<String, dynamic> event) {
-    if (event['kind'] != 'act') return const {'delivered': true};
-    final signal = event['signal'] as String?;
-    final args = (event['args'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic> handleAction(UiAction event) {
+    if (event is! ActAction) return const {'delivered': true};
+    final signal = event.signal;
+    final args = (event.args as Map?)?.cast<String, dynamic>() ?? const {};
     switch (signal) {
       case 'desktop.open':
         final appId = '${args['app'] ?? ''}'.trim().toLowerCase();
@@ -265,17 +265,17 @@ void main() {
         loadProjection: (_) async => backend.snapshot(),
         loadNode: (kind, name) async {
           if (kind == 'viewport') return backend.viewportFor(name);
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async {
-          actions.add(event);
+          actions.add(event.toJson());
           return backend.handleAction(event);
         },
         requestApp: (app, operation, input) async => actions.add({
@@ -326,13 +326,13 @@ void main() {
         loadProjection: (_) async => backend.snapshot(),
         loadNode: (kind, name) async {
           if (kind == 'viewport') return backend.viewportFor(name);
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (kind, name) => kind == 'ino.presence'
             ? presenceController.stream
@@ -350,7 +350,7 @@ void main() {
           _ => null,
         },
         onAction: (event) async {
-          actions.add(event);
+          actions.add(event.toJson());
           return backend.handleAction(event);
         },
         requestApp: (app, operation, input) async => actions.add({
@@ -536,17 +536,17 @@ void main() {
           if (name == 'brain-1/apps/files/view') {
             viewportLoads++;
           }
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async {
-          actions.add(event);
+          actions.add(event.toJson());
           return backend.handleAction(event);
         },
         requestApp: (app, operation, input) async => actions.add({
@@ -635,13 +635,13 @@ void main() {
         loadProjection: (_) async => backend.snapshot(),
         loadNode: (kind, name) async {
           if (kind == 'viewport') return backend.viewportFor(name);
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async => backend.handleAction(event),
@@ -706,13 +706,13 @@ void main() {
         loadProjection: (_) async => backend.snapshot(),
         loadNode: (kind, name) async {
           if (kind == 'viewport') return backend.viewportFor(name);
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async => backend.handleAction(event),
@@ -783,9 +783,10 @@ void main() {
       final session = BrainSessionController(
         brainId: 'brain-1',
         loadProjection: (_) async => backend.snapshot(),
-        loadNode: (kind, name) async => const {'generation': 1},
+        loadNode: (kind, name) async =>
+            const PublishedViewPayload(generation: 1),
         onAction: (action) async {
-          actions.add(action);
+          actions.add(action.toJson());
           return backend.handleAction(action);
         },
         onActivate: (_) {},
@@ -868,7 +869,7 @@ void main() {
         loadProjection: (_) async => backend.snapshot(),
         loadNode: (kind, name) async => switch (kind) {
           'viewport' => backend.viewportFor(name),
-          _ => {
+          _ => PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
@@ -882,7 +883,7 @@ void main() {
                 },
               },
             },
-          },
+          }),
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async => backend.handleAction(event),
@@ -924,13 +925,13 @@ void main() {
         loadProjection: (_) async => backend.snapshot(),
         loadNode: (kind, name) async {
           if (kind == 'viewport') return backend.viewportFor(name);
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': 'Viewport: $name'},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async => backend.handleAction(event),

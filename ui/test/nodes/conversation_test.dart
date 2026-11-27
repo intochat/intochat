@@ -33,12 +33,14 @@ Future<void> _host(
           knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async => _published(root),
+          load: (kind, name) async =>
+              PublishedViewPayload.fromJson(_published(root)),
           watch: (kind, name) => const Stream.empty(),
           transcribe: transcribe,
           onAction: (event) async {
-            events?.add(event);
-            return answer?.call(event);
+            final json = event.toJson();
+            events?.add(json);
+            return answer?.call(json);
           },
         ),
       ),
@@ -361,7 +363,7 @@ void main() {
               knowsApp: (_) => false,
               kind: 'view',
               name: _view,
-              load: (kind, name) async => {
+              load: (kind, name) async => PublishedViewPayload.fromJson({
                 'generation': hasWaiting ? 2 : 1,
                 'view': {
                   'title': 'Chat',
@@ -394,10 +396,10 @@ void main() {
                         : null,
                   ),
                 },
-              },
+              }),
               watch: (kind, name) => controller.stream,
               onAction: (event) async {
-                events.add(event);
+                events.add(event.toJson());
                 return null;
               },
             ),

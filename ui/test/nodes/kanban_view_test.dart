@@ -40,7 +40,7 @@ Future<List<Map<String, dynamic>>> _pump(
             childPath: 'board',
             childProps: props,
             send: (event) async {
-              sent.add(event);
+              sent.add(event.toJson());
               if (refuse) throw StateError('control.columnFull');
               return {'delivered': true};
             },

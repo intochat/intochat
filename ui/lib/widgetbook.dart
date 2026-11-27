@@ -397,7 +397,7 @@ class _CatalogNodePreviewState extends State<_CatalogNodePreview> {
       childProps: props is Map ? props.cast<String, dynamic>() : const {},
       send: (event) async {
         setState(() {
-          _events.insert(0, jsonEncode(event));
+          _events.insert(0, jsonEncode(event.toJson()));
           if (_events.length > 5) _events.removeLast();
         });
         return null;

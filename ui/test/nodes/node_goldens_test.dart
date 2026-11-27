@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 import 'node_samples.dart';
@@ -41,10 +42,10 @@ void main() {
                   knowsApp: (_) => false,
                   kind: 'view',
                   name: 'local/apps/sample/view',
-                  load: (kind, name) async => {
+                  load: (kind, name) async => PublishedViewPayload.fromJson({
                     'generation': 1,
                     'view': {'title': kind, 'root': nodeSamples[kind]},
-                  },
+                  }),
                   watch: (kind, name) => const Stream.empty(),
                   onAction: (event) async => null,
                 ),
