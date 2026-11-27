@@ -115,6 +115,7 @@ void main() {
                   providerIcon: null,
                   error: null,
                   attachments: null,
+                  sender: null,
                 ),
               ],
               composer: ComposerNode(
