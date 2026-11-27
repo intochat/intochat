@@ -188,5 +188,82 @@ public sealed class AppUiScreenEndpointsFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             AppUiEndpoints.ReadDesktopProjection(brain, Scope, Ct, foreignCaller));
     }
+
+    [Fact]
+    public async Task CompiledScreen_WithUnhostedRequiredSlot_ReturnsUnavailableWithoutActivatingOrFallingBackToUnitReader()
+    {
+        var brain = new TrackingBrain(new WorkspaceViewRef("v1", "owner/apps/customer-researcher", "main", "default"));
+        var hostedNeurons = new StubHostedNeuronTypes(
+            classes: new Dictionary<string, Type>(StringComparer.Ordinal)
+            {
+                ["app.customer-researcher"] = typeof(IntoChat.OS.Apps.CustomerResearcher.CustomerResearcherApp),
+            },
+            hostedTypes: ["app.customer-researcher", "web.search"]);
+
+        var viewportResult = await AppUiEndpoints.ReadNode(
+            "viewport",
+            "owner/apps/customer-researcher",
+            brain,
+            Scope,
+            Ct,
+            hostedNeurons: hostedNeurons);
+        var viewportValue = Assert.IsAssignableFrom<IValueHttpResult>(viewportResult);
+        var viewportJson = JsonSerializer.Serialize(viewportValue.Value, JsonSerializerOptions.Web);
+        Assert.Contains("\"root\":null", viewportJson);
+        Assert.Equal(0, brain.ScreenActivations);
+        Assert.Equal(0, brain.UnitReaderCalls);
+
+        var viewResult = await AppUiEndpoints.ReadNode(
+            "view",
+            "owner/apps/customer-researcher/view",
+            brain,
+            Scope,
+            Ct,
+            hostedNeurons: hostedNeurons);
+        var viewValue = Assert.IsAssignableFrom<IValueHttpResult>(viewResult);
+        Assert.Null(viewValue.Value);
+        Assert.Equal(0, brain.ScreenActivations);
+        Assert.Equal(0, brain.UnitReaderCalls);
+    }
+
+    private sealed class StubHostedNeuronTypes(
+        IReadOnlyDictionary<string, Type> classes,
+        IEnumerable<string> hostedTypes) : DigitalBrain.Components.IHostedNeuronTypes
+    {
+        private readonly HashSet<string> _hosted = new(hostedTypes, StringComparer.Ordinal);
+        public bool IsHosted(string neuronType) => _hosted.Contains(neuronType);
+        public bool TryGetNeuronClass(string neuronType, out Type? neuronClass) => classes.TryGetValue(neuronType, out neuronClass);
+    }
+
+    private sealed class TrackingBrain(WorkspaceViewRef target) : INeuronProxies
+    {
+        public int ScreenActivations { get; private set; }
+        public int UnitReaderCalls { get; private set; }
+
+        public T Get<T>(NeuronId id) where T : class
+        {
+            if (typeof(T) == typeof(IViewport))
+            {
+                return (T)(object)new TargetViewport(target);
+            }
+            if (typeof(T) == typeof(IScreen))
+            {
+                ScreenActivations++;
+                throw new InvalidOperationException($"Unexpected IScreen activation for {id}");
+            }
+            if (typeof(T) == typeof(IViewReader))
+            {
+                UnitReaderCalls++;
+                throw new InvalidOperationException($"Unexpected IViewReader fallback for {id}");
+            }
+            throw new InvalidOperationException($"Unexpected proxy {typeof(T).Name} for {id}");
+        }
+    }
+
+    private sealed class TargetViewport(WorkspaceViewRef target) : IViewport
+    {
+        public Task<ViewportState> Read() => Task.FromResult(new ViewportState(target.App, 1L, target));
+        public Task Set(WorkspaceViewRef? target, long expectedRevision) => Task.CompletedTask;
+    }
 }
 

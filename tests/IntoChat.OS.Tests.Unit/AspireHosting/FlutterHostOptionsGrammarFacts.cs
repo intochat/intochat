@@ -114,4 +114,28 @@ public sealed class FlutterHostOptionsGrammarFacts
         Assert.Equal("http://127.0.0.1:5080", FlutterClientTargets.ResolveIosUiBase(null, 5080, isSimulator: true));
         Assert.Equal("http://192.168.1.5:5080", FlutterClientTargets.ResolveIosUiBase("http://192.168.1.5:5080", 5080, isSimulator: false));
     }
+
+    [Fact]
+    public async Task ExplicitFlutterWebTargetUsesHeadlessWebServerInReleaseMode()
+    {
+        var builder = global::Aspire.Hosting.DistributedApplication.CreateBuilder(new global::Aspire.Hosting.DistributedApplicationOptions
+        {
+            Args = [],
+            DisableDashboard = true,
+        });
+        var parent = global::Aspire.Hosting.ExecutableResourceBuilderExtensions.AddExecutable(builder, "flutter", "flutter", ".").Resource;
+
+        FlutterClientTargets.AddExplicitClientTargets(builder, ".", parent);
+
+        var web = Assert.Single(builder.Resources, static r => r.Name == ShellNames.WebResourceName);
+        var args = new List<object>();
+        var ctx = new global::Aspire.Hosting.ApplicationModel.CommandLineArgsCallbackContext(args, web, TestContext.Current.CancellationToken);
+        foreach (var annotation in web.Annotations.OfType<global::Aspire.Hosting.ApplicationModel.CommandLineArgsCallbackAnnotation>())
+        {
+            await annotation.Callback(ctx);
+        }
+
+        Assert.Contains("web-server", args.Select(static a => a.ToString()));
+        Assert.Contains("--release", args.Select(static a => a.ToString()));
+    }
 }

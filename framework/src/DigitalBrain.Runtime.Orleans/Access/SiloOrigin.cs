@@ -19,7 +19,12 @@ public static class SiloOrigin
 
     internal static void Stamp() => RequestContext.Set(Key, Token);
 
-    internal static IDisposable Enter()
+    /// <summary>
+    /// Marks the current async execution flow as originating from this silo process until disposed.
+    /// Used by in-process silo call filters when admitting internal Orleans runtime callbacks
+    /// (such as <c>IGrainTimerInvoker</c> ticks) that bypass <c>IOutgoingGrainCallFilter</c>.
+    /// </summary>
+    public static IDisposable Enter()
     {
         var prior = RequestContext.Get(Key);
         Stamp();

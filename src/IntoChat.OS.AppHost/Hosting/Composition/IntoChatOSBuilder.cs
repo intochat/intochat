@@ -115,6 +115,12 @@ public sealed class IntoChatOSBuilder
             _settings[key] = value;
         }
     }
+
+    internal void SetSetting(string key, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        _settings[key] = value;
+    }
     public IntoChat.OS.Modules.Identity.Contracts.Accounts.IdentityHostOptions? Identity { get; private set; }
     public IntoChatOSBuilder WithHttpIdentity()
     {

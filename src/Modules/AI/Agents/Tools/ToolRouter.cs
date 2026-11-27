@@ -10,9 +10,11 @@ namespace IntoChat.OS.Modules.AI.Agents.Tools;
 // Falls back cleanly to the local deterministic hash embedder when no embedding generator is configured or when it throws.
 internal sealed class ToolRouter(
     IReadOnlyList<AIFunction> tools,
-    IEmbeddingGenerator<string, Embedding<float>>? embeddings) : IToolRouter
+    IEmbeddingGenerator<string, Embedding<float>>? embeddings,
+    BoundedCache<string, float[]>? vectorCache = null) : IToolRouter
 {
-    private static readonly BoundedCache<string, float[]> VectorCache = new(1_024, StringComparer.Ordinal);
+    private static readonly BoundedCache<string, float[]> SharedVectorCache = new(1_024, StringComparer.Ordinal);
+    private readonly BoundedCache<string, float[]> _vectorCache = vectorCache ?? SharedVectorCache;
 
     public async Task<IReadOnlyList<AIFunction>> Route(string text, int k = 8, CancellationToken ct = default)
     {
@@ -51,7 +53,8 @@ internal sealed class ToolRouter(
         int k,
         CancellationToken ct)
     {
-        var providerKey = generator.GetType().FullName ?? "embedder";
+        var modelId = generator.GetService<EmbeddingGeneratorMetadata>()?.DefaultModelId ?? string.Empty;
+        var providerKey = $"{generator.GetType().FullName ?? "embedder"}\0{modelId}";
         var vectors = new float[tools.Count][];
         var keys = new string[tools.Count];
         var missingIndices = new List<int>();
@@ -62,7 +65,7 @@ internal sealed class ToolRouter(
             var toolText = ToolText(tools[i]);
             var cacheKey = providerKey + "\0" + toolText;
             keys[i] = cacheKey;
-            if (VectorCache.TryGet(cacheKey, out var cached))
+            if (_vectorCache.TryGet(cacheKey, out var cached))
             {
                 vectors[i] = cached;
             }
@@ -88,7 +91,7 @@ internal sealed class ToolRouter(
                     return null;
                 }
                 var index = missingIndices[i];
-                VectorCache.Set(keys[index], vector);
+                _vectorCache.Set(keys[index], vector);
                 vectors[index] = vector;
             }
         }
@@ -123,7 +126,7 @@ internal sealed class ToolRouter(
         {
             var toolText = ToolText(tools[i]);
             var cacheKey = "local\0" + toolText;
-            vectors[i] = VectorCache.GetOrAdd(
+            vectors[i] = _vectorCache.GetOrAdd(
                 cacheKey,
                 _ => HybridMemoryEmbedder.LocalDeterministicEmbed(toolText.Replace('_', ' ')));
         }

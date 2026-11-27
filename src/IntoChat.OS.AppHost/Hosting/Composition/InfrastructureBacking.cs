@@ -1,3 +1,4 @@
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 using IntoChat.OS.Modules.ClickHouse;
@@ -89,8 +90,22 @@ public sealed class InfrastructureBackingBuilder
         ArgumentNullException.ThrowIfNull(os);
         ArgumentNullException.ThrowIfNull(profile);
 
-        if (_policies.TryGetValue("postgres", out var pg) && pg.Backing != ResourceBacking.Off && profile.IsEnabled("postgres"))
+        static bool ShouldProvision(DeploymentProfile profile, string moduleId, ResourceBacking backing)
+            => backing == ResourceBacking.LocalContainer
+                ? !profile.IsExplicitlyDisabled(moduleId)
+                : backing != ResourceBacking.Off && profile.IsEnabled(moduleId);
+
+        static void ProjectLocalEnablement(IntoChatOSBuilder os, DeploymentProfile profile, string moduleId, ResourceBacking backing)
         {
+            if (backing == ResourceBacking.LocalContainer && !profile.IsEnabled(moduleId))
+            {
+                os.SetSetting(LocalRunDefaults.EnabledKey(moduleId), "true");
+            }
+        }
+
+        if (_policies.TryGetValue("postgres", out var pg) && ShouldProvision(profile, "postgres", pg.Backing))
+        {
+            ProjectLocalEnablement(os, profile, "postgres", pg.Backing);
             var dbName = pg.DatabaseName ?? DerivePostgresDatabaseName(os.ServiceId);
             var options = new PostgresModuleOptions();
             if (pg.Backing == ResourceBacking.LocalContainer)
@@ -105,8 +120,9 @@ public sealed class InfrastructureBackingBuilder
             os = os.WithModule<PostgresModule, PostgresModuleOptions>(options);
         }
 
-        if (_policies.TryGetValue("clickhouse", out var ch) && ch.Backing != ResourceBacking.Off && profile.IsEnabled("clickhouse"))
+        if (_policies.TryGetValue("clickhouse", out var ch) && ShouldProvision(profile, "clickhouse", ch.Backing))
         {
+            ProjectLocalEnablement(os, profile, "clickhouse", ch.Backing);
             var options = new ClickHouseModuleOptions();
             if (!string.IsNullOrWhiteSpace(ch.DatabaseName))
             {
@@ -125,18 +141,21 @@ public sealed class InfrastructureBackingBuilder
 
         // Local Docker container hosting is strictly gated on ResourceBacking.LocalContainer.
         // ResourceBacking.Cloud and ResourceBacking.Off never provision local containers or localhost container origins.
-        if (_policies.TryGetValue("playwright", out var pw) && pw.Backing == ResourceBacking.LocalContainer && profile.IsEnabled("playwright"))
+        if (_policies.TryGetValue("playwright", out var pw) && pw.Backing == ResourceBacking.LocalContainer && ShouldProvision(profile, "playwright", pw.Backing))
         {
+            ProjectLocalEnablement(os, profile, "playwright", pw.Backing);
             os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);
         }
 
-        if (_policies.TryGetValue("artcraft", out var ac) && ac.Backing == ResourceBacking.LocalContainer && profile.IsEnabled("artcraft"))
+        if (_policies.TryGetValue("artcraft", out var ac) && ac.Backing == ResourceBacking.LocalContainer && ShouldProvision(profile, "artcraft", ac.Backing))
         {
+            ProjectLocalEnablement(os, profile, "artcraft", ac.Backing);
             os = os.WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps());
         }
 
-        if (_policies.TryGetValue(SandboxModuleHosting.ModuleName, out var sb) && sb.Backing == ResourceBacking.LocalContainer && profile.IsEnabled(SandboxModuleHosting.ModuleName))
+        if (_policies.TryGetValue(SandboxModuleHosting.ModuleName, out var sb) && sb.Backing == ResourceBacking.LocalContainer && ShouldProvision(profile, SandboxModuleHosting.ModuleName, sb.Backing))
         {
+            ProjectLocalEnablement(os, profile, SandboxModuleHosting.ModuleName, sb.Backing);
             os = os.WithHosting<SandboxModuleHosting>();
         }
 

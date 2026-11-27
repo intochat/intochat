@@ -186,7 +186,7 @@ internal sealed partial class AppNeuron
             await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(true);
             return;
         }
-        VerifyCompiledProgramType();
+        VerifyCompiledProgramType(allowRetiredShipped: true);
     }
 
     // An app has a program only when it names a compiled module type (VerifyCompiledProgramType decides whether this host runs it).
@@ -202,13 +202,15 @@ internal sealed partial class AppNeuron
             await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(true);
             return;
         }
-        VerifyCompiledProgramType();
+        VerifyCompiledProgramType(allowRetiredShipped: false);
     }
 
     // A named compiled program must be one this host can run. The unedited shipped copy of an app the host itself loaded from a
     // registered compiled-app assembly passes on that provenance, so its stored type name may be stale after the type moved; it is
-    // not parsed and never rewritten. Every other record passes only when its stored type name resolves.
-    private void VerifyCompiledProgramType()
+    // not parsed and never rewritten. During startup restore, an unedited os-shipped non-root app that the host no longer ships
+    // (a retired shipped app such as uikit) is cleanly skipped instead of logging an error. Every other record passes only when
+    // its stored type name resolves.
+    private void VerifyCompiledProgramType(bool allowRetiredShipped = false)
     {
         if (!State.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var typeName)
             || string.IsNullOrWhiteSpace(typeName))
@@ -217,7 +219,8 @@ internal sealed partial class AppNeuron
         }
 
         var hosted = hostedAppTypes ?? services?.GetService<IHostedAppTypes>();
-        if (hosted is not null && ShippedApps.Is(Describe(State), Name()) && hosted.IsHostLoaded(Name()))
+        var isUneditedShipped = ShippedApps.Is(Describe(State), Name());
+        if (hosted is not null && isUneditedShipped && hosted.IsHostLoaded(Name()))
         {
             return;
         }
@@ -226,10 +229,25 @@ internal sealed partial class AppNeuron
             ?? AppDomain.CurrentDomain.GetAssemblies()
                 .Select(assembly => assembly.GetType(typeName, throwOnError: false))
                 .FirstOrDefault(type => type is not null);
-        if (resolved is null)
+        if (resolved is not null)
         {
-            throw new InvalidOperationException($"Compiled app type '{typeName}' could not be resolved.");
+            return;
         }
+
+        if (allowRetiredShipped
+            && isUneditedShipped
+            && hosted is not null
+            && !hosted.IsHostLoaded(Name())
+            && !ShippedApps.Roots.Contains(Name()))
+        {
+            (logger ?? ServiceProvider?.GetService<ILogger<AppNeuron>>())?.LogInformation(
+                "Skipping restore of retired shipped app {App}; compiled type '{Type}' is no longer hosted.",
+                Key,
+                typeName);
+            return;
+        }
+
+        throw new InvalidOperationException($"Compiled app type '{typeName}' could not be resolved.");
     }
 
     private AppPackage? TryExtractSandboxPackage(AppState state)

@@ -43,6 +43,8 @@ internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuron
 
     public bool IsContractHosted(Type contract)
         => contract is not null && _types.Values.Any(r => r.Contracts.Contains(contract) || contract.IsAssignableFrom(r.Class));
+
+    public bool TryGetNeuronClass(string neuronType, out Type? neuronClass) => TryGet(neuronType, out neuronClass);
     internal const string AffineGrainType = "neuron.host";
     internal const string ReentrantGrainType = "neuron.host.reentrant";
     internal const string StatelessGrainType = "neuron.host.stateless";

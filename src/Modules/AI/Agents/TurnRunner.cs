@@ -142,12 +142,19 @@ internal sealed class TurnRunner(
         => ContextIds([.. keys.Select(key => AgentTurnLoop.Absolute(owner.Brain.Value, key)).Where(key => key.EndsWith("/context/" + name, StringComparison.Ordinal))]);
 
     // Recall and structured memory/UI context slices run before the turn is planned, so the loop's read sees what they wrote.
-    public async Task Hydrate(string[] contexts, string query)
+    // Independent slices (recall, session+working-memory, ui-state) overlap via Task.WhenAll while preserving deterministic writes.
+    public Task Hydrate(string[] contexts, string query)
     {
-        await WriteRecall(contexts, query);
+        var recall = WriteRecall(contexts, query);
+        var sessionAndWorkingMemory = WriteSessionAndWorkingMemory(contexts);
+        var uiState = WriteUiState(contexts);
+        return Task.WhenAll(recall, sessionAndWorkingMemory, uiState);
+    }
+
+    private async Task WriteSessionAndWorkingMemory(string[] contexts)
+    {
         var activeProjectBrief = await WriteSessionReturning(contexts);
         await WriteWorkingMemory(contexts, activeProjectBrief);
-        await WriteUiState(contexts);
     }
 
     // The summary is an ordinary entry once a conversation.summary context is listed; the loop reads it like any other.

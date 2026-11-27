@@ -52,6 +52,19 @@ public sealed class SiloAccessCallFilter(
             return;
         }
 
+        // 1b. In-silo Orleans GrainTimer ticks dispatch directly via InsideRuntimeClient without running
+        // IOutgoingGrainCallFilter (so SiloOrigin is not stamped). Only genuine self-targeted ticks on a live
+        // grain instance invoking Orleans.Runtime.IGrainTimerInvoker.InvokeCallbackAsync are admitted, and we
+        // enter SiloOrigin for the callback so outbound neuron hops made inside the timer carry silo origin.
+        if (IsInSiloGrainTimerTick(context))
+        {
+            using (SiloOrigin.Enter())
+            {
+                await context.Invoke();
+            }
+            return;
+        }
+
         // 2. Nothing from outside this process, on any port: no grain, no Orleans grain, no neuron contract.
         if (!SiloOrigin.IsCurrent)
         {
@@ -95,6 +108,14 @@ public sealed class SiloAccessCallFilter(
             throw new UnauthorizedAccessException($"Unstamped call to '{Name(context)}' carried no caller provenance.");
         }
     }
+
+    private static bool IsInSiloGrainTimerTick(IIncomingGrainCallContext context)
+        => context.Grain is not null
+            && context.SourceId is { } sourceId
+            && sourceId == context.TargetId
+            && context.InterfaceMethod.DeclaringType is { FullName: "Orleans.Runtime.IGrainTimerInvoker" } declaringType
+            && IsOrleans(declaringType)
+            && string.Equals(context.InterfaceMethod.Name, "InvokeCallbackAsync", StringComparison.Ordinal);
 
     private static bool IsOrleansPlumbing(IIncomingGrainCallContext context)
         => (context.InterfaceMethod.DeclaringType is { } contract && typeof(IGrainExtension).IsAssignableFrom(contract) && IsOrleans(contract))
