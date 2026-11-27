@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
+import '../chat/conversation_controller.dart';
 import '../chat/conversation_view.dart';
 import 'node_context.dart';
 
@@ -13,10 +14,6 @@ Widget renderConversation(ConversationNode node, NodeContext ctx) => Semantics(
 );
 
 // --- src/nodes/chat_thread_view.dart ---
-const _conversationContract =
-    'IntoChat.OS.Modules.Flutter.Conversations.IConversation';
-const _textDeltaSignal = 'TextDelta';
-const _readMethod = 'Read';
 
 /// What a chat thread neuron draws: the messages (a failed reply with its
 /// reason and a retry), composer, stop and retry from the neuron's view; the
@@ -69,7 +66,11 @@ class _ChatThreadSurfaceState extends State<_ChatThreadSurface> {
       return;
     }
     _watchedConversation = conversation;
-    _deltas = watcher(_conversationContract, conversation, _textDeltaSignal);
+    _deltas = watcher(
+      ConversationRpc.contract,
+      conversation,
+      ConversationRpc.textDeltaSignal,
+    );
   }
 
   @override
@@ -146,9 +147,9 @@ class _ChatThreadSurfaceState extends State<_ChatThreadSurface> {
       deltas: _deltas,
       readConversation: conversation != null && callNeuron != null
           ? () => callNeuron(
-              _conversationContract,
+              ConversationRpc.contract,
               conversation,
-              _readMethod,
+              ConversationRpc.readMethod,
               const [null],
             )
           : null,

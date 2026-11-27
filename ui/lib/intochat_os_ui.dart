@@ -1,5 +1,6 @@
 library;
 
+export 'src/chat/conversation_controller.dart';
 export 'src/chat/conversation_view.dart';
 export 'src/chat/model_picker.dart';
 export 'src/chat/ui_copyable_message.dart';
