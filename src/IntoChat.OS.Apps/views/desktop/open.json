@@ -319,26 +319,6 @@
                 },
                 {
                   "kind": "appTile",
-                  "key": "dock-creator",
-                  "appId": "creator",
-                  "title": "Creator",
-                  "icon": "cpu",
-                  "category": "Studio",
-                  "launch": 0,
-                  "dock": 7,
-                  "appKind": "compiled",
-                  "description": "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "creator"
-                    }
-                  },
-                  "automationName": "Creator"
-                },
-                {
-                  "kind": "appTile",
                   "key": "dock-gallery",
                   "appId": "gallery",
                   "title": "UI Gallery",
@@ -656,26 +636,6 @@
             },
             {
               "kind": "appTile",
-              "key": "catalog-creator",
-              "appId": "creator",
-              "title": "Creator",
-              "icon": "cpu",
-              "category": "Studio",
-              "launch": 0,
-              "dock": 7,
-              "appKind": "compiled",
-              "description": "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "creator"
-                }
-              },
-              "automationName": "Creator"
-            },
-            {
-              "kind": "appTile",
               "key": "catalog-gallery",
               "appId": "gallery",
               "title": "UI Gallery",
@@ -814,6 +774,26 @@
             },
             {
               "kind": "appTile",
+              "key": "catalog-creator",
+              "appId": "creator",
+              "title": "Creator",
+              "icon": "cpu",
+              "category": "Developer",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "creator"
+                }
+              },
+              "automationName": "Creator"
+            },
+            {
+              "kind": "appTile",
               "key": "catalog-deckcraft",
               "appId": "deckcraft",
               "title": "DeckCraft",
@@ -931,26 +911,6 @@
                 }
               },
               "automationName": "GridCraft"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-engineer",
-              "appId": "engineer",
-              "title": "IntoChat Engineer",
-              "icon": "workflow",
-              "category": "Studio",
-              "launch": 0,
-              "dock": null,
-              "appKind": "compiled",
-              "description": "Autonomous multi-worktree engineering workbench: brainstorm, plan, Roslyn/Dart code, live verify, candidate tournament, and PR review.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "engineer"
-                }
-              },
-              "automationName": "IntoChat Engineer"
             },
             {
               "kind": "appTile",

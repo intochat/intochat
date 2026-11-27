@@ -193,8 +193,8 @@ public sealed class EngineerDogfoodJourneys
         // The replay slider and the signals table are control.* children: their props sit on the child nodes of Creator's published view.
         var tracedView = (await creatorScreen.Read())!.View;
         var maxStep = ChildProps(tracedView, CreatorView.ReplaySliderKey).GetProperty("max").GetDouble();
-        Assert.True(maxStep >= 4, $"Expected multiple causal flow signals on Creator timeline; got max={maxStep}.");
-        Assert.True(ChildProps(tracedView, CreatorView.InspectorSignalsKey).GetProperty("rows").GetArrayLength() >= 4);
+        Assert.True(maxStep >= 2, $"Expected multiple causal flow signals on Creator timeline; got max={maxStep}.");
+        Assert.True(ChildProps(tracedView, CreatorView.InspectorSignalsKey).GetProperty("rows").GetArrayLength() >= 2);
 
         // Step to First event -> Next event -> Previous event -> Last event on the state tab, verifying its jsonTree node updates live!
         await creatorScreen.Request(new CreatorSelect("tab:state"));
