@@ -65,6 +65,34 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Equal("vlad@intochat.io", parsed.CostGuardrails.AlertEmail);
         Assert.Contains("LeedGenerator", parsed.CostGuardrails.ProtectedResourceGroups);
         Assert.Contains("sv", parsed.CostGuardrails.ProtectedResourceGroups);
+        Assert.Equal(0.2, parsed.LogWorkspace.DailyQuotaGb);
+
+        // Explicit logWorkspace.dailyQuotaGb override round-trips cleanly into workspaceCapping.dailyQuotaGb.
+        var overridden = InstallConfig.Parse("""
+            {
+              "subscription": "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+              "location": "polandcentral",
+              "prefix": "intochat",
+              "env": "prod",
+              "osImage": "acrintochatprod.azurecr.io/os:latest",
+              "logWorkspace": { "dailyQuotaGb": 0.5 }
+            }
+            """);
+        Assert.Equal(0.5, overridden.LogWorkspace.DailyQuotaGb);
+        var overriddenYaml = PulumiStackSynthesizer.Synthesize(overridden, OperatingSystemModules.Modules).PulumiYaml;
+        var overriddenLogBlock = ResourceBlock(overriddenYaml, $"log-workspace-{overridden.LogsName}");
+        Assert.Contains("      workspaceCapping:\n        dailyQuotaGb: 0.5\n", overriddenLogBlock, StringComparison.Ordinal);
+
+        Assert.Throws<InvalidOperationException>(() => InstallConfig.Parse("""
+            {
+              "subscription": "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+              "location": "polandcentral",
+              "prefix": "intochat",
+              "env": "prod",
+              "osImage": "acrintochatprod.azurecr.io/os:latest",
+              "logWorkspace": { "dailyQuotaGb": 0 }
+            }
+            """));
     }
 
     [Fact]
@@ -222,6 +250,10 @@ public sealed partial class PulumiCostGuardrailsFacts
         var publishCreateIdx = publishBlock.IndexOf("      create: |\n", StringComparison.Ordinal);
         Assert.True(publishCreateIdx > 0);
         Assert.DoesNotMatch(PulumiInterpolationRegex(), publishBlock[(publishCreateIdx + "      create: |\n".Length)..]);
+
+        var webhookUriBlock = ResourceBlock(yaml, "automation-webhook-intochat-test-cost-aa-uri");
+        Assert.Contains("type: command:local:Command", webhookUriBlock, StringComparison.Ordinal);
+        Assert.Contains("      additionalSecretOutputs:\n        - stdout\n", webhookUriBlock, StringComparison.Ordinal);
 
         var webhookBlock = ResourceBlock(yaml, "automation-webhook-intochat-test-cost-aa");
         Assert.Contains("type: azure-native:automation:Webhook", webhookBlock, StringComparison.Ordinal);

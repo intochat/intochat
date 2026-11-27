@@ -37,6 +37,7 @@ public sealed partial record InstallConfig
     public RegistryConfig Registry { get; init; } = new();
     public PostgresConfig Postgres { get; init; } = new();
     public FoundryConfig Foundry { get; init; } = new();
+    public LogWorkspaceConfig LogWorkspace { get; init; } = new();
     public CostGuardrailConfig CostGuardrails { get; init; } = new();
     // Object id of the principal running the install (the gh-intochat-platform OIDC app). It is granted Key Vault
     // Secrets Officer on the vault so the installer can read and write secret values on the data plane.
@@ -255,6 +256,10 @@ public sealed partial record InstallConfig
                 }
             }
         }
+        if (LogWorkspace.DailyQuotaGb <= 0)
+        {
+            throw new InvalidOperationException("The logWorkspace config needs a positive dailyQuotaGb.");
+        }
         if (CostGuardrails.Enabled)
         {
             if (CostGuardrails.MonthlyBudgetEur <= 0)
@@ -365,6 +370,12 @@ public sealed record FoundryDeploymentConfig
     public string ModelVersion { get; init; } = "";
     public string SkuName { get; init; } = "GlobalStandard";
     public int Capacity { get; init; } = 10;
+}
+
+// logWorkspace: { "dailyQuotaGb": 0.2 }. Caps Log Analytics daily ingestion (default 0.2 GB/day).
+public sealed record LogWorkspaceConfig
+{
+    public double DailyQuotaGb { get; init; } = 0.2;
 }
 
 // costGuardrails: { "enabled": true, "monthlyBudgetEur": 185.0, "alertEmail": "vlad@intochat.io", "protectedResourceGroups": ["LeedGenerator", "sv", "NetworkWatcherRG"] }.

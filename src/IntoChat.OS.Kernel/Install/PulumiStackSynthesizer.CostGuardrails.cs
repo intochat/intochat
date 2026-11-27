@@ -229,12 +229,14 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("      create: |");
         sb.AppendLine(PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(publishCommand), 8));
 
-        // 5. Generate Azure Automation webhook URI once per Automation Account lifecycle.
+        // 5. Generate Azure Automation webhook URI once per Automation Account lifecycle (encrypt stdout as a Pulumi secret).
         var generateWebhookUriCommand = BuildGenerateWebhookUriShellScript(c.Subscription, c.GroupName, aaName);
         sb.AppendLine($"  {webhookUriLogical}:");
         sb.AppendLine("    type: command:local:Command");
         sb.AppendLine("    options:");
         sb.AppendLine($"      dependsOn: [\"${{{aaLogical}}}\"]");
+        sb.AppendLine("      additionalSecretOutputs:");
+        sb.AppendLine("        - stdout");
         sb.AppendLine("    properties:");
         sb.AppendLine("      create: |");
         sb.AppendLine(PulumiAssets.Indent(PulumiAssets.EscapePulumiYaml(generateWebhookUriCommand), 8));

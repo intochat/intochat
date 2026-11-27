@@ -116,7 +116,7 @@ public static class InstallPlan
         {
             In(new ResourceGroupSpec { Name = group }),
             In(new IdentitySpec { Name = identity }),
-            In(new LogWorkspaceSpec { Name = workspace }),
+            In(new LogWorkspaceSpec { Name = workspace, DailyQuotaGb = c.LogWorkspace.DailyQuotaGb }),
             In(new StorageAccountSpec { Name = account }),
             In(new FileShareSpec { Name = BrainLogShare, StorageAccount = account, QuotaGb = c.StorageQuotaGb }),
             In(new BlobContainerSpec { Name = grainState, StorageAccount = account }),
