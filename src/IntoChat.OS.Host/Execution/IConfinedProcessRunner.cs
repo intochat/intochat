@@ -61,8 +61,40 @@ public sealed record ConfinedProcessResult(
     TimeSpan Duration,
     ConfinementMode EffectiveMode);
 
+/// <summary>
+/// A live, interactive child process running inside an OS-enforced confinement boundary with
+/// bidirectional stdio pipes and deterministic teardown (Job Object / process-tree termination,
+/// ACL revocation, and recursive per-session temp directory purge).
+/// </summary>
+public abstract class ConfinedProcessSession : IAsyncDisposable
+{
+    public abstract int ProcessId { get; }
+
+    public abstract ConfinementMode EffectiveMode { get; }
+
+    public abstract string TempDirectory { get; }
+
+    public abstract StreamWriter StandardInput { get; }
+
+    public abstract StreamReader StandardOutput { get; }
+
+    public abstract StreamReader StandardError { get; }
+
+    public abstract bool HasExited { get; }
+
+    public abstract int ExitCode { get; }
+
+    public abstract Task WaitForExitAsync(CancellationToken cancellationToken = default);
+
+    public abstract void Kill();
+
+    public abstract ValueTask DisposeAsync();
+}
+
 /// <summary>Executes an external process inside an OS-enforced confinement boundary with zero inherited host secrets.</summary>
 public interface IConfinedProcessRunner
 {
     Task<ConfinedProcessResult> RunAsync(ConfinementSpec spec, CancellationToken cancellationToken = default);
+
+    ConfinedProcessSession StartSession(ConfinementSpec spec);
 }

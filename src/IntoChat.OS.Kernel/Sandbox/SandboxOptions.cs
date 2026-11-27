@@ -16,6 +16,13 @@ public sealed class SandboxOptions : IModuleOptions
     public string? UnitHostAssemblyPath { get; set; }
 
     /// <summary>
+    /// Explicitly permits loopback (<c>127.0.0.1</c>, <c>::1</c>, <c>localhost</c>) HTTP/HTTPS targets for
+    /// remote sandbox callback forwarding in local development and E2E tests. Defaults to <see langword="false"/>
+    /// so production only forwards callbacks to public <c>https://</c> origins.
+    /// </summary>
+    public bool AllowLoopbackKernelCallback { get; set; }
+
+    /// <summary>
     /// Enables the local out-of-process <c>IntoChat.OS.Sandbox --unit-host</c> fallback when no connected
     /// sovereign client device is available. Set to <see langword="false"/> on headless cloud servers to
     /// route directly to ACA Dynamic Sessions when configured.

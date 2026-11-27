@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Host.Execution;
 
@@ -222,6 +223,36 @@ public static class PosixSandboxCommandBuilder
 /// <summary>POSIX implementation of <see cref="IConfinedProcessRunner"/> using Linux <c>bwrap</c> or macOS <c>sandbox-exec</c>.</summary>
 public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
 {
+    private readonly ILogger<PosixConfinedProcessRunner>? _logger;
+
+    public PosixConfinedProcessRunner(ILogger<PosixConfinedProcessRunner>? logger = null)
+    {
+        _logger = logger;
+    }
+
+    public ConfinedProcessSession StartSession(ConfinementSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        ArgumentException.ThrowIfNullOrWhiteSpace(spec.ExecutablePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(spec.WorkingDirectory);
+
+        Directory.CreateDirectory(spec.WorkingDirectory);
+        var tempDir = CreateSessionTempDirectory(spec.SandboxId);
+        try
+        {
+            var (psi, mode) = BuildProcessStartInfo(spec, tempDir, redirectStandardInput: true);
+            var process = Process.Start(psi)
+                ?? throw new InvalidOperationException($"Failed to launch confined process '{psi.FileName}'.");
+
+            return new PosixConfinedProcessSession(process, mode, tempDir, _logger);
+        }
+        catch
+        {
+            TryPurgeDirectory(tempDir, _logger);
+            throw;
+        }
+    }
+
     public async Task<ConfinedProcessResult> RunAsync(ConfinementSpec spec, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(spec);
@@ -229,9 +260,61 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.WorkingDirectory);
 
         Directory.CreateDirectory(spec.WorkingDirectory);
-        var tempDir = Path.Combine(spec.WorkingDirectory, ".sandbox-tmp");
-        Directory.CreateDirectory(tempDir);
+        var tempDir = CreateSessionTempDirectory(spec.SandboxId);
 
+        try
+        {
+            var (psi, mode) = BuildProcessStartInfo(spec, tempDir, redirectStandardInput: false);
+
+            var sw = Stopwatch.StartNew();
+            using var process = Process.Start(psi)
+                ?? throw new InvalidOperationException($"Failed to launch confined process '{psi.FileName}'.");
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+            var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+
+            var timedOut = false;
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(spec.EffectiveTimeout);
+
+            try
+            {
+                await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                timedOut = true;
+                KillEntireProcessTree(process);
+            }
+            catch (OperationCanceledException)
+            {
+                KillEntireProcessTree(process);
+                throw;
+            }
+
+            var stdout = await stdoutTask.ConfigureAwait(false);
+            var stderr = await stderrTask.ConfigureAwait(false);
+            sw.Stop();
+
+            return new ConfinedProcessResult(
+                ExitCode: timedOut ? -1 : process.ExitCode,
+                StandardOutput: stdout,
+                StandardError: stderr,
+                TimedOut: timedOut,
+                Duration: sw.Elapsed,
+                EffectiveMode: mode);
+        }
+        finally
+        {
+            TryPurgeDirectory(tempDir, _logger);
+        }
+    }
+
+    private (ProcessStartInfo StartInfo, ConfinementMode Mode) BuildProcessStartInfo(
+        ConfinementSpec spec,
+        string tempDir,
+        bool redirectStandardInput)
+    {
         ConfinementMode mode;
         string fileName;
         IReadOnlyList<string> arguments;
@@ -253,6 +336,9 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
             mode = ConfinementMode.PosixSanitizedProcess;
             fileName = spec.ExecutablePath;
             arguments = spec.Arguments;
+            _logger?.LogWarning(
+                "OS namespace confinement (bwrap/sandbox-exec) unavailable for sandbox {SandboxId}; falling back to sanitized process execution with scrubbed environment and per-session temp-dir purge.",
+                spec.SandboxId);
         }
 
         var psi = new ProcessStartInfo(fileName)
@@ -260,9 +346,16 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
             WorkingDirectory = spec.WorkingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardInput = redirectStandardInput,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
+        if (redirectStandardInput)
+        {
+            psi.StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        }
 
         foreach (var arg in arguments)
         {
@@ -276,43 +369,41 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
             psi.Environment[key] = value;
         }
 
-        var sw = Stopwatch.StartNew();
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException($"Failed to launch confined process '{fileName}'.");
+        return (psi, mode);
+    }
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+    private static string CreateSessionTempDirectory(string sandboxId)
+    {
+        var sanitized = string.IsNullOrWhiteSpace(sandboxId)
+            ? "sbx"
+            : new string(sandboxId.Take(32).Select(static ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_').ToArray());
+        var tempDir = Path.Combine(Path.GetTempPath(), "intochat-sandbox", $"{sanitized}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        return tempDir;
+    }
 
-        var timedOut = false;
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(spec.EffectiveTimeout);
+    private static void TryPurgeDirectory(string directory, ILogger? logger)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
 
         try
         {
-            await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            Directory.Delete(directory, recursive: true);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            timedOut = true;
-            KillEntireProcessTree(process);
+            if (logger is not null)
+            {
+                logger.LogWarning(ex, "Could not recursively purge POSIX sandbox temp directory {TempDirectory}.", directory);
+            }
+            else
+            {
+                Trace.TraceWarning("Could not recursively purge POSIX sandbox temp directory '{0}': {1}", directory, ex.Message);
+            }
         }
-        catch (OperationCanceledException)
-        {
-            KillEntireProcessTree(process);
-            throw;
-        }
-
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-        sw.Stop();
-
-        return new ConfinedProcessResult(
-            ExitCode: timedOut ? -1 : process.ExitCode,
-            StandardOutput: stdout,
-            StandardError: stderr,
-            TimedOut: timedOut,
-            Duration: sw.Elapsed,
-            EffectiveMode: mode);
     }
 
     private static void KillEntireProcessTree(Process process)
@@ -328,6 +419,85 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
         {
             Trace.TraceWarning("PosixConfinedProcessRunner failed to terminate process tree: {0}", ex.Message);
+        }
+    }
+
+    private sealed class PosixConfinedProcessSession : ConfinedProcessSession
+    {
+        private readonly Process _process;
+        private readonly ILogger? _logger;
+        private int _disposed;
+
+        public PosixConfinedProcessSession(
+            Process process,
+            ConfinementMode effectiveMode,
+            string tempDirectory,
+            ILogger? logger)
+        {
+            _process = process;
+            EffectiveMode = effectiveMode;
+            TempDirectory = tempDirectory;
+            _logger = logger;
+        }
+
+        public override int ProcessId => _process.Id;
+
+        public override ConfinementMode EffectiveMode { get; }
+
+        public override string TempDirectory { get; }
+
+        public override StreamWriter StandardInput => _process.StandardInput;
+
+        public override StreamReader StandardOutput => _process.StandardOutput;
+
+        public override StreamReader StandardError => _process.StandardError;
+
+        public override bool HasExited
+        {
+            get
+            {
+                try
+                {
+                    return _process.HasExited;
+                }
+                catch (InvalidOperationException)
+                {
+                    return true;
+                }
+            }
+        }
+
+        public override int ExitCode
+        {
+            get
+            {
+                try
+                {
+                    return _process.ExitCode;
+                }
+                catch (InvalidOperationException)
+                {
+                    return -1;
+                }
+            }
+        }
+
+        public override Task WaitForExitAsync(CancellationToken cancellationToken = default)
+            => _process.WaitForExitAsync(cancellationToken);
+
+        public override void Kill() => KillEntireProcessTree(_process);
+
+        public override ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            KillEntireProcessTree(_process);
+            _process.Dispose();
+            TryPurgeDirectory(TempDirectory, _logger);
+            return ValueTask.CompletedTask;
         }
     }
 }
