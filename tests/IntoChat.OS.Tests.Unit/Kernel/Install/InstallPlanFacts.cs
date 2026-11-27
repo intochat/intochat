@@ -827,6 +827,86 @@ public sealed class InstallPlanFacts
         Assert.False(osAppWithoutPublic.Variables.ContainsKey(InstallPlan.SandboxKernelCallbackUrlVariable));
     }
 
+    [Fact]
+    public void DevSlotJobDisabledByDefaultAndSynthesizesPolicyCompliantConsumptionJobWhenEnabled()
+    {
+        var disabledConfig = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2");
+        Assert.False(disabledConfig.DevSlotJob.Enabled);
+        Assert.Null(InstallPlan.DevSlotJob(disabledConfig));
+        var disabledPlan = PulumiStackSynthesizer.Synthesize(disabledConfig, OperatingSystemModules.Modules);
+        Assert.DoesNotContain("azure-native:app:Job", disabledPlan.PulumiYaml, StringComparison.Ordinal);
+
+        var enabledConfig = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeDevSlotJob: true);
+        Assert.True(enabledConfig.DevSlotJob.Enabled);
+        Assert.Equal("intochat-test-devslot", enabledConfig.DevSlotJobName);
+        Assert.Equal("acrintochattest.azurecr.io/devslot:latest", enabledConfig.DevSlotJob.Image);
+
+        var jobSpec = InstallPlan.DevSlotJob(enabledConfig);
+        Assert.NotNull(jobSpec);
+        Assert.Equal("intochat-test-devslot", jobSpec.Name);
+        Assert.Equal("intochat-test-env", jobSpec.Environment);
+        Assert.Equal("intochat-test-devslot-id", jobSpec.Identity);
+        Assert.Equal(2.0, jobSpec.Cpu);
+        Assert.Equal("4Gi", jobSpec.Memory);
+        Assert.Equal(1, jobSpec.Parallelism);
+        Assert.Equal(900, jobSpec.ReplicaTimeoutSeconds);
+        Assert.Equal(0, jobSpec.ReplicaRetryLimit);
+        var foundation = InstallPlan.Foundation(enabledConfig);
+        Assert.DoesNotContain(foundation, static s => s is ContainerAppsJobSpec);
+        // Dedicated AcrPull-only UAMI for DevSlotJob (zero KeyVault/Storage/Foundry grants on devslot-id).
+        Assert.Contains(foundation.OfType<IdentitySpec>(), s => s.Name == "intochat-test-devslot-id");
+        var devSlotGrants = foundation.OfType<RoleGrantSpec>().Where(g => g.Principal == "intochat-test-devslot-id").ToArray();
+        var acrGrant = Assert.Single(devSlotGrants);
+        Assert.Contains("/Microsoft.ContainerRegistry/registries/", acrGrant.Scope, StringComparison.OrdinalIgnoreCase);
+
+        var plan = PulumiStackSynthesizer.Synthesize(enabledConfig, OperatingSystemModules.Modules);
+        var jobBlock = ResourceBlock(plan.PulumiYaml, "container-apps-job-intochat-test-devslot");
+        Assert.Contains("type: azure-native:app:Job", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("jobName: \"intochat-test-devslot\"", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("workloadProfileName: Consumption", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("triggerType: Manual", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("replicaTimeout: 900", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("replicaRetryLimit: 0", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("parallelism: 1", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("cpu: 2", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("memory: \"4Gi\"", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("image: \"acrintochattest.azurecr.io/devslot:latest\"", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("ConfiguredCustodyAcknowledged", jobBlock, StringComparison.Ordinal);
+        Assert.Contains("Storage", jobBlock, StringComparison.Ordinal);
+        // Zero cluster secrets or custody keys injected into the devslot job template.
+        Assert.DoesNotContain("secrets:", jobBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("secretRef:", jobBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("master-key", jobBlock, StringComparison.OrdinalIgnoreCase);
+
+        var importJson = PulumiStackSynthesizer.ExportImportEntries(plan).ToJsonString();
+        Assert.Contains("azure-native:app:Job", importJson, StringComparison.Ordinal);
+        Assert.Contains("/providers/Microsoft.App/jobs/intochat-test-devslot", importJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevSlotJobConfigRejectsPolicyRuleBViolations()
+    {
+        var validBase = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeDevSlotJob: true);
+
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Parallelism = 3 } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { ReplicaTimeoutSeconds = 901 } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { ReplicaRetryLimit = 1 } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = 2.5 } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = double.NaN } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = double.PositiveInfinity } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Memory = "8Gi" } }).Validated());
+        var trimmed = (validBase with { DevSlotJob = validBase.DevSlotJob with { Memory = " 4Gi " } }).Validated();
+        Assert.Equal("4Gi", trimmed.DevSlotJob.Memory);
+    }
+
     private static string ResourceBlock(string yaml, string logicalName)
     {
         var start = yaml.IndexOf("\n  " + logicalName + ":\n", StringComparison.Ordinal);

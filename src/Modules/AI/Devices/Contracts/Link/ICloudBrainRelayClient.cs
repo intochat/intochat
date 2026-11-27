@@ -25,4 +25,11 @@ public interface ICloudBrainRelayClient
         BrainResourceDispatchRequest dispatch,
         TimeSpan availabilityTimeout,
         CancellationToken ct = default);
+
+    Task<ConnectedEngineeringResponse?> DispatchBrainEngineeringAsync(
+        BrainEngineeringDispatchRequest dispatch,
+        TimeSpan availabilityTimeout,
+        Func<EngineeringStreamChunk, Task>? onProgress = null,
+        CancellationToken ct = default)
+        => Task.FromResult<ConnectedEngineeringResponse?>(null);
 }

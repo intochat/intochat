@@ -447,6 +447,56 @@ public sealed class SettingsControlsFacts
         Assert.True(enabled.AllowClientCodeSandbox);
     }
 
+    [Fact]
+    public async Task AllowConnectedEngineeringToggleDefaultsOffAndPropagatesIndependentlyOfCodeSandbox()
+    {
+        RecordingDeviceLink.Reset();
+        var engineeringConsent = new TestClientEngineeringConsent();
+        var services = new ServiceCollection();
+        services.AddSingleton<IClientEngineeringConsent>(engineeringConsent);
+        await using var provider = services.BuildServiceProvider();
+
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = provider)
+                .RegisterCatalog()
+                .Register<RecordingDeviceLink>();
+            var settings = await os.Install<SettingsApp>();
+            await settings.Request("navigate", new SettingsNavigate("general", "devices"));
+
+            // Fail-closed default OFF regardless of AllowClientCodeSandbox.
+            Assert.False(settings.App.State.AllowConnectedEngineering);
+            Assert.False(engineeringConsent.AllowConnectedEngineering);
+
+            await Send(settings, ClientComputeConsentPolicy.AllowConnectedEngineeringToggleKey, new SetChecked(true));
+
+            Assert.True(settings.App.State.AllowConnectedEngineering);
+            Assert.True(engineeringConsent.AllowConnectedEngineering);
+            Assert.Equal([true], RecordingDeviceLink.EngineeringCalls);
+            Assert.Empty(RecordingDeviceLink.Calls);
+
+            await settings.Request("reload-preferences", new SettingsReloadPreferences());
+            Assert.True(settings.App.State.AllowConnectedEngineering);
+            Assert.Equal("true", settings.App.State.Variables!.Single(v => v.Key == ClientComputeConsentPolicy.AllowConnectedEngineeringVariableKey).Value);
+        }
+        finally
+        {
+            RecordingDeviceLink.Reset();
+        }
+    }
+
+    private sealed class TestClientEngineeringConsent : IClientEngineeringConsent
+    {
+        private bool _allow;
+        public bool AllowConnectedEngineering => _allow;
+        public event Action<bool>? Changed;
+        public void SetAllowConnectedEngineering(bool allow)
+        {
+            _allow = allow;
+            Changed?.Invoke(allow);
+        }
+    }
+
     private sealed class TestClientCodeSandboxConsent(bool initial) : IClientCodeSandboxConsent
     {
         private bool _allow = initial;
@@ -466,8 +516,13 @@ public sealed class SettingsControlsFacts
     private sealed class RecordingDeviceLink : Neuron, IDeviceLink
     {
         public static List<bool> Calls { get; } = [];
+        public static List<bool> EngineeringCalls { get; } = [];
 
-        public static void Reset() => Calls.Clear();
+        public static void Reset()
+        {
+            Calls.Clear();
+            EngineeringCalls.Clear();
+        }
 
         public Task<LinkStatus> Join(Uri server, Code code)
             => Task.FromResult(new LinkStatus(LinkState.Connected, server, "test-pc", null, AllowClientCodeSandbox: true));
@@ -485,6 +540,19 @@ public sealed class SettingsControlsFacts
                 null,
                 AllowClientCodeSandbox: allow,
                 AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(allow)));
+        }
+
+        public Task<LinkStatus> SetAllowConnectedEngineering(bool allow)
+        {
+            EngineeringCalls.Add(allow);
+            return Task.FromResult(new LinkStatus(
+                LinkState.Connected,
+                new Uri("https://cloud.test"),
+                "test-pc",
+                null,
+                AllowClientCodeSandbox: true,
+                AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(true, false, false, allow),
+                AllowConnectedEngineering: allow));
         }
 
         public Task Leave() => Task.CompletedTask;

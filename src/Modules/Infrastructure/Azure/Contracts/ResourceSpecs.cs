@@ -184,6 +184,27 @@ public sealed record ContainerAppSpec : ResourceSpec
     public override string Kind => ResourceKinds.ContainerApp;
 }
 
+// Policy-compliant Azure Container Apps Consumption Job (Microsoft.App/jobs) for ephemeral cloud devslots.
+// Bounded by Policy Rule B (Consumption profile, Manual trigger, parallelism <= 2, replicaTimeout <= 900s,
+// replicaRetryLimit == 0, cpu <= 2.0, memory <= 4Gi) with zero cluster secrets or custody keys injected.
+public sealed record ContainerAppsJobSpec : ResourceSpec
+{
+    public string Environment { get; init; } = "";
+    public string Identity { get; init; } = "";
+    public string Image { get; init; } = "";
+    public string RegistryServer { get; init; } = "";
+    public double Cpu { get; init; } = 2.0;
+    public string Memory { get; init; } = "4Gi";
+    public int Parallelism { get; init; } = 1;
+    public int ReplicaCompletionCount { get; init; } = 1;
+    public int ReplicaTimeoutSeconds { get; init; } = 900;
+    public int ReplicaRetryLimit { get; init; }
+    public Dictionary<string, string> Variables { get; init; } = [];
+    public RegistryCredentialSpec[] Registries { get; init; } = [];
+
+    public override string Kind => ResourceKinds.ContainerAppsJob;
+}
+
 // Principal is an identity name in the spec's resource group, or a principal id. Scope is a resource id.
 public sealed record RoleGrantSpec : ResourceSpec
 {

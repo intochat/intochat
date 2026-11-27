@@ -15,7 +15,7 @@ namespace IntoChat.OS.Modules.Devices.Link;
 /// </summary>
 internal sealed class RelayConnectedComputeTransport(
     ICloudBrainRelayClient relay,
-    IOptionsMonitor<DevicesOptions>? options = null) : IConnectedComputeTransport, IConnectedResourceTransport
+    IOptionsMonitor<DevicesOptions>? options = null) : IConnectedComputeTransport, IConnectedResourceTransport, IConnectedEngineeringTransport
 {
     public async Task<bool> ProbeAsync(
         BrainId brainId,
@@ -42,7 +42,10 @@ internal sealed class RelayConnectedComputeTransport(
                     advertised.SandboxReady,
                     advertised.AdvertisedCapabilities)
                 || (advertised.AllowWindowsFolderGateway && ClientComputeConsentPolicy.HasWindowsFolderGatewayCapability(advertised.AdvertisedCapabilities))
-                || (advertised.AllowConsole && ClientComputeConsentPolicy.HasConsoleCapability(advertised.AdvertisedCapabilities))));
+                || (advertised.AllowConsole && ClientComputeConsentPolicy.HasConsoleCapability(advertised.AdvertisedCapabilities))
+                || ClientComputeConsentPolicy.IsEligibleForConnectedEngineering(
+                    advertised.AllowConnectedEngineering,
+                    advertised.AdvertisedCapabilities)));
     }
 
     public async Task<ConnectedSandboxResponse?> ExecuteAsync(
@@ -80,6 +83,25 @@ internal sealed class RelayConnectedComputeTransport(
         var dispatch = new BrainResourceDispatchRequest(brainId.Value, node.MachineId, request);
         return await relay.DispatchBrainResourceAsync(dispatch, executionTimeout, ct).ConfigureAwait(false);
     }
+
+    public async Task<ConnectedEngineeringResponse?> ExecuteEngineeringAsync(
+        BrainId brainId,
+        ConnectedComputeNode node,
+        ConnectedEngineeringRequest request,
+        Func<EngineeringStreamChunk, Task>? onProgress = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(request);
+        if (!await relay.IsConfiguredAsync(ct).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var executionTimeout = TimeSpan.FromSeconds(Math.Clamp(request.TimeoutSeconds, 15, 900));
+        var dispatch = new BrainEngineeringDispatchRequest(brainId.Value, node.MachineId, request);
+        return await relay.DispatchBrainEngineeringAsync(dispatch, executionTimeout, onProgress, ct).ConfigureAwait(false);
+    }
 }
 
 /// <summary>
@@ -94,7 +116,8 @@ internal sealed class ConnectedComputeRouter(
     TimeProvider? clock = null,
     IConnectedComputeTransport? transport = null,
     ILogger<ConnectedComputeRouter>? logger = null,
-    IConnectedResourceTransport? resourceTransport = null) : IConnectedComputeRouter
+    IConnectedResourceTransport? resourceTransport = null,
+    IConnectedEngineeringTransport? engineeringTransport = null) : IConnectedComputeRouter
 {
     internal static readonly TimeSpan RelayCacheFor = TimeSpan.FromSeconds(5);
 
@@ -168,6 +191,7 @@ internal sealed class ConnectedComputeRouter(
             AllowConsole: advertisement.AllowConsole,
             ConsentedFolderLabels: folderLabels,
             ConsoleRequiresPersonApproval: advertisement.ConsoleRequiresPersonApproval,
+            AllowConnectedEngineering: advertisement.AllowConnectedEngineering,
             ExplicitlyOffline: false);
 
         brainNodes[tracked.MachineId] = tracked;
@@ -406,6 +430,97 @@ internal sealed class ConnectedComputeRouter(
         return null;
     }
 
+    public async Task<ComputeRouteDecision> ResolveEngineeringRouteAsync(
+        BrainId brainId,
+        CancellationToken ct = default)
+    {
+        var nodes = await ListNodesAsync(brainId, ct).ConfigureAwait(false);
+        var eligible = nodes
+            .Where(static n => n.IsEligibleForConnectedEngineering)
+            .OrderByDescending(static n => n.LastHeartbeatAt)
+            .ThenBy(static n => n.MachineId, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        if (eligible is not null)
+        {
+            return new ComputeRouteDecision(
+                ComputeExecutionTarget.ConnectedClient,
+                eligible,
+                $"Routing Plane 2 self-improving engineering (IEngineerRuns) to Paired PC '{eligible.DeviceName}' ({eligible.MachineId}) [$0 Azure compute].");
+        }
+
+        var reason = nodes.Length == 0
+            ? "No connected Paired PC registered for brain; falling back to local AgentDevSlots or Cloud ACA Job."
+            : "No online Paired PC with AllowConnectedEngineering enabled; falling back to local AgentDevSlots or Cloud ACA Job.";
+
+        return new ComputeRouteDecision(ComputeExecutionTarget.CloudSandbox, null, reason);
+    }
+
+    public async Task<ConnectedEngineeringResponse?> TryExecuteEngineeringOnConnectedClientAsync(
+        BrainId brainId,
+        ConnectedEngineeringRequest request,
+        Func<EngineeringStreamChunk, Task>? onProgress = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId.Value);
+        ArgumentNullException.ThrowIfNull(request);
+        ct.ThrowIfCancellationRequested();
+
+        var effectiveTransport = engineeringTransport ?? transport as IConnectedEngineeringTransport;
+        if (effectiveTransport is null)
+        {
+            return null;
+        }
+
+        var nodes = await ListNodesAsync(brainId, ct).ConfigureAwait(false);
+        var candidates = nodes
+            .Where(static n => n.IsEligibleForConnectedEngineering)
+            .OrderByDescending(static n => n.LastHeartbeatAt)
+            .ThenBy(static n => n.MachineId, StringComparer.Ordinal)
+            .ToArray();
+        if (candidates.Length == 0)
+        {
+            return null;
+        }
+
+        var availabilityBudget = AvailabilityTimeout;
+        foreach (var candidate in candidates)
+        {
+            if (transport is not null && !await ProbeWithinBudgetAsync(brainId, candidate, availabilityBudget, ct).ConfigureAwait(false))
+            {
+                await MarkOfflineAsync(brainId, candidate.MachineId, ct).ConfigureAwait(false);
+                continue;
+            }
+
+            try
+            {
+                var response = await effectiveTransport.ExecuteEngineeringAsync(brainId, candidate, request, onProgress, ct).ConfigureAwait(false);
+                if (response is null)
+                {
+                    await MarkOfflineAsync(brainId, candidate.MachineId, ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                return string.IsNullOrWhiteSpace(response.ExecutedByMachineId)
+                    ? response with { ExecutedByMachineId = candidate.MachineId }
+                    : response;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error) when (IsDisconnectOrUnavailable(error, ct))
+            {
+                (logger ?? OsConsoleLog.For<ConnectedComputeRouter>()).LogSwallowed(
+                    error,
+                    $"connected client '{candidate.MachineId}' failed during Plane 2 engineering dispatch for brain '{brainId.Value}'; falling back");
+                await MarkOfflineAsync(brainId, candidate.MachineId, ct).ConfigureAwait(false);
+            }
+        }
+
+        return null;
+    }
+
     private async Task<ProofResult> RecordAndReturnValidAsync(
         BrainId brainId,
         ComputeCapabilityAdvertisement advertisement,
@@ -521,7 +636,8 @@ internal sealed class ConnectedComputeRouter(
             AllowWindowsFolderGateway: tracked.AllowWindowsFolderGateway,
             AllowConsole: tracked.AllowConsole,
             ConsentedFolderLabels: tracked.ConsentedFolderLabels,
-            ConsoleRequiresPersonApproval: tracked.ConsoleRequiresPersonApproval);
+            ConsoleRequiresPersonApproval: tracked.ConsoleRequiresPersonApproval,
+            AllowConnectedEngineering: tracked.AllowConnectedEngineering);
     }
 
     private sealed record TrackedComputeNode(
@@ -539,5 +655,6 @@ internal sealed class ConnectedComputeRouter(
         bool AllowConsole,
         string[]? ConsentedFolderLabels,
         bool ConsoleRequiresPersonApproval,
+        bool AllowConnectedEngineering,
         bool ExplicitlyOffline);
 }

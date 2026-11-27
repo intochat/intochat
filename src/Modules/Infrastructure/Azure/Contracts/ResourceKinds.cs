@@ -12,6 +12,7 @@ public static class ResourceKinds
     public const string Secret = "secret";
     public const string ManagedEnvironment = "managed-environment";
     public const string ContainerApp = "container-app";
+    public const string ContainerAppsJob = "container-apps-job";
     public const string RoleGrant = "role-grant";
     public const string NetworkSecurityGroup = "network-security-group";
     public const string VirtualNetwork = "virtual-network";

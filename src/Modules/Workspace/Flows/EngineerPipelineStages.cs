@@ -239,7 +239,14 @@ internal static class EngineerPipelineStages
 
         if (repository is not null)
         {
-            await repository.PushBranch(new PushBranchRequest(activeLease.BranchName, verifiedCommit.Commit.Value)).ConfigureAwait(true);
+            var localWorktreePath = !string.IsNullOrWhiteSpace(activeLease.TreePath) && Directory.Exists(activeLease.TreePath)
+                ? activeLease.TreePath
+                : null;
+            await repository.PushBranch(new PushBranchRequest(
+                activeLease.BranchName,
+                verifiedCommit.Commit.Value,
+                Force: false,
+                LocalWorktreePath: localWorktreePath)).ConfigureAwait(true);
             return (humanApprover, verifiedCommit.Commit, $"refs/heads/{activeLease.BranchName}");
         }
 

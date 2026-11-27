@@ -50,7 +50,7 @@ services:
       IntoChatOS__Home: "/home/agent/intochat-home"
       IntoChatOS__Auth__Posture: "Open"
       IntoChatOS__Auth__AllowOpenOnNetwork: "true"
-      IntoChatOS__Platform__Parts__ConfiguredCustodyAcknowledged: "true"
+      IntoChatOS__Platform__Storage__ConfiguredCustodyAcknowledged: "true"
       SLOT_ID: "${SLOT_ID:-slot-00}"
       OTEL_SERVICE_NAME: "devslot-${SLOT_ID:-slot-00}-candidate"
     depends_on:

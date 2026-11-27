@@ -1463,5 +1463,10 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
         { throw new UnauthorizedAccessException($"Only the owning brain can deliver to connection github/{Key.Connection}."); }
     }
 
-    private RepositoryView View() => new(Key.Connection, Snapshot.Status == ConnectionStatus.Connected, Snapshot.PullRequests, Snapshot.LastWebhookAt);
+    private RepositoryView View() => new(
+        Key.Connection,
+        Snapshot.Status == ConnectionStatus.Connected,
+        Snapshot.PullRequests,
+        Snapshot.LastWebhookAt,
+        !string.IsNullOrWhiteSpace(Snapshot.Owner) && !string.IsNullOrWhiteSpace(Snapshot.Name) ? $"{Snapshot.Owner}/{Snapshot.Name}" : null);
 }
