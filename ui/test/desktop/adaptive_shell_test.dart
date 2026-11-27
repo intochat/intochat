@@ -98,12 +98,12 @@ BrainSessionController _createSession() => BrainSessionController(
   loadProjection: (_) async => _fakeProjection(),
   loadNode: (kind, name) async {
     if (kind == 'viewport') {
-      return {
-        'revision': 1,
-        'root': {'kind': 'view', 'name': 'test-brain/apps/ino/view'},
-      };
+      return const ViewportPayload(
+        revision: 1,
+        root: UiViewRef(kind: 'view', name: 'test-brain/apps/ino/view'),
+      );
     }
-    return _fakeWindowView();
+    return PublishedViewPayload.fromJson(_fakeWindowView());
   },
   onAction: (_) async => const <String, dynamic>{},
   onActivate: (_) {},

@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 // A copy button: the server answers its activation with a Copy intent the client performs.
@@ -13,7 +14,7 @@ Widget _copy() => ViewHost(
   knowsApp: (_) => false,
   kind: 'view',
   name: 'local/apps/share/view',
-  load: (kind, name) async => {
+  load: (kind, name) async => PublishedViewPayload.fromJson({
     'generation': 1,
     'view': {
       'title': 'Share',
@@ -33,7 +34,7 @@ Widget _copy() => ViewHost(
         ],
       },
     },
-  },
+  }),
   watch: (kind, name) => const Stream.empty(),
   onAction: (event) async => {
     'intent': {

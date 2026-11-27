@@ -141,7 +141,7 @@ Future<List<Map<String, dynamic>>> _pumpPicker(
               ),
             },
             send: (event) async {
-              sent.add(Map<String, dynamic>.from(event));
+              sent.add(event.toJson());
               return {'delivered': true};
             },
           ),

@@ -8,7 +8,6 @@ import '../design/app_tile.dart' show IcAppIcon;
 import '../design/smart_app_tile_spec.dart';
 import '../nodes/node_context.dart';
 import '../theme/ui_tokens.dart' show IcStylePreset;
-import 'child_route.dart';
 
 /// Allowed shell-originated `(scope, operation)` requests for `requestApp`.
 /// `window` stands for any open window's app (sandbox controls).
@@ -370,13 +369,13 @@ class BrainSessionController extends ChangeNotifier {
 
   // ── Unified Transport & Capability Facade ────────────────────────────────
 
-  Future<Map<String, dynamic>> loadNode(String kind, String name) {
+  Future<UiNodePayload> loadNode(String kind, String name) {
     if (_loadNodeOverride != null) return _loadNodeOverride(kind, name);
     final client = _client;
     if (client == null) {
       return Future.error(StateError('No UI client configured for loadNode.'));
     }
-    return client.appRequest(_brainId, appNodePath(kind, name));
+    return client.readNode(_brainId, kind, name);
   }
 
   Stream<void> watchNode(String kind, String name) {
@@ -431,11 +430,11 @@ class BrainSessionController extends ChangeNotifier {
     return client.channel.call(_brainId, contract, key, method, const []);
   }
 
-  Future<Object?> sendAction(Map<String, Object?> event) {
-    if (_onActionOverride != null) return _onActionOverride(event);
+  Future<Object?> sendAction(UiAction action) {
+    if (_onActionOverride != null) return _onActionOverride(action);
     final client = _client;
     if (client == null) return Future.value(null);
-    return client.uiEvent(_brainId, event);
+    return client.uiEvent(_brainId, action);
   }
 
   Future<void> requestApp(String app, String operation, String input) async {
@@ -488,13 +487,14 @@ class BrainSessionController extends ChangeNotifier {
   ]) async {
     final epoch = _epoch;
     try {
-      await sendAction({
-        'kind': 'act',
-        'neuron': '$_brainId/apps/desktop',
-        'target': '.',
-        'signal': signal,
-        'args': ?args,
-      });
+      await sendAction(
+        ActAction(
+          neuron: '$_brainId/apps/desktop',
+          target: '.',
+          signal: signal,
+          args: args,
+        ),
+      );
       if (!_disposed && epoch == _epoch) {
         await reloadDesktop();
       }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
@@ -46,7 +47,7 @@ void main() {
             },
             load: (_, _) async {
               viewLoads++;
-              return {
+              return PublishedViewPayload.fromJson({
                 'alias': 'app.engineer',
                 'generation': viewLoads,
                 'view': {
@@ -59,7 +60,7 @@ void main() {
                     ],
                   },
                 },
-              };
+              });
             },
           ),
         ),
@@ -116,16 +117,17 @@ void main() {
         onCancel: () => activeScreenListeners--,
       );
 
-      final pendingLoads = <Completer<Map<String, dynamic>>>[];
-      Map<String, dynamic> payload(int gen, String tab) => {
-        'alias': 'app.creator',
-        'generation': gen,
-        'view': {
-          'title': 'Creator',
-          'acts': 'act',
-          'root': {'kind': 'text', 'value': 'Inspector:$tab#$gen'},
-        },
-      };
+      final pendingLoads = <Completer<UiNodePayload>>[];
+      UiNodePayload payload(int gen, String tab) =>
+          PublishedViewPayload.fromJson({
+            'alias': 'app.creator',
+            'generation': gen,
+            'view': {
+              'title': 'Creator',
+              'acts': 'act',
+              'root': {'kind': 'text', 'value': 'Inspector:$tab#$gen'},
+            },
+          });
 
       await tester.pumpWidget(
         wrap(
@@ -138,7 +140,7 @@ void main() {
               return screenEvents.stream;
             },
             load: (_, _) {
-              final completer = Completer<Map<String, dynamic>>();
+              final completer = Completer<UiNodePayload>();
               pendingLoads.add(completer);
               return completer.future;
             },

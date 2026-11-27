@@ -11,13 +11,13 @@ import 'node_samples.dart';
 
 const _view = 'local/apps/sample/view';
 
-Map<String, dynamic> _published(
+PublishedViewPayload _published(
   Map<String, dynamic> root, {
   int generation = 3,
-}) => {
+}) => PublishedViewPayload.fromJson({
   'generation': generation,
   'view': {'title': 'Sample', 'root': root},
-};
+});
 
 /// A button that carries a client-local intent and no command.
 Map<String, dynamic> _intentButton(Map<String, dynamic> intent) => {
@@ -46,11 +46,13 @@ Future<void> _host(
           knowsApp: knowsApp ?? (_) => false,
           kind: kind,
           name: name,
-          load: (kind, name) async => _published(root),
+          load: (kind, name) async =>
+              kind == 'viewport' ? const ViewportPayload() : _published(root),
           watch: watch ?? (kind, name) => const Stream.empty(),
           onAction: (event) async {
-            events?.add(event);
-            return answer?.call(event);
+            final json = event.toJson();
+            events?.add(json);
+            return answer?.call(json);
           },
           onActivate: onActivate,
         ),
@@ -391,12 +393,12 @@ void main() {
             knowsApp: (_) => false,
             kind: 'confirmation',
             name: 'local/confirmations',
-            load: (kind, name) async => {
+            load: (kind, name) async => PublishedViewPayload.fromJson({
               'title': 'Confirmations',
               'root': nodeSamples['approvalCard'],
-            },
+            }),
             watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async => events.add(event),
+            onAction: (event) async => events.add(event.toJson()),
           ),
         ),
       ),
@@ -424,12 +426,12 @@ void main() {
               kind: 'confirmation',
               name: 'local/confirmations',
               enabled: true,
-              load: (kind, name) async => {
+              load: (kind, name) async => PublishedViewPayload.fromJson({
                 'title': 'Confirmations',
                 'root': nodeSamples['approvalCard'],
-              },
+              }),
               watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event),
+              onAction: (event) async => events.add(event.toJson()),
             ),
           ),
         ),
@@ -456,12 +458,12 @@ void main() {
               kind: 'confirmation',
               name: 'local/confirmations',
               enabled: false,
-              load: (kind, name) async => {
+              load: (kind, name) async => PublishedViewPayload.fromJson({
                 'title': 'Confirmations',
                 'root': nodeSamples['approvalCard'],
-              },
+              }),
               watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event),
+              onAction: (event) async => events.add(event.toJson()),
             ),
           ),
         ),
@@ -490,12 +492,12 @@ void main() {
               kind: 'confirmation',
               name: 'local/confirmations',
               enabled: true,
-              load: (kind, name) async => {
+              load: (kind, name) async => PublishedViewPayload.fromJson({
                 'title': 'Confirmations',
                 'root': cardWithoutResolve,
-              },
+              }),
               watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event),
+              onAction: (event) async => events.add(event.toJson()),
             ),
           ),
         ),
@@ -525,10 +527,10 @@ void main() {
             load: (kind, name) async {
               loaded.add(kind);
               return kind == 'confirmation'
-                  ? {
+                  ? PublishedViewPayload.fromJson({
                       'title': 'Confirmations',
                       'root': nodeSamples['approvalCard'],
-                    }
+                    })
                   : _published({
                       'kind': 'column',
                       'children': [
@@ -541,7 +543,7 @@ void main() {
                     });
             },
             watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async => events.add(event),
+            onAction: (event) async => events.add(event.toJson()),
           ),
         ),
       ),
@@ -565,19 +567,19 @@ void main() {
             kind: 'viewport',
             name: 'local/apps/x/viewport',
             load: (kind, name) async => kind == 'viewport'
-                ? {
-                    'revision': 1,
-                    'root': {
-                      'kind': 'confirmation',
-                      'name': 'local/confirmations',
-                    },
-                  }
-                : {
+                ? const ViewportPayload(
+                    revision: 1,
+                    root: UiViewRef(
+                      kind: 'confirmation',
+                      name: 'local/confirmations',
+                    ),
+                  )
+                : PublishedViewPayload.fromJson({
                     'title': 'Confirmations',
                     'root': nodeSamples['approvalCard'],
-                  },
+                  }),
             watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async => events.add(event),
+            onAction: (event) async => events.add(event.toJson()),
           ),
         ),
       ),
@@ -598,7 +600,7 @@ void main() {
             knowsApp: (_) => false,
             kind: 'view',
             name: _view,
-            load: (kind, name) async => {'generation': 0},
+            load: (kind, name) async => const PublishedViewPayload(),
             watch: (kind, name) => const Stream.empty(),
           ),
         ),

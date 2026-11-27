@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
@@ -26,7 +27,7 @@ void main() {
             onAction: (_) async => null,
             load: (kind, name) async {
               loaded.add('$kind:$name');
-              return switch (name) {
+              return PublishedViewPayload.fromJson(switch (name) {
                 'local/apps/dashboard/view' => {
                   'generation': 1,
                   'view': {
@@ -113,7 +114,7 @@ void main() {
                   },
                 },
                 _ => throw StateError('Unexpected load $kind:$name'),
-              };
+              });
             },
           ),
         ),
@@ -141,7 +142,7 @@ void main() {
   testWidgets(
     'nested Slot renders warm surfaceSunk skeleton while loading and ErrorLine with Retry on failure',
     (tester) async {
-      final slotLoad = Completer<Map<String, dynamic>>();
+      final slotLoad = Completer<UiNodePayload>();
       var failSlot = false;
       var slotAttempts = 0;
 
@@ -155,7 +156,7 @@ void main() {
             onAction: (_) async => null,
             load: (kind, name) async {
               if (name == 'local/apps/host/view') {
-                return {
+                return PublishedViewPayload.fromJson({
                   'generation': 1,
                   'view': {
                     'title': 'Host',
@@ -165,18 +166,18 @@ void main() {
                       'neuronUri': 'local/units/slow',
                     },
                   },
-                };
+                });
               }
               slotAttempts++;
               if (slotAttempts == 1) return slotLoad.future;
               if (failSlot) throw StateError('unreachable neuron');
-              return {
+              return PublishedViewPayload.fromJson({
                 'generation': 9,
                 'view': {
                   'title': 'Recovered',
                   'root': {'kind': 'text', 'value': 'Recovered slot content'},
                 },
-              };
+              });
             },
           ),
         ),
@@ -235,9 +236,10 @@ void main() {
                 ? childWatch.stream
                 : const Stream.empty(),
             onAction: (event) async {
-              events.add(event);
-              if (event['neuron'] == 'local/units/counter' &&
-                  event['signal'] == 'counter.increment') {
+              events.add(event.toJson());
+              if (event is ActAction &&
+                  event.neuron == 'local/units/counter' &&
+                  event.signal == 'counter.increment') {
                 counter++;
                 slotGen++;
               }
@@ -245,7 +247,7 @@ void main() {
             },
             load: (kind, name) async {
               if (name == 'local/apps/parent/view') {
-                return {
+                return PublishedViewPayload.fromJson({
                   'generation': 7,
                   'view': {
                     'title': 'Parent',
@@ -261,10 +263,10 @@ void main() {
                       ],
                     },
                   },
-                };
+                });
               }
               if (name == 'local/units/counter') {
-                return {
+                return PublishedViewPayload.fromJson({
                   'generation': slotGen,
                   'view': {
                     'title': 'Counter',
@@ -286,7 +288,7 @@ void main() {
                       ],
                     },
                   },
-                };
+                });
               }
               throw StateError('Unknown $name');
             },
@@ -333,43 +335,44 @@ void main() {
             name: 'local/slot-a',
             watch: (_, _) => const Stream.empty(),
             onAction: (_) async => null,
-            load: (kind, name) async => switch (name) {
-              'local/slot-a' => {
-                'generation': 1,
-                'view': {
-                  'title': 'A',
-                  'root': {
-                    'kind': 'column',
-                    'children': [
-                      {'kind': 'text', 'value': 'Node A'},
-                      {
-                        'kind': 'neuronRef',
-                        'refKind': 'child',
-                        'neuronUri': 'local/slot-b',
+            load: (kind, name) async =>
+                PublishedViewPayload.fromJson(switch (name) {
+                  'local/slot-a' => {
+                    'generation': 1,
+                    'view': {
+                      'title': 'A',
+                      'root': {
+                        'kind': 'column',
+                        'children': [
+                          {'kind': 'text', 'value': 'Node A'},
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'child',
+                            'neuronUri': 'local/slot-b',
+                          },
+                        ],
                       },
-                    ],
+                    },
                   },
-                },
-              },
-              'local/slot-b' => {
-                'generation': 1,
-                'view': {
-                  'title': 'B',
-                  'root': {
-                    'kind': 'column',
-                    'children': [
-                      {'kind': 'text', 'value': 'Node B'},
-                      {
-                        'kind': 'neuronRef',
-                        'refKind': 'child',
-                        'neuronUri': 'local/slot-a',
+                  'local/slot-b' => {
+                    'generation': 1,
+                    'view': {
+                      'title': 'B',
+                      'root': {
+                        'kind': 'column',
+                        'children': [
+                          {'kind': 'text', 'value': 'Node B'},
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'child',
+                            'neuronUri': 'local/slot-a',
+                          },
+                        ],
                       },
-                    ],
+                    },
                   },
-                },
-              },
-              _ => throw StateError('Unexpected $name'),
-            },
+                  _ => throw StateError('Unexpected $name'),
+                }),
           ),
         ),
       );
@@ -391,7 +394,7 @@ void main() {
             onAction: (_) async => null,
             load: (kind, name) async {
               final idx = int.parse(name.substring('local/d'.length));
-              return {
+              return PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {
                   'title': 'D$idx',
@@ -407,7 +410,7 @@ void main() {
                     ],
                   },
                 },
-              };
+              });
             },
           ),
         ),
@@ -437,65 +440,66 @@ void main() {
               name: 'local/apps/ino/view',
               watch: (_, _) => const Stream.empty(),
               onAction: (event) async {
-                events.add(event);
+                events.add(event.toJson());
                 return {'delivered': true};
               },
-              load: (kind, name) async => switch (name) {
-                'local/apps/ino/view' => {
-                  'generation': 3,
-                  'view': {
-                    'title': 'Ino',
-                    'root': {
-                      'kind': 'conversation',
-                      'composer': {
-                        'key': 'composer',
-                        'placeholder': 'Ask anything',
-                        'enabled': true,
-                      },
-                      'messages': [
-                        {
-                          'id': 'm1',
-                          'role': 'assistant',
-                          'text': 'Here is the live account widget:',
-                          'status': 'completed',
-                          'cards': [
+              load: (kind, name) async =>
+                  PublishedViewPayload.fromJson(switch (name) {
+                    'local/apps/ino/view' => {
+                      'generation': 3,
+                      'view': {
+                        'title': 'Ino',
+                        'root': {
+                          'kind': 'conversation',
+                          'composer': {
+                            'key': 'composer',
+                            'placeholder': 'Ask anything',
+                            'enabled': true,
+                          },
+                          'messages': [
                             {
-                              'kind': 'neuronRef',
-                              'refKind': 'child',
-                              'neuronUri': 'local/units/bank',
+                              'id': 'm1',
+                              'role': 'assistant',
+                              'text': 'Here is the live account widget:',
+                              'status': 'completed',
+                              'cards': [
+                                {
+                                  'kind': 'neuronRef',
+                                  'refKind': 'child',
+                                  'neuronUri': 'local/units/bank',
+                                },
+                              ],
                             },
                           ],
                         },
-                      ],
+                      },
                     },
-                  },
-                },
-                'local/units/bank' => {
-                  'generation': 12,
-                  'view': {
-                    'title': 'Bank',
-                    'root': {
-                      'kind': 'card',
-                      'title': 'Checking Account',
-                      'children': [
-                        {
-                          'kind': 'button',
-                          'key': 'cmd:Deposit:50',
-                          'label': 'Deposit €50',
-                          'command': {
-                            'target': '.',
-                            'signal': 'bank.deposit',
-                            'args': {'amount': 50},
-                          },
-                          'style': 'primary',
-                          'enabled': true,
+                    'local/units/bank' => {
+                      'generation': 12,
+                      'view': {
+                        'title': 'Bank',
+                        'root': {
+                          'kind': 'card',
+                          'title': 'Checking Account',
+                          'children': [
+                            {
+                              'kind': 'button',
+                              'key': 'cmd:Deposit:50',
+                              'label': 'Deposit €50',
+                              'command': {
+                                'target': '.',
+                                'signal': 'bank.deposit',
+                                'args': {'amount': 50},
+                              },
+                              'style': 'primary',
+                              'enabled': true,
+                            },
+                          ],
                         },
-                      ],
+                      },
                     },
-                  },
-                },
-                _ => throw StateError('Unknown $name'),
-              },
+                    _ => throw StateError('Unknown $name'),
+                  }),
             ),
           ),
         ),

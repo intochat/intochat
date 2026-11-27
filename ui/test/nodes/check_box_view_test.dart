@@ -15,7 +15,7 @@ NodeContext _ctx(
   childPath: childPath,
   childProps: props,
   send: (event) async {
-    sent.add(event);
+    sent.add(event.toJson());
     return {'delivered': true};
   },
 );
@@ -42,36 +42,41 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
           name: _parent,
           watch: (_, _) => const Stream.empty(),
           onAction: (event) async {
-            sent.add(event);
+            sent.add(event.toJson());
             return {'delivered': true};
           },
-          load: (kind, name) async => switch (name) {
-            _parent => {
-              'generation': 1,
-              'view': {
-                'title': 'Settings',
-                'root': {
-                  'kind': 'column',
-                  'children': [
-                    {
-                      'kind': 'neuronRef',
-                      'refKind': 'child',
-                      'neuronUri': 'terms',
-                      'props': props,
+          load: (kind, name) async =>
+              PublishedViewPayload.fromJson(switch (name) {
+                _parent => {
+                  'generation': 1,
+                  'view': {
+                    'title': 'Settings',
+                    'root': {
+                      'kind': 'column',
+                      'children': [
+                        {
+                          'kind': 'neuronRef',
+                          'refKind': 'child',
+                          'neuronUri': 'terms',
+                          'props': props,
+                        },
+                      ],
                     },
-                  ],
+                  },
                 },
-              },
-            },
-            _child => {
-              'generation': 3,
-              'view': {
-                'title': 'terms',
-                'root': {'kind': 'checkBoxView', 'key': 'terms', 'isOn': true},
-              },
-            },
-            _ => throw StateError('Unknown $name'),
-          },
+                _child => {
+                  'generation': 3,
+                  'view': {
+                    'title': 'terms',
+                    'root': {
+                      'kind': 'checkBoxView',
+                      'key': 'terms',
+                      'isOn': true,
+                    },
+                  },
+                },
+                _ => throw StateError('Unknown $name'),
+              }),
         ),
       ),
     );

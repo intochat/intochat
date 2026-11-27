@@ -97,7 +97,7 @@ Future<List<Map<String, dynamic>>> _pump(
     // A control neuron's example carries its slot's props beside its node.
     childProps: props is Map ? props.cast<String, dynamic>() : const {},
     send: (event) async {
-      sent.add(event);
+      sent.add(event.toJson());
       return null;
     },
   );

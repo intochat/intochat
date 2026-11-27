@@ -11,6 +11,7 @@ export 'src/core/models/scene_models.dart';
 export 'src/core/models/table_models.dart';
 export 'src/core/models/tree_models.dart';
 export 'src/core/models/desktop_projection.dart';
+export 'src/core/models/ui_wire_models.dart';
 export 'src/core/models/workspace_models.dart';
 export 'src/core/journal_tail_client.dart';
 export 'src/core/scene_client.dart';

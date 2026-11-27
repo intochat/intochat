@@ -151,8 +151,7 @@ class ShellActivationRouter {
   });
 
   final ShellRoutingState Function() readState;
-  final Future<Object?> Function(String brain, Map<String, Object?> event)
-  sendAct;
+  final Future<Object?> Function(String brain, UiAction action) sendAct;
   final Future<void> Function(
     String brain,
     String app,

@@ -53,4 +53,23 @@ final class WorkspaceViewReference {
         variant: json['variant'] as String,
         context: json['context'] as String,
       );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'app': app,
+    'variant': variant,
+    'context': context,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WorkspaceViewReference &&
+          other.id == id &&
+          other.app == app &&
+          other.variant == variant &&
+          other.context == context;
+
+  @override
+  int get hashCode => Object.hash(id, app, variant, context);
 }

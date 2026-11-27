@@ -56,30 +56,31 @@ void main() {
         tester,
         kind: 'view',
         name: 'local/apps/ino/view',
-        load: (kind, name) async => switch (name) {
-          'local/apps/ino/view' => {
-            'generation': 1,
-            'view': {
-              'title': 'Ino',
-              'root': {
-                'kind': 'column',
-                'extents': [1],
-                'children': [
-                  {
-                    'kind': 'neuronRef',
-                    'refKind': 'child',
-                    'neuronUri': 'ino/thread',
+        load: (kind, name) async =>
+            PublishedViewPayload.fromJson(switch (name) {
+              'local/apps/ino/view' => {
+                'generation': 1,
+                'view': {
+                  'title': 'Ino',
+                  'root': {
+                    'kind': 'column',
+                    'extents': [1],
+                    'children': [
+                      {
+                        'kind': 'neuronRef',
+                        'refKind': 'child',
+                        'neuronUri': 'ino/thread',
+                      },
+                    ],
                   },
-                ],
+                },
               },
-            },
-          },
-          'ino/thread' => {
-            'generation': 1,
-            'view': {'title': 'Ino', 'root': _chatThreadRoot()},
-          },
-          _ => throw StateError('Unexpected load $kind:$name'),
-        },
+              'ino/thread' => {
+                'generation': 1,
+                'view': {'title': 'Ino', 'root': _chatThreadRoot()},
+              },
+              _ => throw StateError('Unexpected load $kind:$name'),
+            }),
       );
 
       expect(find.text('Hello Ino'), findsOneWidget);
@@ -105,13 +106,14 @@ void main() {
         tester,
         kind: 'child',
         name: 'local/apps/ino/children/conversation',
-        load: (kind, name) async => switch (name) {
-          'local/apps/ino/children/conversation' => {
-            'generation': 1,
-            'view': {'title': 'Ino', 'root': _chatThreadRoot()},
-          },
-          _ => throw StateError('Unexpected load $kind:$name'),
-        },
+        load: (kind, name) async =>
+            PublishedViewPayload.fromJson(switch (name) {
+              'local/apps/ino/children/conversation' => {
+                'generation': 1,
+                'view': {'title': 'Ino', 'root': _chatThreadRoot()},
+              },
+              _ => throw StateError('Unexpected load $kind:$name'),
+            }),
       );
 
       expect(find.text('Hello Ino'), findsOneWidget);

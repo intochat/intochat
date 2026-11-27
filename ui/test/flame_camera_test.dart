@@ -475,9 +475,8 @@ void main() {
         final ctx = NodeContext(
           view: 'local/apps/creator/view',
           send: (event) async {
-            activations.add(
-              '${event['signal']}:${(event['args'] as Map)['cursor']}',
-            );
+            final act = event as ActAction;
+            activations.add('${act.signal}:${(act.args as Map)['cursor']}');
             return null;
           },
         );
@@ -573,7 +572,7 @@ void main() {
         final actCtx = NodeContext(
           view: 'local/apps/creator/view',
           send: (event) async {
-            actEvents.add(event);
+            actEvents.add(event.toJson());
             return null;
           },
         );

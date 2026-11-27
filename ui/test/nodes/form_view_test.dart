@@ -43,7 +43,7 @@ Future<List<Map<String, dynamic>>> _pump(
               childPath: 'profile',
               childProps: props,
               send: (event) async {
-                sent.add(event);
+                sent.add(event.toJson());
                 return {'delivered': true};
               },
               storeSecret: stored == null
@@ -151,7 +151,7 @@ void main() {
                 childPath: 'profile',
                 childProps: _props,
                 send: (event) async {
-                  sent.add(event);
+                  sent.add(event.toJson());
                   return {'delivered': true};
                 },
                 storeSecret: (name, label, value) async =>

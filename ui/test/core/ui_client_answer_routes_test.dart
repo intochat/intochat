@@ -29,11 +29,10 @@ void main() {
   tearDown(() => client.close());
 
   test('a confirmation answer posts to the plan of the brain inbox', () async {
-    await client.uiEvent('owner', {
-      'kind': 'confirmation',
-      'planId': 'cb-codeblocks/run 1',
-      'approve': true,
-    });
+    await client.uiEvent(
+      'owner',
+      const ConfirmationAction(planId: 'cb-codeblocks/run 1', approve: true),
+    );
 
     final request = sent.single;
     expect(request.method, 'POST');
@@ -45,25 +44,28 @@ void main() {
   });
 
   test('browser reports post to the brain browser routes', () async {
-    await client.uiEvent('owner', {
-      'kind': 'webbrowser',
-      'action': 'connect',
-      'name': 'owner/apps/researcher/browser',
-      'port': 9222,
-      'sessionId': 's-1',
-    });
-    await client.uiEvent('owner', {
-      'kind': 'webbrowser',
-      'action': 'disconnect',
-      'name': 'owner/apps/researcher/browser',
-      'sessionId': 's-1',
-    });
-    await client.uiEvent('owner', {
-      'kind': 'webbrowser',
-      'action': 'unavailable',
-      'name': 'owner/apps/researcher/browser',
-      'reason': 'No WebView2 runtime.',
-    });
+    await client.uiEvent(
+      'owner',
+      const WebBrowserConnectAction(
+        name: 'owner/apps/researcher/browser',
+        port: 9222,
+        sessionId: 's-1',
+      ),
+    );
+    await client.uiEvent(
+      'owner',
+      const WebBrowserDisconnectAction(
+        name: 'owner/apps/researcher/browser',
+        sessionId: 's-1',
+      ),
+    );
+    await client.uiEvent(
+      'owner',
+      const WebBrowserUnavailableAction(
+        name: 'owner/apps/researcher/browser',
+        reason: 'No WebView2 runtime.',
+      ),
+    );
 
     expect(sent.map((request) => request.url.path), [
       '/brains/owner/browsers/connect',
@@ -85,14 +87,16 @@ void main() {
   });
 
   test('an act posts its command to the brain act route', () async {
-    await client.uiEvent('owner', {
-      'kind': 'act',
-      'neuron': 'owner/units/bank',
-      'target': '.',
-      'signal': 'bank.deposit',
-      'args': {'amount': 5},
-      'value': '5',
-    });
+    await client.uiEvent(
+      'owner',
+      const ActAction(
+        neuron: 'owner/units/bank',
+        target: '.',
+        signal: 'bank.deposit',
+        args: {'amount': 5},
+        value: '5',
+      ),
+    );
 
     final request = sent.single;
     expect(request.url.path, '/brains/owner/act');
@@ -106,8 +110,8 @@ void main() {
   });
 
   test('a key activation is refused before anything is sent', () async {
-    await expectLater(
-      () => client.uiEvent('owner', {
+    expect(
+      () => UiAction.fromJson({
         'kind': 'view',
         'name': 'owner/apps/tasks/view',
         'generation': 1,
@@ -121,8 +125,8 @@ void main() {
   test(
     'an unknown browser action is refused before anything is sent',
     () async {
-      await expectLater(
-        () => client.uiEvent('owner', {
+      expect(
+        () => UiAction.fromJson({
           'kind': 'webbrowser',
           'action': 'navigate',
           'name': 'owner/apps/researcher/browser',

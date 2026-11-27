@@ -78,7 +78,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final actEvents = <Map<String, dynamic>>[];
+      final actEvents = <ActAction>[];
       final activations = <Map<String, dynamic>>[];
       var aspireUrl = 'http://localhost:18888/resources';
       var orleansUrl = '/orleans#/overview';
@@ -148,13 +148,13 @@ void main() {
           if (kind == 'viewport') {
             final winId = name.substring(name.lastIndexOf('/') + 1);
             final appId = windowApps[winId] ?? 'engineer';
-            return {
-              'revision': 1,
-              'root': {'kind': 'view', 'name': 'brain-1/apps/$appId/view'},
-            };
+            return ViewportPayload(
+              revision: 1,
+              root: UiViewRef(kind: 'view', name: 'brain-1/apps/$appId/view'),
+            );
           }
           if (name == 'brain-1/apps/engineer/view') {
-            return {
+            return PublishedViewPayload.fromJson({
               'generation': 1,
               'view': {
                 'title': 'IntoChat Engineer',
@@ -199,41 +199,41 @@ void main() {
                   ],
                 },
               },
-            };
+            });
           }
           if (name == 'brain-1/apps/aspire/view') {
-            return {
+            return PublishedViewPayload.fromJson({
               'generation': 2,
               'view': {
                 'title': '.NET Aspire',
                 'root': {'kind': 'text', 'value': 'AspireURL:$aspireUrl'},
               },
-            };
+            });
           }
           if (name == 'brain-1/apps/orleans/view') {
-            return {
+            return PublishedViewPayload.fromJson({
               'generation': 2,
               'view': {
                 'title': 'Orleans Dashboard',
                 'root': {'kind': 'text', 'value': 'OrleansURL:$orleansUrl'},
               },
-            };
+            });
           }
-          return {
+          return PublishedViewPayload.fromJson({
             'generation': 1,
             'view': {
               'title': name,
               'root': {'kind': 'text', 'value': name},
             },
-          };
+          });
         },
         watchNode: (_, _) => const Stream.empty(),
         onAction: (event) async {
-          if (event['kind'] == 'act') {
+          if (event is ActAction) {
             actEvents.add(event);
-            final args = event['args'] as Map<String, Object?>? ?? {};
-            if (event['neuron'] == 'brain-1/apps/desktop' &&
-                event['signal'] == 'desktop.open') {
+            final args = event.args as Map<String, Object?>? ?? {};
+            if (event.neuron == 'brain-1/apps/desktop' &&
+                event.signal == 'desktop.open') {
               final appId = '${args['app'] ?? ''}'.toLowerCase();
               final existing = windows
                   .where((w) => w.appId == appId)
@@ -271,8 +271,8 @@ void main() {
               }
               return {'delivered': true};
             }
-            if (event['neuron'] == 'brain-1/apps/aspire' &&
-                event['signal'] == 'ui.navigate-to') {
+            if (event.neuron == 'brain-1/apps/aspire' &&
+                event.signal == 'ui.navigate-to') {
               if (args['argsJson'] is String) {
                 final decoded = jsonDecode(args['argsJson'] as String) as Map;
                 aspireUrl =
@@ -282,8 +282,8 @@ void main() {
                     'http://localhost:18888/traces/detail/${args['input']}';
               }
             }
-            if (event['neuron'] == 'brain-1/apps/orleans' &&
-                event['signal'] == 'ui.navigate-to') {
+            if (event.neuron == 'brain-1/apps/orleans' &&
+                event.signal == 'ui.navigate-to') {
               orleansUrl = '/orleans#/grains/${args['input']}';
             }
             return {'delivered': true};
@@ -330,10 +330,9 @@ void main() {
       expect(find.byType(WindowFrame), findsNWidgets(2));
       final firstAspireAct = actEvents.singleWhere(
         (e) =>
-            e['neuron'] == 'brain-1/apps/aspire' &&
-            e['signal'] == 'ui.navigate-to',
+            e.neuron == 'brain-1/apps/aspire' && e.signal == 'ui.navigate-to',
       );
-      final firstArgs = firstAspireAct['args'] as Map<String, Object?>;
+      final firstArgs = firstAspireAct.args as Map<String, Object?>;
       expect(firstArgs['input'], '4bf92f3577b34da6a3ce929d0e0e4736');
       expect(firstArgs['transition'], 'fade-through');
       expect(firstArgs['fromNeuron'], 'brain-1/apps/engineer');
@@ -353,10 +352,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       final aspireActs = actEvents
-          .where((e) => e['neuron'] == 'brain-1/apps/aspire')
+          .where((e) => e.neuron == 'brain-1/apps/aspire')
           .toList();
       expect(aspireActs, hasLength(2));
-      final typedArgs = aspireActs.last['args'] as Map<String, Object?>;
+      final typedArgs = aspireActs.last.args as Map<String, Object?>;
       expect(typedArgs['argsJson'], typedArgsJson);
       expect(typedArgs['transition'], 'shared-axis-z');
       expect(typedArgs['fromNeuron'], 'app.engineer');
@@ -378,10 +377,9 @@ void main() {
       expect(find.byType(WindowFrame), findsNWidgets(3));
       final orleansAct = actEvents.singleWhere(
         (e) =>
-            e['neuron'] == 'brain-1/apps/orleans' &&
-            e['signal'] == 'ui.navigate-to',
+            e.neuron == 'brain-1/apps/orleans' && e.signal == 'ui.navigate-to',
       );
-      final orleansActArgs = orleansAct['args'] as Map<String, Object?>;
+      final orleansActArgs = orleansAct.args as Map<String, Object?>;
       expect(orleansActArgs['input'], 'EngineerFlow');
       expect(orleansActArgs['transition'], 'fade-through');
       expect(

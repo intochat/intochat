@@ -17,6 +17,7 @@ import 'models/installed_app.dart';
 import 'models/journal_models.dart';
 import 'models/notification_models.dart';
 import 'models/table_models.dart';
+import 'models/ui_wire_models.dart';
 import 'models/workspace_models.dart';
 import 'neuron_channel.dart';
 import 'neuron_watch_mux.dart';

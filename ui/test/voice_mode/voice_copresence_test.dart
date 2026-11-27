@@ -161,7 +161,7 @@ void main() {
         childPath: 'conversation',
         confirmation: true,
         send: (event) async {
-          sentActions.add(Map<String, dynamic>.from(event));
+          sentActions.add(event.toJson());
           return {'delivered': true};
         },
         talk: (conversation) async {

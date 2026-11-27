@@ -27,7 +27,7 @@ DesktopWindowProjection _window(String id, String appId) =>
 void main() {
   group('ShellActivationRouter', () {
     test('dispatches ui.navigate-to exactly once for os_uri on new and existing desktop windows', () async {
-      final actEvents = <Map<String, Object?>>[];
+      final actEvents = <ActAction>[];
       final openedApps = <String>[];
       final focusedWindows = <String>[];
       final navigatedReloads = <(String?, String?)>[];
@@ -39,7 +39,7 @@ void main() {
           isDesktopRoot: true,
         ),
         sendAct: (_, event) async {
-          actEvents.add(event);
+          actEvents.add(event as ActAction);
           return const {'delivered': true};
         },
         desktopDelegate: DesktopActivationDelegate(
@@ -70,10 +70,10 @@ void main() {
       expect(first.dispatchedNavigateTo, isTrue);
       expect(openedApps, ['aspire']);
       expect(
-        actEvents.where((e) => e['signal'] == 'ui.navigate-to'),
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
         hasLength(1),
       );
-      final firstArgs = actEvents.single['args'] as Map<String, Object?>;
+      final firstArgs = actEvents.single.args as Map<String, Object?>;
       expect(firstArgs['argsJson'], argsJson);
       expect(firstArgs['transition'], 'shared-axis-z');
       expect(firstArgs['fromNeuron'], 'brain-1/apps/engineer');
@@ -89,7 +89,7 @@ void main() {
       expect(second.dispatchedNavigateTo, isTrue);
       expect(focusedWindows, ['w-1']);
       expect(
-        actEvents.where((e) => e['signal'] == 'ui.navigate-to'),
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
         hasLength(2),
       );
       expect(navigatedReloads.last, ('w-1', 'aspire'));
@@ -100,7 +100,7 @@ void main() {
       final refused = <String>[];
       final toasts = <String>[];
       final switchedTo = <String>[];
-      final actEvents = <Map<String, Object?>>[];
+      final actEvents = <ActAction>[];
 
       final router = ShellActivationRouter(
         readState: () => const ShellRoutingState(
@@ -111,8 +111,9 @@ void main() {
           focusedNeuron: 'brain-1/apps/engineer',
         ),
         sendAct: (_, event) async {
-          actEvents.add(event);
-          if (event['signal'] == 'ui.navigate-from') {
+          final act = event as ActAction;
+          actEvents.add(act);
+          if (act.signal == 'ui.navigate-from') {
             if (blockWithRule) {
               return {
                 'error': 'Refused',
@@ -137,7 +138,7 @@ void main() {
       expect(refused, ['Save draft first.']);
       expect(toasts, ['Save draft first.']);
       expect(switchedTo, isEmpty);
-      expect(actEvents.where((e) => e['signal'] == 'ui.navigate-to'), isEmpty);
+      expect(actEvents.where((e) => e.signal == 'ui.navigate-to'), isEmpty);
 
       // Now fail open when handler is unsupported.
       blockWithRule = false;
@@ -149,13 +150,13 @@ void main() {
       expect(allowed.dispatchedNavigateTo, isTrue);
       expect(switchedTo, ['aspire']);
       expect(
-        actEvents.where((e) => e['signal'] == 'ui.navigate-to'),
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
         hasLength(1),
       );
     });
 
     test('routes os_uri settings and legacy settings activations without ui.navigate-to', () async {
-      final actEvents = <Map<String, Object?>>[];
+      final actEvents = <UiAction>[];
       final shellOps = <(String, String, String)>[];
       final appRequests = <(String, String, String, String)>[];
       final openedApps = <String>[];

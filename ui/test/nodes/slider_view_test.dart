@@ -37,7 +37,7 @@ class _HostState extends State<_Host> {
             childPath: 'depth',
             childProps: props,
             send: (event) async {
-              widget.sent.add(event);
+              widget.sent.add(event.toJson());
               return {'delivered': true};
             },
           ),

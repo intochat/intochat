@@ -19,7 +19,7 @@ void main() {
         'offContent': 'Off',
       },
       send: (event) async {
-        sent.add(event);
+        sent.add(event.toJson());
         return {'delivered': true};
       },
     );
@@ -66,7 +66,7 @@ void main() {
               generation: 1,
               childProps: const {'label': 'Wi-Fi', 'isEnabled': false},
               send: (event) async {
-                sent.add(event);
+                sent.add(event.toJson());
                 return null;
               },
             ),

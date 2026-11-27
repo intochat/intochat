@@ -25,7 +25,7 @@ Future<List<Map<String, dynamic>>> _pump(
             childPath: slot,
             childProps: props,
             send: (event) async {
-              sent.add(event);
+              sent.add(event.toJson());
               return {'delivered': true};
             },
           ),

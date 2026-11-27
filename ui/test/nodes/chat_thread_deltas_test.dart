@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 const _conversationContract =
@@ -76,7 +77,9 @@ void main() {
             onAction: (_) async => null,
             load: (kind, name) async {
               loads++;
-              return _chatThreadViewJson(entry: 'r1/reply');
+              return PublishedViewPayload.fromJson(
+                _chatThreadViewJson(entry: 'r1/reply'),
+              );
             },
           ),
         ),
@@ -129,7 +132,9 @@ void main() {
               };
             },
             onAction: (_) async => null,
-            load: (kind, name) async => _chatThreadViewJson(entry: 'r1/reply'),
+            load: (kind, name) async => PublishedViewPayload.fromJson(
+              _chatThreadViewJson(entry: 'r1/reply'),
+            ),
           ),
         ),
       ),
@@ -172,7 +177,9 @@ void main() {
             watch: (_, _) => const Stream.empty(),
             watchSignal: (_, _, _) => deltas.stream,
             onAction: (_) async => null,
-            load: (kind, name) async => _chatThreadViewJson(entry: 'r1/reply'),
+            load: (kind, name) async => PublishedViewPayload.fromJson(
+              _chatThreadViewJson(entry: 'r1/reply'),
+            ),
           ),
         ),
       ),
@@ -212,13 +219,15 @@ void main() {
             watch: (_, _) => viewWatch.stream,
             watchSignal: (_, _, _) => deltas.stream,
             onAction: (_) async => null,
-            load: (kind, name) async => completed
-                ? _chatThreadViewJson(
-                    entry: 'r1/reply',
-                    replyText: 'final',
-                    status: 'completed',
-                  )
-                : _chatThreadViewJson(entry: 'r1/reply'),
+            load: (kind, name) async => PublishedViewPayload.fromJson(
+              completed
+                  ? _chatThreadViewJson(
+                      entry: 'r1/reply',
+                      replyText: 'final',
+                      status: 'completed',
+                    )
+                  : _chatThreadViewJson(entry: 'r1/reply'),
+            ),
           ),
         ),
       ),
@@ -260,7 +269,9 @@ void main() {
               return const Stream.empty();
             },
             onAction: (_) async => null,
-            load: (kind, name) async => _chatThreadViewJson(entry: 'r1/reply'),
+            load: (kind, name) async => PublishedViewPayload.fromJson(
+              _chatThreadViewJson(entry: 'r1/reply'),
+            ),
           ),
         ),
       ),
@@ -294,33 +305,33 @@ void main() {
                 };
               },
               onAction: (_) async => null,
-              load: (kind, name) async => switch (name) {
-                'local/apps/ino/view' => {
-                  'generation': 1,
-                  'view': {
-                    'title': 'Ino',
-                    'root': {
-                      'kind': 'column',
-                      'extents': [1],
-                      'children': [
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'child',
-                          'neuronUri': 'conversation',
-                          'props': {
-                            'placeholder': 'Ask anything.',
-                            'conversation': 'conversations/c-nested',
-                          },
+              load: (kind, name) async =>
+                  PublishedViewPayload.fromJson(switch (name) {
+                    'local/apps/ino/view' => {
+                      'generation': 1,
+                      'view': {
+                        'title': 'Ino',
+                        'root': {
+                          'kind': 'column',
+                          'extents': [1],
+                          'children': [
+                            {
+                              'kind': 'neuronRef',
+                              'refKind': 'child',
+                              'neuronUri': 'conversation',
+                              'props': {
+                                'placeholder': 'Ask anything.',
+                                'conversation': 'conversations/c-nested',
+                              },
+                            },
+                          ],
                         },
-                      ],
+                      },
                     },
-                  },
-                },
-                'local/apps/ino/children/conversation' => _chatThreadViewJson(
-                  entry: 'r1/reply',
-                ),
-                _ => throw StateError('Unexpected load $kind:$name'),
-              },
+                    'local/apps/ino/children/conversation' =>
+                      _chatThreadViewJson(entry: 'r1/reply'),
+                    _ => throw StateError('Unexpected load $kind:$name'),
+                  }),
             ),
           ),
         ),

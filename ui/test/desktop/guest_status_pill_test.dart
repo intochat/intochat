@@ -289,18 +289,18 @@ void main() {
       ),
       loadNode: (kind, name) async {
         if (kind == 'viewport') {
-          return {
-            'revision': 1,
-            'root': {'kind': 'view', 'name': '$brain/apps/ino/view'},
-          };
+          return ViewportPayload(
+            revision: 1,
+            root: UiViewRef(kind: 'view', name: '$brain/apps/ino/view'),
+          );
         }
-        return {
+        return PublishedViewPayload.fromJson({
           'generation': 1,
           'view': {
             'title': name,
             'root': {'kind': 'text', 'value': 'Viewport: $name'},
           },
-        };
+        });
       },
       watchNode: (_, _) => const Stream.empty(),
       onAction: (_) async => null,

@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 // A chat is a view: its transcript a column of cards, its composer a keyed field that submits to the app.
@@ -43,13 +44,13 @@ Future<void> _host(
           knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async => {
+          load: (kind, name) async => PublishedViewPayload.fromJson({
             'generation': 2,
             'view': {'title': 'Ino', 'root': root},
-          },
+          }),
           watch: (kind, name) => const Stream.empty(),
           onAction: (event) async {
-            events.add(event);
+            events.add(event.toJson());
             return null;
           },
         ),

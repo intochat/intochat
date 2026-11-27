@@ -24,7 +24,7 @@ Future<List<Map<String, dynamic>>> _pump(
               generation: 1,
               actNeuron: 'local/apps/creator',
               send: (event) async {
-                sent.add(event);
+                sent.add(event.toJson());
                 return {'delivered': true};
               },
             ),

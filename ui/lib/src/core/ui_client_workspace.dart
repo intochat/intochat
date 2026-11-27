@@ -201,39 +201,48 @@ extension IntoChatOSUiClientWorkspace on IntoChatOSUiClient {
     await appRequest(workspace, 'desktop/projection'),
   );
 
-  /// Posts one UI event from a [NodeContext]: an `act` goes to
-  /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), the one route
-  /// of a person's action; a `confirmation` answer to [answerConfirmation]; a
-  /// `webbrowser` report to [webBrowser]. Any other kind is refused here, never
-  /// guessed onto a route.
+  /// Reads one UI node of the brain (`GET /brains/{workspace}/apps/node?kind=...&name=...`,
+  /// or for `kind == 'child'` its key path `GET /brains/{workspace}/apps/{app}/children/{path}`)
+  /// and decodes it into a typed [UiNodePayload].
+  Future<UiNodePayload> readNode(
+    String workspace,
+    String kind,
+    String name,
+  ) async {
+    final path = _nodePath(kind, name);
+    final response = await _request(
+      'GET',
+      '/brains/${Uri.encodeComponent(workspace)}/apps/$path',
+      timeout: const Duration(seconds: 30),
+    );
+    final Object? decoded = response.body.isEmpty
+        ? null
+        : jsonDecode(response.body);
+    return UiNodePayload.fromDynamic(kind, decoded);
+  }
+
+  /// Posts one typed [UiAction] from a [NodeContext] or [ViewHost]:
+  /// - [ActAction] -> `POST /brains/{workspace}/act` (`AppUiEndpoints.ActRequest`)
+  /// - [ConfirmationAction] -> [answerConfirmation]
+  /// - [WebBrowserAction] -> [webBrowser]
   Future<Map<String, dynamic>> uiEvent(
     String workspace,
-    Map<String, Object?> event,
-  ) async {
-    switch (event['kind']) {
-      case 'act':
-        break;
-      case 'confirmation':
-        return answerConfirmation(
-          workspace,
-          event['planId'] as String,
-          approve: event['approve'] as bool,
-        );
-      case 'webbrowser':
-        return webBrowser(workspace, event);
-      default:
-        throw ArgumentError.value(event['kind'], 'kind', 'Unknown UI event');
-    }
+    UiAction action,
+  ) async => switch (action) {
+    ActAction() => _act(workspace, action),
+    ConfirmationAction(:final planId, :final approve) => answerConfirmation(
+      workspace,
+      planId,
+      approve: approve,
+    ),
+    WebBrowserAction() => webBrowser(workspace, action),
+  };
+
+  Future<Map<String, dynamic>> _act(String workspace, ActAction action) async {
     final response = await _request(
       'POST',
       '/brains/${Uri.encodeComponent(workspace)}/act',
-      body: {
-        'neuron': event['neuron'],
-        'target': event['target'],
-        'signal': event['signal'],
-        'args': event['args'],
-        'value': ?event['value'],
-      },
+      body: action.toRequestJson(),
       timeout: const Duration(seconds: 30),
     );
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
@@ -263,21 +272,12 @@ extension IntoChatOSUiClientWorkspace on IntoChatOSUiClient {
   /// (WebBrowserEndpoints).
   Future<Map<String, dynamic>> webBrowser(
     String workspace,
-    Map<String, Object?> report,
+    WebBrowserAction report,
   ) async {
-    final action = report['action'];
-    if (action is! String ||
-        !const {'connect', 'disconnect', 'unavailable'}.contains(action)) {
-      throw ArgumentError.value(action, 'action', 'Unknown browser action.');
-    }
     final response = await _request(
       'POST',
-      '/brains/${Uri.encodeComponent(workspace)}/browsers/$action',
-      body: {
-        for (final entry in report.entries)
-          if (entry.key != 'kind' && entry.key != 'action')
-            entry.key: entry.value,
-      },
+      '/brains/${Uri.encodeComponent(workspace)}/browsers/${report.action}',
+      body: report.toRequestJson(),
       timeout: const Duration(seconds: 30),
     );
     return _bodyMap(response.body);
@@ -397,3 +397,21 @@ NeuronSignal _logSignalLatency(NeuronSignal signal) {
 Map<String, dynamic> _bodyMap(String body) => body.isEmpty
     ? <String, dynamic>{}
     : Map<String, dynamic>.from(jsonDecode(body) as Map);
+
+String _nodePath(String kind, String name) {
+  if (kind == 'child') {
+    final at = name.indexOf('/apps/');
+    final rest = at < 0 ? '' : name.substring(at + '/apps/'.length);
+    final children = rest.indexOf('/children/');
+    if (children <= 0) {
+      throw ArgumentError.value(name, 'name', 'not an app child');
+    }
+    final path = rest
+        .substring(children + '/children/'.length)
+        .split('/')
+        .map(Uri.encodeComponent)
+        .join('/');
+    return '${Uri.encodeComponent(rest.substring(0, children))}/children/$path';
+  }
+  return 'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}';
+}
