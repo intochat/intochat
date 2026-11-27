@@ -5,7 +5,7 @@ using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using IntoChat.OS.Host.Http;
+using DigitalBrain.Runtime.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
@@ -13,7 +13,7 @@ internal static class WorkspaceEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var brain = OsBrainRoutes.Group(endpoints);
+        var brain = BrainRouteGroups.Brain(endpoints);
         brain.MapGet("", (INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Read().WaitAsync(ct))));
         brain.MapPost("/show", (NeuronCommand input, INeuronProxies intoChatOS, CancellationToken ct)

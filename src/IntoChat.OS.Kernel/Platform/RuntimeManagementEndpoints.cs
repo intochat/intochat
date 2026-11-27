@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Kernel.Platform;
@@ -15,8 +15,8 @@ internal static class RuntimeManagementEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        // SessionGroup avoids the normal membership filter's create-on-access behavior.
-        OsBrainRoutes.SessionGroup(endpoints, "/management/v1")
+        // Session avoids the normal membership filter's create-on-access behavior.
+        BrainRouteGroups.Session(endpoints, "/management/v1")
             .MapGet("/observation", ObserveAsync);
     }
 

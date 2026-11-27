@@ -5,8 +5,8 @@ using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Screens;
 
@@ -14,7 +14,7 @@ internal static class ScreensEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/screens").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var group = BrainRouteGroups.Brain(endpoints, "/screens").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         group.MapGet("", async (INeuronProxies brain, CancellationToken ct) =>
         {

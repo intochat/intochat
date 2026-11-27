@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -20,7 +20,7 @@ internal static class EnrollmentEdgeEndpoints
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapPost(EnrollmentEdge.Redeem, static http => Run(http, RedeemAsync)).AllowAnonymous();
-        var brain = OsBrainRoutes.SessionGroup(endpoints, "/devices/enrollment").AllowAnonymous();
+        var brain = BrainRouteGroups.Session(endpoints, "/devices/enrollment").AllowAnonymous();
         brain.MapGet("", static http => Run(http, ListAsync));
         brain.MapGet("/live", static http => Run(http, LiveAsync));
     }

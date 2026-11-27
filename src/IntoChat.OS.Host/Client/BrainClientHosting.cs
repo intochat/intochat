@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,6 +12,7 @@ public static class BrainClientHosting
     {
         services.TryAddSingleton<BrainClient>();
         services.TryAddSingleton<IIntoChatOSBrains>(provider => provider.GetRequiredService<BrainClient>());
+        services.TryAddSingleton<IBrainRouteInitializer, OsBrainRouteInitializer>();
         services.AddNeuronProxies();
         return services;
     }

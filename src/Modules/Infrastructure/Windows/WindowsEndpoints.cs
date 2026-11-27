@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Identity.Local.Machine;
-using IntoChat.OS.Host.Http;
+using DigitalBrain.Runtime.Http;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
@@ -31,7 +31,7 @@ internal static class WindowsEndpoints
 {
     internal static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/windows").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
+        var group = BrainRouteGroups.Brain(endpoints, "/windows").WithMetadata(BrainRouteGroups.GuestClosed.Instance);
         group.MapGet("/device", ([FromServices] MachineId thisMachine) =>
             OperatingSystem.IsWindows()
                 ? Results.Ok(new { machineId = thisMachine.Value, machineName = Environment.MachineName })

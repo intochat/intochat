@@ -5,9 +5,9 @@ using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Units;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
@@ -39,7 +39,7 @@ internal static class AppUiEndpoints
         var logger = (endpoints.ServiceProvider.GetService(typeof(ILoggerFactory)) as ILoggerFactory)
             ?.CreateLogger(typeof(AppUiEndpoints).FullName!)
             ?? ConsoleLog;
-        var apps = OsBrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var apps = BrainRouteGroups.Brain(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
         apps.MapPost("/connect", async ([FromServices] IEnumerable<IUiRootProvider> providers, CancellationToken ct) =>
         {
             var provider = providers.SingleOrDefault();
@@ -53,7 +53,7 @@ internal static class AppUiEndpoints
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault()));
         apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
-        OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
+        BrainRouteGroups.Brain(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
     }
 

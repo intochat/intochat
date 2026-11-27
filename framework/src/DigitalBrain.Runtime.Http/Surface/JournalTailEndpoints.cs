@@ -37,7 +37,9 @@ public static class JournalTailEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        BrainRoutes.Group(endpoints, "/journal").MapGet("/tail", Tail);
+        BrainRoutes.Group(endpoints, "/journal")
+            .WithMetadata(BrainRouteGroups.GuestClosed.Instance)
+            .MapGet("/tail", Tail);
     }
 
     private static IResult Tail(HttpContext http, string brainId, long? since)

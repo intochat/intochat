@@ -88,9 +88,9 @@ public static class AccountSession
     }
 
     private static bool IsGuestAllowed(Endpoint endpoint)
-        => endpoint.Metadata.GetMetadata<IntoChat.OS.Host.Http.OsBrainRoutes.GuestClosed>() is null
+        => endpoint.Metadata.GetMetadata<DigitalBrain.Runtime.Http.BrainRouteGroups.GuestClosed>() is null
             && (endpoint.Metadata.GetMetadata<GuestSurface.Door>() is not null
-                || endpoint.Metadata.GetMetadata<IntoChat.OS.Host.Http.OsBrainRoutes.GuestBrainDoor>() is not null);
+                || endpoint.Metadata.GetMetadata<DigitalBrain.Runtime.Http.BrainRouteGroups.GuestBrainDoor>() is not null);
 
     // Marks the endpoints of the framework's module HTTP surfaces group (ModuleEndpoints).
     internal sealed class FrameworkSurface

@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -18,7 +18,7 @@ internal static class MarketplaceEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var marketplace = OsBrainRoutes.Group(endpoints, "/marketplace").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var marketplace = BrainRouteGroups.Brain(endpoints, "/marketplace").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         marketplace.MapGet("", ([FromServices] MarketplaceView view, [FromServices] AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
         {

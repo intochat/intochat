@@ -1,10 +1,10 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Identity.Integrations;
 
@@ -28,7 +28,7 @@ internal static class CapabilityEndpoints
 {
     internal static void MapCapabilities(this IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/integrations");
+        var group = BrainRouteGroups.Brain(endpoints, "/integrations");
         group.MapGet("/capabilities", async (string? kind, [FromServices] ICapabilities capabilities, CancellationToken cancellationToken) =>
             Results.Ok(await capabilities.List(kind, cancellationToken)));
     }

@@ -1,4 +1,5 @@
 using DigitalBrain.Log;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using Microsoft.AspNetCore.Builder;
@@ -16,7 +17,7 @@ internal static class LocalDiskEndpoints
 {
     internal static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/storage/local");
+        var group = BrainRouteGroups.Brain(endpoints, "/storage/local").WithMetadata(BrainRouteGroups.GuestClosed.Instance);
         group.MapGet("/roots", (string brainId, IServiceProvider services) => Roots(brainId, services));
         group.MapPost("/roots/allow", (string brainId, LocalDiskRootInput input, HttpContext http) => Change(brainId, input, http, allow: true));
         group.MapPost("/roots/revoke", (string brainId, LocalDiskRootInput input, HttpContext http) => Change(brainId, input, http, allow: false));

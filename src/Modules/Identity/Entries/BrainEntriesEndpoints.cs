@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 using IntoChat.OS.Modules.Identity.Contracts.Entries;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
@@ -21,7 +21,7 @@ internal static class BrainEntriesEndpoints
 {
     internal static void MapBrainEntries(this IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/entries").WithMetadata(OsBrainRoutes.GuestClosed.Instance);
+        var group = BrainRouteGroups.Brain(endpoints, "/entries").WithMetadata(BrainRouteGroups.GuestClosed.Instance);
         group.AddEndpointFilter(RequireOwnerAsync);
 
         group.MapGet("", async (string brainId, HttpContext http, AuthorityNeurons neurons) =>

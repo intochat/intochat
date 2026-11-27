@@ -12,6 +12,7 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Http;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
@@ -156,7 +157,7 @@ internal static class BrainCall
             null => throw new RpcException(new Status(StatusCode.Unauthenticated, "The call carries no caller.")),
             _ => throw new RpcException(new Status(StatusCode.PermissionDenied, "Only a person's session reaches a brain over this channel.")),
         };
-        if (await BrainAccessFilter.Decide(http, brainId) is { } denied)
+        if (await BrainRouteGroups.Decide(http, brainId) is { } denied)
         {
             var code = denied is IStatusCodeHttpResult { StatusCode: StatusCodes.Status401Unauthorized } ? StatusCode.Unauthenticated : StatusCode.PermissionDenied;
             throw new RpcException(new Status(code, "This brain is not yours."));

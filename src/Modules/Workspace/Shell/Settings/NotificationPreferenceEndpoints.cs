@@ -4,7 +4,7 @@ using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using IntoChat.OS.Host.Http;
+using DigitalBrain.Runtime.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Settings;
 
@@ -14,7 +14,7 @@ internal static class NotificationPreferenceEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/preferences/notifications");
+        var group = BrainRouteGroups.Brain(endpoints, "/preferences/notifications");
         group.MapGet("", async (INeuronProxies brain, CancellationToken ct) => Results.Ok(await BrainPreferenceStore.ReadNotifications(brain, BrainScope.CurrentId(), ct)));
         group.MapPut("", Write);
     }

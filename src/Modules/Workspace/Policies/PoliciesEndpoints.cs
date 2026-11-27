@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -18,7 +18,7 @@ internal static class PoliciesEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        var policies = OsBrainRoutes.Group(endpoints, "/policies").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var policies = BrainRouteGroups.Brain(endpoints, "/policies").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         // Promises are the person's: an app calling through the app proxy can neither propose nor retire one.
         policies.MapPost("", (HttpContext http, TextRequest request, [FromServices] PolicyWriter writer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
