@@ -3,7 +3,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
+using IntoChat.OS.Modules.Apps.Flows;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Tests.Unit.Modules.AI;
@@ -11,7 +11,7 @@ namespace IntoChat.OS.Tests.Unit.Modules.AI;
 public sealed class AgentToolsFacts
 {
     private static readonly ToolSchema FocusPointSchema = ToolSchemas.Of(typeof(IFocus)).Single(static s => s.Name == "focus_point");
-    private static readonly ToolSchema CodeBlockStartSchema = ToolSchemas.Of(typeof(ICodeBlockRun)).Single(static s => s.Name == "codeblock_run_start");
+    private static readonly ToolSchema CodeOrchestrationRunSchema = ToolSchemas.Of(typeof(ICodeOrchestration)).Single(static s => s.Name == "code_orchestration_run_async");
 
     [Fact]
     public async Task ContractToolSendsNamedArgumentsAndTheDefaultKey()
@@ -38,17 +38,17 @@ public sealed class AgentToolsFacts
     public async Task AKeyedToolPrefixesTheBrain()
     {
         (string C, string K, string M, string A)? seen = null;
-        var tool = new ContractTool(CodeBlockStartSchema, (c, k, m, a, _) =>
+        var tool = new ContractTool(CodeOrchestrationRunSchema, (c, k, m, a, _) =>
         {
             seen = (c, k, m, a);
             return Task.FromResult<JsonElement?>(null);
         });
 
         await tool.InvokeAsync(
-            new AIFunctionArguments { ["key"] = "codeblocks/x1", ["title"] = "sum", ["source"] = "code", ["input"] = "" },
+            new AIFunctionArguments { ["key"] = "code-orchestration/x1", ["title"] = "sum", ["goal"] = "sum numbers", ["preauthoredScript"] = "code" },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal((typeof(ICodeBlockRun).FullName!, "{brain}/codeblocks/x1", "Start"), (seen!.Value.C, seen.Value.K, seen.Value.M));
+        Assert.Equal((typeof(ICodeOrchestration).FullName!, "{brain}/code-orchestration/x1", "RunAsync"), (seen!.Value.C, seen.Value.K, seen.Value.M));
         using var args = JsonDocument.Parse(seen.Value.A);
         Assert.False(args.RootElement.TryGetProperty("key", out _));
         Assert.Equal("sum", args.RootElement.GetProperty("title").GetString());

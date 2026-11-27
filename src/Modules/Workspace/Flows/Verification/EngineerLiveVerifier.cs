@@ -65,6 +65,7 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
     private readonly IConfiguration? _configuration;
     private readonly IHttpClientFactory? _httpClientFactory;
     private readonly Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>? _candidateVerifier;
+    private readonly IEngineerCandidateHostVerifier? _candidateHostVerifier;
     private readonly ILogger _logger;
     private readonly ActivityListener _activityListener;
     private readonly Lock _spanGate = new();
@@ -76,12 +77,14 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         IHttpClientFactory? httpClientFactory = null,
         ILogger<EngineerLiveVerifier>? logger = null,
         IServiceProvider? services = null,
-        Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>? candidateVerifier = null)
+        Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>? candidateVerifier = null,
+        IEngineerCandidateHostVerifier? candidateHostVerifier = null)
     {
         _services = services;
         _configuration = configuration ?? services?.GetService<IConfiguration>();
         _httpClientFactory = httpClientFactory ?? services?.GetService<IHttpClientFactory>();
         _candidateVerifier = candidateVerifier ?? services?.GetService<Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>>();
+        _candidateHostVerifier = candidateHostVerifier ?? services?.GetService<IEngineerCandidateHostVerifier>();
         _logger = (ILogger?)logger ?? OsConsoleLog.For<EngineerLiveVerifier>();
         _activityListener = new ActivityListener
         {
@@ -95,10 +98,11 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         ActivitySource.AddActivityListener(_activityListener);
     }
 
-    // A live environment is configured when a candidate verifier is registered in the services, or a live endpoint is set in
-    // configuration. Whether it answers is another matter: that is found by running the check.
+    // A live environment is configured when a candidate verifier / ICandidateHost bridge is registered in the services,
+    // or a live endpoint is set in configuration. Whether it answers is another matter: that is found by running the check.
     public bool Configured
         => _candidateVerifier is not null
+            || _candidateHostVerifier is { IsConfigured: true }
             || !string.IsNullOrWhiteSpace(_configuration?[LiveBaseUrlKey])
             || !string.IsNullOrWhiteSpace(_configuration?[LoopbackHealthUrlKey]);
 
@@ -281,8 +285,8 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
             liveActivity?.SetStatus(ActivityStatusCode.Ok);
         }
 
-        // Candidate verification path: run the real candidate verifier callback when provided.
-        if (_candidateVerifier is not null)
+        // Candidate verification path: run the real candidate verifier callback or ICandidateHost bridge when provided.
+        if (_candidateVerifier is not null || _candidateHostVerifier is { IsConfigured: true })
         {
             var effectiveContext = (liveContext ?? new EngineerLiveContext()) with
             {
@@ -295,7 +299,18 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
             EngineerLiveReport candidateReport;
             try
             {
-                candidateReport = await _candidateVerifier(effectiveContext, ct).ConfigureAwait(false);
+                candidateReport = _candidateVerifier is not null
+                    ? await _candidateVerifier(effectiveContext, ct).ConfigureAwait(false)
+                    : await _candidateHostVerifier!.VerifyCandidateAsync(
+                        new CandidateLiveVerificationRequest(
+                            WorktreePath: worktreePath,
+                            Goal: goal,
+                            ChangedFiles: changedFiles,
+                            CommitSha: effectiveContext.CommitSha,
+                            HealthPath: plan.HealthPath,
+                            TouchesUi: plan.TouchesUi,
+                            TraceId: effectiveContext.TraceId),
+                        ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

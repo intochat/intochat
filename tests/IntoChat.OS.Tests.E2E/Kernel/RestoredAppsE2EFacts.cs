@@ -67,7 +67,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("compact-pill", desktop.State.BarLayout);
         Assert.True(desktop.State.ActiveNeurons >= 1);
         Assert.Contains("ino", desktop.State.PinnedApps);
-        Assert.Contains("creator", desktop.State.PinnedApps);
+        Assert.DoesNotContain("creator", desktop.State.PinnedApps);
 
         await desktop.Layout(new DesktopLayoutChoice());
         Assert.Equal("spatial-grid", desktop.State.LayoutMode);

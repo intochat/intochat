@@ -20,14 +20,11 @@ internal static class EngineerDelegationSummaries
         EngineeringHarnessKind harness = EngineeringHarnessKind.InoNative)
     {
         var resolvedFlowId = flowId ?? string.Empty;
-        var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "engineer").Key;
         var tasksKey = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "tasks").Key;
-        var engineerUri = string.IsNullOrWhiteSpace(resolvedFlowId)
-            ? $"neuron://{appKey}"
-            : $"neuron://{appKey}#{resolvedFlowId}";
         var tasksUri = string.IsNullOrWhiteSpace(resolvedFlowId)
             ? $"neuron://{tasksKey}"
             : $"neuron://{tasksKey}#{resolvedFlowId}";
+        var engineerUri = tasksUri;
 
         return new EngineerRunSummary(
             Ok: false,
@@ -111,8 +108,8 @@ internal static class EngineerDelegationSummaries
                 : (view?.ConfirmationPlanId ?? run.Approval?.PlanId);
         var traceId = !string.IsNullOrWhiteSpace(view?.TraceId) ? view!.TraceId : head.TraceId;
 
-        var engineerUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "engineer").Key}#{flowId}";
         var tasksUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "tasks").Key}#{flowId}";
+        var engineerUri = tasksUri;
 
         var candidates = run.RankCandidates();
         var candidateByIndex = candidates.ToDictionary(static c => c.InstanceIndex);
@@ -195,6 +192,21 @@ internal static class EngineerDelegationSummaries
             traces = [skippedLine, .. traces];
         }
 
+        var candidateHostKind = services?.GetService(typeof(IEngineerCandidateHostVerifier)) is IEngineerCandidateHostVerifier hostVerifier
+            && hostVerifier.IsConfigured
+                ? hostVerifier.HostKind
+                : null;
+        var receipt = !string.IsNullOrWhiteSpace(winningSha)
+            ? new EngineerVerificationReceipt(
+                CommitSha: winningSha,
+                PullRequestUrl: run.Publication?.PullRequestUrl,
+                PushedRef: run.Publication?.PushedRef,
+                BuildVerified: winner?.Build?.Succeeded == true,
+                LiveVerified: winner?.Live?.Succeeded == true,
+                CandidateHostKind: candidateHostKind,
+                VerificationSummary: winner?.Live?.Summary ?? winner?.Build?.Summary)
+            : null;
+
         return new EngineerRunSummary(
             Ok: ok,
             FlowId: flowId,
@@ -226,7 +238,8 @@ internal static class EngineerDelegationSummaries
             CleanupTargets: effectiveCleanup,
             Slices: effectiveSlices,
             Collaborators: collaborators,
-            Verification: run.Verification);
+            Verification: run.Verification,
+            Receipt: receipt);
     }
 
     private static string[] CollectDiagnosticsAndTraces(

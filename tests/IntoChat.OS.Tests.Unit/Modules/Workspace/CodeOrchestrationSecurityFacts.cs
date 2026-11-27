@@ -284,4 +284,88 @@ public sealed class CodeOrchestrationSecurityFacts
         var ctor = Assert.Single(typeof(CodeOrchestrationSynapse).GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         Assert.Contains(ctor.GetParameters(), p => p.ParameterType == typeof(ISandboxRuntimeBridge));
     }
+
+    [Fact]
+    public void BuildCrystallizedUnitSource_EscapesInjectionPayloadsInTitleAndContracts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var payloads = new[]
+        {
+            "foo\"; System.Diagnostics.Process.Start(\"calc\"); //",
+            "foo\npublic static class Evil {}",
+            "foo\r\n// injected",
+            "trailing-backslash\\",
+            "ctrl\u0000\u0007char",
+        };
+
+        foreach (var payload in payloads)
+        {
+            var source = CodeOrchestrationSynapse.BuildCrystallizedUnitSource(
+                "daily.digest",
+                "pinned-daily-digest",
+                payload,
+                ["notifications", "bad\n//injected"]);
+
+            var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, cancellationToken: ct);
+            var diagnostics = tree.GetDiagnostics(ct).Where(static d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ToArray();
+            Assert.Empty(diagnostics);
+
+            // Only the expected single state record and neuron class may exist — never an injected type.
+            var types = tree.GetRoot(ct).DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>().Select(static t => t.Identifier.ValueText).ToArray();
+            Assert.Equal(["PinnedDailyDigestState", "PinnedDailyDigest"], types);
+            Assert.DoesNotContain("Evil", types);
+        }
+    }
+
+    [Theory]
+    [InlineData("identity.brain-keys")]
+    [InlineData("os.settings")]
+    [InlineData("social.room")]
+    [InlineData("flow.engineer")]
+    [InlineData("ai.memory")]
+    [InlineData("mcp.tools")]
+    [InlineData("ino.studio")]
+    [InlineData("tasks.board")]
+    [InlineData("desktop.shell")]
+    [InlineData("workspace.files")]
+    public void NormalizeAppAlias_RefusesReservedSystemPrefixes(string reservedAlias)
+    {
+        Assert.Throws<UnauthorizedAccessException>(() => CodeOrchestrationSynapse.NormalizeAppAlias(reservedAlias));
+    }
+
+    [Fact]
+    public void NormalizeAppAlias_RefusesOverlongAliases()
+    {
+        var tooLong = new string('a', 65);
+        Assert.Throws<ArgumentException>(() => CodeOrchestrationSynapse.NormalizeAppAlias(tooLong));
+    }
+
+    [Fact]
+    public async Task CrystallizeAsync_RefusesNonPersonCallers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var bridge = new RecordingSandboxBridge();
+        await using var os = CreateTestOs(new CodeOrchestrationAstSanitizer(), bridge);
+        var brain = new BrainId("orch-person-only-crystallize");
+        var flowId = new NeuronId(brain, CodeOrchestrationSynapse.Alias, "run-cryst-auth");
+        var neuron = os.Get<ICodeOrchestration>(flowId);
+
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
+        {
+            _ = await neuron.RunAsync("Digest", "Run digest", allowedContracts: ["notifications"], preauthoredScript: CleanNotificationScript, ct: ct);
+            await os.Idle();
+        }
+
+        // Agent caller must be refused ([PersonOnly]).
+        using (os.Edge.Enter(os.Edge.Agent(new DigitalBrain.Access.Actor.Person("owner", "owner"), brain)))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+
+        // Cross-brain person caller must also be refused.
+        using (os.Edge.Enter(os.Edge.Person("other", "other", new BrainId("other-brain"))))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.CrystallizeAsync("daily.digest", "Daily Digest", ct));
+        }
+    }
 }
