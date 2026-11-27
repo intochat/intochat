@@ -1231,205 +1231,205 @@ internal sealed class ConversationNeuron(
 
         using (var activeRun = BeginRun(runId, definition.Timeout))
         {
-        var turnState = new TurnState(State.ActiveRun);
-        var deltaCount = 0;
-        var storeCount = 0;
-        double? firstTokenMs = null;
-        var streamStarted = false;
-        var streamStart = 0L;
-        var replyEntry = EntryIds.Reply(runId);
+            var turnState = new TurnState(State.ActiveRun);
+            var deltaCount = 0;
+            var storeCount = 0;
+            double? firstTokenMs = null;
+            var streamStarted = false;
+            var streamStart = 0L;
+            var replyEntry = EntryIds.Reply(runId);
 
-        var sink = new ConversationTurnSink(
-            async updatedRun =>
-            {
-                storeCount++;
-                await Persist(State with { ActiveRun = updatedRun }, announce: false);
-            },
-            async (delta, at) =>
-            {
-                deltaCount++;
-                firstTokenMs ??= Math.Round(Clock.GetElapsedTime(streamStart).TotalMilliseconds, 1);
-                try { await PublishEphemeral(new TextDelta(ConvId, replyEntry, delta) { At = at }); }
-                catch (Exception error) { Logger.LogDebug(error, "TextDelta ephemeral offer failed for run {RunId}; clients heal through Read.", runId); }
-            });
-
-        try
-        {
-            var priorLog = PriorLogForTurn(State.Log);
-            var window = ModelContext.From(priorLog);
-            var latestHumanSender = LatestHumanSender(State.Log);
-            var latestHumanSaid = LatestHumanSaidForTurn(State.Log);
-            var input = depth == 0 && latestHumanSaid is { Attachments.Length: > 0 }
-                ? (await BuildMultimodalInputAsync(latestHumanSaid, activeRun.Token)) with { Sender = latestHumanSender }
-                : new AiMessage("user", [new AiText(turnState.Run.UserText)]) { Sender = latestHumanSender };
-
-            if (AgentHistoryCompactor.TryParseCompactCommand(turnState.Run.UserText, out var compactFocus))
-            {
-                var previousCount = window.Messages.Length;
-                var compacted = await CompactHistoryAsync(window.Messages, definition, window.Summary, compactFocus, force: true, activeRun.Token);
-                var maskedSummary = string.IsNullOrWhiteSpace(compacted.Summary) ? (window.Summary ?? "") : await Runner.Mask(compacted.Summary);
-                var replyText = FormatCompactReply(previousCount, compacted.EvictedCount, compacted.Messages.Length, maskedSummary);
-                var maskedReply = await Runner.Mask(replyText);
-                var now = Clock.GetUtcNow();
-                turnState.Run = turnState.Run with { Status = AgentRunStatus.Completed, EndedAt = now, Reply = maskedReply };
-
-                var entriesToAppend = new List<ConversationEntry>(2);
-                if (maskedSummary.Length > 0 && compacted.EvictedCount > 0)
+            var sink = new ConversationTurnSink(
+                async updatedRun =>
                 {
-                    var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
-                    entriesToAppend.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, maskedSummary, upTo));
-                }
-                entriesToAppend.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, maskedReply, Replaces: replacingId));
-
-                var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. entriesToAppend]);
-                await Persist(State with
+                    storeCount++;
+                    await Persist(State with { ActiveRun = updatedRun }, announce: false);
+                },
+                async (delta, at) =>
                 {
-                    Log = nextLog,
-                    ActiveRun = null,
-                    Replacing = null,
-                    Runs = Keep(State.Runs, turnState.Run),
+                    deltaCount++;
+                    firstTokenMs ??= Math.Round(Clock.GetElapsedTime(streamStart).TotalMilliseconds, 1);
+                    try { await PublishEphemeral(new TextDelta(ConvId, replyEntry, delta) { At = at }); }
+                    catch (Exception error) { Logger.LogDebug(error, "TextDelta ephemeral offer failed for run {RunId}; clients heal through Read.", runId); }
                 });
-                if (maskedSummary.Length > 0) { await Runner.WriteSummary(definition.Contexts, maskedSummary); }
-                await Runner.RecordMilestone(definition.Contexts, null, $"Decision: Compacted {compacted.EvictedCount} message(s) into conversation summary.");
-                committed = true;
-                return;
-            }
 
-            await Runner.Hydrate(definition.Contexts, turnState.Run.UserText);
-            var bounded = BoundPreTurnHistory(window.Messages, definition, input, window.Summary);
-            var turnModel = !string.IsNullOrWhiteSpace(model)
-                ? (definition.Model is not null ? definition.Model with { Model = model } : new ModelSelection(model))
-                : definition.Model;
-            var plan = new TurnPlan(
-                Scope,
-                FullKey,
-                runId,
-                bounded.Messages,
-                bounded.Summary,
-                input,
-                definition.Instructions,
-                definition.Contracts,
-                definition.Contexts,
-                turnModel,
-                definition.Options,
-                definition.MaxModelCalls,
-                Streaming: true)
+            try
             {
-                AgentName = seated.AgentId,
-                IncludeComponentOperations = definition.IncludeComponentOperations,
-                AlwaysOnOperationApps = definition.OperationApps,
-                ToolSources = definition.ToolSources,
-            };
+                var priorLog = PriorLogForTurn(State.Log);
+                var window = ModelContext.From(priorLog);
+                var latestHumanSender = LatestHumanSender(State.Log);
+                var latestHumanSaid = LatestHumanSaidForTurn(State.Log);
+                var input = depth == 0 && latestHumanSaid is { Attachments.Length: > 0 }
+                    ? (await BuildMultimodalInputAsync(latestHumanSaid, activeRun.Token)) with { Sender = latestHumanSender }
+                    : new AiMessage("user", [new AiText(turnState.Run.UserText)]) { Sender = latestHumanSender };
 
-            streamStart = Clock.GetTimestamp();
-            streamStarted = true;
-            await foreach (var ev in Runner.Stream(plan, turnState, sink, activeRun.Token))
-            {
-                switch (ev)
+                if (AgentHistoryCompactor.TryParseCompactCommand(turnState.Run.UserText, out var compactFocus))
                 {
-                    case AgentTurnEvent.ToolStarted tool:
-                        {
-                            var called = new Called(EntryIds.Call(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, tool.Arguments);
-                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, called);
-                            storeCount++;
-                            await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
-                            break;
-                        }
-                    case AgentTurnEvent.ToolCompleted tool:
-                        {
-                            var refusal = TurnRunner.ToolRefusal(tool.Result);
-                            var ok = refusal is null;
-                            var card = ok ? ConversationCards.FromResult(tool.Result) : null;
-                            var compactedResult = TurnRunner.CompactToolResult(tool.Result);
-                            var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, compactedResult, ok, card);
-                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
-                            storeCount++;
-                            await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
-                            break;
-                        }
-                    case AgentTurnEvent.ToolFailed tool:
-                        {
-                            var errorJson = TurnRunner.SerializeToolError(tool.Code, tool.Message);
-                            var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, errorJson, Ok: false, Card: null);
-                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
-                            storeCount++;
-                            await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
-                            break;
-                        }
-                    case AgentTurnEvent.Completed done:
-                        {
-                            var combinedWindow = (AiMessage[])[.. window.Messages, input, .. done.Messages];
-                            var compacted = await CompactHistoryAsync(combinedWindow, definition, window.Summary, focusInstructions: null, force: false, activeRun.Token);
-                            var nextSummary = string.IsNullOrWhiteSpace(compacted.Summary)
-                                ? window.Summary
-                                : (compacted.Summary == window.Summary ? window.Summary : await Runner.Mask(compacted.Summary));
-                            var summarized = nextSummary != window.Summary && nextSummary is { Length: > 0 };
+                    var previousCount = window.Messages.Length;
+                    var compacted = await CompactHistoryAsync(window.Messages, definition, window.Summary, compactFocus, force: true, activeRun.Token);
+                    var maskedSummary = string.IsNullOrWhiteSpace(compacted.Summary) ? (window.Summary ?? "") : await Runner.Mask(compacted.Summary);
+                    var replyText = FormatCompactReply(previousCount, compacted.EvictedCount, compacted.Messages.Length, maskedSummary);
+                    var maskedReply = await Runner.Mask(replyText);
+                    var now = Clock.GetUtcNow();
+                    turnState.Run = turnState.Run with { Status = AgentRunStatus.Completed, EndedAt = now, Reply = maskedReply };
 
-                            var now = Clock.GetUtcNow();
-                            var newEntries = new List<ConversationEntry>(2);
-                            if (summarized)
-                            {
-                                var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
-                                newEntries.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, nextSummary!, upTo));
-                            }
-                            ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
-                            newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
-
-                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
-                            storeCount++;
-                            await Persist(State with
-                            {
-                                Log = nextLog,
-                                ActiveRun = null,
-                                Replacing = null,
-                                Runs = Keep(State.Runs, turnState.Run),
-                            });
-                            if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
-                            await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
-                            committed = true;
-
-                            // Multi-agent Squad handoff with strict maxDepth = 3 loop guard.
-                            if (depth + 1 < SharedRoomAgentPolicy.MaxSquadHandoffDepth
-                                && ResolveSquadHandoffAgent(turnState.Visible, seated.AgentId) is { } nextAgent)
-                            {
-                                handoffTarget = nextAgent;
-                                handoffText = turnState.Visible;
-                            }
-                            break;
-                        }
-                    case AgentTurnEvent.TurnFailed failed:
-                        turnState.Failure = activeRun.NormalizeFailure(failed);
-                        break;
-                }
-            }
-        }
-        catch (Exception error)
-        {
-            Logger.LogWarning(error, "Conversation turn {RunId} ended with an error.", runId);
-        }
-        finally
-        {
-            if (!committed)
-            {
-                var closed = await FinalizeFailedRunAsync(activeRun, turnState, sink, runId);
-                storeCount++;
-                await TryPersistClosedRunAsync(
-                    State with
+                    var entriesToAppend = new List<ConversationEntry>(2);
+                    if (maskedSummary.Length > 0 && compacted.EvictedCount > 0)
                     {
+                        var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
+                        entriesToAppend.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, maskedSummary, upTo));
+                    }
+                    entriesToAppend.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, maskedReply, Replaces: replacingId));
+
+                    var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. entriesToAppend]);
+                    await Persist(State with
+                    {
+                        Log = nextLog,
                         ActiveRun = null,
                         Replacing = null,
-                        Runs = Keep(State.Runs, closed.Run),
-                    },
-                    runId);
+                        Runs = Keep(State.Runs, turnState.Run),
+                    });
+                    if (maskedSummary.Length > 0) { await Runner.WriteSummary(definition.Contexts, maskedSummary); }
+                    await Runner.RecordMilestone(definition.Contexts, null, $"Decision: Compacted {compacted.EvictedCount} message(s) into conversation summary.");
+                    committed = true;
+                    return;
+                }
+
+                await Runner.Hydrate(definition.Contexts, turnState.Run.UserText);
+                var bounded = BoundPreTurnHistory(window.Messages, definition, input, window.Summary);
+                var turnModel = !string.IsNullOrWhiteSpace(model)
+                    ? (definition.Model is not null ? definition.Model with { Model = model } : new ModelSelection(model))
+                    : definition.Model;
+                var plan = new TurnPlan(
+                    Scope,
+                    FullKey,
+                    runId,
+                    bounded.Messages,
+                    bounded.Summary,
+                    input,
+                    definition.Instructions,
+                    definition.Contracts,
+                    definition.Contexts,
+                    turnModel,
+                    definition.Options,
+                    definition.MaxModelCalls,
+                    Streaming: true)
+                {
+                    AgentName = seated.AgentId,
+                    IncludeComponentOperations = definition.IncludeComponentOperations,
+                    AlwaysOnOperationApps = definition.OperationApps,
+                    ToolSources = definition.ToolSources,
+                };
+
+                streamStart = Clock.GetTimestamp();
+                streamStarted = true;
+                await foreach (var ev in Runner.Stream(plan, turnState, sink, activeRun.Token))
+                {
+                    switch (ev)
+                    {
+                        case AgentTurnEvent.ToolStarted tool:
+                            {
+                                var called = new Called(EntryIds.Call(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, tool.Arguments);
+                                var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, called);
+                                storeCount++;
+                                await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
+                                break;
+                            }
+                        case AgentTurnEvent.ToolCompleted tool:
+                            {
+                                var refusal = TurnRunner.ToolRefusal(tool.Result);
+                                var ok = refusal is null;
+                                var card = ok ? ConversationCards.FromResult(tool.Result) : null;
+                                var compactedResult = TurnRunner.CompactToolResult(tool.Result);
+                                var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, compactedResult, ok, card);
+                                var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
+                                storeCount++;
+                                await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
+                                break;
+                            }
+                        case AgentTurnEvent.ToolFailed tool:
+                            {
+                                var errorJson = TurnRunner.SerializeToolError(tool.Code, tool.Message);
+                                var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, errorJson, Ok: false, Card: null);
+                                var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
+                                storeCount++;
+                                await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
+                                break;
+                            }
+                        case AgentTurnEvent.Completed done:
+                            {
+                                var combinedWindow = (AiMessage[])[.. window.Messages, input, .. done.Messages];
+                                var compacted = await CompactHistoryAsync(combinedWindow, definition, window.Summary, focusInstructions: null, force: false, activeRun.Token);
+                                var nextSummary = string.IsNullOrWhiteSpace(compacted.Summary)
+                                    ? window.Summary
+                                    : (compacted.Summary == window.Summary ? window.Summary : await Runner.Mask(compacted.Summary));
+                                var summarized = nextSummary != window.Summary && nextSummary is { Length: > 0 };
+
+                                var now = Clock.GetUtcNow();
+                                var newEntries = new List<ConversationEntry>(2);
+                                if (summarized)
+                                {
+                                    var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
+                                    newEntries.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, nextSummary!, upTo));
+                                }
+                                ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
+                                newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
+
+                                var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
+                                storeCount++;
+                                await Persist(State with
+                                {
+                                    Log = nextLog,
+                                    ActiveRun = null,
+                                    Replacing = null,
+                                    Runs = Keep(State.Runs, turnState.Run),
+                                });
+                                if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
+                                await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
+                                committed = true;
+
+                                // Multi-agent Squad handoff with strict maxDepth = 3 loop guard.
+                                if (depth + 1 < SharedRoomAgentPolicy.MaxSquadHandoffDepth
+                                    && ResolveSquadHandoffAgent(turnState.Visible, seated.AgentId) is { } nextAgent)
+                                {
+                                    handoffTarget = nextAgent;
+                                    handoffText = turnState.Visible;
+                                }
+                                break;
+                            }
+                        case AgentTurnEvent.TurnFailed failed:
+                            turnState.Failure = activeRun.NormalizeFailure(failed);
+                            break;
+                    }
+                }
             }
-            if (streamStarted)
+            catch (Exception error)
             {
-                var maskMs = Math.Round(Stopwatch.GetElapsedTime(0, turnState.MaskTicks).TotalMilliseconds, 1);
-                Logger.LogInformation(
-                    "Run {RunId} streamed {Deltas} deltas in {Stores} stores; first token {FirstTokenMs} ms; masking {MaskMs} ms",
-                    runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
+                Logger.LogWarning(error, "Conversation turn {RunId} ended with an error.", runId);
             }
-        }
+            finally
+            {
+                if (!committed)
+                {
+                    var closed = await FinalizeFailedRunAsync(activeRun, turnState, sink, runId);
+                    storeCount++;
+                    await TryPersistClosedRunAsync(
+                        State with
+                        {
+                            ActiveRun = null,
+                            Replacing = null,
+                            Runs = Keep(State.Runs, closed.Run),
+                        },
+                        runId);
+                }
+                if (streamStarted)
+                {
+                    var maskMs = Math.Round(Stopwatch.GetElapsedTime(0, turnState.MaskTicks).TotalMilliseconds, 1);
+                    Logger.LogInformation(
+                        "Run {RunId} streamed {Deltas} deltas in {Stores} stores; first token {FirstTokenMs} ms; masking {MaskMs} ms",
+                        runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
+                }
+            }
         }
 
         if (committed && handoffTarget is not null && handoffText is not null && !IsBlocked)
