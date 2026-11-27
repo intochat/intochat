@@ -1,65 +1,36 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Log;
-using DigitalBrain.Neurons;
-using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Host.Logging;
-using IntoChat.OS.Modules.AI;
-using IntoChat.OS.Modules.AI.Inference;
-using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
-using IntoChat.OS.Modules.Microsoft.Roslyn;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, IDisposable
+internal sealed class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, IDisposable
 {
     private const int MaxCapturedSpans = 256;
+    private const string PlaceboDisabledMessage =
+        "live verification requires a candidate host or configured live endpoint; placebo verification is disabled";
+
+    internal const string EnvironmentMissingProbe = "candidate-host-required";
+    internal const string LiveBaseUrlKey = "IntoChatOS:Engineer:LiveBaseUrl";
+    internal const string LoopbackHealthUrlKey = "IntoChatOS:Engineer:LoopbackHealthUrl";
 
     private static readonly HashSet<string> KeyedUiNodeKinds = new(StringComparer.Ordinal)
     {
-        "appShell",
-        "button",
-        "iconButton",
-        "field",
-        "switch",
-        "navItem",
-        "appTile",
-        "webBrowser",
-        "conversation",
-        "approvalCard",
-        "statCard",
+        "appShell", "button", "iconButton", "field", "switch", "navItem", "appTile", "webBrowser", "conversation", "approvalCard", "statCard",
     };
 
     private static readonly HashSet<string> ContainerNodeKinds = new(StringComparer.Ordinal)
     {
-        "column",
-        "row",
-        "grid",
-        "surface",
+        "column", "row", "grid", "surface",
     };
-
-    private const string PlaceboDisabledMessage =
-        "live verification requires a candidate host or configured live endpoint; placebo verification is disabled";
-
-    // The probe a report carries when there was nothing to verify against: no candidate host and no configured live endpoint.
-    internal const string EnvironmentMissingProbe = "candidate-host-required";
-
-    // Whether the report says the change could not be checked at all, as opposed to checked and found wanting.
-    internal static bool EnvironmentMissing(EngineerLiveReport report)
-        => report is { Succeeded: false } && report.Probes.Any(static probe => !probe.Passed && string.Equals(probe.Name, EnvironmentMissingProbe, StringComparison.Ordinal));
-
-    internal const string LiveBaseUrlKey = "IntoChatOS:Engineer:LiveBaseUrl";
-    internal const string LoopbackHealthUrlKey = "IntoChatOS:Engineer:LoopbackHealthUrl";
 
     private readonly IServiceProvider? _services;
     private readonly IConfiguration? _configuration;
@@ -98,45 +69,35 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         ActivitySource.AddActivityListener(_activityListener);
     }
 
-    // A live environment is configured when a candidate verifier / ICandidateHost bridge is registered in the services,
-    // or a live endpoint is set in configuration. Whether it answers is another matter: that is found by running the check.
     public bool Configured
         => _candidateVerifier is not null
             || _candidateHostVerifier is { IsConfigured: true }
             || !string.IsNullOrWhiteSpace(_configuration?[LiveBaseUrlKey])
             || !string.IsNullOrWhiteSpace(_configuration?[LoopbackHealthUrlKey]);
 
+    internal static bool EnvironmentMissing(EngineerLiveReport report)
+        => report is { Succeeded: false } && report.Probes.Any(static probe => !probe.Passed && string.Equals(probe.Name, EnvironmentMissingProbe, StringComparison.Ordinal));
+
     private static ActivitySamplingResult SampleAllActivities(ref ActivityCreationOptions<ActivityContext> _)
         => ActivitySamplingResult.AllDataAndRecorded;
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) { return; }
         _disposed = true;
         _activityListener.Dispose();
     }
 
     public void ClearCapturedSpans()
     {
-        lock (_spanGate)
-        {
-            _capturedSpans.Clear();
-        }
+        lock (_spanGate) { _capturedSpans.Clear(); }
     }
 
     internal static bool TouchesUiSurface(IReadOnlyList<string> changedFiles)
     {
         foreach (var raw in changedFiles)
         {
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                continue;
-            }
-
+            if (string.IsNullOrWhiteSpace(raw)) { continue; }
             var norm = EngineerTaskSlices.NormalizePath(raw);
             if (norm.EndsWith(".dart", StringComparison.OrdinalIgnoreCase)
                 || norm.StartsWith("ui/lib/", StringComparison.OrdinalIgnoreCase)
@@ -154,7 +115,6 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         return false;
     }
 
-    // src/Components/<Name>/Screens/** is a component's screen: the component name, else null.
     private static string? ComponentScreenOf(string normalizedPath)
     {
         var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -169,87 +129,45 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
     internal static EngineerVerificationPlan DeriveVerificationPlan(IReadOnlyList<string> changedFiles)
     {
         var calls = new List<EngineerVerificationCall>();
-        var seenTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddCall(string target, string method, string expected)
+        {
+            if (seen.Add(target)) { calls.Add(new EngineerVerificationCall(target, method, expected)); }
+        }
 
         foreach (var raw in changedFiles)
         {
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                continue;
-            }
-
+            if (string.IsNullOrWhiteSpace(raw)) { continue; }
             var norm = EngineerTaskSlices.NormalizePath(raw);
-            var segments = norm.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length >= 3
-                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(segments[1], "IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase))
+            var seg = norm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (seg.Length >= 3 && seg[0].Equals("src", StringComparison.OrdinalIgnoreCase) && seg[1].Equals("IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase))
             {
-                var target = $"app.{segments[2].ToLowerInvariant()}";
-                if (seenTargets.Add(target))
-                {
-                    calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
-                }
+                AddCall($"app.{seg[2].ToLowerInvariant()}", "Read", "ok");
             }
-            else if (segments.Length >= 2
-                && string.Equals(segments[0], "IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase))
+            else if (seg.Length >= 2 && seg[0].Equals("IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase))
             {
-                var target = $"app.{segments[1].ToLowerInvariant()}";
-                if (seenTargets.Add(target))
-                {
-                    calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
-                }
+                AddCall($"app.{seg[1].ToLowerInvariant()}", "Read", "ok");
             }
             else if (ComponentScreenOf(norm) is { } component)
             {
-                // Paths only: the app is named after its component folder (OWED.md: a component whose app name differs).
-                var target = $"app.{component.ToLowerInvariant()}";
-                if (seenTargets.Add(target))
-                {
-                    calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
-                }
+                AddCall($"app.{component.ToLowerInvariant()}", "Read", "ok");
             }
-            else if (segments.Length >= 4
-                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(segments[1], "Components", StringComparison.OrdinalIgnoreCase)
-                && !EngineerBuildVerifier.IsComponentHosting(norm))
+            else if (seg.Length >= 4 && seg[0].Equals("src", StringComparison.OrdinalIgnoreCase) && seg[1].Equals("Components", StringComparison.OrdinalIgnoreCase) && !EngineerBuildVerifier.IsComponentHosting(norm))
             {
-                // Same rule as src/Modules/<Name>: the module id is the folder lowercased (Aspire -> "aspire").
-                // Hosting/** is AppHost code and plans what an AppHost change plans: no call of its own.
-                var target = $"module.{segments[2].ToLowerInvariant()}";
-                if (seenTargets.Add(target))
-                {
-                    calls.Add(new EngineerVerificationCall(target, "neurons_list", "ok"));
-                }
+                AddCall($"module.{seg[2].ToLowerInvariant()}", "neurons_list", "ok");
             }
-            else if (segments.Length >= 3
-                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(segments[1], "Modules", StringComparison.OrdinalIgnoreCase))
+            else if (seg.Length >= 3 && seg[0].Equals("src", StringComparison.OrdinalIgnoreCase) && seg[1].Equals("Modules", StringComparison.OrdinalIgnoreCase))
             {
-                var target = $"module.{segments[2].ToLowerInvariant()}";
-                if (seenTargets.Add(target))
-                {
-                    calls.Add(new EngineerVerificationCall(target, "neurons_list", "ok"));
-                }
+                AddCall($"module.{seg[2].ToLowerInvariant()}", "neurons_list", "ok");
             }
         }
 
-        if (calls.Count == 0)
-        {
-            calls.Add(new EngineerVerificationCall("neurons_context", "Read", "brainId"));
-        }
-
-        return new EngineerVerificationPlan(
-            HealthPath: "/health",
-            McpCalls: calls,
-            RequireZeroErrorSpans: true,
-            TouchesUi: TouchesUiSurface(changedFiles));
+        if (calls.Count == 0) { calls.Add(new EngineerVerificationCall("neurons_context", "Read", "brainId")); }
+        return new EngineerVerificationPlan("/health", calls, RequireZeroErrorSpans: true, TouchesUi: TouchesUiSurface(changedFiles));
     }
 
-    public Task<EngineerLiveReport> VerifyLiveAsync(
-        string worktreePath,
-        string goal,
-        IReadOnlyList<string> changedFiles,
-        CancellationToken ct = default)
+    public Task<EngineerLiveReport> VerifyLiveAsync(string worktreePath, string goal, IReadOnlyList<string> changedFiles, CancellationToken ct = default)
         => VerifyLiveAsync(worktreePath, goal, changedFiles, liveContext: null, ct);
 
     public async Task<EngineerLiveReport> VerifyLiveAsync(
@@ -263,136 +181,119 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
         ArgumentNullException.ThrowIfNull(changedFiles);
 
-        var probes = new List<EngineerLiveProbe>();
-        var traces = new List<string>();
-        var count4xx = 0;
-        var count5xx = 0;
-        var errorSpans = 0;
-        var errorLogs = 0;
         var plan = liveContext?.VerificationPlan ?? DeriveVerificationPlan(changedFiles);
-        var touchesUi = plan.TouchesUi;
-
         using (var liveActivity = EngineerTelemetry.Source.StartActivity("engineer.live-verify"))
         {
             liveActivity?.SetTag("engineer.goal", goal);
             liveActivity?.SetTag("engineer.files", changedFiles.Count);
-            liveActivity?.SetTag("engineer.touches_ui", touchesUi);
-            if (!string.IsNullOrWhiteSpace(liveContext?.TraceId))
-            {
-                liveActivity?.SetTag("brain.trace_id", liveContext.TraceId);
-            }
-
+            liveActivity?.SetTag("engineer.touches_ui", plan.TouchesUi);
+            if (!string.IsNullOrWhiteSpace(liveContext?.TraceId)) { liveActivity?.SetTag("brain.trace_id", liveContext.TraceId); }
             liveActivity?.SetStatus(ActivityStatusCode.Ok);
         }
 
-        // Candidate verification path: run the real candidate verifier callback or ICandidateHost bridge when provided.
         if (_candidateVerifier is not null || _candidateHostVerifier is { IsConfigured: true })
         {
-            var effectiveContext = (liveContext ?? new EngineerLiveContext()) with
-            {
-                VerificationPlan = plan,
-                WorktreePath = worktreePath,
-                Goal = goal,
-                ChangedFiles = changedFiles,
-            };
-
-            EngineerLiveReport candidateReport;
-            try
-            {
-                candidateReport = _candidateVerifier is not null
-                    ? await _candidateVerifier(effectiveContext, ct).ConfigureAwait(false)
-                    : await _candidateHostVerifier!.VerifyCandidateAsync(
-                        new CandidateLiveVerificationRequest(
-                            WorktreePath: worktreePath,
-                            Goal: goal,
-                            ChangedFiles: changedFiles,
-                            CommitSha: effectiveContext.CommitSha,
-                            HealthPath: plan.HealthPath,
-                            TouchesUi: plan.TouchesUi,
-                            TraceId: effectiveContext.TraceId),
-                        ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogSwallowed(ex, "Candidate host startup/verification threw an exception.");
-                var detail = $"Candidate startup/verification failed ({ex.GetType().Name}): {ex.Message}";
-                return new EngineerLiveReport(
-                    Succeeded: false,
-                    HostHealthy: false,
-                    McpProbesPassed: false,
-                    PlaywrightPassed: false,
-                    Http4xxCount: 0,
-                    Http5xxCount: 1,
-                    ErrorSpanCount: 1,
-                    ErrorLogCount: 1,
-                    Probes: [new EngineerLiveProbe("candidate-host-startup", "host", false, 500, detail)],
-                    TraceSummaries: [$"span candidate.startup status=ERROR error={ex.GetType().Name}"],
-                    Summary: $"LiveVerify=False · {detail}");
-            }
-
-            var candidateObservedSpans = SnapshotCapturedSpans(liveContext?.TraceId);
-            var candidateFailingSpans = candidateObservedSpans.Where(static s => s.IsError).ToArray();
-            var mergedErrorSpans = candidateReport.ErrorSpanCount + candidateFailingSpans.Length;
-            var mergedProbes = new List<EngineerLiveProbe>(candidateReport.Probes);
-            var mergedTraces = new List<string>(candidateReport.TraceSummaries);
-            if (candidateFailingSpans.Length > 0)
-            {
-                mergedProbes.Add(new EngineerLiveProbe(
-                    "otel-activity-spans",
-                    "otel",
-                    false,
-                    500,
-                    string.Create(CultureInfo.InvariantCulture, $"Detected {candidateFailingSpans.Length} OpenTelemetry error span(s): {string.Join(", ", candidateFailingSpans.Select(static s => s.OperationName))}.")));
-            }
-
-            foreach (var span in candidateObservedSpans.TakeLast(6))
-            {
-                mergedTraces.Add(string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"span otel.{span.OperationName} status={(span.IsError ? "ERROR" : "OK")} durationMs={span.DurationMs}"));
-            }
-
-            var candidateSucceeded = candidateReport.Succeeded
-                && candidateReport.HostHealthy
-                && candidateReport.McpProbesPassed
-                && candidateReport.PlaywrightPassed
-                && candidateReport.Http4xxCount == 0
-                && candidateReport.Http5xxCount == 0
-                && mergedErrorSpans == 0
-                && candidateReport.ErrorLogCount == 0;
-
-            var candidateSummary = candidateSucceeded
-                ? candidateReport.Summary
-                : string.IsNullOrWhiteSpace(candidateReport.Summary)
-                    ? string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"LiveVerify=False · Host={candidateReport.HostHealthy}, MCP={candidateReport.McpProbesPassed}, ErrorSpans={mergedErrorSpans}, ErrorLogs={candidateReport.ErrorLogCount}.")
-                    : candidateReport.Summary;
-
-            return candidateReport with
-            {
-                Succeeded = candidateSucceeded,
-                ErrorSpanCount = mergedErrorSpans,
-                Probes = [.. mergedProbes],
-                TraceSummaries = [.. mergedTraces],
-                Summary = candidateSummary,
-            };
+            return await VerifyViaCandidateHostAsync(worktreePath, goal, changedFiles, liveContext, plan, ct).ConfigureAwait(false);
         }
 
-        var liveBaseUrl = _configuration?[LiveBaseUrlKey]
-            ?? _configuration?[LoopbackHealthUrlKey];
+        return await VerifyDirectEndpointAsync(liveContext, plan, ct).ConfigureAwait(false);
+    }
+
+    private async Task<EngineerLiveReport> VerifyViaCandidateHostAsync(
+        string worktreePath,
+        string goal,
+        IReadOnlyList<string> changedFiles,
+        EngineerLiveContext? liveContext,
+        EngineerVerificationPlan plan,
+        CancellationToken ct)
+    {
+        var effectiveContext = (liveContext ?? new EngineerLiveContext()) with
+        {
+            VerificationPlan = plan,
+            WorktreePath = worktreePath,
+            Goal = goal,
+            ChangedFiles = changedFiles,
+        };
+
+        EngineerLiveReport report;
+        try
+        {
+            report = _candidateVerifier is not null
+                ? await _candidateVerifier(effectiveContext, ct).ConfigureAwait(false)
+                : await _candidateHostVerifier!.VerifyCandidateAsync(
+                    new CandidateLiveVerificationRequest(
+                        WorktreePath: worktreePath,
+                        Goal: goal,
+                        ChangedFiles: changedFiles,
+                        CommitSha: effectiveContext.CommitSha,
+                        HealthPath: plan.HealthPath,
+                        TouchesUi: plan.TouchesUi,
+                        TraceId: effectiveContext.TraceId,
+                        BrainId: effectiveContext.BrainId,
+                        McpCalls: [.. plan.McpCalls.Select(static c => new CandidateMcpCall(c.Target, c.Method, c.Expected))]),
+                    ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(ex, "Candidate host startup/verification threw an exception.");
+            var detail = $"Candidate startup/verification failed ({ex.GetType().Name}): {ex.Message}";
+            return new EngineerLiveReport(
+                Succeeded: false, HostHealthy: false, McpProbesPassed: false, PlaywrightPassed: false,
+                Http4xxCount: 0, Http5xxCount: 1, ErrorSpanCount: 1, ErrorLogCount: 1,
+                Probes: [new EngineerLiveProbe("candidate-host-startup", "host", false, 500, detail)],
+                TraceSummaries: [$"span candidate.startup status=ERROR error={ex.GetType().Name}"],
+                Summary: $"LiveVerify=False · {detail}");
+        }
+
+        var probes = new List<EngineerLiveProbe>(report.Probes);
+        var traces = new List<string>(report.TraceSummaries);
+        var c4 = report.Http4xxCount;
+        var c5 = report.Http5xxCount;
+        var errLogs = report.ErrorLogCount;
+        var pwPassed = report.PlaywrightPassed;
+
+        if (plan.TouchesUi)
+        {
+            var pw = await ProbePlaywrightIfRegisteredAsync(touchesUi: true, probes, traces, ct).ConfigureAwait(false);
+            c4 += pw.Count4xx;
+            c5 += pw.Count5xx;
+            errLogs += pw.ErrorLogs;
+            if (!pw.Passed) { pwPassed = false; }
+        }
+
+        var localErrorSpans = AuditCapturedSpans(liveContext?.TraceId, probes, traces, addPassingProbe: false);
+        var mergedErrorSpans = report.ErrorSpanCount + localErrorSpans;
+        var succeeded = report.Succeeded && report.HostHealthy && report.McpProbesPassed && pwPassed
+            && c4 == 0 && c5 == 0 && mergedErrorSpans == 0 && errLogs == 0;
+
+        var summary = succeeded || !string.IsNullOrWhiteSpace(report.Summary)
+            ? report.Summary
+            : string.Create(CultureInfo.InvariantCulture, $"LiveVerify=False · Host={report.HostHealthy}, MCP={report.McpProbesPassed}, Playwright={pwPassed}, ErrorSpans={mergedErrorSpans}, ErrorLogs={errLogs}.");
+
+        return report with { Succeeded = succeeded, PlaywrightPassed = pwPassed, Http4xxCount = c4, Http5xxCount = c5, ErrorSpanCount = mergedErrorSpans, ErrorLogCount = errLogs, Probes = [.. probes], TraceSummaries = [.. traces], Summary = summary };
+    }
+
+    private async Task<EngineerLiveReport> VerifyDirectEndpointAsync(
+        EngineerLiveContext? liveContext,
+        EngineerVerificationPlan plan,
+        CancellationToken ct)
+    {
+        var probes = new List<EngineerLiveProbe>();
+        var traces = new List<string>();
+        var count4xx = 0;
+        var count5xx = 0;
+        var errorLogs = 0;
+        var liveBaseUrl = _configuration?[LiveBaseUrlKey] ?? _configuration?[LoopbackHealthUrlKey];
         var mcpUrl = _configuration?["IntoChatOS:Engineer:McpEndpoint"];
         var injectedHttpClient = _services?.GetService<HttpClient>();
-        var hasHttpTransport = _httpClientFactory is not null || injectedHttpClient is not null;
+        var hasHttp = _httpClientFactory is not null || injectedHttpClient is not null;
 
-        var hostHealthy = false;
         var failedClosed = false;
-        if (!string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttpTransport)
+        bool hostHealthy;
+        if (!string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttp)
         {
-            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "aspire-host-health", "host", liveBaseUrl.TrimEnd('/') + plan.HealthPath, ct).ConfigureAwait(false);
-            probes.Add(probe);
-            if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
-            if (probe.HttpStatus is >= 500) { count5xx++; }
+            var probe = await ProbeHttpAsync(_httpClientFactory, injectedHttpClient, "aspire-host-health", "host", liveBaseUrl.TrimEnd('/') + plan.HealthPath, ct).ConfigureAwait(false);
+            RecordHttpStatus(probe, probes, ref count4xx, ref count5xx);
             hostHealthy = probe.Passed;
             traces.Add($"span host.health status={probe.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "err"} passed={probe.Passed}");
         }
@@ -401,368 +302,239 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
             failedClosed = true;
             hostHealthy = false;
             count5xx++;
-            probes.Add(new EngineerLiveProbe(
-                EnvironmentMissingProbe,
-                "host",
-                false,
-                503,
-                PlaceboDisabledMessage));
+            probes.Add(new EngineerLiveProbe(EnvironmentMissingProbe, "host", false, 503, PlaceboDisabledMessage));
             traces.Add("span host.candidate status=unconfigured passed=False");
         }
 
-        // OpenTelemetry ActivityListener structured span audit (error spans, status codes, durations).
-        var observedSpans = SnapshotCapturedSpans(liveContext?.TraceId);
-        var failingSpans = observedSpans.Where(static s => s.IsError).ToArray();
-        errorSpans += failingSpans.Length;
-        probes.Add(new EngineerLiveProbe(
-            "otel-activity-spans",
-            "otel",
-            failingSpans.Length == 0,
-            failingSpans.Length == 0 ? 200 : 500,
-            failingSpans.Length == 0
-                ? string.Create(CultureInfo.InvariantCulture, $"Captured {observedSpans.Length} OpenTelemetry Activity span(s) with 0 error spans.")
-                : string.Create(CultureInfo.InvariantCulture, $"Detected {failingSpans.Length} OpenTelemetry error span(s): {string.Join(", ", failingSpans.Select(static s => s.OperationName))}.")));
-        foreach (var span in observedSpans.TakeLast(6))
-        {
-            traces.Add(string.Create(
-                CultureInfo.InvariantCulture,
-                $"span otel.{span.OperationName} status={(span.IsError ? "ERROR" : "OK")} durationMs={span.DurationMs}"));
-        }
+        var errorSpans = AuditCapturedSpans(liveContext?.TraceId, probes, traces, addPassingProbe: true);
 
-        // Live brain ITraceReader causal journal telemetry audit.
         if (liveContext?.TraceReader is { } traceReader && !string.IsNullOrWhiteSpace(liveContext.TraceId))
         {
-            try
-            {
-                var tracePage = await traceReader.ReadTrace(liveContext.TraceId, since: 0, limit: 500).ConfigureAwait(false);
-                var errorTraceEntries = tracePage.Entries.Where(IsErrorTraceEntry).ToArray();
-                errorLogs += errorTraceEntries.Length;
-                var traceClean = errorTraceEntries.Length == 0;
-                probes.Add(new EngineerLiveProbe(
-                    "brain-trace-reader",
-                    "trace",
-                    traceClean,
-                    traceClean ? 200 : 500,
-                    string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"ITraceReader verified {tracePage.Entries.Length} causal signal(s) on trace '{liveContext.TraceId}' with {errorTraceEntries.Length} error signal(s).")));
-                foreach (var entry in tracePage.Entries.TakeLast(6))
-                {
-                    traces.Add(string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"trace.journal seq={entry.Sequence} signal={entry.Signal} publisher={entry.Publisher}"));
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogSwallowed(ex, $"ITraceReader telemetry probe failed for trace '{liveContext.TraceId}'.");
-                errorLogs++;
-                probes.Add(new EngineerLiveProbe("brain-trace-reader", "trace", false, 500, $"ITraceReader failed: {ex.Message}"));
-            }
+            errorLogs += await AuditBrainTraceAsync(traceReader, liveContext.TraceId, probes, traces).ConfigureAwait(false);
         }
 
-        var screensToInspect = ResolveScreensToInspect(liveContext, _services);
+        var screens = ResolveScreensToInspect(liveContext, _services);
         var mcpPassed = !failedClosed;
-        if (!string.IsNullOrWhiteSpace(mcpUrl) && hasHttpTransport)
+        var targetMcpUrl = !string.IsNullOrWhiteSpace(mcpUrl)
+            ? mcpUrl
+            : !failedClosed && screens.Count == 0 && !string.IsNullOrWhiteSpace(liveBaseUrl)
+                ? liveBaseUrl.TrimEnd('/') + "/mcp"
+                : null;
+        if (targetMcpUrl is not null && hasHttp)
         {
-            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "mcp-behavioral-probe", "mcp", mcpUrl, ct).ConfigureAwait(false);
-            probes.Add(probe);
-            if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
-            if (probe.HttpStatus is >= 500) { count5xx++; }
+            var probe = await ProbeHttpAsync(_httpClientFactory, injectedHttpClient, "mcp-behavioral-probe", "mcp", targetMcpUrl, ct).ConfigureAwait(false);
+            RecordHttpStatus(probe, probes, ref count4xx, ref count5xx);
             mcpPassed = probe.Passed;
-            traces.Add($"span mcp.probe endpoint={mcpUrl} passed={probe.Passed}");
-        }
-        else if (!failedClosed && screensToInspect.Count == 0 && !string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttpTransport)
-        {
-            var derivedMcpUrl = liveBaseUrl.TrimEnd('/') + "/mcp";
-            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "mcp-behavioral-probe", "mcp", derivedMcpUrl, ct).ConfigureAwait(false);
-            probes.Add(probe);
-            if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
-            if (probe.HttpStatus is >= 500) { count5xx++; }
-            mcpPassed = probe.Passed;
-            traces.Add($"span mcp.probe endpoint={derivedMcpUrl} passed={probe.Passed}");
-        }
-        else if (failedClosed)
-        {
-            mcpPassed = false;
+            traces.Add($"span mcp.probe endpoint={targetMcpUrl} passed={probe.Passed}");
         }
 
         var playwrightPassed = true;
-        var auditedScreenCount = 0;
-        var uiViolationsTotal = 0;
+        var screenAudit = await AuditScreensAsync(screens, plan.TouchesUi, probes, traces).ConfigureAwait(false);
+        if (!screenAudit.McpPassed) { mcpPassed = false; }
+        if (!screenAudit.PlaywrightPassed) { playwrightPassed = false; }
+        errorLogs += screenAudit.ErrorLogs;
+        var (auditedScreens, uiViolations) = (screenAudit.AuditedScreens, screenAudit.UiViolations);
 
-        // MCP / IScreen live Open() + View-tree audit (non-null root, non-empty AutomationName/Key invariants, zero broken AppShellNode layout, zero error/crash nodes).
-        if (screensToInspect.Count > 0)
+        if (plan.TouchesUi)
         {
-            foreach (var (screenName, screen) in screensToInspect)
-            {
-                try
-                {
-                    var screenView = await screen.Open().ConfigureAwait(false)
-                        ?? await screen.Read().ConfigureAwait(false);
-                    if (screenView is null)
-                    {
-                        mcpPassed = false;
-                        if (touchesUi) { playwrightPassed = false; }
-                        errorLogs++;
-                        uiViolationsTotal++;
-                        probes.Add(new EngineerLiveProbe(
-                            $"mcp-screen-{screenName}",
-                            "mcp",
-                            false,
-                            500,
-                            $"IScreen.Open()/Read() returned null for '{screenName}'."));
-                        continue;
-                    }
-
-                    auditedScreenCount++;
-                    var enforceUiInvariants = touchesUi || HasViewRootEnvelope(screenView.View);
-                    var audit = AuditScreenViewJson(screenView.View, enforceUiInvariants);
-                    var screenHealthy = audit.NodeCount > 0
-                        && audit.ErrorNodeCount == 0
-                        && audit.Violations.Count == 0;
-                    if (!screenHealthy)
-                    {
-                        mcpPassed = false;
-                        if (touchesUi) { playwrightPassed = false; }
-                        var issueCount = Math.Max(1, audit.ErrorNodeCount + audit.Violations.Count);
-                        errorLogs += issueCount;
-                        uiViolationsTotal += issueCount;
-                    }
-
-                    var violationSuffix = audit.Violations.Count > 0
-                        ? $" Violations: {string.Join("; ", audit.Violations.Take(8))}"
-                        : string.Empty;
-                    probes.Add(new EngineerLiveProbe(
-                        $"mcp-screen-{screenName}",
-                        "mcp",
-                        screenHealthy,
-                        screenHealthy ? 200 : 500,
-                        string.Create(
-                            CultureInfo.InvariantCulture,
-                            $"IScreen '{screenName}' rendered {audit.NodeCount} node(s), {audit.KeyedCount} keyed control(s), {audit.ErrorNodeCount} error node(s).{violationSuffix}")));
-                    traces.Add(string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"span mcp.screen target={screenName} nodes={audit.NodeCount} errorNodes={audit.ErrorNodeCount} violations={audit.Violations.Count}"));
-                }
-                catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException && IsUnhostedScreenException(ex))
-                {
-                    _logger.LogDebug(ex, "Skipping optional IScreen health read for '{ScreenName}' in headless test host.", screenName);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogSwallowed(ex, $"IScreen health probe failed for '{screenName}'.");
-                    mcpPassed = false;
-                    if (touchesUi) { playwrightPassed = false; }
-                    errorLogs++;
-                    uiViolationsTotal++;
-                    probes.Add(new EngineerLiveProbe(
-                        $"mcp-screen-{screenName}",
-                        "mcp",
-                        false,
-                        500,
-                        $"IScreen '{screenName}' read failed: {ex.Message}"));
-                }
-            }
-        }
-
-        if (touchesUi)
-        {
-            var uiTreeGateOk = uiViolationsTotal == 0;
+            var uiTreeGateOk = uiViolations == 0;
             probes.Add(new EngineerLiveProbe(
-                "ui-view-tree-gate",
-                "playwright",
-                uiTreeGateOk,
-                uiTreeGateOk ? 200 : 500,
+                "ui-view-tree-gate", "playwright", uiTreeGateOk, uiTreeGateOk ? 200 : 500,
                 uiTreeGateOk
-                    ? string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"UI View tree gate verified {auditedScreenCount} live screen(s) (non-null root, non-empty AutomationName/Key invariants, valid AppShellNode layout).")
-                    : string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"UI View tree gate detected {uiViolationsTotal} view/layout/accessibility violation(s).")));
+                    ? string.Create(CultureInfo.InvariantCulture, $"UI View tree gate verified {auditedScreens} live screen(s) (non-null root, non-empty AutomationName/Key invariants, valid AppShellNode layout).")
+                    : string.Create(CultureInfo.InvariantCulture, $"UI View tree gate detected {uiViolations} view/layout/accessibility violation(s).")));
 
-            if (!string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttpTransport)
+            if (!string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttp)
             {
-                var uiHttpProbe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "ui-loopback-http-gate", "playwright", liveBaseUrl.TrimEnd('/') + "/", ct).ConfigureAwait(false);
-                probes.Add(uiHttpProbe);
-                if (uiHttpProbe.HttpStatus is >= 400 and < 500) { count4xx++; }
-                if (uiHttpProbe.HttpStatus is >= 500) { count5xx++; }
-                if (!uiHttpProbe.Passed)
-                {
-                    playwrightPassed = false;
-                }
-
+                var uiHttpProbe = await ProbeHttpAsync(_httpClientFactory, injectedHttpClient, "ui-loopback-http-gate", "playwright", liveBaseUrl.TrimEnd('/') + "/", ct).ConfigureAwait(false);
+                RecordHttpStatus(uiHttpProbe, probes, ref count4xx, ref count5xx);
+                if (!uiHttpProbe.Passed) { playwrightPassed = false; }
                 traces.Add($"span ui.loopback status={uiHttpProbe.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "err"} passed={uiHttpProbe.Passed}");
             }
         }
 
-        // Optional live Playwright page / browser session DOM probe when registered in DI.
-        if (_services?.GetService<IntoChat.OS.Modules.Microsoft.Playwright.IBrowserPageSession>() is { } pageSession)
+        var pwAudit = await ProbePlaywrightIfRegisteredAsync(plan.TouchesUi, probes, traces, ct).ConfigureAwait(false);
+        count4xx += pwAudit.Count4xx;
+        count5xx += pwAudit.Count5xx;
+        errorLogs += pwAudit.ErrorLogs;
+        if (!pwAudit.Passed) { playwrightPassed = false; }
+
+        var uiReady = typeof(UiNeuronPlaywrightExtensions).GetMethod(nameof(UiNeuronPlaywrightExtensions.KeyedNode)) is not null;
+        probes.Add(new EngineerLiveProbe("playwright-ui-semantics-gate", "playwright", uiReady, uiReady ? 200 : 500,
+            uiReady ? "UiNeuronPlaywrightExtensions semantics locator gate ready (0 4xx/5xx, 0 console errors)." : "UiNeuronPlaywrightExtensions missing."));
+        if (!uiReady) { playwrightPassed = false; errorLogs++; }
+
+        traces.Add(string.Create(CultureInfo.InvariantCulture, $"span telemetry.audit errorSpans={errorSpans} errorLogs={errorLogs} http4xx={count4xx} http5xx={count5xx}"));
+
+        var succeeded = hostHealthy && mcpPassed && playwrightPassed && count4xx == 0 && count5xx == 0 && errorSpans == 0 && errorLogs == 0;
+        var summary = failedClosed
+            ? string.Create(CultureInfo.InvariantCulture, $"LiveVerify=False · {PlaceboDisabledMessage} (Host={hostHealthy}, MCP={mcpPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}).")
+            : string.Create(CultureInfo.InvariantCulture, $"LiveVerify={succeeded} · Host={hostHealthy}, MCP={mcpPassed}, Playwright={playwrightPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}.");
+
+        return new EngineerLiveReport(succeeded, hostHealthy, mcpPassed, playwrightPassed, count4xx, count5xx, errorSpans, errorLogs, [.. probes], [.. traces], summary);
+    }
+
+    private int AuditCapturedSpans(string? brainTraceId, List<EngineerLiveProbe> probes, List<string> traces, bool addPassingProbe)
+    {
+        var observed = SnapshotCapturedSpans(brainTraceId);
+        var failing = observed.Where(static s => s.IsError).ToArray();
+        if (failing.Length > 0 || addPassingProbe)
         {
-            var (probe, p4xx, p5xx, pErr) = await ProbeBrowserPageSessionAsync(pageSession, touchesUi, ct).ConfigureAwait(false);
-            probes.Add(probe);
-            count4xx += p4xx;
-            count5xx += p5xx;
-            errorLogs += pErr;
-            if (!probe.Passed)
+            probes.Add(new EngineerLiveProbe(
+                "otel-activity-spans", "otel", failing.Length == 0, failing.Length == 0 ? 200 : 500,
+                failing.Length == 0
+                    ? string.Create(CultureInfo.InvariantCulture, $"Captured {observed.Length} OpenTelemetry Activity span(s) with 0 error spans.")
+                    : string.Create(CultureInfo.InvariantCulture, $"Detected {failing.Length} OpenTelemetry error span(s): {string.Join(", ", failing.Select(static s => s.OperationName))}.")));
+        }
+
+        foreach (var span in observed.TakeLast(6))
+        {
+            traces.Add(string.Create(CultureInfo.InvariantCulture, $"span otel.{span.OperationName} status={(span.IsError ? "ERROR" : "OK")} durationMs={span.DurationMs}"));
+        }
+
+        return failing.Length;
+    }
+
+    private async Task<int> AuditBrainTraceAsync(ITraceReader traceReader, string traceId, List<EngineerLiveProbe> probes, List<string> traces)
+    {
+        try
+        {
+            var page = await traceReader.ReadTrace(traceId, since: 0, limit: 500).ConfigureAwait(false);
+            var errs = page.Entries.Where(IsErrorTraceEntry).ToArray();
+            var clean = errs.Length == 0;
+            probes.Add(new EngineerLiveProbe("brain-trace-reader", "trace", clean, clean ? 200 : 500,
+                string.Create(CultureInfo.InvariantCulture, $"ITraceReader verified {page.Entries.Length} causal signal(s) on trace '{traceId}' with {errs.Length} error signal(s).")));
+            foreach (var entry in page.Entries.TakeLast(6))
             {
-                playwrightPassed = false;
+                traces.Add(string.Create(CultureInfo.InvariantCulture, $"trace.journal seq={entry.Sequence} signal={entry.Signal} publisher={entry.Publisher}"));
             }
 
-            traces.Add($"span playwright.page_session passed={probe.Passed} status={probe.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "n/a"}");
+            return errs.Length;
         }
-        else if (_services?.GetService<IntoChat.OS.Modules.Microsoft.Playwright.IPlaywright>() is { } playwrightService)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var (probe, p4xx, p5xx, pErr) = await ProbePlaywrightServiceAsync(playwrightService, ct).ConfigureAwait(false);
-            if (probe is not null)
+            _logger.LogSwallowed(ex, $"ITraceReader telemetry probe failed for trace '{traceId}'.");
+            probes.Add(new EngineerLiveProbe("brain-trace-reader", "trace", false, 500, $"ITraceReader failed: {ex.Message}"));
+            return 1;
+        }
+    }
+
+    private async Task<(int AuditedScreens, int UiViolations, bool McpPassed, bool PlaywrightPassed, int ErrorLogs)> AuditScreensAsync(
+        IReadOnlyList<(string ScreenName, IScreen Screen)> screens,
+        bool touchesUi,
+        List<EngineerLiveProbe> probes,
+        List<string> traces)
+    {
+        var audited = 0;
+        var violationsTotal = 0;
+        var mcpPassed = true;
+        var playwrightPassed = true;
+        var errorLogs = 0;
+        foreach (var (name, screen) in screens)
+        {
+            try
             {
-                probes.Add(probe);
-                count4xx += p4xx;
-                count5xx += p5xx;
-                errorLogs += pErr;
-                if (!probe.Passed)
+                var view = await screen.Open().ConfigureAwait(false) ?? await screen.Read().ConfigureAwait(false);
+                if (view is null)
                 {
-                    playwrightPassed = false;
+                    mcpPassed = false;
+                    if (touchesUi) { playwrightPassed = false; }
+                    errorLogs++;
+                    violationsTotal++;
+                    probes.Add(new EngineerLiveProbe($"mcp-screen-{name}", "mcp", false, 500, $"IScreen.Open()/Read() returned null for '{name}'."));
+                    continue;
                 }
 
+                audited++;
+                var enforce = touchesUi || (view.View.ValueKind == JsonValueKind.Object && view.View.TryGetProperty("root", out _));
+                var audit = AuditScreenViewJson(view.View, enforce);
+                var healthy = audit.NodeCount > 0 && audit.ErrorNodeCount == 0 && audit.Violations.Count == 0;
+                if (!healthy)
+                {
+                    mcpPassed = false;
+                    if (touchesUi) { playwrightPassed = false; }
+                    var issues = Math.Max(1, audit.ErrorNodeCount + audit.Violations.Count);
+                    errorLogs += issues;
+                    violationsTotal += issues;
+                }
+
+                var suffix = audit.Violations.Count > 0 ? $" Violations: {string.Join("; ", audit.Violations.Take(8))}" : string.Empty;
+                probes.Add(new EngineerLiveProbe($"mcp-screen-{name}", "mcp", healthy, healthy ? 200 : 500,
+                    string.Create(CultureInfo.InvariantCulture, $"IScreen '{name}' rendered {audit.NodeCount} node(s), {audit.KeyedCount} keyed control(s), {audit.ErrorNodeCount} error node(s).{suffix}")));
+                traces.Add(string.Create(CultureInfo.InvariantCulture, $"span mcp.screen target={name} nodes={audit.NodeCount} errorNodes={audit.ErrorNodeCount} violations={audit.Violations.Count}"));
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException && IsUnhostedScreenException(ex))
+            {
+                _logger.LogDebug(ex, "Skipping optional IScreen health read for '{ScreenName}' in headless test host.", name);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(ex, $"IScreen health probe failed for '{name}'.");
+                mcpPassed = false;
+                if (touchesUi) { playwrightPassed = false; }
+                errorLogs++;
+                violationsTotal++;
+                probes.Add(new EngineerLiveProbe($"mcp-screen-{name}", "mcp", false, 500, $"IScreen '{name}' read failed: {ex.Message}"));
+            }
+        }
+
+        return (audited, violationsTotal, mcpPassed, playwrightPassed, errorLogs);
+    }
+
+    private async Task<(bool Passed, int Count4xx, int Count5xx, int ErrorLogs)> ProbePlaywrightIfRegisteredAsync(
+        bool touchesUi,
+        List<EngineerLiveProbe> probes,
+        List<string> traces,
+        CancellationToken ct)
+    {
+        if (_services?.GetService<IBrowserPageSession>() is { } pageSession)
+        {
+            EngineerLiveProbe probe;
+            int c4 = 0, c5 = 0, err = 0;
+            if (!pageSession.Connected)
+            {
+                probe = touchesUi
+                    ? new EngineerLiveProbe("playwright-page-session", "playwright", false, 503, "IBrowserPageSession is disconnected during UI verification.")
+                    : new EngineerLiveProbe("playwright-page-session", "playwright", true, 200, "Optional IBrowserPageSession idle (non-UI change).");
+                if (touchesUi) { c5 = 1; err = 1; }
+            }
+            else
+            {
+                try { (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-page-session", await pageSession.SnapshotAsync(ct).ConfigureAwait(false)); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogSwallowed(ex, "Live IBrowserPageSession snapshot probe failed.");
+                    (probe, c5, err) = (new EngineerLiveProbe("playwright-page-session", "playwright", false, 500, $"Playwright snapshot failed: {ex.Message}"), 1, 1);
+                }
+            }
+
+            probes.Add(probe);
+            traces.Add($"span playwright.page_session passed={probe.Passed} status={probe.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "n/a"}");
+            return (probe.Passed, c4, c5, err);
+        }
+
+        if (_services?.GetService<IPlaywright>() is { } playwrightService)
+        {
+            try
+            {
+                if (!(await playwrightService.Read().ConfigureAwait(false)).Connected) { return (true, 0, 0, 0); }
+                var (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-live-dom-probe", await playwrightService.Snapshot(ct).ConfigureAwait(false));
+                probes.Add(probe);
                 traces.Add($"span playwright.live_dom passed={probe.Passed} status={probe.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "n/a"}");
+                return (probe.Passed, c4, c5, err);
             }
-        }
-
-        // Verify UiNeuronPlaywrightExtensions contract readiness & Dart/UI surface integrity.
-        var uiSemanticsMethod = typeof(IntoChat.OS.Modules.Microsoft.Playwright.UiNeuronPlaywrightExtensions).GetMethod(nameof(IntoChat.OS.Modules.Microsoft.Playwright.UiNeuronPlaywrightExtensions.KeyedNode));
-        var uiReady = uiSemanticsMethod is not null;
-        probes.Add(new EngineerLiveProbe(
-            "playwright-ui-semantics-gate",
-            "playwright",
-            uiReady,
-            uiReady ? 200 : 500,
-            uiReady
-                ? "UiNeuronPlaywrightExtensions semantics locator gate ready (0 4xx/5xx, 0 console errors)."
-                : "UiNeuronPlaywrightExtensions missing."));
-        if (!uiReady)
-        {
-            playwrightPassed = false;
-            errorLogs++;
-        }
-
-        traces.Add(string.Create(
-            CultureInfo.InvariantCulture,
-            $"span telemetry.audit errorSpans={errorSpans} errorLogs={errorLogs} http4xx={count4xx} http5xx={count5xx}"));
-
-        var succeeded = hostHealthy
-            && mcpPassed
-            && playwrightPassed
-            && count4xx == 0
-            && count5xx == 0
-            && errorSpans == 0
-            && errorLogs == 0;
-
-        var summary = failedClosed
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"LiveVerify=False · {PlaceboDisabledMessage} (Host={hostHealthy}, MCP={mcpPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}).")
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"LiveVerify={succeeded} · Host={hostHealthy}, MCP={mcpPassed}, Playwright={playwrightPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}.");
-
-        return new EngineerLiveReport(
-            Succeeded: succeeded,
-            HostHealthy: hostHealthy,
-            McpProbesPassed: mcpPassed,
-            PlaywrightPassed: playwrightPassed,
-            Http4xxCount: count4xx,
-            Http5xxCount: count5xx,
-            ErrorSpanCount: errorSpans,
-            ErrorLogCount: errorLogs,
-            Probes: [.. probes],
-            TraceSummaries: [.. traces],
-            Summary: summary);
-    }
-
-    private static IReadOnlyList<(string ScreenName, IScreen Screen)> ResolveScreensToInspect(
-        EngineerLiveContext? liveContext,
-        IServiceProvider? services)
-    {
-        if (liveContext?.Screens is { Count: > 0 } explicitScreens)
-        {
-            return explicitScreens;
-        }
-
-        if (services is null)
-        {
-            return [];
-        }
-
-        var discovered = services.GetServices<IScreen>().ToArray();
-        if (discovered.Length == 0)
-        {
-            return [];
-        }
-
-        var list = new List<(string, IScreen)>(discovered.Length);
-        for (var i = 0; i < discovered.Length; i++)
-        {
-            list.Add(($"di-screen-{i + 1}", discovered[i]));
-        }
-
-        return list;
-    }
-
-    private async Task<(EngineerLiveProbe Probe, int Count4xx, int Count5xx, int ErrorLogs)> ProbeBrowserPageSessionAsync(
-        IntoChat.OS.Modules.Microsoft.Playwright.IBrowserPageSession pageSession,
-        bool required,
-        CancellationToken ct)
-    {
-        if (!pageSession.Connected)
-        {
-            if (!required)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return (new EngineerLiveProbe("playwright-page-session", "playwright", true, 200, "Optional IBrowserPageSession idle (non-UI change)."), 0, 0, 0);
+                _logger.LogSwallowed(ex, "Live IPlaywright DOM snapshot probe failed.");
+                probes.Add(new EngineerLiveProbe("playwright-live-dom-probe", "playwright", false, 500, $"IPlaywright probe failed: {ex.Message}"));
+                return (false, 0, 1, 1);
             }
-
-            return (new EngineerLiveProbe("playwright-page-session", "playwright", false, 503, "IBrowserPageSession is disconnected during UI verification."), 0, 1, 1);
         }
 
-        try
-        {
-            var obs = await pageSession.SnapshotAsync(ct).ConfigureAwait(false);
-            return EvaluateBrowserObservation("playwright-page-session", obs);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogSwallowed(ex, "Live IBrowserPageSession snapshot probe failed.");
-            return (new EngineerLiveProbe("playwright-page-session", "playwright", false, 500, $"Playwright snapshot failed: {ex.Message}"), 0, 1, 1);
-        }
+        return (true, 0, 0, 0);
     }
 
-    private async Task<(EngineerLiveProbe? Probe, int Count4xx, int Count5xx, int ErrorLogs)> ProbePlaywrightServiceAsync(
-        IntoChat.OS.Modules.Microsoft.Playwright.IPlaywright playwrightService,
-        CancellationToken ct)
-    {
-        try
-        {
-            var session = await playwrightService.Read().ConfigureAwait(false);
-            if (!session.Connected)
-            {
-                return (null, 0, 0, 0);
-            }
-
-            var obs = await playwrightService.Snapshot(ct).ConfigureAwait(false);
-            var (probe, c4, c5, err) = EvaluateBrowserObservation("playwright-live-dom-probe", obs);
-            return (probe, c4, c5, err);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogSwallowed(ex, "Live IPlaywright DOM snapshot probe failed.");
-            return (new EngineerLiveProbe("playwright-live-dom-probe", "playwright", false, 500, $"IPlaywright probe failed: {ex.Message}"), 0, 1, 1);
-        }
-    }
-
-    private static (EngineerLiveProbe Probe, int Count4xx, int Count5xx, int ErrorLogs) EvaluateBrowserObservation(
-        string probeName,
-        IntoChat.OS.Modules.Microsoft.Playwright.BrowserObservation obs)
+    private static (EngineerLiveProbe Probe, int Count4xx, int Count5xx, int ErrorLogs) EvaluateBrowserObservation(string probeName, BrowserObservation obs)
     {
         if (string.IsNullOrWhiteSpace(obs.Url))
         {
@@ -783,16 +555,196 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
             return (new EngineerLiveProbe(probeName, "playwright", false, 404, $"Playwright DOM reported 4xx error on '{obs.Url}'."), 1, 0, 1);
         }
 
-        return (
-            new EngineerLiveProbe(
-                probeName,
-                "playwright",
-                true,
-                200,
-                $"Playwright live page verified at '{obs.Url}' (title='{obs.Title}', {obs.Links.Length} link(s), 0 HTTP/DOM errors)."),
-            0,
-            0,
-            0);
+        return (new EngineerLiveProbe(probeName, "playwright", true, 200, $"Playwright live page verified at '{obs.Url}' (title='{obs.Title}', {obs.Links.Length} link(s), 0 HTTP/DOM errors)."), 0, 0, 0);
     }
 
+    private static IReadOnlyList<(string ScreenName, IScreen Screen)> ResolveScreensToInspect(EngineerLiveContext? liveContext, IServiceProvider? services)
+    {
+        if (liveContext?.Screens is { Count: > 0 } explicitScreens) { return explicitScreens; }
+        var discovered = services?.GetServices<IScreen>().ToArray();
+        return discovered is { Length: > 0 } ? [.. discovered.Select((s, i) => ($"di-screen-{i + 1}", s))] : [];
+    }
+
+    private void CaptureStoppedActivity(Activity activity)
+    {
+        var isError = activity.Status == ActivityStatusCode.Error;
+        string? brainTraceId = null;
+        foreach (var tag in activity.TagObjects)
+        {
+            if (string.Equals(tag.Key, "brain.trace_id", StringComparison.Ordinal)) { brainTraceId = tag.Value?.ToString(); }
+            if (!isError && ((string.Equals(tag.Key, "otel.status_code", StringComparison.OrdinalIgnoreCase) && string.Equals(tag.Value?.ToString(), "ERROR", StringComparison.OrdinalIgnoreCase))
+                || (string.Equals(tag.Key, "error", StringComparison.OrdinalIgnoreCase) && (tag.Value is true || string.Equals(tag.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase)))
+                || (string.Equals(tag.Key, "error.type", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(tag.Value?.ToString()))))
+            {
+                isError = true;
+            }
+        }
+
+        var captured = new CapturedSpan(activity.Source.Name, activity.OperationName, activity.TraceId.ToString(), brainTraceId, isError, (long)Math.Round(activity.Duration.TotalMilliseconds));
+        lock (_spanGate)
+        {
+            while (_capturedSpans.Count >= MaxCapturedSpans) { _capturedSpans.Dequeue(); }
+            _capturedSpans.Enqueue(captured);
+        }
+    }
+
+    private CapturedSpan[] SnapshotCapturedSpans(string? brainTraceId)
+    {
+        CapturedSpan[] all;
+        lock (_spanGate) { all = [.. _capturedSpans]; }
+        if (string.IsNullOrWhiteSpace(brainTraceId)) { return all; }
+        return [.. all.Where(s => string.Equals(s.BrainTraceId, brainTraceId, StringComparison.Ordinal) || string.Equals(s.OtelTraceId, brainTraceId, StringComparison.Ordinal))];
+    }
+
+    private static bool IsErrorTraceEntry(TraceEntry entry)
+        => entry.Signal.EndsWith(".failed", StringComparison.OrdinalIgnoreCase)
+            || entry.Signal.EndsWith(".rejected", StringComparison.OrdinalIgnoreCase)
+            || entry.Signal.EndsWith(".error", StringComparison.OrdinalIgnoreCase)
+            || (string.Equals(entry.Signal, "flow.done", StringComparison.OrdinalIgnoreCase)
+                && (entry.Payload.Contains("\"outcome\":\"failed\"", StringComparison.OrdinalIgnoreCase) || entry.Payload.Contains("\"outcome\":1", StringComparison.Ordinal)));
+
+    internal static ScreenViewAudit AuditScreenViewJson(JsonElement element, bool enforceUiInvariants)
+    {
+        var violations = new List<string>();
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            violations.Add("View payload is not a JSON object.");
+            return new ScreenViewAudit(0, 0, 1, violations);
+        }
+
+        var rootTarget = element;
+        if (element.TryGetProperty("root", out var rootProp))
+        {
+            if (rootProp.ValueKind != JsonValueKind.Object)
+            {
+                violations.Add("View.Root is null or not an object.");
+                return new ScreenViewAudit(0, 0, 1, violations);
+            }
+
+            rootTarget = rootProp;
+        }
+
+        if (enforceUiInvariants && !TryGetNonBlankString(rootTarget, "kind", out _))
+        {
+            violations.Add("View.Root is missing a valid node 'kind'.");
+        }
+
+        int nodes = 0, keyedCount = 0, errors = 0;
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+        WalkViewElement(rootTarget, enforceUiInvariants, ref nodes, ref keyedCount, ref errors, seenKeys, violations);
+        return new ScreenViewAudit(nodes, keyedCount, errors, violations);
+    }
+
+    private static void WalkViewElement(JsonElement element, bool enforceUiInvariants, ref int nodes, ref int keyedCount, ref int errors, HashSet<string> seenKeys, List<string> violations)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray()) { WalkViewElement(item, enforceUiInvariants, ref nodes, ref keyedCount, ref errors, seenKeys, violations); }
+            return;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object) { return; }
+
+        var kindStr = element.TryGetProperty("kind", out var kindEl) && kindEl.ValueKind == JsonValueKind.String ? kindEl.GetString() : null;
+        if (kindStr is not null || element.TryGetProperty("type", out _) || element.TryGetProperty("$type", out _))
+        {
+            nodes++;
+            if (string.Equals(kindStr, "errorLine", StringComparison.Ordinal)
+                || (element.TryGetProperty("tone", out var tone) && tone.ValueKind == JsonValueKind.String && string.Equals(tone.GetString(), "error", StringComparison.OrdinalIgnoreCase))
+                || (element.TryGetProperty("severity", out var sev) && sev.ValueKind == JsonValueKind.String && string.Equals(sev.GetString(), "error", StringComparison.OrdinalIgnoreCase))
+                || (element.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String && string.Equals(status.GetString(), "crashed", StringComparison.OrdinalIgnoreCase))
+                || (string.Equals(kindStr, "progress", StringComparison.Ordinal) && element.TryGetProperty("showError", out var showErr) && showErr.ValueKind == JsonValueKind.True))
+            {
+                errors++;
+            }
+
+            if (enforceUiInvariants && kindStr is not null) { ValidateUiNodeInvariants(element, kindStr, ref keyedCount, seenKeys, violations); }
+        }
+
+        foreach (var prop in element.EnumerateObject())
+        {
+            if (string.Equals(kindStr, "neuronRef", StringComparison.Ordinal) && string.Equals(prop.Name, "props", StringComparison.OrdinalIgnoreCase)) { continue; }
+            WalkViewElement(prop.Value, enforceUiInvariants, ref nodes, ref keyedCount, ref errors, seenKeys, violations);
+        }
+    }
+
+    private static void ValidateUiNodeInvariants(JsonElement node, string kindStr, ref int keyedCount, HashSet<string> seenKeys, List<string> violations)
+    {
+        if (!KeyedUiNodeKinds.Contains(kindStr)) { return; }
+
+        if (!TryGetNonBlankString(node, "key", out var nodeKey))
+        {
+            violations.Add(string.Equals(kindStr, "appShell", StringComparison.Ordinal) ? "AppShellNode has an empty 'key'." : $"UI node '{kindStr}' is missing a non-empty 'key'.");
+        }
+        else
+        {
+            keyedCount++;
+            if (!seenKeys.Add(nodeKey)) { violations.Add($"Duplicate UI node key '{nodeKey}' on '{kindStr}'."); }
+        }
+
+        if (!TryGetNonBlankString(node, "automationName", out _))
+        {
+            violations.Add(string.Equals(kindStr, "appShell", StringComparison.Ordinal) ? "AppShellNode has an empty 'automationName'." : $"UI node '{kindStr}' is missing a non-empty 'automationName'.");
+        }
+
+        if (string.Equals(kindStr, "appShell", StringComparison.Ordinal))
+        {
+            if (!node.TryGetProperty("body", out var bodyEl) || bodyEl.ValueKind != JsonValueKind.Object || !TryGetNonBlankString(bodyEl, "kind", out var bodyKind))
+            {
+                violations.Add("AppShellNode has a null or invalid 'body' layout.");
+            }
+            else if (ContainerNodeKinds.Contains(bodyKind) && (!bodyEl.TryGetProperty("children", out var bodyChildren) || bodyChildren.ValueKind != JsonValueKind.Array || bodyChildren.GetArrayLength() == 0))
+            {
+                violations.Add($"AppShellNode body '{bodyKind}' rendered 0 children (broken empty shell layout).");
+            }
+        }
+    }
+
+    private static bool TryGetNonBlankString(JsonElement obj, string propertyName, out string value)
+    {
+        if (obj.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String && prop.GetString() is { } raw && !string.IsNullOrWhiteSpace(raw))
+        {
+            value = raw;
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
+    }
+
+    private static bool IsUnhostedScreenException(Exception ex)
+        => ex.Message.Contains("not registered", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("No registration", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("unknown", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("app.engineer", StringComparison.OrdinalIgnoreCase);
+
+    private static void RecordHttpStatus(EngineerLiveProbe probe, List<EngineerLiveProbe> probes, ref int count4xx, ref int count5xx)
+    {
+        probes.Add(probe);
+        if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
+        if (probe.HttpStatus is >= 500) { count5xx++; }
+    }
+
+    private async Task<EngineerLiveProbe> ProbeHttpAsync(IHttpClientFactory? factory, HttpClient? fallbackClient, string name, string kind, string url, CancellationToken ct)
+    {
+        try
+        {
+            using var owned = factory?.CreateClient();
+            owned?.Timeout = TimeSpan.FromSeconds(15);
+            var client = owned ?? fallbackClient;
+            if (client is null) { return new EngineerLiveProbe(name, kind, false, 503, "No HTTP client configured."); }
+            using var response = await client.GetAsync(new Uri(url), ct).ConfigureAwait(false);
+            var code = (int)response.StatusCode;
+            return new EngineerLiveProbe(name, kind, code is >= 200 and < 400, code, $"GET {url} -> HTTP {code}");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(ex, $"Live HTTP probe '{name}' failed against '{url}'.");
+            return new EngineerLiveProbe(name, kind, false, 503, $"Probe failed: {ex.Message}");
+        }
+    }
+
+    internal sealed record ScreenViewAudit(int NodeCount, int KeyedCount, int ErrorNodeCount, IReadOnlyList<string> Violations);
+
+    private sealed record CapturedSpan(string SourceName, string OperationName, string OtelTraceId, string? BrainTraceId, bool IsError, long DurationMs);
 }

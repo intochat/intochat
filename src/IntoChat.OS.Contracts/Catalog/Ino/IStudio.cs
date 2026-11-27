@@ -44,8 +44,7 @@ public interface IStudio
         => Task.FromResult(new InoToolResult("Feature-to-PR is not available in this studio instance.", Ok: false));
 
     /// <summary>
-    /// Reads the current status, commit SHA, changed files, confirmation plan ID, and Draft PR URL / pushed ref of an engineering
-    /// run, or of a <c>flow.change</c> run started before that flow type was retired.
+    /// Reads the current status, commit SHA, changed files, confirmation plan ID, and Draft PR URL / pushed ref of an engineering run (<c>flow.engineer</c>).
     /// </summary>
     [ReadOnlyCall, Interleaves]
     Task<InoToolResult> ChangeStatus(string flowId, CancellationToken ct = default)

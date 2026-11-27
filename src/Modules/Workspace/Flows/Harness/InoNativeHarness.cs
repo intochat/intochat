@@ -14,6 +14,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
@@ -214,7 +215,7 @@ internal sealed partial class InoNativeHarness(
             .ToArray();
 
         var postDiagnostics = liveCSharpFiles.Length > 0
-            ? await _orchestrator.GetSemanticDiagnosticsAsync(request.WorktreePath, liveCSharpFiles, ct).ConfigureAwait(false)
+            ? await _orchestrator.Roslyn.AnalyzeAsync(request.WorktreePath, liveCSharpFiles, ct).ConfigureAwait(false)
             : [];
         var firstError = postDiagnostics.FirstOrDefault(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase));
         if (firstError is not null)
@@ -346,7 +347,7 @@ internal sealed partial class InoNativeHarness(
             if (slice.Language is "csharp" or "mixed" or "")
             {
                 var filter = slice.OwnedPaths is { Length: 1 } singleOwned ? singleOwned[0] : null;
-                var symbols = await _orchestrator.FindSymbolsAsync(request.WorktreePath, filter, ct).ConfigureAwait(false);
+                var symbols = await _orchestrator.Roslyn.InspectSymbolsAsync(request.WorktreePath, filter, ct).ConfigureAwait(false);
                 if (symbols.Count > 0)
                 {
                     var topSymbols = string.Join(", ", symbols.Take(12).Select(static s => $"{s.Kind} {s.Name} ({s.FilePath})"));
@@ -489,7 +490,7 @@ internal sealed partial class InoNativeHarness(
                 && selfRepairAttempts >= MaxSelfRepairTurns
                 && CanResolveModelInference()
                 && EscalatesToFrontier()
-                && await ResolveSliceInferenceAsync(request.Brain, escalateToFrontier: true, ct).ConfigureAwait(false) is { } frontier
+                && await LocalLlmCoder.ResolveFrontierRunnerAsync(services, request.Brain, _logger, ct).ConfigureAwait(false) is { } frontier
                 && !string.Equals(frontier.ModelId, latestModelId, StringComparison.OrdinalIgnoreCase))
             {
                 selfRepairAttempts++;
@@ -690,4 +691,90 @@ internal sealed partial class InoNativeHarness(
             LeaseId: request.WorktreeId,
             InstanceIndex: request.InstanceIndex);
 
+    private bool CanResolveModelInference()
+        => services?.GetService<IModelInference>() is not null;
+
+    private bool EscalatesToFrontier()
+        => LocalLlmCoder.BindOptions(services?.GetService<IConfiguration>()).EscalateToFrontierOnRepeatedFailure;
+
+    private Task<CoderEditResult> RunNativeSliceModelWorkerAsync(
+        EngineeringHarnessRequest request,
+        EngineerTaskSlice slice,
+        string agentKey,
+        string slicePrompt,
+        string hydratedContext,
+        LocalLlmCoder.ModelTurnRunner? resolvedInference,
+        CancellationToken ct)
+    {
+        var slicePolicy = slice.OwnedPaths is { Length: > 0 } && slice.OwnedPaths.Length > _orchestrator.Policy.MaxChangedFiles
+            ? new ChangePolicy(slice.OwnedPaths.Length, _orchestrator.Policy.AllowedExtensions, _orchestrator.Policy.BlockedFileNames)
+            : _orchestrator.Policy;
+        var ownedSummary = slice.OwnedPaths is { Length: > 0 }
+            ? $"Strictly confine all writes to your owned slice paths: {string.Join(", ", slice.OwnedPaths)}."
+            : "Confine all writes within the repository policy.";
+        var memorySection = string.IsNullOrWhiteSpace(hydratedContext) ? string.Empty : $"\nShared Hydrated Brain Context (<3KB):\n{hydratedContext}\n";
+
+        var systemPrompt = $"""
+            You are {agentKey}, an autonomous parallel AgentNeuron slice worker inside InoNativeHarness.
+            {slicePolicy.Describe()}
+            {ownedSummary}
+            {memorySection}
+            Prefer roslyn_batch_edit or roslyn_edit_member + roslyn_diagnostics for AST-safe C# edits, and write_file / replace_in_file for other allowed files.
+            Once your slice's files are updated and verified, respond with a concise 1-sentence summary.
+            """;
+
+        return LocalLlmCoder.RunToolLoopAsync(
+            services,
+            new LocalLlmCoder.ToolLoopRequest(
+                WorktreePath: request.WorktreePath,
+                SystemPrompt: systemPrompt,
+                UserPrompt: slicePrompt,
+                Policy: slicePolicy,
+                Roslyn: _orchestrator.Roslyn,
+                MaxToolRounds: 10,
+                DefaultSummary: $"[{agentKey}] Implemented slice '{slice.Title}'.",
+                NudgePrompt: "Apply the requested slice modification now using roslyn_batch_edit, roslyn_edit_member, replace_in_file, or write_file.",
+                ExhaustionMessagePrefix: $"Slice worker '{agentKey}' exhausted",
+                Brain: request.Brain,
+                SliceOwnedPaths: slice.OwnedPaths,
+                BatchOrchestrator: _orchestrator,
+                ExplicitRunner: resolvedInference),
+            logger: _logger,
+            ct: ct);
+    }
+
+    private static string BuildSelfRepairPrompt(string originalSlicePrompt, EngineerTaskSlice slice, int attempt, string diagnosticContext)
+    {
+        var ownedNote = slice.OwnedPaths is { Length: > 0 } ? $"Strictly confine repair edits to owned slice path(s): {string.Join(", ", slice.OwnedPaths)}." : "Strictly confine repair edits within repository policy.";
+        return string.Create(CultureInfo.InvariantCulture, $"{originalSlicePrompt}\n\n[Intra-Slice Roslyn Self-Repair — Attempt {attempt}/{MaxSelfRepairTurns}]\n{ownedNote}\n{diagnosticContext}\nFix the reported C# compiler error(s) so semantic/syntax diagnostics reach 0 errors.");
+    }
+
+    private static string BuildFrontierRepairPrompt(string originalSlicePrompt, EngineerTaskSlice slice, string localModelId, string diagnosticContext)
+    {
+        var ownedNote = slice.OwnedPaths is { Length: > 0 } ? $"Strictly confine repair edits to owned slice path(s): {string.Join(", ", slice.OwnedPaths)}." : "Strictly confine repair edits within repository policy.";
+        return string.Create(CultureInfo.InvariantCulture, $"{originalSlicePrompt}\n\n[Intra-Slice Frontier Escalation — local model '{localModelId}' failed {MaxSelfRepairTurns} repair attempt(s)]\n{ownedNote}\n{diagnosticContext}\nFix the reported C# compiler error(s) so semantic/syntax diagnostics reach 0 errors.");
+    }
+
+    private static string BuildSlicePrompt(
+        EngineeringHarnessRequest request,
+        RatifiedPlan plan,
+        EngineerTaskSlice slice,
+        int totalSlices,
+        string symbolHint,
+        string ownershipDirective,
+        string strategyDirective,
+        string memoryDirective)
+    {
+        if (totalSlices == 1 && request.TotalInstances == 1 && string.IsNullOrWhiteSpace(memoryDirective) && (slice.OwnedPaths is null || slice.OwnedPaths.Length == 0))
+        {
+            return request.Goal;
+        }
+
+        if (totalSlices == 1 && string.IsNullOrWhiteSpace(memoryDirective) && (slice.OwnedPaths is null || slice.OwnedPaths.Length == 0))
+        {
+            return $"{request.Goal}{strategyDirective}";
+        }
+
+        return $"{request.Goal}\n\n[Task {slice.SliceId}: {slice.Title}]\n{slice.Instructions}\nArchitect note: {plan.ArchitectureSummary}{ownershipDirective}{symbolHint}{strategyDirective}{memoryDirective}";
+    }
 }
