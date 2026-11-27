@@ -220,7 +220,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     public async Task GroupSay(GroupInvite group, string text)
     {
         ArgumentNullException.ThrowIfNull(group);
-        RequireSameBrain(PersonActs.Refused);
+        await Owner();
         await EnsureImported();
         if (!(await GroupsNow()).Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
         {
@@ -233,7 +233,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     public async Task<ConversationView> GroupRead(GroupInvite group, long? sinceRevision = null)
     {
         ArgumentNullException.ThrowIfNull(group);
-        RequireSameBrain(PersonActs.Refused);
+        await Owner();
         await EnsureImported();
         if (!(await GroupsNow()).Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
         {

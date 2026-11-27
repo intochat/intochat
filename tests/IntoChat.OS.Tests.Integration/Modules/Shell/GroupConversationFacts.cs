@@ -40,6 +40,8 @@ public sealed class GroupConversationFacts
         using (As(Ada))
         {
             await world.Conversation(Ada, id).Post("owner note", "note-1");
+            // Personal ConversationNeuron.Invite fails closed and grants zero offers.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Conversation(Ada, id).Invite(new AccountId(Ben)));
             var ownerView = await world.Conversation(Ada, id).Read();
             Assert.Contains(ownerView.Entries, e => e is Called);
             Assert.Contains(ownerView.Entries, e => e is Returned { Visible: Visibility.Owner });

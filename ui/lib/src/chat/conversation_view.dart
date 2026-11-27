@@ -634,7 +634,7 @@ class _ConversationViewState extends State<ConversationView> {
       child: LayoutBuilder(
         builder: (context, constraints) => constraints.hasBoundedHeight
             ? content
-            : SizedBox(height: 520, child: content),
+            : SizedBox(height: 460, child: content),
       ),
     );
   }
@@ -1274,7 +1274,7 @@ class _AssistantMessageItem extends StatelessWidget {
                     Text(
                       agentBadgeLabel,
                       style: UiType.textStyle(
-                        11.5,
+                        12.0,
                         weight: FontWeight.w600,
                         color: c.accent,
                       ),

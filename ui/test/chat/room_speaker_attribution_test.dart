@@ -131,4 +131,92 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'nested Conversation inside Card -> Column (>4 children) under ViewHost renders without unbounded-height RenderFlex crash',
+    (tester) async {
+      final root = <String, dynamic>{
+        'kind': 'card',
+        'title': 'Rooms & Group Chat',
+        'subtitle': 'Group · Trip Planning',
+        'children': [
+          {
+            'kind': 'column',
+            'gap': 'sm',
+            'children': [
+              {'kind': 'text', 'value': 'Room header line 1'},
+              {'kind': 'text', 'value': 'Room header line 2'},
+              {'kind': 'text', 'value': 'Room header line 3'},
+              {'kind': 'text', 'value': 'Present: alice, bob'},
+              {
+                'kind': 'conversation',
+                'key': 'room-thread:alice:trip',
+                'messages': [
+                  {
+                    'id': 'nested-msg-1',
+                    'role': 'user',
+                    'text': 'Nested human message',
+                    'status': 'completed',
+                    'sender': {
+                      'accountId': 'bob',
+                      'displayName': 'Bob',
+                      'kind': 'human',
+                    },
+                  },
+                  {
+                    'id': 'nested-msg-2',
+                    'role': 'assistant',
+                    'text': 'Nested @Ino reply',
+                    'status': 'completed',
+                    'sender': {
+                      'accountId': 'room-ino',
+                      'displayName': '@Ino · Room only',
+                      'kind': 'agent',
+                      'roomScoped': true,
+                    },
+                  },
+                ],
+                'composer': {
+                  'key': 'input:room-message',
+                  'onSubmit': {
+                    'target': '.',
+                    'signal': 'friends.send-room-message',
+                  },
+                  'placeholder': 'Message room',
+                  'enabled': true,
+                },
+                'status': 'ready',
+              },
+            ],
+          },
+        ],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light('intochat'),
+          home: Scaffold(
+            body: ViewHost(
+              knowsApp: (_) => false,
+              kind: 'view',
+              name: 'local/apps/friends/view',
+              load: (_, _) async => PublishedViewPayload.fromJson({
+                'generation': 1,
+                'view': {'title': 'Friends', 'root': root},
+              }),
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Nested human message'), findsOneWidget);
+      expect(find.text('Nested @Ino reply'), findsOneWidget);
+      expect(find.text('@Ino · Room only'), findsOneWidget);
+      expect(find.text('Message room'), findsOneWidget);
+    },
+  );
 }
