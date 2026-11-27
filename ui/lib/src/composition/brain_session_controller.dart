@@ -291,6 +291,8 @@ class BrainSessionController extends ChangeNotifier {
       _transcribeOverride ?? _client?.transcribe;
   VoiceTalker? get talk => _talkOverride ?? _client?.talk;
   VoiceSpeaker? get speak => _speakOverride ?? _client?.speak;
+  AttachmentFetcher? get fetchAttachment => _client?.fetchAttachmentBytes;
+  AttachmentUploader? get uploadAttachment => _client?.uploadAttachment;
   SecretStore? get storeSecret =>
       _storeSecretOverride ?? _client?.storeSecretReference;
 

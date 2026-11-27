@@ -1510,7 +1510,7 @@ public sealed class InoAppFacts
         }
 
         public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
-        public Task Say(string text, ModelId? model = null) { Says++; throw new NotSupportedException(); }
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) { Says++; throw new NotSupportedException(); }
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
 
@@ -1619,7 +1619,7 @@ public sealed class InoAppFacts
             return Task.CompletedTask;
         }
 
-        public Task Say(string text, ModelId? model = null)
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
         {
             OnSay?.Invoke();
             Says++;

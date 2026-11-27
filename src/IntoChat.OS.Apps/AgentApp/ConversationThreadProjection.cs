@@ -183,7 +183,10 @@ public static class ConversationThreadProjection
 
             if (said.By is Participant.Human)
             {
-                messages.Add(new ThreadMessage(said.Id.Value, "user", said.Text, "completed"));
+                messages.Add(new ThreadMessage(said.Id.Value, "user", said.Text, "completed")
+                {
+                    Attachments = ProjectAttachments(said.Attachments),
+                });
 
                 if (EntryIds.RunOf(said.Id) is { } promptRunId
                     && !replyRunIds.Contains(promptRunId)
@@ -549,7 +552,25 @@ public static class ConversationThreadProjection
             ProviderIcon = providerIcon,
             Activities = activities,
             Cards = cards,
+            Attachments = ProjectAttachments(said.Attachments),
         };
+    }
+
+    private static AttachmentNode[] ProjectAttachments(AttachmentRef[]? attachments)
+    {
+        if (attachments is not { Length: > 0 })
+        {
+            return [];
+        }
+
+        var nodes = new AttachmentNode[attachments.Length];
+        for (var i = 0; i < attachments.Length; i++)
+        {
+            var a = attachments[i];
+            var sizeBytes = (int)Math.Clamp(a.SizeBytes, 0, int.MaxValue);
+            nodes[i] = new AttachmentNode(a.Id, a.Kind, a.FileName, a.MediaType, sizeBytes, a.Url, a.DurationMs, a.Transcript);
+        }
+        return nodes;
     }
 
     private static ThreadMessage BuildNonCompletedReply(

@@ -156,6 +156,14 @@ internal sealed class GeminiLiveRealtimeSession : IRealtimeClientSession
 
 #pragma warning disable OPENAI002 // OpenAI.Realtime cancel command forwarded by TalkEndpoint on tap-to-interrupt.
             case RealtimeClientMessage { RawRepresentation: OpenAI.Realtime.RealtimeClientCommandResponseCancel }:
+                try
+                {
+                    await SendJsonAsync(BuildInterruptJson(), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception error) when (error is WebSocketException or ObjectDisposedException or OperationCanceledException)
+                {
+                    OsConsoleLog.For<GeminiLiveRealtimeSession>().LogSwallowed(error, "sending upstream interrupt frame to Gemini Live");
+                }
                 _output.Writer.TryWrite(new RealtimeServerMessage { Type = LocalTalk.Interrupted });
                 return;
 #pragma warning restore OPENAI002
@@ -566,4 +574,7 @@ internal sealed class GeminiLiveRealtimeSession : IRealtimeClientSession
 
         return Encoding.UTF8.GetString(stream.ToArray());
     }
+
+    internal static string BuildInterruptJson()
+        => """{"clientContent":{"turns":[],"turnComplete":true}}""";
 }

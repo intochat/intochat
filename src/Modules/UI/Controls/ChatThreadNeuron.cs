@@ -167,7 +167,8 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
             Retry: retry,
             ModelLabel: message.Model,
             ProviderIcon: message.ProviderIcon,
-            Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? ChatThreadProps.NoAnswer : message.Failure) : null);
+            Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? ChatThreadProps.NoAnswer : message.Failure) : null,
+            Attachments: message.Attachments.Count > 0 ? message.Attachments : null);
     }
 
     private static Command RetryCommand(string id)
@@ -203,6 +204,7 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
         Status = string.IsNullOrWhiteSpace(message.Status) ? "completed" : message.Status,
         Activities = message.Activities ?? [],
         Cards = message.Cards ?? [],
+        Attachments = message.Attachments ?? [],
     };
 
     private static int IndexOf(IReadOnlyList<ThreadMessage> messages, string id)
