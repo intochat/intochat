@@ -9,6 +9,7 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using static IntoChat.Aspire.Candidates.CandidateWorkspace;
 
@@ -173,6 +174,8 @@ internal sealed class ProcessCandidateHost : ICandidateHost
     private readonly IProcessRunner _processes;
     private readonly Func<CancellationToken, Task<string>> _workdir;
     private readonly Func<CancellationToken, Task<CandidateSecrets>> _secrets;
+    private readonly CandidateGitWorkspace _workspace;
+    private readonly IConfiguration? _live;
     private readonly Func<ProcessStartInfo, CandidateProcessHandle> _launcher;
     private readonly Func<int> _portAllocator;
     private readonly HttpClient _http;
@@ -185,14 +188,18 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         string HomeDirectory,
         string WorktreeDirectory);
 
-    public ProcessCandidateHost(IModuleIntegrations<AspireModule> integrations, IProcessRunner processes)
+    public ProcessCandidateHost(
+        IModuleIntegrations<AspireModule> integrations,
+        IProcessRunner processes,
+        IConfiguration? configuration = null)
         : this(
             processes,
             ct => Workdir(integrations, ct),
             ct => Secrets(integrations, ct),
             launcher: null,
             http: new HttpClient { Timeout = TimeSpan.FromSeconds(5) },
-            portAllocator: null)
+            portAllocator: null,
+            configuration: configuration)
     {
     }
 
@@ -202,68 +209,28 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         Func<CancellationToken, Task<CandidateSecrets>>? secrets = null,
         Func<ProcessStartInfo, CandidateProcessHandle>? launcher = null,
         HttpClient? http = null,
-        Func<int>? portAllocator = null)
+        Func<int>? portAllocator = null,
+        IConfiguration? configuration = null)
     {
         _processes = processes ?? throw new ArgumentNullException(nameof(processes));
         _workdir = workdir ?? throw new ArgumentNullException(nameof(workdir));
         _secrets = secrets ?? (_ => Task.FromResult(new CandidateSecrets(new Dictionary<string, string>())));
+        _workspace = new CandidateGitWorkspace(_processes, _workdir);
+        _live = configuration;
         _launcher = launcher ?? CandidateProcessHandle.Start;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         _portAllocator = portAllocator ?? AllocateEphemeralLoopbackPort;
     }
 
-    public async Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(files);
-        var root = await _workdir(ct).ConfigureAwait(false);
-        var git = Git(root);
-        var staging = Path.Combine(root, "worktrees", $"staging-{Guid.NewGuid():N}");
-        var added = false;
-        try
-        {
-            await git.AddWorktree(staging, baseSha, ct).ConfigureAwait(false);
-            added = true;
-            foreach (var (path, content) in files)
-            {
-                var target = Path.GetFullPath(Path.Combine(staging, path));
-                if (!target.StartsWith(Path.GetFullPath(staging) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new CandidateHostException("prepare", $"{path} leaves the worktree");
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                await File.WriteAllTextAsync(target, content, ct).ConfigureAwait(false);
-            }
-
-            await git.Stage(staging, ct).ConfigureAwait(false);
-            await git.Commit(staging, summary, ct).ConfigureAwait(false);
-            var sha = await git.ShortSha(staging, ct).ConfigureAwait(false);
-            var worktree = WorktreeOf(root, sha);
-            await git.MoveWorktree(staging, worktree, ct).ConfigureAwait(false);
-            return new PreparedCandidate(sha, worktree);
-        }
-        catch (Exception error)
-        {
-            if (added)
-            {
-                await git.RemoveWorktree(staging, CancellationToken.None).ConfigureAwait(false);
-            }
-
-            if (error is CandidateHostException or OperationCanceledException)
-            {
-                throw;
-            }
-
-            throw new CandidateHostException("prepare", error.Message);
-        }
-    }
+    public Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct)
+        => _workspace.Prepare(baseSha, summary, files, ct);
 
     public async Task BuildGate(string sha, CancellationToken ct)
     {
         Checked(sha);
         var root = await _workdir(ct).ConfigureAwait(false);
         var worktree = WorktreeOf(root, sha);
-        await Dotnet("gate", worktree, ct, "build", OsProject, "-c", "Release", "--nologo").ConfigureAwait(false);
+        await _workspace.Dotnet("gate", worktree, ct, "build", OsProject, "-c", "Release", "--nologo").ConfigureAwait(false);
     }
 
     public async Task<string> Publish(string sha, CancellationToken ct)
@@ -273,7 +240,7 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         var worktree = WorktreeOf(root, sha);
         var build = Path.Combine(root, "builds", sha);
         var output = Path.Combine(build, "os");
-        await Dotnet("publish", worktree, ct, "publish", OsProject, "-c", "Release", "-o", output, "--nologo").ConfigureAwait(false);
+        await _workspace.Dotnet("publish", worktree, ct, "publish", OsProject, "-c", "Release", "-o", output, "--nologo").ConfigureAwait(false);
         return build;
     }
 
@@ -300,6 +267,14 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         startInfo.ArgumentList.Add(kernelDll);
 
         ChildEnvironmentPolicy.Scrub(startInfo);
+        if (_live is not null)
+        {
+            foreach (var (key, value) in CandidateGitWorkspace.CopySafeHostConfiguration(_live, rewriteLoopbackForContainer: false))
+            {
+                startInfo.Environment[key] = value;
+            }
+        }
+
         foreach (var (key, value) in given.Model)
         {
             if (ChildEnvironmentPolicy.IsHostCustodySecret(key)
@@ -404,31 +379,11 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         }
     }
 
-    public async Task<string?> Commit(string sha, CancellationToken ct)
-    {
-        Checked(sha);
-        try
-        {
-            return await Git(await _workdir(ct).ConfigureAwait(false)).Advance(DockerCandidateHost.LiveRef, sha, ct).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException error)
-        {
-            throw new CandidateHostException("commit", error.Message);
-        }
-    }
+    public Task<string?> Commit(string sha, CancellationToken ct)
+        => _workspace.Commit(sha, ct);
 
-    public async Task Uncommit(string sha, string? previous, CancellationToken ct)
-    {
-        Checked(sha);
-        try
-        {
-            await Git(await _workdir(ct).ConfigureAwait(false)).Retreat(DockerCandidateHost.LiveRef, sha, previous, ct).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException error)
-        {
-            throw new CandidateHostException("commit", error.Message);
-        }
-    }
+    public Task Uncommit(string sha, string? previous, CancellationToken ct)
+        => _workspace.Uncommit(sha, previous, ct);
 
     public async Task Remove(string sha, CancellationToken ct)
     {
@@ -452,7 +407,7 @@ internal sealed class ProcessCandidateHost : ICandidateHost
 
         if (Directory.Exists(worktreeDir))
         {
-            await Git(root).RemoveWorktree(worktreeDir, ct).ConfigureAwait(false);
+            await _workspace.RemoveWorktree(root, worktreeDir, ct).ConfigureAwait(false);
         }
     }
 
@@ -636,17 +591,4 @@ internal sealed class ProcessCandidateHost : ICandidateHost
             Log.LogWarning(ex, "Best-effort cleanup of candidate directory '{Path}' failed.", path);
         }
     }
-
-    private async Task<string> Dotnet(string stage, string worktree, CancellationToken ct, params string[] args)
-    {
-        var result = await _processes.RunAsync("dotnet", args, worktree, null, ct).ConfigureAwait(false);
-        if (result.ExitCode != 0)
-        {
-            throw new CandidateHostException(stage, $"dotnet {string.Join(' ', args)}:\n{Tail(result)}");
-        }
-
-        return result.Output;
-    }
-
-    private Git Git(string root) => new(_processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
 }

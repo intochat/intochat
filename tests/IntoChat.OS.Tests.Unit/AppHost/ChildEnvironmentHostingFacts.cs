@@ -53,7 +53,7 @@ public sealed class ChildEnvironmentHostingFacts
     }
 
     [Fact]
-    public void DockerCandidateHost_ScrubsLiveMasterKeyAndPresenceTokenFromCopiedAndMcpEnvironment()
+    public void CandidateGitWorkspace_ScrubsLiveMasterKeyAndPresenceTokenFromCopiedHostConfiguration()
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -65,24 +65,10 @@ public sealed class ChildEnvironmentHostingFacts
             })
             .Build();
 
-        var host = new DockerCandidateHost(
-            new SystemProcessRunner(),
-            config,
-            _ => Task.FromResult(Path.GetTempPath()),
-            _ => Task.FromResult(new CandidateSecrets(new Dictionary<string, string>())),
-            _ => false,
-            new HttpClient());
-
-        var mcpEnv = host.McpEnvironment("abc1234");
-        Assert.False(mcpEnv.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
-        Assert.False(mcpEnv.ContainsKey(PresenceTokenEnvVar));
-        Assert.False(mcpEnv.ContainsKey(PresenceProof.TokenHashEnvironmentVariable));
-
-        var siloEnv = host.Environment("abc1234", new Dictionary<string, string>(), "pg-pw", "ch-pw");
-        Assert.True(siloEnv.TryGetValue(IntoChatOSNames.MasterKeyEnvironmentVariable, out var candidateKey));
-        Assert.NotEqual("host-master-secret", candidateKey);
-        Assert.False(siloEnv.ContainsKey(PresenceTokenEnvVar));
-        Assert.False(siloEnv.ContainsKey(PresenceProof.TokenHashEnvironmentVariable));
+        var copiedEnv = CandidateGitWorkspace.CopySafeHostConfiguration(config, rewriteLoopbackForContainer: true);
+        Assert.False(copiedEnv.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
+        Assert.False(copiedEnv.ContainsKey(PresenceTokenEnvVar));
+        Assert.False(copiedEnv.ContainsKey(PresenceProof.TokenHashEnvironmentVariable));
     }
 
     [Fact]

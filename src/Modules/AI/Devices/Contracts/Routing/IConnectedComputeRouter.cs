@@ -247,9 +247,6 @@ public enum ComputeExecutionTarget
 
     [JsonStringEnumMemberName("local-unit-host")]
     LocalUnitHost = 2,
-
-    [JsonStringEnumMemberName("aca-dynamic-sessions")]
-    AcaDynamicSessions = 3,
 }
 
 /// <summary>
