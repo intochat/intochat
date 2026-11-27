@@ -1,65 +1,79 @@
 using IntoChat.OS.Modules.Apps.CodeBlocks;
+using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
-// A code block is wrapped as a one-command app and compiled under the app boundary: safe code compiles, file access does not.
+// Plane 1 orchestration scripts are wrapped as a one-command app and compiled under the app boundary: safe code compiles, file access does not.
 public sealed class CodeBlockSourceFacts
 {
     private const string Good = """
-        public static class Block
+        using System.Linq;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using IntoChat.Sdk;
+
+        public static class OrchestrationScript
         {
-            public static string Run(string input) => string.Join(" ", input.Split(' ').Reverse());
+            public static Task<OrchestrationResult> RunAsync(ISandboxBrain os, string inputJson, CancellationToken ct)
+                => Task.FromResult(new OrchestrationResult("succeeded", string.Join(" ", inputJson.Split(' ').Reverse())));
         }
         """;
 
     private const string ReadsAFile = """
-        public static class Block
+        using System.Threading;
+        using System.Threading.Tasks;
+        using IntoChat.Sdk;
+
+        public static class OrchestrationScript
         {
-            public static string Run(string input) => System.IO.File.ReadAllText("C:/Windows/win.ini");
+            public static Task<OrchestrationResult> RunAsync(ISandboxBrain os, string inputJson, CancellationToken ct)
+                => Task.FromResult(new OrchestrationResult("succeeded", System.IO.File.ReadAllText("C:/Windows/win.ini")));
         }
         """;
 
     [Fact]
-    public void SafeCodeCompilesWithItsRunCommand()
+    public void SafeCodeCompilesWithItsOrchestrateCommand()
     {
-        var compiled = new AppPackageCompiler().Compile(CodeBlockSource.Package(CodeBlockSource.AppKey("r1"), "reverse", Good));
+        var compiled = new AppPackageCompiler().Compile(CodeOrchestrationScriptWrapper.BuildPackage(CodeOrchestrationScriptWrapper.AppKey("r1"), "reverse", Good));
         Assert.True(compiled.Succeeded, string.Join("; ", compiled.Errors));
         Assert.NotEmpty(compiled.AssemblyBytes);
     }
 
     [Fact]
     public void FileAccessDoesNotCompile()
-        => Assert.False(new AppPackageCompiler().Compile(CodeBlockSource.Package(CodeBlockSource.AppKey("r2"), "steal", ReadsAFile)).Succeeded);
+        => Assert.False(new AppPackageCompiler().Compile(CodeOrchestrationScriptWrapper.BuildPackage(CodeOrchestrationScriptWrapper.AppKey("r2"), "steal", ReadsAFile)).Succeeded);
 
     [Fact]
-    public void AStringResultReadsAsItsText() => Assert.Equal("c b a", CodeBlockSource.Output("\"c b a\""));
+    public void ResultJsonParsesSummary()
+        => Assert.Equal("c b a", CodeOrchestrationScriptWrapper.ParseResultJson("{\"status\":\"succeeded\",\"summary\":\"c b a\",\"artifacts\":[],\"metrics\":{}}").Summary);
 
     private const string Orchestrates = """
+        using System.Threading;
         using System.Threading.Tasks;
         using IntoChat.Sdk;
         using IntoChat.OS.Modules.Apps.Runs;
 
-        public static class Block
+        public static class OrchestrationScript
         {
-            public static async Task<string> Run(string input, ISandboxBrain brain)
+            public static async Task<OrchestrationResult> RunAsync(ISandboxBrain brain, string inputJson, CancellationToken ct)
             {
                 var runs = await brain.Get<IRuns>("runs/index").List(10);
-                return $"{runs.Length} run(s)";
+                return new OrchestrationResult("succeeded", $"{runs.Length} run(s)");
             }
         }
         """;
 
     [Fact]
-    public void ABlockThatCallsTheBrainNeedsExactlyTheContractsItUses()
+    public void AScriptThatCallsTheBrainNeedsExactlyTheContractsItUses()
     {
-        var compiled = new AppPackageCompiler().Compile(CodeBlockSource.Package(CodeBlockSource.AppKey("r3"), "count runs", Orchestrates));
+        var compiled = new AppPackageCompiler().Compile(CodeOrchestrationScriptWrapper.BuildPackage(CodeOrchestrationScriptWrapper.AppKey("r3"), "count runs", Orchestrates));
         Assert.True(compiled.Succeeded, string.Join("; ", compiled.Errors));
         Assert.Equal(["IntoChat.OS.Modules.Apps.Runs.IRuns"], CodeBlockNeeds.Infer(compiled.AssemblyBytes));
     }
 
     [Fact]
-    public void ABlockWithoutBrainCallsNeedsNothing()
-        => Assert.Empty(CodeBlockNeeds.Infer(new AppPackageCompiler().Compile(CodeBlockSource.Package(CodeBlockSource.AppKey("r4"), "reverse", Good)).AssemblyBytes));
+    public void AScriptWithoutBrainCallsNeedsNothing()
+        => Assert.Empty(CodeBlockNeeds.Infer(new AppPackageCompiler().Compile(CodeOrchestrationScriptWrapper.BuildPackage(CodeOrchestrationScriptWrapper.AppKey("r4"), "reverse", Good)).AssemblyBytes));
 
     [Fact]
     public void TheNeedsHashIgnoresOrder()

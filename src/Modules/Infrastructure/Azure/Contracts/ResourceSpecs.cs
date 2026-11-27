@@ -28,6 +28,7 @@ public sealed record IdentitySpec : ResourceSpec
 public sealed record LogWorkspaceSpec : ResourceSpec
 {
     public int RetentionDays { get; init; } = 30;
+    public double DailyQuotaGb { get; init; } = 0.2;
 
     public override string Kind => ResourceKinds.LogWorkspace;
 }
@@ -283,4 +284,26 @@ public sealed record FoundryDeploymentSpec : ResourceSpec
     public int Capacity { get; init; } = 10;
 
     public override string Kind => ResourceKinds.FoundryDeployment;
+}
+
+// Layer 1 preventive Azure Policy Deny guardrails (subscription-scoped, with protected RG exclusions on SKU/scale rules).
+public sealed record CostGuardrailSpec : ResourceSpec
+{
+    public string[] ProtectedResourceGroups { get; init; } = ["LeedGenerator", "sv", "NetworkWatcherRG"];
+
+    public override string Kind => ResourceKinds.CostGuardrail;
+}
+
+// Layer 2 automated Azure Consumption Budget + Action Group + Automation Account PowerShell 7.2 kill-switch.
+public sealed record BudgetKillSwitchSpec : ResourceSpec
+{
+    public double MonthlyBudgetEur { get; init; } = 185.0;
+    public string AlertEmail { get; init; } = "vlad@intochat.io";
+    public string[] ProtectedResourceGroups { get; init; } = ["LeedGenerator", "sv", "NetworkWatcherRG"];
+    public string AutomationAccountName { get; init; } = "";
+    public string RunbookName { get; init; } = "Stop-IntoChatCostBreaker";
+    public string ActionGroupName { get; init; } = "";
+    public string BudgetName { get; init; } = "intochat-hard-cap-185eur";
+
+    public override string Kind => ResourceKinds.BudgetKillSwitch;
 }

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
@@ -10,6 +9,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Http;
 using DigitalBrain.Runtime.Http.Connections.OAuth;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -89,7 +89,7 @@ internal sealed class OAuthDeviceFlow(
         var userCode = ReadRequiredString(root, "user_code", maxLength: 256);
         var verificationUri = ReadRequiredString(root, "verification_uri", maxLength: 2048);
         if (!Uri.TryCreate(verificationUri, UriKind.Absolute, out var parsedVerifyUri)
-            || parsedVerifyUri.Scheme is not ("https" or "http"))
+            || !IsAllowedVerificationUri(parsedVerifyUri))
         {
             throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
         }
@@ -98,11 +98,16 @@ internal sealed class OAuthDeviceFlow(
         if (root.TryGetProperty("verification_uri_complete", out var completeProp) && completeProp.ValueKind == JsonValueKind.String)
         {
             var candidate = completeProp.GetString();
-            if (!string.IsNullOrWhiteSpace(candidate)
-                && candidate.Length <= 2048
-                && Uri.TryCreate(candidate, UriKind.Absolute, out var parsedComplete)
-                && parsedComplete.Scheme is "https" or "http")
+            if (!string.IsNullOrWhiteSpace(candidate))
             {
+                if (candidate.Length > 2048
+                    || candidate.Any(char.IsControl)
+                    || !Uri.TryCreate(candidate, UriKind.Absolute, out var parsedComplete)
+                    || !IsAllowedVerificationUri(parsedComplete))
+                {
+                    throw new OAuthTokenExchangeException(OAuthTokenFailure.InvalidResponse);
+                }
+
                 verificationUriComplete = candidate;
             }
         }
@@ -132,9 +137,16 @@ internal sealed class OAuthDeviceFlow(
             interval);
     }
 
+    public Task<OAuthDevicePollResult> PollOnceAsync(
+        BrainId brainId,
+        string flowId,
+        CancellationToken ct = default)
+        => PollOnceAsync(brainId, flowId, expectedConnectionId: null, ct);
+
     public async Task<OAuthDevicePollResult> PollOnceAsync(
         BrainId brainId,
         string flowId,
+        string? expectedConnectionId,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId.Value);
@@ -155,14 +167,33 @@ internal sealed class OAuthDeviceFlow(
             throw new KeyNotFoundException("Device authorization flow was not found.");
         }
 
+        if (!string.IsNullOrWhiteSpace(expectedConnectionId)
+            && !MatchesConnectionId(flow!.ConnectionKey, brainId.Value, expectedConnectionId))
+        {
+            throw new KeyNotFoundException("Device authorization flow does not match the specified connection.");
+        }
+
         var (_, connectorId, _) = ConnectionKeys.Parse(flow!.ConnectionKey);
         await EnforceExternalConnectorAllowedAsync(brainId.Value, connectorId, ct).ConfigureAwait(false);
 
-        var now = clock.GetUtcNow();
-        if (now < flow.NextAllowedPollUtc)
+        // Atomically check throttle/expiry and advance NextAllowedPollUtc before issuing the upstream HTTP poll,
+        // so concurrent /device/poll calls cannot burst the provider.
+        if (!requests.TryReservePoll(flowId, brainId.Value, out var reserved, out var expiredAfterCheck))
         {
-            return new OAuthDevicePollResult(OAuthDevicePollStatus.Pending, flow.IntervalSeconds, null, null);
+            if (expiredAfterCheck)
+            {
+                return new OAuthDevicePollResult(OAuthDevicePollStatus.Expired, 0, null, "The device authorization code has expired. Start again.");
+            }
+
+            if (reserved is null)
+            {
+                throw new KeyNotFoundException("Device authorization flow was not found.");
+            }
+
+            return new OAuthDevicePollResult(OAuthDevicePollStatus.Pending, reserved.IntervalSeconds, null, null);
         }
+
+        flow = reserved!;
 
         // RFC 8628 §3.4: public client polling sends client_id + device_code + grant_type (zero client_secret).
         var form = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -268,7 +299,7 @@ internal sealed class OAuthDeviceFlow(
 
         if (uri.Scheme == "https")
         {
-            if (IPAddress.TryParse(uri.DnsSafeHost, out var httpsIp) && IsForbiddenAddress(httpsIp))
+            if (IPAddress.TryParse(uri.DnsSafeHost, out var httpsIp) && !HttpHosts.IsPublicOrLoopback(httpsIp))
             {
                 throw new ArgumentException("An OAuth device endpoint may not target a private or link-local IP address.", nameof(url));
             }
@@ -283,6 +314,38 @@ internal sealed class OAuthDeviceFlow(
         }
 
         throw new ArgumentException("An OAuth device endpoint must use HTTPS.", nameof(url));
+    }
+
+    internal static bool IsAllowedVerificationUri(Uri uri)
+    {
+        if (!uri.IsAbsoluteUri
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return false;
+        }
+
+        if (uri.Scheme == "https")
+        {
+            return !IPAddress.TryParse(uri.DnsSafeHost, out var httpsIp) || HttpHosts.IsPublicOrLoopback(httpsIp);
+        }
+
+        return uri.Scheme == "http" && IsLoopbackHost(uri.DnsSafeHost);
+    }
+
+    internal static bool MatchesConnectionId(string flowConnectionKey, string brainId, string expectedConnectionId)
+    {
+        var (_, flowConnectorId, flowConnectionId) = ConnectionKeys.Parse(flowConnectionKey);
+        var unescaped = Uri.UnescapeDataString(expectedConnectionId);
+        if (ConnectionKeys.TryParse(unescaped, out var expectedKey))
+        {
+            return string.Equals(expectedKey.BrainId, brainId, StringComparison.Ordinal)
+                && string.Equals(expectedKey.ConnectorId, flowConnectorId, StringComparison.Ordinal)
+                && string.Equals(expectedKey.ConnectionId, flowConnectionId, StringComparison.Ordinal);
+        }
+
+        return string.Equals(unescaped, flowConnectionId, StringComparison.Ordinal)
+            || string.Equals(expectedConnectionId, flowConnectionId, StringComparison.Ordinal);
     }
 
     private async Task EnforceExternalConnectorAllowedAsync(string brainId, string connectorId, CancellationToken ct)
@@ -319,7 +382,15 @@ internal sealed class OAuthDeviceFlow(
         if (!string.IsNullOrWhiteSpace(method.IntegrationId))
         {
             var integration = neurons.Integration(method.IntegrationId);
-            if ((await integration.Read().WaitAsync(ct).ConfigureAwait(false)).Status == IntegrationStatus.Ready)
+            var snapshot = await integration.Read().WaitAsync(ct).ConfigureAwait(false);
+            // Public ClientId settings are readable even when confidential secrets (e.g. PrivateKeyPem) are unconfigured.
+            if (snapshot.Settings.TryGetValue(method.ClientIdField, out var settingClientId)
+                && !string.IsNullOrWhiteSpace(settingClientId))
+            {
+                return settingClientId.Trim();
+            }
+
+            if (snapshot.Status == IntegrationStatus.Ready)
             {
                 var released = await edge.AsKernel(BrainId.Kernel, () => integration.Release().WaitAsync(ct)).ConfigureAwait(false);
                 if (released.Values.TryGetValue(method.ClientIdField, out var overrideClientId)
@@ -463,36 +534,4 @@ internal sealed class OAuthDeviceFlow(
     private static bool IsLoopbackHost(string host)
         => string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
            || (IPAddress.TryParse(host, out var ip) && IPAddress.IsLoopback(ip));
-
-    private static bool IsForbiddenAddress(IPAddress address)
-    {
-        if (address.IsIPv4MappedToIPv6) { address = address.MapToIPv4(); }
-        if (IPAddress.IsLoopback(address)) { return false; }
-        if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.Broadcast)
-            || address.Equals(IPAddress.IPv6Any) || address.Equals(IPAddress.IPv6None))
-        {
-            return true;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-        {
-            var bytes = address.GetAddressBytes();
-            return bytes[0] == 0
-                || bytes[0] == 10
-                || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64)
-                || (bytes[0] == 169 && bytes[1] == 254)
-                || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
-                || (bytes[0] == 192 && bytes[1] == 168)
-                || bytes[0] >= 224;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast) { return true; }
-            var bytes = address.GetAddressBytes();
-            return (bytes[0] & 0xFE) == 0xFC;
-        }
-
-        return false;
-    }
 }

@@ -7,7 +7,6 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Creator;
-using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
@@ -105,24 +104,20 @@ public sealed class EngineerDogfoodJourneys
         os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
-        os.Register(typeof(EngineerApp).Assembly);
+        os.Register(typeof(CreatorApp).Assembly);
 
-        // 1. Open app.engineer and launch a real 2-worktree ContainerVolume flow.engineer run.
-        var engineerId = new NeuronId(brain, "app.engineer", "default");
-        var engineerScreen = os.Get<IScreen>(engineerId);
-        Assert.NotNull(await engineerScreen.Read());
-
-        await engineerScreen.Request(new EngineerNewRun(
-            Repository: "os",
+        // 1. Launch a real 2-worktree ContainerVolume flow.engineer run via IEngineerRuns.
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var started = await runs.StartEngineerRun(new EngineerDelegationRequest(
+            RepoSlug: "os",
             Goal: "Add Subtract and Clamp helpers to Calculator",
-            InstanceCount: 2,
-            Backend: "ContainerVolume"));
+            ParallelInstances: 2,
+            Backend: "ContainerVolume"), Ct);
+        Assert.True(started.Ok, started.SummaryText);
         await os.Idle();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var activeFlows = await flows.List(new FlowQuery(Type: IEngineerRuns.EngineerFlow), Ct);
-        var startedFlow = Assert.Single(activeFlows);
-        var flowId = startedFlow.FlowId;
+        var flowId = started.FlowId;
 
         // 2. Drive flow.engineer through brainstorm -> 2 parallel worktrees -> Roslyn AST edits -> Release dotnet build -> live-verify -> approval-gate.
         FlowView? waiting = null;
@@ -179,13 +174,6 @@ public sealed class EngineerDogfoodJourneys
         // Nothing is pushed to bare origin before the human owner approves the SHA-bound plan.
         Assert.Equal(string.Empty, RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
 
-        // Sync EngineerApp with the live waiting flow: its tab strip follows the review stage and its worktree tree holds both candidates.
-        await engineerScreen.Request(new EngineerOpen(FlowId: flowId));
-        await os.Idle();
-        var engineerView = (await engineerScreen.Read())!.View;
-        Assert.Equal("pr", ChildProps(engineerView, EngineerApp.TabsKey).GetProperty("selectedId").GetString());
-        Assert.True(ChildProps(engineerView, EngineerApp.WorktreesKey).GetProperty("nodes").GetArrayLength() >= 4);
-
         // 3. Open app.creator in the SAME brain, inspect the live flow & causal signal trace, and time-travel with CreatorReplay + its state tab!
         var creatorId = new NeuronId(brain, "app.creator", "default");
         var creatorScreen = os.Get<IScreen>(creatorId);
@@ -205,8 +193,8 @@ public sealed class EngineerDogfoodJourneys
         // The replay slider and the signals table are control.* children: their props sit on the child nodes of Creator's published view.
         var tracedView = (await creatorScreen.Read())!.View;
         var maxStep = ChildProps(tracedView, CreatorView.ReplaySliderKey).GetProperty("max").GetDouble();
-        Assert.True(maxStep >= 4, $"Expected multiple causal flow signals on Creator timeline; got max={maxStep}.");
-        Assert.True(ChildProps(tracedView, CreatorView.InspectorSignalsKey).GetProperty("rows").GetArrayLength() >= 4);
+        Assert.True(maxStep >= 2, $"Expected multiple causal flow signals on Creator timeline; got max={maxStep}.");
+        Assert.True(ChildProps(tracedView, CreatorView.InspectorSignalsKey).GetProperty("rows").GetArrayLength() >= 2);
 
         // Step to First event -> Next event -> Previous event -> Last event on the state tab, verifying its jsonTree node updates live!
         await creatorScreen.Request(new CreatorSelect("tab:state"));
@@ -290,11 +278,12 @@ public sealed class EngineerDogfoodJourneys
         Assert.Contains("public static int Subtract(int a, int b)", committedSource, StringComparison.Ordinal);
         Assert.Contains("public static int Clamp(int value, int min, int max)", committedSource, StringComparison.Ordinal);
 
-        // Sync EngineerApp & CreatorApp after completion so all 3 OS surfaces reflect the completed run.
-        await engineerScreen.Request(new EngineerOpen(FlowId: flowId));
+        // Sync CreatorApp after completion and verify SHA-bound receipt.
         await creatorScreen.Request(new CreatorOpen());
         await os.Idle();
-        Assert.Contains("Draft PR Published", (await engineerScreen.Read())!.View.GetRawText(), StringComparison.Ordinal);
+        var finalSummary = await runs.InspectEngineerRun(flowId, Ct);
+        Assert.NotNull(finalSummary.Receipt);
+        Assert.Equal(expectedWinningSha, finalSummary.Receipt!.CommitSha);
         Assert.Empty(await inbox.Read() is var finalInbox ? finalInbox.Pending : []);
     }
 

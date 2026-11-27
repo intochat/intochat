@@ -127,7 +127,7 @@ public sealed class DesktopAppFacts
         Assert.Contains("dock-photocraft", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-filmcraft", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-markdraw", viewJson, StringComparison.Ordinal);
-        Assert.Contains("dock-creator", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-creator", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-unit-helloworld", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-unit-btcalert", viewJson, StringComparison.Ordinal);
 

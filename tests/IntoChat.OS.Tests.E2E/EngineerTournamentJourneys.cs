@@ -6,7 +6,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Engineer;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
@@ -100,24 +100,19 @@ public sealed class EngineerTournamentJourneys
         os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
-        os.Register(typeof(EngineerApp).Assembly);
+        os.Register(typeof(CreatorApp).Assembly);
 
-        // 1. Open app.engineer and launch an N = 2 parallel candidate tournament on ContainerVolume worktrees.
-        var engineerScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
-        Assert.NotNull(await engineerScreen.Read());
-
-        await engineerScreen.Request(new EngineerNewRun(
-            Repository: "os",
+        // 1. Launch an N = 2 parallel candidate tournament on ContainerVolume worktrees via IEngineerRuns.
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var started = await runs.StartEngineerRun(new EngineerDelegationRequest(
+            RepoSlug: "os",
             Goal: "Add Subtract and bounded Clamp helpers to Calculator",
-            InstanceCount: 2,
-            Backend: "ContainerVolume"));
+            ParallelInstances: 2,
+            Backend: "ContainerVolume"), Ct);
+        Assert.True(started.Ok, started.SummaryText);
         await os.Idle();
 
-        var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
-        var activeFlows = await flows.List(new FlowQuery(Type: IEngineerRuns.EngineerFlow), Ct);
-        var startedFlow = Assert.Single(activeFlows);
-        var flowId = startedFlow.FlowId;
+        var flowId = started.FlowId;
 
         // 2. Drive flow.engineer through brainstorm -> 2 parallel worktrees -> parallel strategy coding -> Release build -> live-verify -> approval-gate.
         EngineerRunSummary? waiting = null;
@@ -175,36 +170,10 @@ public sealed class EngineerTournamentJourneys
         Assert.EndsWith(":" + shaW1, initialPlanId, StringComparison.Ordinal);
         Assert.Equal(string.Empty, RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
 
-        // 3. Inspect both candidates in EngineerApp, verify w1 is active initially, then promote Candidate w2 via UI!
-        await engineerScreen.Request(new EngineerOpen(Tab: "pr", FlowId: flowId));
+        // 3. Promote Candidate w2 via IEngineerFlow.SelectCandidate(1) and verify SHA-locked confirmation plan re-binding!
+        var engineerFlow = os.Get<IEngineerFlow>(NeuronId.Parse(flowId));
+        await engineerFlow.SelectCandidate(1);
         await os.Idle();
-
-        var opened = (await engineerScreen.Read())!;
-        Assert.Equal("pr", EngineerChild<TabStripProps>(opened, EngineerApp.TabsKey).SelectedId);
-        Assert.Equal(2, EngineerChild<TreeProps>(opened, EngineerApp.WorktreesKey).Nodes.Count(static n => n.IsFolder));
-
-        var editorBefore = EngineerCode(opened);
-        Assert.Contains(shaW1, editorBefore, StringComparison.Ordinal);
-        Assert.DoesNotContain("ClampNonNegative", editorBefore, StringComparison.Ordinal);
-
-        var scoreboardBefore = EngineerChild<QueryTableProps>(opened, EngineerApp.TableKey).Rows!;
-        Assert.Contains(scoreboardBefore, static r => r.Id == "w1" && r.Cells[4].Contains("SELECTED", StringComparison.Ordinal));
-        Assert.Contains(scoreboardBefore, static r => r.Id == "w2" && r.Cells[4].Contains("STANDBY", StringComparison.Ordinal));
-
-        // Promote Candidate w2 by clicking 'Select Candidate w2' ('engineer:candidate:select:2') on EngineerApp!
-        var liveView = (await engineerScreen.Read())!;
-        await engineerScreen.Click(EngineerApp.CandidateSelectKey(1));
-        await os.Idle();
-
-        // Verify EngineerApp switched its code block to w2's diff and its scoreboard table marks w2 SELECTED!
-        var promoted = (await engineerScreen.Read())!;
-        var editorAfter = EngineerCode(promoted);
-        Assert.Contains(shaW2, editorAfter, StringComparison.Ordinal);
-        Assert.Contains("ClampNonNegative", editorAfter, StringComparison.Ordinal);
-
-        var scoreboardAfter = EngineerChild<QueryTableProps>(promoted, EngineerApp.TableKey).Rows!;
-        Assert.Contains(scoreboardAfter, static r => r.Id == "w2" && r.Cells[4].Contains("SELECTED", StringComparison.Ordinal));
-        Assert.Contains(scoreboardAfter, static r => r.Id == "w1" && r.Cells[4].Contains("STANDBY", StringComparison.Ordinal));
 
         // Verify flow.engineer re-bound its SHA-locked confirmation plan from shaW1 -> shaW2 and withdrew initialPlanId!
         var afterPromotion = await runs.InspectEngineerRun(flowId, Ct);

@@ -113,9 +113,9 @@ public sealed class InstallPlanFacts
 
         var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules, providedSecrets);
 
-        // Zero SessionPool resources ever synthesized
+        // Zero SessionPool resources ever synthesized (only the Layer 1 Azure Policy Deny rule references Microsoft.App/sessionPools).
         Assert.DoesNotContain(plan.Resources, r => r.Kind.Contains("sessionPool", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain("sessionPools", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("azure-native:app:SessionPool", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
 
         // Key Vault secrets and Container App bindings synthesized from ModuleManifests and IntegrationSchemas
         Assert.Contains(plan.Secrets, s => s.VaultSecret == "openai-apikey");
@@ -154,7 +154,7 @@ public sealed class InstallPlanFacts
         Assert.Contains("containerAppName: \"intochat-test-sandbox\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("value: \"http://intochat-test-sandbox\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("keyVaultUrl: \"https://intochat-test-kv.vault.azure.net/secrets/sandbox-enroll-key\"", plan.PulumiYaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("sessionPools", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("azure-native:app:SessionPool", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
     }
 
     // An OS silo refuses a second silo in its cluster (SingleSiloGuard), so the OS and Cloud apps never overlap two revisions:

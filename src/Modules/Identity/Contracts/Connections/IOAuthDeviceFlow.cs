@@ -52,4 +52,11 @@ public interface IOAuthDeviceFlow
         BrainId brainId,
         string flowId,
         CancellationToken ct = default);
+
+    Task<OAuthDevicePollResult> PollOnceAsync(
+        BrainId brainId,
+        string flowId,
+        string? expectedConnectionId,
+        CancellationToken ct = default)
+        => PollOnceAsync(brainId, flowId, ct);
 }

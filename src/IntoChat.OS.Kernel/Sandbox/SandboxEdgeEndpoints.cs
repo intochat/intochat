@@ -162,7 +162,7 @@ internal static class SandboxEdgeEndpoints
             }
             var brainId = new BrainId(identity.BrainId);
             var caller = blockRun is not null && owner is not null
-                ? edge?.OnBehalfOf(new DigitalBrain.Access.Actor.Person(owner.OwnerPrincipalId, owner.AccountId), brainId, via: new NeuronId(brainId, "codeblock.run", blockRun))
+                ? edge?.OnBehalfOf(new DigitalBrain.Access.Actor.Person(owner.OwnerPrincipalId, owner.AccountId), brainId, via: new NeuronId(brainId, "flow.code-orchestration", blockRun))
                 : edge?.App(identity.AppKey, new DigitalBrain.Access.Actor.Person(appPrincipal, resolvedAccount), new BrainId(identity.BrainId));
             using (edge is not null && caller is not null ? edge.Enter(caller) : null)
             {

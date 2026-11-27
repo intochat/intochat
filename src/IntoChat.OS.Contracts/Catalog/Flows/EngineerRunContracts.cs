@@ -86,6 +86,16 @@ public sealed record EngineerInstanceSummary(
     }
 }
 
+/// <summary>SHA-bound PR and live-verification receipt rendered by Ino and Tasks.</summary>
+public sealed record EngineerVerificationReceipt(
+    string CommitSha,
+    string? PullRequestUrl,
+    string? PushedRef,
+    bool BuildVerified,
+    bool LiveVerified,
+    string? CandidateHostKind = null,
+    string? VerificationSummary = null);
+
 public sealed record EngineerRunSummary(
     bool Ok,
     string FlowId,
@@ -118,5 +128,6 @@ public sealed record EngineerRunSummary(
     EngineerTaskSlice[]? Slices = null,
     MissionCollaborator[]? Collaborators = null,
     // The gates this run passes; null on a summary that has no run behind it.
-    EngineerVerificationPolicy? Verification = null);
+    EngineerVerificationPolicy? Verification = null,
+    EngineerVerificationReceipt? Receipt = null);
 

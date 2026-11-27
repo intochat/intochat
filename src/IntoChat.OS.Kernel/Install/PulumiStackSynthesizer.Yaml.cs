@@ -132,6 +132,11 @@ public static partial class PulumiStackSynthesizer
                 sb.AppendLine($"      retentionInDays: {log.RetentionDays}");
                 sb.AppendLine("      sku:");
                 sb.AppendLine("        name: PerGB2018");
+                if (log.DailyQuotaGb > 0)
+                {
+                    sb.AppendLine("      workspaceCapping:");
+                    sb.AppendLine($"        dailyQuotaGb: {log.DailyQuotaGb.ToString(CultureInfo.InvariantCulture)}");
+                }
                 AppendTags(sb, tags, indent: 6);
                 break;
 
@@ -366,6 +371,14 @@ public static partial class PulumiStackSynthesizer
                 sb.AppendLine($"      resourceGroupName: \"${{{rgLogical}.name}}\"");
                 sb.AppendLine("      properties:");
                 sb.AppendLine($"        value: {YamlQuote(secret.Value)}");
+                break;
+
+            case CostGuardrailSpec guardrail:
+                AppendCostGuardrailPoliciesYaml(sb, c, guardrail);
+                break;
+
+            case BudgetKillSwitchSpec killSwitch:
+                AppendBudgetKillSwitchYaml(sb, c, killSwitch, rgLogical, tags);
                 break;
         }
     }

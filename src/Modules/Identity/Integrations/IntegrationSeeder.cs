@@ -92,6 +92,7 @@ internal sealed class IntegrationSeeder(
         {
             ("google-oauth", "ClientId") => configuration["IntoChatOS:Modules:auth:Secrets:google-client-id"],
             ("google-oauth", "ClientSecret") => configuration["IntoChatOS:Modules:auth:Secrets:google-client-secret"],
+            ("github", "ClientId") => configuration["IntoChatOS:Modules:github:ClientId"],
             _ => null,
         };
     }

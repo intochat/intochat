@@ -7,7 +7,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Engineer;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Inference;
@@ -166,7 +166,7 @@ public sealed class InoToEngineerDelegationJourneys
         Assert.Equal("ContainerVolume", waiting.Backend);
         Assert.NotNull(waiting.ConfirmationPlanId);
         Assert.StartsWith("app:engineer:deleg01:", waiting.ConfirmationPlanId!, StringComparison.Ordinal);
-        Assert.Contains($"neuron://{brain.Value}/apps/engineer#{started.FlowId}", waiting.EngineerAppUri, StringComparison.Ordinal);
+        Assert.Contains($"neuron://{brain.Value}/apps/tasks#{started.FlowId}", waiting.EngineerAppUri, StringComparison.Ordinal);
 
         // Verify distinct Architect and Critic model turns executed and refined the 2-task DAG.
         Assert.Equal(2, plannerPrompts.Count);
@@ -226,37 +226,6 @@ public sealed class InoToEngineerDelegationJourneys
         // Nothing is pushed to bare origin before human approval.
         Assert.Equal(string.Empty, RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
 
-        // 3. Open EngineerApp (app.engineer) in the SAME brain without manual FlowId seeding: it must reflect the delegated run!
-        var engineerScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
-        await engineerScreen.Request(new EngineerOpen());
-        await os.Idle();
-
-        var opened = (await engineerScreen.Read())!;
-        Assert.Equal("pr", EngineerChild<TabStripProps>(opened, EngineerApp.TabsKey).SelectedId);
-
-        var treeNodes = EngineerChild<TreeProps>(opened, EngineerApp.WorktreesKey).Nodes;
-        Assert.Contains(treeNodes, static n => n.Id == "wt-0" && n.Label.Contains("ContainerVolume", StringComparison.Ordinal) && n.Label.Contains("verified", StringComparison.Ordinal));
-        Assert.Contains(treeNodes, static n => n.Id == "wt-1" && n.Label.Contains("ContainerVolume", StringComparison.Ordinal) && n.Label.Contains("verified", StringComparison.Ordinal));
-        Assert.Contains(treeNodes, static n => n.Label == "Calculator.cs");
-
-        // The brainstorm thread holds the delegated run's User, Architect and Critic transcript.
-        var thread = Assert.IsType<DigitalBrain.UI.Controls.ChatThreadView>(
-            (await engineerScreen.ReadChild(EngineerApp.BrainstormKey))!.View.GetProperty("root").Deserialize<Node>(JsonSerializerOptions.Web));
-        Assert.True(thread.Messages.Count >= 3);
-
-        // The Changes & Diff tab's table lists the plan's tasks, each checkpointed as verified.
-        await engineerScreen.Request(new EngineerSelectTab("code"));
-        await os.Idle();
-        var taskRows = EngineerChild<QueryTableProps>((await engineerScreen.Read())!, EngineerApp.TableKey).Rows!;
-        Assert.Equal(["t1-subtract", "t2-clamp"], taskRows.Select(static r => r.Id));
-        Assert.All(taskRows, static r => Assert.Equal("verified", r.Cells[3]));
-
-        // Switch EngineerApp to the Verification & Traces tab and verify real OTel/trace entries populate its table!
-        await engineerScreen.Request(new EngineerSelectTab("verify"));
-        await os.Idle();
-        var verifyTable = EngineerChild<QueryTableProps>((await engineerScreen.Read())!, EngineerApp.TableKey);
-        Assert.True(verifyTable.Rows!.Count >= 4);
-
         // 4. Approve via IConfirmationInbox as the human owner: push verified commit SHA to bare origin & clean up both worktrees!
         var inbox = os.Get<IConfirmationInbox>(new NeuronId(brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
         var pendingItem = Assert.Single((await inbox.Read()).Pending, p => p.PlanId == waiting.ConfirmationPlanId);
@@ -305,10 +274,9 @@ public sealed class InoToEngineerDelegationJourneys
             }
         }
 
-        // Verify EngineerApp shows the published draft PR after completion.
-        await engineerScreen.Request(new EngineerOpen(FlowId: started.FlowId));
-        await os.Idle();
-        Assert.Contains("Draft PR Published", (await engineerScreen.Read())!.View.GetRawText(), StringComparison.Ordinal);
+        // Verify SHA-bound receipt and clean confirmation inbox after completion.
+        Assert.NotNull(completed.Receipt);
+        Assert.Equal(completed.WinningCommitSha, completed.Receipt!.CommitSha);
         Assert.Empty((await inbox.Read()).Pending);
     }
 

@@ -956,7 +956,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesk
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(DesktopAppState.MaxPins)
                 .ToArray()
-            : (State.PinnedApps ?? ["ino", "creator"]);
+            : (State.PinnedApps ?? ["ino"]);
 
         RecordedRejection = null;
         await Show(State with

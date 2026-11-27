@@ -21,4 +21,6 @@ public static class ResourceKinds
     public const string PostgresDatabase = "postgres-database";
     public const string Foundry = "foundry";
     public const string FoundryDeployment = "foundry-deployment";
+    public const string CostGuardrail = "cost-guardrail";
+    public const string BudgetKillSwitch = "budget-kill-switch";
 }

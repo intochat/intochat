@@ -302,6 +302,12 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         ChildEnvironmentPolicy.Scrub(startInfo);
         foreach (var (key, value) in given.Model)
         {
+            if (ChildEnvironmentPolicy.IsHostCustodySecret(key)
+                || string.Equals(key, PresenceProof.TokenHashEnvironmentVariable, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             startInfo.Environment[key] = value;
         }
 

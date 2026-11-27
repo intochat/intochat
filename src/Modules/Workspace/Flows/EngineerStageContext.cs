@@ -46,7 +46,8 @@ internal sealed record EngineerLiveContext(
     EngineerVerificationPlan? VerificationPlan = null,
     string? WorktreePath = null,
     string? Goal = null,
-    IReadOnlyList<string>? ChangedFiles = null);
+    IReadOnlyList<string>? ChangedFiles = null,
+    string? CommitSha = null);
 
 internal sealed record EngineerPlannerMemorySnapshot(
     string? BriefKey,

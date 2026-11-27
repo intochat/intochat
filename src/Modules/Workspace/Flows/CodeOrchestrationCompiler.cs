@@ -26,9 +26,11 @@ internal sealed record CodeOrchestrationCompileOutcome(
 /// </summary>
 internal sealed class CodeOrchestrationCompiler(
     AppPackageCompiler packageCompiler,
-    ICodeOrchestrationAstSanitizer astSanitizer)
+    ICodeOrchestrationAstSanitizer? astSanitizer = null)
 {
     public const int MaxRepairRounds = 2;
+
+    private readonly ICodeOrchestrationAstSanitizer _astSanitizer = astSanitizer ?? UnavailableCodeOrchestrationAstSanitizer.Instance;
 
     public async Task<CodeOrchestrationCompileOutcome> CompileWithRepairAsync(
         BrainId brainId,
@@ -44,6 +46,35 @@ internal sealed class CodeOrchestrationCompiler(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appKey);
         ArgumentNullException.ThrowIfNull(availableContracts);
+
+        // Fail closed immediately when Roslyn AST sanitization is unavailable.
+        if (_astSanitizer is UnavailableCodeOrchestrationAstSanitizer)
+        {
+            var unavailable = _astSanitizer.Validate(preauthoredScript ?? string.Empty);
+            return new CodeOrchestrationCompileOutcome(
+                Succeeded: false,
+                ScriptSource: preauthoredScript ?? string.Empty,
+                CompiledPackage: null,
+                RequiredContracts: [],
+                PersonOnlyCalls: [],
+                RepairRoundsUsed: 0,
+                Diagnostics: unavailable.Diagnostics.Length > 0
+                    ? unavailable.Diagnostics
+                    : ["Script.cs(1): AST000: Roslyn AST sanitizer is unavailable; fail-closed policy refuses execution."]);
+        }
+
+        // Fail closed when wildcard contracts are requested.
+        if (allowedContracts is { Count: > 0 } && allowedContracts.Any(IsWildcardContract))
+        {
+            return new CodeOrchestrationCompileOutcome(
+                Succeeded: false,
+                ScriptSource: preauthoredScript ?? string.Empty,
+                CompiledPackage: null,
+                RequiredContracts: [],
+                PersonOnlyCalls: [],
+                RepairRoundsUsed: 0,
+                Diagnostics: ["Script.cs(1): SCOPE002: Wildcard contract grants ('*' or '*/*') are forbidden; specify explicit least-privilege ScopedContracts."]);
+        }
 
         var maxAttempts = !string.IsNullOrWhiteSpace(preauthoredScript) && model is null
             ? 1
@@ -94,11 +125,23 @@ internal sealed class CodeOrchestrationCompiler(
                 currentScript = CodeOrchestrationScriptWrapper.StripCodeFences(generated);
             }
 
-            // 1. Roslyn AST sanitization BEFORE compilation.
-            var ast = astSanitizer.Validate(currentScript);
+            // 1. Roslyn AST sanitization BEFORE compilation (fail-closed).
+            var ast = _astSanitizer.Validate(currentScript);
             if (!ast.IsValid)
             {
                 lastDiagnostics = ast.Diagnostics;
+                if (ast.Violations.Any(static v => string.Equals(v.RuleId, "AST000", StringComparison.Ordinal)))
+                {
+                    return new CodeOrchestrationCompileOutcome(
+                        Succeeded: false,
+                        ScriptSource: currentScript,
+                        CompiledPackage: null,
+                        RequiredContracts: [],
+                        PersonOnlyCalls: [],
+                        RepairRoundsUsed: round,
+                        Diagnostics: lastDiagnostics);
+                }
+
                 continue;
             }
 
@@ -112,7 +155,7 @@ internal sealed class CodeOrchestrationCompiler(
             }
 
             // 3. Infer least-privilege contracts from both compiled PE metadata and Roslyn AST.
-            var astUsage = astSanitizer.InspectContractUsage(currentScript, astCatalog);
+            var astUsage = _astSanitizer.InspectContractUsage(currentScript, astCatalog);
             var peNeeds = CodeBlockNeeds.Infer(compiled.AssemblyBytes);
             var combinedContracts = CombineContracts(peNeeds, astUsage.ReferencedContracts, availableContracts);
 
@@ -215,6 +258,10 @@ internal sealed class CodeOrchestrationCompiler(
 
         return [.. violations];
     }
+
+    internal static bool IsWildcardContract(string? contract)
+        => !string.IsNullOrWhiteSpace(contract)
+            && contract.Contains('*', StringComparison.Ordinal);
 
     private static AstContractDescriptor[] ToAstDescriptors(DiscoveredNeuronContract[] catalog)
         => catalog.Select(static c => new AstContractDescriptor(
