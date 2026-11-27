@@ -39,7 +39,13 @@ public sealed class ActReachesEveryHostFacts
         var routes = RouteTable.Of(AppUiEndpoints.Map, services => services.Known<INeuronProxies>());
 
         Assert.Equal(
-            ["GET /brains/{brainId}/apps/node", "GET /brains/{brainId}/apps/{name}/children/{**path}", "POST /brains/{brainId}/act", "POST /brains/{brainId}/apps/connect"],
+            [
+                "GET /brains/{brainId}/apps/desktop/projection",
+                "GET /brains/{brainId}/apps/node",
+                "GET /brains/{brainId}/apps/{name}/children/{**path}",
+                "POST /brains/{brainId}/act",
+                "POST /brains/{brainId}/apps/connect",
+            ],
             routes);
     }
 

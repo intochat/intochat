@@ -55,6 +55,43 @@ class SmartAppTileSpec {
     );
   }
 
+  factory SmartAppTileSpec.fromProjectionTile(
+    DesktopAppTile tile, {
+    String brain = 'local',
+  }) {
+    final spec = IcAppIcon.resolveSpec(tile.id);
+    final resolvedIcon =
+        (tile.icon != null && tile.icon!.isNotEmpty
+            ? uiIcon(tile.icon!)
+            : null) ??
+        spec.icon;
+    final cleanTitle = tile.title.trim().isNotEmpty
+        ? tile.title.trim()
+        : IcAppIcon.humanizeAppTitle(tile.id);
+    final cleanCategory =
+        (tile.category != null && tile.category!.trim().isNotEmpty)
+        ? tile.category!.trim()
+        : spec.category;
+    final cleanBrain = brain.trim().isNotEmpty ? brain.trim() : 'local';
+    final uri = tile.kind == 'unit'
+        ? 'neuron://$cleanBrain/units/${tile.id}'
+        : 'neuron://$cleanBrain/apps/${tile.id}';
+    return SmartAppTileSpec(
+      id: tile.id,
+      name: cleanTitle,
+      icon: resolvedIcon,
+      color: spec.gradientTop,
+      accentHex: spec.accentHex,
+      category: cleanCategory,
+      neuronUri: uri,
+      launch: tile.launch,
+      dock: tile.dock,
+      appKind: tile.kind,
+      description: tile.description,
+      iconSlug: tile.icon,
+    );
+  }
+
   factory SmartAppTileSpec.fromIconSpec(
     String id, {
     String? titleOverride,

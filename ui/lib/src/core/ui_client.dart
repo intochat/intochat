@@ -12,6 +12,7 @@ import 'host_environment.dart';
 import 'journal_tail_client.dart';
 import 'models/cluster.dart';
 import 'models/compute_usage.dart';
+import 'models/desktop_projection.dart';
 import 'models/installed_app.dart';
 import 'models/journal_models.dart';
 import 'models/notification_models.dart';

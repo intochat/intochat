@@ -224,6 +224,19 @@ class ReconnectServer extends ApplicationServer {
 class DesktopServer extends ApplicationServer {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.url.path.endsWith('/apps/desktop/projection')) {
+      return json({
+        'windows': const [],
+        'focusedViewId': null,
+        'pins': const [],
+        'tiles': const [],
+        'openWidgets': const [],
+        'stylePreset': 'default',
+        'barLayout': 'bottom',
+        'layoutMode': 'smart-desktop',
+        'isNarrow': false,
+      });
+    }
     if (request.url.path.endsWith('/apps/node')) {
       return json({
         'generation': 1,

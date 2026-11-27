@@ -78,7 +78,7 @@ public sealed record DesktopSettings : Signal;
 
 [Neuron("app.desktop")]
 [Screen("app.desktop", Title = "Desktop", Icon = Icons.LayoutGrid)]
-public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
+public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesktopShell
 {
     private static readonly ILogger ConsoleLog = IntoChat.OS.Host.Logging.OsConsoleLog.For<DesktopApp>();
     private ILogger<DesktopApp>? InjectedLogger { get; }
@@ -604,6 +604,85 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
     public new Rejected? LastRejection => RecordedRejection ?? base.LastRejection;
     public View Render() => PreviewView(State);
     public Exception? RecordedError => null;
+
+    public Task<DesktopShellProjection> ReadProjection() => Task.FromResult(Project(State, TryCurrentBrain()));
+
+    public static DesktopShellProjection Project(DesktopAppState state, string? brain = null)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var tiles = ResolveTiles(state);
+        var tilesById = new Dictionary<string, AppTile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tile in tiles)
+        {
+            tilesById.TryAdd(tile.Id, tile);
+        }
+
+        string TitleFor(string id)
+            => tilesById.TryGetValue(id, out var known) && !string.IsNullOrWhiteSpace(known.Title)
+                ? known.Title
+                : HumanizeTitle(id);
+
+        string AppIdFor(WorkspaceViewRef tab)
+            => brain is { Length: > 0 } b
+                ? IntoChat.OS.Host.Primitives.AppRef.NameOf(b, tab.App) ?? tab.Id
+                : tab.Id;
+
+        var activeWindows = (state.Windows ?? []).Where(w => w.Tabs is { Length: > 0 }).ToArray();
+        var windows = new DesktopWindowProjection[activeWindows.Length];
+        for (var i = 0; i < activeWindows.Length; i++)
+        {
+            var window = activeWindows[i];
+            var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
+            var activeTab = window.Tabs[activeIndex];
+            var appId = AppIdFor(activeTab);
+            var title = TitleFor(appId);
+            var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
+            var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
+            var viewportUri = brain is { Length: > 0 }
+                ? IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{window.Id}")
+                : $"apps/desktop/window/{window.Id}";
+
+            var tabs = new DesktopTabProjection[window.Tabs.Length];
+            for (var j = 0; j < window.Tabs.Length; j++)
+            {
+                var tab = window.Tabs[j];
+                var tabAppId = AppIdFor(tab);
+                tabs[j] = new DesktopTabProjection(
+                    Id: tab.Id,
+                    AppId: tabAppId,
+                    Title: TitleFor(tabAppId),
+                    Selected: j == activeIndex);
+            }
+
+            windows[i] = new DesktopWindowProjection(
+                Id: window.Id,
+                AppId: appId,
+                Title: title,
+                ViewportUri: viewportUri,
+                Tabs: tabs,
+                ActiveTabId: activeTab.Id,
+                IsPinned: isPinned,
+                IsFavourite: isFav);
+        }
+
+        var pins = (state.Pins ?? [])
+            .Select(static p => p.Id?.Trim())
+            .Where(static id => !string.IsNullOrWhiteSpace(id) && !ShippedApps.Services.Contains(id!))
+            .Select(static id => id!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new DesktopShellProjection(
+            Windows: windows,
+            FocusedViewId: state.FocusedViewId,
+            Pins: pins,
+            Tiles: tiles,
+            OpenWidgets: DesktopAppState.ParseWidgets(state.WidgetsText),
+            StylePreset: state.StylePreset,
+            BarLayout: state.BarLayout,
+            LayoutMode: state.LayoutMode,
+            IsNarrow: state.IsNarrow);
+    }
 
     private Task RecordRejectionAsync(Rejected rejection)
     {

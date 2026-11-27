@@ -8,64 +8,285 @@ import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/os_bar.dart';
 import 'package:intochat_os_flutter_shell/desktop/presence_layer.dart';
 import 'package:intochat_os_flutter_shell/desktop/smart_desktop.dart';
-import 'package:intochat_os_flutter_shell/workspace/spatial_app_canvas.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+import 'package:intochat_os_flutter_shell/workspace/spatial_app_canvas.dart';
+
+/// Stateful fake desktop projection backend mirroring server `DesktopApp`
+/// transitions without any client-side shadow window state.
+class FakeDesktopBackend {
+  FakeDesktopBackend({
+    this.brain = 'brain-1',
+    Map<String, String> initialWindows = const {'w-1': 'ino', 'w-2': 'files'},
+    List<String> initialPins = const ['ino', 'files'],
+    List<String> initialWidgets = const [],
+    List<DesktopAppTile>? tiles,
+  }) : _pins = List<String>.from(initialPins),
+       _openWidgets = List<String>.from(initialWidgets),
+       _tiles = tiles ?? defaultCatalogTiles() {
+    var idx = 0;
+    for (final entry in initialWindows.entries) {
+      final appId = entry.value.toLowerCase();
+      final title = _titleFor(appId);
+      final tabId = '${entry.key}/0';
+      _windows.add(
+        DesktopWindowProjection(
+          id: entry.key,
+          appId: appId,
+          title: title,
+          viewportUri: '$brain/apps/desktop/window/${entry.key}',
+          tabs: [
+            DesktopTabProjection(
+              id: tabId,
+              appId: appId,
+              title: title,
+              selected: true,
+            ),
+          ],
+          activeTabId: tabId,
+          isPinned: _pins.contains(appId),
+          isFavourite: false,
+        ),
+      );
+      _windowApps[entry.key] = appId;
+      _focusedViewId = tabId;
+      idx++;
+    }
+    _nextId = idx + 1;
+  }
+
+  final String brain;
+  final List<DesktopWindowProjection> _windows = [];
+  final List<String> _pins;
+  final List<String> _openWidgets;
+  final List<DesktopAppTile> _tiles;
+  final Map<String, String> _windowApps = {};
+  String? _focusedViewId;
+  int _nextId = 1;
+
+  String _titleFor(String appId) {
+    for (final t in _tiles) {
+      if (t.id.toLowerCase() == appId.toLowerCase()) return t.title;
+    }
+    return IcAppIcon.humanizeAppTitle(appId);
+  }
+
+  DesktopShellProjection snapshot() => DesktopShellProjection(
+    windows: List.unmodifiable(_windows),
+    focusedViewId: _focusedViewId,
+    pins: List.unmodifiable(_pins),
+    tiles: List.unmodifiable(_tiles),
+    openWidgets: List.unmodifiable(_openWidgets),
+  );
+
+  Map<String, dynamic> viewportFor(String uri) {
+    final winId = uri.substring(uri.lastIndexOf('/') + 1);
+    final appId = _windowApps[winId] ?? winId;
+    return {
+      'revision': 1,
+      'root': {'kind': 'view', 'name': '$brain/apps/$appId/view'},
+    };
+  }
+
+  Map<String, dynamic> handleAction(Map<String, dynamic> event) {
+    if (event['kind'] != 'act') return const {'delivered': true};
+    final signal = event['signal'] as String?;
+    final args = (event['args'] as Map?)?.cast<String, dynamic>() ?? const {};
+    switch (signal) {
+      case 'desktop.open':
+        final appId = '${args['app'] ?? ''}'.trim().toLowerCase();
+        if (appId.isNotEmpty) _openApp(appId);
+      case 'desktop.settings':
+        _openApp('settings');
+      case 'desktop.focus':
+        final winId = '${args['windowId'] ?? ''}';
+        for (final w in _windows) {
+          if (w.id == winId) {
+            _focusedViewId = w.activeTabId;
+            break;
+          }
+        }
+      case 'desktop.close':
+        final target = '${args['target'] ?? ''}';
+        final winId = target.split('/').first;
+        _windows.removeWhere((w) => w.id == winId);
+      case 'desktop.close-app':
+        final appId = '${args['app'] ?? ''}'.toLowerCase();
+        _windows.removeWhere((w) => w.appId.toLowerCase() == appId);
+      case 'desktop.pin':
+        final appId = '${args['appId'] ?? ''}'.toLowerCase();
+        if (appId.isNotEmpty && !_pins.contains(appId)) _pins.add(appId);
+      case 'desktop.unpin':
+        final appId = '${args['appId'] ?? ''}'.toLowerCase();
+        _pins.remove(appId);
+      case 'desktop.widget-open':
+        final w = '${args['widget'] ?? ''}'.trim().toLowerCase();
+        if (w.isNotEmpty && !_openWidgets.contains(w)) _openWidgets.add(w);
+      case 'desktop.widget-close':
+        final w = '${args['widget'] ?? ''}'.trim().toLowerCase();
+        _openWidgets.remove(w);
+    }
+    return const {'delivered': true};
+  }
+
+  void _openApp(String appId) {
+    final existing = _windows.where((w) => w.appId == appId).firstOrNull;
+    if (existing != null) {
+      _focusedViewId = existing.activeTabId;
+      return;
+    }
+    final winId = 'w-${_nextId++}';
+    final tabId = '$winId/0';
+    final title = _titleFor(appId);
+    _windowApps[winId] = appId;
+    _windows.add(
+      DesktopWindowProjection(
+        id: winId,
+        appId: appId,
+        title: title,
+        viewportUri: '$brain/apps/desktop/window/$winId',
+        tabs: [
+          DesktopTabProjection(
+            id: tabId,
+            appId: appId,
+            title: title,
+            selected: true,
+          ),
+        ],
+        activeTabId: tabId,
+        isPinned: _pins.contains(appId),
+        isFavourite: false,
+      ),
+    );
+    _focusedViewId = tabId;
+  }
+
+  static List<DesktopAppTile> defaultCatalogTiles() => const [
+    DesktopAppTile(
+      id: 'ino',
+      title: 'Ino',
+      icon: 'ino',
+      category: 'Core',
+      dock: 1,
+    ),
+    DesktopAppTile(
+      id: 'files',
+      title: 'Files',
+      icon: 'files',
+      category: 'Workspace',
+      dock: 2,
+    ),
+    DesktopAppTile(
+      id: 'gallery',
+      title: 'UI Gallery',
+      icon: 'gallery',
+      category: 'System',
+      dock: 8,
+    ),
+    DesktopAppTile(
+      id: 'settings',
+      title: 'Settings',
+      icon: 'settings',
+      category: 'System',
+      dock: 10,
+    ),
+    DesktopAppTile(
+      id: 'creator',
+      title: 'Creator',
+      icon: 'creator',
+      category: 'System',
+      dock: 7,
+    ),
+    DesktopAppTile(
+      id: 'workspace',
+      title: 'Workspace',
+      icon: 'workspace',
+      category: 'Workspace',
+    ),
+    DesktopAppTile(
+      id: 'photocraft',
+      title: 'PhotoCraft',
+      icon: 'photocraft',
+      category: 'ArtCraft Studio',
+      launch: AppLaunch.maximized,
+      dock: 5,
+    ),
+    DesktopAppTile(
+      id: 'vectorcraft',
+      title: 'VectorCraft',
+      icon: 'vectorcraft',
+      category: 'ArtCraft Studio',
+      launch: AppLaunch.maximized,
+    ),
+    DesktopAppTile(
+      id: 'solidcraft',
+      title: 'SolidCraft',
+      icon: 'solidcraft',
+      category: 'ArtCraft Studio',
+      launch: AppLaunch.maximized,
+    ),
+  ];
+}
 
 void main() {
-  // The desktop view as CompiledAppsHost.EnsureDesktopViewAsync publishes it: window frames (a chrome row, the tab
-  // bar, the window's viewport reference) above the dock.
-  Map<String, dynamic> buildSampleDesktopTree() =>
-      desktopViewJson(windows: const {'w-1': 'Ino', 'w-2': 'Files'});
+  Widget wrapShell(
+    BrainSessionController session, {
+    VoidCallback? onOpenCompute,
+  }) => BrainSessionScope(
+    controller: session,
+    child: MaterialApp(
+      theme: UiTheme.dark('fluent-acrylic'),
+      home: Scaffold(
+        body: LiveDesktopShell(
+          stylePreset: IcStylePreset.fluentAcrylic,
+          barLayout: BarLayout.floatingGlass,
+          paletteOpen: false,
+          onTogglePalette: () {},
+          onSelectPreset: (_) {},
+          onCycleBarLayout: () {},
+          onOpenCompute: onOpenCompute,
+        ),
+      ),
+    ),
+  );
 
   testWidgets(
-    'LiveDesktopShell renders SmartDesktop, floating Acrylic WindowFrames, and OsBar',
+    'LiveDesktopShell renders SmartDesktop, floating Acrylic WindowFrames, and OsBar from typed projection',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
+      final backend = FakeDesktopBackend();
       final actions = <Map<String, dynamic>>[];
       final activations = <Map<String, dynamic>>[];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') return viewportJson(name);
-                if (name == 'brain-1/apps/desktop/view') {
-                  return buildSampleDesktopTree();
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => actions.add(event),
-              requestApp: (app, operation, input) async => actions.add({
-                'action': '$operation:${input.isEmpty ? app : input}',
-              }),
-              onActivate: (action) => activations.add(action),
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-              onOpenCompute: () {},
-            ),
-          ),
-        ),
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') return backend.viewportFor(name);
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async {
+          actions.add(event);
+          return backend.handleAction(event);
+        },
+        requestApp: (app, operation, input) async => actions.add({
+          'action': '$operation:${input.isEmpty ? app : input}',
+        }),
+        onActivate: activations.add,
+        knowsApp: (app) => app == 'ino' || app == 'files',
       );
+      addTearDown(session.dispose);
 
+      await tester.pumpWidget(wrapShell(session, onOpenCompute: () {}));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
@@ -94,66 +315,59 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
+      final backend = FakeDesktopBackend();
       var computeOpened = false;
       final actions = <Map<String, dynamic>>[];
+      final presenceController = StreamController<void>.broadcast();
+      addTearDown(presenceController.close);
+
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') return backend.viewportFor(name);
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
+        },
+        watchNode: (kind, name) => kind == 'ino.presence'
+            ? presenceController.stream
+            : const Stream.empty(),
+        readContract: (contract, key, method) async => switch (method) {
+          'Read' when key == 'settings' => {
+            'variables': [
+              {'key': 'ino.smart', 'value': 'on'},
+            ],
+          },
+          'Read' => {'state': 'Waiting', 'revision': 3},
+          'Pending' => {
+            'value': [{}, {}],
+          },
+          _ => null,
+        },
+        onAction: (event) async {
+          actions.add(event);
+          return backend.handleAction(event);
+        },
+        requestApp: (app, operation, input) async => actions.add({
+          'action': '$operation:${input.isEmpty ? app : input}',
+        }),
+        onActivate: (_) {},
+        knowsApp: (app) => app == 'ino' || app == 'files',
+      );
+      addTearDown(session.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') return viewportJson(name);
-                if (name == 'brain-1/apps/desktop/view') {
-                  return buildSampleDesktopTree();
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (kind, name) => kind == 'ino.presence'
-                  ? StreamController<void>().stream
-                  : const Stream.empty(),
-              // Smart mode on, Ino waiting and two approvals pending.
-              read: (contract, key, method) async => switch (method) {
-                'Read' when key == 'settings' => {
-                  'variables': [
-                    {'key': 'ino.smart', 'value': 'on'},
-                  ],
-                },
-                'Read' => {'state': 'Waiting', 'revision': 3},
-                'Pending' => {
-                  'value': [{}, {}],
-                },
-                _ => null,
-              },
-              onAction: (event) async => actions.add(event),
-              requestApp: (app, operation, input) async => actions.add({
-                'action': '$operation:${input.isEmpty ? app : input}',
-              }),
-              onActivate: (_) {},
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-              onOpenCompute: () => computeOpened = true,
-            ),
-          ),
-        ),
+        wrapShell(session, onOpenCompute: () => computeOpened = true),
       );
-
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
+
       expect(find.byType(PresenceLayer), findsOneWidget);
       expect(find.byKey(const ValueKey('os-bar-presence-dot')), findsOneWidget);
       expect(
@@ -225,7 +439,7 @@ void main() {
         findsNothing,
       );
 
-      // 5. Alt+` (⌥`) Visual Window Switcher
+      // 5. Alt+` Visual Window Switcher
       await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.backquote);
       await tester.pump();
@@ -261,7 +475,6 @@ void main() {
       final initialLauncher = state.boundsForCard('launcher')!;
       final initialSignal = state.boundsForCard('signal')!;
 
-      // 1. Drag 'launcher' sticky-note card to a custom position
       await tester.drag(
         find.byKey(const ValueKey('sticky-card-drag-launcher')),
         const Offset(120, 80),
@@ -271,7 +484,6 @@ void main() {
       expect(draggedLauncher.left, greaterThan(initialLauncher.left));
       expect(draggedLauncher.top, greaterThan(initialLauncher.top));
 
-      // 2. Resize 'launcher' sticky-note card via bottom-right corner handle
       await tester.drag(
         find.byKey(const ValueKey('sticky-card-resize-launcher')),
         const Offset(50, 40),
@@ -281,13 +493,11 @@ void main() {
       expect(resizedLauncher.width, greaterThan(draggedLauncher.width));
       expect(resizedLauncher.height, greaterThan(draggedLauncher.height));
 
-      // 3. Pin 'launcher' card
       expect(state.isCardPinned('launcher'), isFalse);
       await tester.tap(find.byKey(const ValueKey('sticky-card-pin-launcher')));
       await tester.pump();
       expect(state.isCardPinned('launcher'), isTrue);
 
-      // 4. Drag unpinned 'signal' card away from its slot
       await tester.drag(
         find.byKey(const ValueKey('sticky-card-drag-signal')),
         const Offset(240, 140),
@@ -296,7 +506,6 @@ void main() {
       final draggedSignal = state.boundsForCard('signal')!;
       expect(draggedSignal.left, isNot(equals(initialSignal.left)));
 
-      // 5. Click 'Auto-Arrange' -> pinned 'launcher' Rect is strictly locked, unpinned 'signal' moves to grid
       await tester.tap(
         find.byKey(const ValueKey('whiteboard-auto-arrange-btn')),
       );
@@ -314,51 +523,40 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
+      final backend = FakeDesktopBackend();
       final actions = <Map<String, dynamic>>[];
-      final activations = <Map<String, dynamic>>[];
       var viewportLoads = 0;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') return viewportJson(name);
-                if (name == 'brain-1/apps/desktop/view') {
-                  return buildSampleDesktopTree();
-                }
-                if (name == 'brain-1/apps/files/view') {
-                  viewportLoads++;
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => actions.add(event),
-              requestApp: (app, operation, input) async => actions.add({
-                'action': '$operation:${input.isEmpty ? app : input}',
-              }),
-              onActivate: (action) => activations.add(action),
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') return backend.viewportFor(name);
+          if (name == 'brain-1/apps/files/view') {
+            viewportLoads++;
+          }
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async {
+          actions.add(event);
+          return backend.handleAction(event);
+        },
+        requestApp: (app, operation, input) async => actions.add({
+          'action': '$operation:${input.isEmpty ? app : input}',
+        }),
+        onActivate: (_) {},
+        knowsApp: (app) => app == 'ino' || app == 'files',
       );
+      addTearDown(session.dispose);
 
+      await tester.pumpWidget(wrapShell(session));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
@@ -391,7 +589,7 @@ void main() {
       expect(find.text('Sandbox Restarted'), findsOneWidget);
       await tester.pump(kitToastLifetime);
 
-      // 3. Settings Popover toggles and switches Execution Mode (wasm-ui, mcp, native-linux)
+      // 3. Settings Popover toggles and switches Execution Mode
       await tester.tap(find.byKey(const ValueKey('window-settings-btn-2')));
       await tester.pump();
       expect(
@@ -414,7 +612,6 @@ void main() {
       // 4. Pinning window 2 keeps it always-on-top even when window 1 is clicked/focused
       await tester.tap(find.byKey(const ValueKey('window-pin-btn-2')));
       await tester.pump();
-      // Click on Window 1's exposed left area to focus Window 1
       await tester.tapAt(const Offset(560, 200));
       await tester.pump();
       final framesAfterPin = tester
@@ -431,51 +628,32 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final actions = <Map<String, dynamic>>[];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') return viewportJson(name);
-                if (name == 'brain-1/apps/desktop/view') {
-                  return buildSampleDesktopTree();
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => actions.add(event),
-              requestApp: (app, operation, input) async => actions.add({
-                'action': '$operation:${input.isEmpty ? app : input}',
-              }),
-              onActivate: (_) {},
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
+      final backend = FakeDesktopBackend();
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') return backend.viewportFor(name);
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async => backend.handleAction(event),
+        onActivate: (_) {},
+        knowsApp: (app) => app == 'ino' || app == 'files',
       );
+      addTearDown(session.dispose);
 
+      await tester.pumpWidget(wrapShell(session));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Initially 2 windows open, no SpatialAppCanvas, and closed apps are not in the active-apps dock
       expect(find.byType(SpatialAppCanvas), findsNothing);
       expect(find.byType(WindowFrame), findsNWidgets(2));
       expect(find.byKey(const ValueKey('dock-item-workspace')), findsNothing);
@@ -500,7 +678,6 @@ void main() {
         findsOneWidget,
       );
 
-      // 2. Canvas HUD controls are available
       expect(
         find.byKey(const ValueKey('canvas-smart-sort-btn')),
         findsOneWidget,
@@ -509,7 +686,6 @@ void main() {
       expect(find.byKey(const ValueKey('canvas-zoom-out')), findsOneWidget);
       expect(find.byKey(const ValueKey('canvas-reset-camera')), findsOneWidget);
 
-      // 3. Trigger Smart Sort
       await tester.tap(find.byKey(const ValueKey('canvas-smart-sort-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
@@ -517,52 +693,34 @@ void main() {
   );
 
   testWidgets(
-    'Clicking App settings in dock menu or window titlebar opens the Creator graph focused on that app',
+    'Clicking App settings in dock menu opens the Creator graph focused on that app',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final actions = <Map<String, dynamic>>[];
+      final backend = FakeDesktopBackend();
       final activations = <Map<String, dynamic>>[];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') return viewportJson(name);
-                if (name == 'brain-1/apps/desktop/view') {
-                  return buildSampleDesktopTree();
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => actions.add(event),
-              requestApp: (app, operation, input) async => actions.add({
-                'action': '$operation:${input.isEmpty ? app : input}',
-              }),
-              onActivate: (action) => activations.add(action),
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') return backend.viewportFor(name);
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async => backend.handleAction(event),
+        onActivate: activations.add,
+        knowsApp: (app) => app == 'ino' || app == 'files',
       );
+      addTearDown(session.dispose);
 
+      await tester.pumpWidget(wrapShell(session));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
@@ -600,7 +758,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // The Creator opens immediately with brain-1/apps/photocraft selected in its graph
       expect(find.byType(WindowFrame), findsNWidgets(4));
       expect(
         activations.any(
@@ -615,50 +772,34 @@ void main() {
   );
 
   testWidgets(
-    'LiveDesktopShell opens no windows or widgets by default when state is empty, and persists widget/window open & close actions',
+    'LiveDesktopShell opens no windows or widgets when projection is empty, and renders multi-widget openWidgets without separator bugs',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
+      final backend = FakeDesktopBackend(initialWindows: const {});
       final actions = <Map<String, dynamic>>[];
-      final emptyTree = desktopViewJson(windows: const {});
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async => emptyTree,
-              watch: null,
-              onAction: (action) async => actions.add(action),
-              requestApp: (app, operation, input) async => actions.add({
-                'action': '$operation:${input.isEmpty ? app : input}',
-              }),
-              onActivate: (_) {},
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async => const {'generation': 1},
+        onAction: (action) async {
+          actions.add(action);
+          return backend.handleAction(action);
+        },
+        onActivate: (_) {},
+        knowsApp: (app) => app == 'ino' || app == 'files',
       );
+      addTearDown(session.dispose);
 
+      await tester.pumpWidget(wrapShell(session));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // No windows or sticky-note widgets open by default
       expect(find.byType(WindowFrame), findsNothing);
       expect(find.byKey(const ValueKey('sticky-card-launcher')), findsNothing);
       expect(find.byKey(const ValueKey('sticky-card-signal')), findsNothing);
-      expect(find.byKey(const ValueKey('sticky-card-identity')), findsNothing);
-      expect(find.byKey(const ValueKey('sticky-card-apps')), findsNothing);
 
       // Open Widgets menu and toggle Ino Launcher widget
       await tester.tap(find.byKey(const ValueKey('whiteboard-widgets-btn')));
@@ -667,73 +808,49 @@ void main() {
         find.byKey(const ValueKey('whiteboard-widget-toggle-launcher')),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
       expect(
         find.byKey(const ValueKey('sticky-card-launcher')),
         findsOneWidget,
       );
-      expect(actions.any((a) => a['action'] == 'widget-open:launcher'), isTrue);
+      expect(
+        actions.any(
+          (a) =>
+              a['signal'] == 'desktop.widget-open' &&
+              (a['args'] as Map?)?['widget'] == 'launcher',
+        ),
+        isTrue,
+      );
 
-      // Close the sticky-note widget via its X button
+      // Also open Signal widget -> both sticky cards render simultaneously
+      await tester.tap(
+        find.byKey(const ValueKey('whiteboard-widget-toggle-signal')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(
+        find.byKey(const ValueKey('sticky-card-launcher')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('sticky-card-signal')), findsOneWidget);
+
+      // Close Launcher widget via its X button
       await tester.tap(
         find.byKey(const ValueKey('sticky-card-close-launcher')),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
       expect(find.byKey(const ValueKey('sticky-card-launcher')), findsNothing);
+      expect(find.byKey(const ValueKey('sticky-card-signal')), findsOneWidget);
       expect(
-        actions.any((a) => a['action'] == 'widget-close:launcher'),
+        actions.any(
+          (a) =>
+              a['signal'] == 'desktop.widget-close' &&
+              (a['args'] as Map?)?['widget'] == 'launcher',
+        ),
         isTrue,
       );
-    },
-  );
-
-  testWidgets(
-    'the seeded desktop view renders its windows and dock from the typed nodes',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1440, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final events = <Map<String, dynamic>>[];
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'ino' || app == 'files',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async => switch (kind) {
-                'viewport' => viewportJson(name),
-                _ when name == 'brain-1/apps/desktop/view' =>
-                  buildSampleDesktopTree(),
-                _ => {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                },
-              },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event),
-              onActivate: (_) {},
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.takeException(), isNull);
-      expect(find.byType(WindowFrame), findsNWidgets(2));
-      expect(find.text('Viewport: brain-1/apps/ino/view'), findsOneWidget);
-      expect(find.text('Viewport: brain-1/apps/files/view'), findsOneWidget);
-      expect(find.text('This component cannot be displayed.'), findsNothing);
-      await tester.pumpWidget(const SizedBox());
     },
   );
 
@@ -742,54 +859,46 @@ void main() {
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final backend = FakeDesktopBackend();
       final activations = <Map<String, dynamic>>[];
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (app) => app == 'files' || app == 'ino',
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async => switch (kind) {
-                'viewport' => viewportJson(name),
-                _ when name == 'brain-1/apps/desktop/view' =>
-                  buildSampleDesktopTree(),
-                _ => {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {
-                      'kind': 'button',
-                      'key': 'open-${name.split('/')[2]}',
-                      'label': 'Open ${name.split('/')[2]}',
-                      'intent': {
-                        'intentKind': 'OpenWindow',
-                        'arg': 'os://window/open?app=files&input=javascript:alert(1)&url=https://evil.example',
-                      },
-                    },
-                  },
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async => switch (kind) {
+          'viewport' => backend.viewportFor(name),
+          _ => {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {
+                'kind': 'button',
+                'key': 'open-${name.split('/')[2]}',
+                'label': 'Open ${name.split('/')[2]}',
+                'intent': {
+                  'intentKind': 'OpenWindow',
+                  'arg': 'os://window/open?app=files&input=javascript:alert(1)&url=https://evil.example',
                 },
               },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => {'delivered': true},
-              onActivate: activations.add,
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
+            },
+          },
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async => backend.handleAction(event),
+        onActivate: activations.add,
+        knowsApp: (app) => app == 'files' || app == 'ino',
       );
+      addTearDown(session.dispose);
+
+      await tester.pumpWidget(wrapShell(session));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
+
       await tester.tap(find.text('Open files'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
+
       final opened = activations
           .where((a) => a['application'] == 'files')
           .toList();
@@ -802,62 +911,45 @@ void main() {
   );
 
   testWidgets(
-    'All Apps Launcher lists server-supplied ArtCraft AppTileNodes and opens selected studio app window maximized',
+    'All Apps Launcher lists server-supplied ArtCraft tiles and opens selected studio app window maximized',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
+      final backend = FakeDesktopBackend();
       final activations = <Map<String, dynamic>>[];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.dark('fluent-acrylic'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              knowsApp: (_) => true,
-              brain: 'brain-1',
-              name: 'brain-1/apps/desktop/view',
-              load: (kind, name) async {
-                if (kind == 'viewport') return viewportJson(name);
-                if (name == 'brain-1/apps/desktop/view') {
-                  return buildSampleDesktopTree();
-                }
-                return {
-                  'generation': 1,
-                  'view': {
-                    'title': name,
-                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
-                  },
-                };
-              },
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (_) async => null,
-              onActivate: activations.add,
-              stylePreset: IcStylePreset.fluentAcrylic,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-            ),
-          ),
-        ),
+      final session = BrainSessionController(
+        brainId: 'brain-1',
+        loadProjection: (_) async => backend.snapshot(),
+        loadNode: (kind, name) async {
+          if (kind == 'viewport') return backend.viewportFor(name);
+          return {
+            'generation': 1,
+            'view': {
+              'title': name,
+              'root': {'kind': 'text', 'value': 'Viewport: $name'},
+            },
+          };
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        onAction: (event) async => backend.handleAction(event),
+        onActivate: activations.add,
+        knowsApp: (_) => true,
       );
+      addTearDown(session.dispose);
 
+      await tester.pumpWidget(wrapShell(session));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Click the All Apps button in the OS Bar
       await tester.tap(find.byKey(const ValueKey('os-bar-all-apps')));
       await tester.pump();
-
       expect(
         find.byKey(const ValueKey('all-apps-launcher-overlay')),
         findsOneWidget,
       );
 
-      // Filter by ArtCraft Studio category (derived from server AppTileNode catalog)
       await tester.tap(
         find.byKey(const ValueKey('all-apps-cat-ArtCraft Studio')),
       );
@@ -872,7 +964,6 @@ void main() {
         findsOneWidget,
       );
 
-      // Launch VectorCraft from the launcher
       await tester.tap(find.byKey(const ValueKey('all-apps-tile-vectorcraft')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
@@ -888,7 +979,6 @@ void main() {
         isTrue,
       );
 
-      // Verify server-declared AppLaunch.maximized opened the window zoomed
       final frames = tester
           .widgetList<WindowFrame>(find.byType(WindowFrame))
           .where((f) => f.window.appId == 'vectorcraft')
@@ -897,267 +987,4 @@ void main() {
       expect(frames.single.window.zoomed, isTrue);
     },
   );
-}
-
-const _windowApps = {'w-1': 'ino', 'w-2': 'files'};
-
-/// A desktop window's viewport: the app view it shows.
-Map<String, dynamic> viewportJson(String name) {
-  final window = name.substring(name.lastIndexOf('/') + 1);
-  return {
-    'revision': 1,
-    'root': {
-      'kind': 'view',
-      'name': 'brain-1/apps/${_windowApps[window] ?? window}/view',
-    },
-  };
-}
-
-Map<String, dynamic> _button(
-  String key,
-  String label,
-  String signal, [
-  String? argument,
-  String? icon,
-]) => {
-  'kind': 'button',
-  'key': key,
-  'label': label,
-  'command': {'target': '.', 'signal': signal, 'args': ?argument},
-  'enabled': true,
-  'tone': 'neutral',
-  'style': 'secondary',
-  'icon': ?icon,
-  'small': icon != null,
-};
-
-Map<String, dynamic> _appTile(
-  String key,
-  String appId,
-  String title, {
-  String? icon,
-  String? category,
-  String launch = 'windowed',
-  int? dock,
-  String appKind = 'compiled',
-}) => {
-  'kind': 'appTile',
-  'key': key,
-  'appId': appId,
-  'title': title,
-  'icon': ?icon,
-  'category': ?category,
-  'launch': launch,
-  'dock': ?dock,
-  'appKind': appKind,
-  'command': {'target': '.', 'signal': 'open', 'args': appId},
-};
-
-/// The seeded desktop view (`{generation, view}`) with one frame per window id → title.
-Map<String, dynamic> desktopViewJson({required Map<String, String> windows}) {
-  Map<String, dynamic> frame(String id, String title) => {
-    'kind': 'column',
-    'gap': 0,
-    'padding': 0,
-    'extents': [40, 38, 0],
-    'children': [
-      {
-        'kind': 'row',
-        'gap': 4,
-        'padding': 0,
-        'extents': [0, 32, 32, 32, 32],
-        'children': [
-          _button('focus-$id', title, 'focus', id),
-          _button('newtab-$id', 'New tab', 'newtab', id, 'plus'),
-          _button('star-$id', 'Add to favourites', 'favourite', id, 'star'),
-          _button(
-            'pin-$id',
-            'Pin',
-            'pin',
-            _windowApps[id] ?? title.toLowerCase(),
-            'pin',
-          ),
-          _button('close-$id', 'Close tab', 'close', '$id/0', 'x'),
-        ],
-      },
-      {
-        'kind': 'neuronRef',
-        'refKind': 'child',
-        'neuronUri':
-            'brain-1/control.tabStrip/brain-1/app.desktop/default/tabs-$id',
-        'props': {
-          'items': [
-            {'id': '$id/0', 'label': title},
-          ],
-          'selectedId': '$id/0',
-        },
-      },
-      {
-        'kind': 'neuronRef',
-        'refKind': 'viewport',
-        'neuronUri': 'brain-1/apps/desktop/window/$id',
-      },
-    ],
-  };
-  return {
-    'generation': 1,
-    'view': {
-      'title': 'Desktop',
-      'root': {
-        'kind': 'column',
-        'gap': 12,
-        'padding': 0,
-        'extents': [0, 68],
-        'children': [
-          {
-            'kind': 'column',
-            'gap': 12,
-            'padding': 0,
-            'children': [
-              if (windows.isNotEmpty)
-                {
-                  'kind': 'row',
-                  'gap': 12,
-                  'padding': 0,
-                  'children': [
-                    for (final MapEntry(:key, :value) in windows.entries)
-                      frame(key, value),
-                  ],
-                },
-            ],
-          },
-          {
-            'kind': 'row',
-            'gap': 12,
-            'padding': 0,
-            'extents': [0, 360],
-            'children': [
-              {
-                'kind': 'row',
-                'gap': 4,
-                'padding': 0,
-                'children': [
-                  _appTile(
-                    'dock-ino',
-                    'ino',
-                    'Ino',
-                    icon: 'ino',
-                    category: 'Core',
-                    dock: 1,
-                  ),
-                  _appTile(
-                    'dock-files',
-                    'files',
-                    'Files',
-                    icon: 'files',
-                    category: 'Workspace',
-                    dock: 2,
-                  ),
-                  _appTile(
-                    'dock-gallery',
-                    'gallery',
-                    'UI Gallery',
-                    icon: 'gallery',
-                    category: 'System',
-                    dock: 8,
-                  ),
-                  _button('newtab', 'New tab', 'newtab', null, 'plus'),
-                ],
-              },
-              {
-                'kind': 'row',
-                'gap': 4,
-                'padding': 0,
-                'children': [
-                  {'kind': 'text', 'value': 'Usage'},
-                  {'kind': 'text', 'value': ''},
-                  _button('avatar', 'You', 'open', 'circle'),
-                  _button('more-settings', 'Settings', 'settings'),
-                ],
-              },
-            ],
-          },
-          {
-            'kind': 'surface',
-            'name': 'app-catalog',
-            'padding': 0,
-            'children': [
-              _appTile(
-                'catalog-ino',
-                'ino',
-                'Ino',
-                icon: 'ino',
-                category: 'Core',
-                dock: 1,
-              ),
-              _appTile(
-                'catalog-files',
-                'files',
-                'Files',
-                icon: 'files',
-                category: 'Workspace',
-                dock: 2,
-              ),
-              _appTile(
-                'catalog-gallery',
-                'gallery',
-                'UI Gallery',
-                icon: 'gallery',
-                category: 'System',
-                dock: 8,
-              ),
-              _appTile(
-                'catalog-settings',
-                'settings',
-                'Settings',
-                icon: 'settings',
-                category: 'System',
-                dock: 10,
-              ),
-              _appTile(
-                'catalog-creator',
-                'creator',
-                'Creator',
-                icon: 'creator',
-                category: 'System',
-                dock: 7,
-              ),
-              _appTile(
-                'catalog-workspace',
-                'workspace',
-                'Workspace',
-                icon: 'workspace',
-                category: 'Workspace',
-              ),
-              _appTile(
-                'catalog-photocraft',
-                'photocraft',
-                'PhotoCraft',
-                icon: 'photocraft',
-                category: 'ArtCraft Studio',
-                launch: 'maximized',
-                dock: 5,
-              ),
-              _appTile(
-                'catalog-vectorcraft',
-                'vectorcraft',
-                'VectorCraft',
-                icon: 'vectorcraft',
-                category: 'ArtCraft Studio',
-                launch: 'maximized',
-              ),
-              _appTile(
-                'catalog-solidcraft',
-                'solidcraft',
-                'SolidCraft',
-                icon: 'solidcraft',
-                category: 'ArtCraft Studio',
-                launch: 'maximized',
-              ),
-            ],
-          },
-        ],
-      },
-    },
-  };
 }

@@ -3,65 +3,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/os_bar.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:intochat_os_flutter_shell/workspace/workspace_app.dart';
 
-Map<String, dynamic> _fakeDesktopView() => {
-  'generation': 1,
-  'view': {
-    'root': {
-      'kind': 'column',
-      'children': [
-        {
-          'kind': 'row',
-          'children': [
-            {
-              'kind': 'button',
-              'key': 'dock-ino',
-              'label': 'Ino',
-              'enabled': true,
-              'command': {'name': 'open', 'args': 'ino'},
-            },
-            {
-              'kind': 'button',
-              'key': 'dock-files',
-              'label': 'Files',
-              'enabled': true,
-              'command': {'name': 'open', 'args': 'files'},
-            },
-          ],
-        },
-        {
-          'kind': 'column',
-          'children': [
-            {
-              'kind': 'row',
-              'children': [
-                {
-                  'kind': 'button',
-                  'key': 'focus-1',
-                  'label': 'Ino',
-                  'enabled': true,
-                },
-                {
-                  'kind': 'button',
-                  'key': 'close-1',
-                  'label': 'Close',
-                  'enabled': true,
-                },
-              ],
-            },
-            {
-              'kind': 'neuronRef',
-              'refKind': 'viewport',
-              'neuronUri': 'test-brain/apps/desktop/window/win-1',
-            },
-          ],
-        },
+DesktopShellProjection _fakeProjection() => const DesktopShellProjection(
+  windows: [
+    DesktopWindowProjection(
+      id: 'w-1',
+      appId: 'ino',
+      title: 'Ino',
+      viewportUri: 'test-brain/apps/desktop/window/w-1',
+      tabs: [
+        DesktopTabProjection(
+          id: 'w-1/0',
+          appId: 'ino',
+          title: 'Ino',
+          selected: true,
+        ),
       ],
-    },
-  },
-};
+      activeTabId: 'w-1/0',
+      isPinned: true,
+      isFavourite: false,
+    ),
+  ],
+  focusedViewId: 'w-1/0',
+  pins: ['ino', 'files'],
+  tiles: [
+    DesktopAppTile(
+      id: 'ino',
+      title: 'Ino',
+      icon: 'ino',
+      category: 'Core',
+      dock: 1,
+    ),
+    DesktopAppTile(
+      id: 'files',
+      title: 'Files',
+      icon: 'files',
+      category: 'Workspace',
+      dock: 2,
+    ),
+  ],
+  openWidgets: [],
+);
 
 Map<String, dynamic> _fakeWindowView() => {
   'generation': 1,
@@ -77,6 +62,7 @@ Map<String, dynamic> _fakeWindowView() => {
 
 Widget _buildShellHarness({
   required Size surfaceSize,
+  required BrainSessionController session,
   UiThemeSeeds seeds = UiThemeSeeds.warmPaper,
 }) {
   return MediaQuery(
@@ -87,28 +73,19 @@ Widget _buildShellHarness({
         seeds: seeds,
         setSeeds: (_) {},
         resetSeeds: () {},
-        child: MaterialApp(
-          theme: UiTheme.light('warm-paper'),
-          home: Scaffold(
-            body: LiveDesktopShell(
-              brain: 'test-brain',
-              name: 'test-brain/apps/desktop/view',
-              load: (kind, name) async {
-                if (name.endsWith('/apps/desktop/view')) {
-                  return _fakeDesktopView();
-                }
-                return _fakeWindowView();
-              },
-              watch: null,
-              onAction: (_) async => const <String, dynamic>{},
-              onActivate: (_) {},
-              stylePreset: IcStylePreset.warmPaper,
-              barLayout: BarLayout.floatingGlass,
-              paletteOpen: false,
-              onTogglePalette: () {},
-              onSelectPreset: (_) {},
-              onCycleBarLayout: () {},
-              knowsApp: (_) => true,
+        child: BrainSessionScope(
+          controller: session,
+          child: MaterialApp(
+            theme: UiTheme.light('warm-paper'),
+            home: Scaffold(
+              body: LiveDesktopShell(
+                stylePreset: IcStylePreset.warmPaper,
+                barLayout: BarLayout.floatingGlass,
+                paletteOpen: false,
+                onTogglePalette: () {},
+                onSelectPreset: (_) {},
+                onCycleBarLayout: () {},
+              ),
             ),
           ),
         ),
@@ -116,6 +93,23 @@ Widget _buildShellHarness({
     ),
   );
 }
+
+BrainSessionController _createSession() => BrainSessionController(
+  brainId: 'test-brain',
+  loadProjection: (_) async => _fakeProjection(),
+  loadNode: (kind, name) async {
+    if (kind == 'viewport') {
+      return {
+        'revision': 1,
+        'root': {'kind': 'view', 'name': 'test-brain/apps/ino/view'},
+      };
+    }
+    return _fakeWindowView();
+  },
+  onAction: (_) async => const <String, dynamic>{},
+  onActivate: (_) {},
+  knowsApp: (_) => true,
+);
 
 void main() {
   testWidgets(
@@ -126,8 +120,12 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      final session = _createSession();
+      addTearDown(session.dispose);
 
-      await tester.pumpWidget(_buildShellHarness(surfaceSize: size));
+      await tester.pumpWidget(
+        _buildShellHarness(surfaceSize: size, session: session),
+      );
       await tester.pumpAndSettle();
 
       expect(
@@ -171,8 +169,12 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      final session = _createSession();
+      addTearDown(session.dispose);
 
-      await tester.pumpWidget(_buildShellHarness(surfaceSize: size));
+      await tester.pumpWidget(
+        _buildShellHarness(surfaceSize: size, session: session),
+      );
       await tester.pumpAndSettle();
 
       expect(
@@ -200,8 +202,12 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      final session = _createSession();
+      addTearDown(session.dispose);
 
-      await tester.pumpWidget(_buildShellHarness(surfaceSize: size));
+      await tester.pumpWidget(
+        _buildShellHarness(surfaceSize: size, session: session),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(OsBar), findsOneWidget);

@@ -137,18 +137,48 @@ class WorkspaceAppState extends State<WorkspaceApp>
 
   // The apps an OpenWindow intent may open: the launcher's and the brain's installed apps.
   Set<String> _knownApps = knownAppsFor(const []);
-  List<SmartAppTileSpec> _dynamicDesktopApps = const [];
+  BrainSessionController? _session;
+
+  void _syncSession(String brain, {required bool isDesktopRoot}) {
+    final client = widget.programmingClient;
+    if (client == null) return;
+    final existing = _session;
+    if (existing == null) {
+      _session = BrainSessionController(
+        brainId: brain,
+        client: client,
+        installedApps: _knownApps,
+        onActivate: (action) => unawaited(_activate(action)),
+        onRemoteStylePreset: (selected) =>
+            unawaited(_tool('theme:${selected.id}')),
+        onDesktopActionError: (_) {
+          if (mounted) {
+            _toast('The desktop changed. Try again.', tone: UiTone.error);
+          }
+        },
+        desktopEnabled: isDesktopRoot,
+      );
+    } else {
+      existing.switchBrain(brain, desktopEnabled: isDesktopRoot);
+      existing.updateInstalledApps(_knownApps);
+    }
+  }
 
   List<SmartAppTileSpec> _paletteApps() {
+    final brain = _brain ?? 'local';
     final seen = <String>{};
     final merged = <SmartAppTileSpec>[];
-    for (final s in _dynamicDesktopApps) {
-      if (seen.add(s.id.toLowerCase())) merged.add(s);
+    final tiles = _session?.projection?.tiles ?? const <DesktopAppTile>[];
+    for (final tile in tiles) {
+      final norm = tile.id.toLowerCase();
+      if (norm.isNotEmpty && seen.add(norm)) {
+        merged.add(SmartAppTileSpec.fromProjectionTile(tile, brain: brain));
+      }
     }
     for (final id in _knownApps) {
       final norm = id.trim().toLowerCase();
       if (norm.isNotEmpty && seen.add(norm)) {
-        merged.add(SmartAppTileSpec.fromIconSpec(norm));
+        merged.add(SmartAppTileSpec.fromIconSpec(norm, brain: brain));
       }
     }
     return merged;
@@ -160,12 +190,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
         brain,
       );
       if (mounted && (_brain == null || _brain == brain)) {
-        setState(
-          () => _knownApps = knownAppsFor([
-            for (final app in installed) app.id,
-            for (final spec in _dynamicDesktopApps) spec.id,
-          ]),
-        );
+        final next = knownAppsFor([
+          for (final app in installed) app.id,
+          for (final tile
+              in _session?.projection?.tiles ?? const <DesktopAppTile>[])
+            tile.id,
+        ]);
+        _session?.updateInstalledApps(next);
+        setState(() => _knownApps = next);
       }
     } catch (_) {
       // An installed app opens again after the next read.
@@ -331,9 +363,13 @@ class WorkspaceAppState extends State<WorkspaceApp>
     unawaited(_readKnownApps(brain));
     final root = _effectiveRoot;
     if (root.isNotEmpty) {
+      final rootName = '$brain/$root';
+      final isDesktop =
+          _rootKind == 'view' && rootName == '$brain/apps/desktop/view';
+      _syncSession(brain, isDesktopRoot: isDesktop);
       setState(() {
         _brain = brain;
-        _rootName = '$brain/$root';
+        _rootName = rootName;
         _renderKind = _rootKind;
         _hasExplicitRoot = true;
       });
@@ -345,6 +381,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
       final name = root['name'] as String;
       final kind = root['kind'] as String;
       if (!mounted) return;
+      final isDesktop = kind == 'view' && name == '$brain/apps/desktop/view';
+      _syncSession(brain, isDesktopRoot: isDesktop);
       setState(() {
         _brain = brain;
         _rootName = name;
@@ -364,6 +402,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
       );
     }
     if (!mounted) return;
+    _syncSession(brain, isDesktopRoot: true);
     setState(() {
       _brain = brain;
       _rootName = '$brain/apps/desktop/view';
@@ -926,6 +965,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _session?.dispose();
     store.removeListener(_changed);
     if (widget.store == null) store.dispose();
     super.dispose();
@@ -985,171 +1025,50 @@ class WorkspaceAppState extends State<WorkspaceApp>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              _rootName != null && _brain != null
-                  ? SafeArea(
-                      child: _widthHinted(
-                        _isDesktopRoot
-                            ? LiveDesktopShell(
-                                key: ValueKey('desktop-shell:$_rootName'),
-                                brain: _brain!,
-                                name: _rootName!,
-                                load: (kind, name) =>
-                                    widget.programmingClient!.appRequest(
-                                      _brain!,
-                                      appNodePath(kind, name),
-                                    ),
-                                watch: (kind, name) => widget.programmingClient!
-                                    .watchNode(_brain!, kind, name)
-                                    .map((_) {}),
-                                watchSignal: (contract, key, signal) => widget
-                                    .programmingClient!
-                                    .watches(_brain!)
-                                    .watch(
-                                      WatchSourceSpec(
-                                        contract,
-                                        key.startsWith('$_brain/')
-                                            ? key
-                                            : '$_brain/$key',
-                                        [signal],
-                                      ),
-                                    )
-                                    .map((s) => s.payload),
-                                onAction: (event) => widget.programmingClient!
-                                    .uiEvent(_brain!, event),
-                                knowsApp: (app) =>
-                                    _knownApps.contains(app) ||
-                                    _knownApps.contains(app.toLowerCase()),
-                                installedApps: _knownApps.toList(),
-                                onDynamicAppsChanged: (extras) {
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _dynamicDesktopApps = extras;
-                                    for (final spec in extras) {
-                                      _knownApps = {
-                                        ..._knownApps,
-                                        spec.id.toLowerCase(),
-                                      };
-                                    }
-                                  });
-                                },
-                                requestApp: (app, operation, input) => widget
-                                    .programmingClient!
-                                    .requestApp(_brain!, app, operation, input),
-                                onActivate: (action) =>
-                                    unawaited(_activate(action)),
-                                stylePreset: preset,
-                                barLayout: _barLayout,
-                                paletteOpen: _paletteOpen,
-                                onTogglePalette: () => setState(
-                                  () => _paletteOpen = !_paletteOpen,
+              _rootName != null && _brain != null && _session != null
+                  ? BrainSessionScope(
+                      controller: _session!,
+                      child: SafeArea(
+                        child: _widthHinted(
+                          _isDesktopRoot
+                              ? LiveDesktopShell(
+                                  key: ValueKey('desktop-shell:$_rootName'),
+                                  stylePreset: preset,
+                                  barLayout: _barLayout,
+                                  paletteOpen: _paletteOpen,
+                                  onTogglePalette: () => setState(
+                                    () => _paletteOpen = !_paletteOpen,
+                                  ),
+                                  onSelectPreset: (selected) =>
+                                      unawaited(_tool('theme:${selected.id}')),
+                                  onCycleBarLayout: () {
+                                    setState(() {
+                                      _barLayout =
+                                          BarLayout.values[(_barLayout.index +
+                                                  1) %
+                                              BarLayout.values.length];
+                                    });
+                                  },
+                                  onOpenCompute: () =>
+                                      unawaited(_tool('compute')),
+                                  profileMenu: _menu(),
+                                  isGuest: _isGuestSession,
+                                  guestRemaining: _guestRemaining,
+                                  onSaveBrain: _triggerSaveGuestBrain,
+                                  onOpenUrl: widget.onOpenUrl == null
+                                      ? null
+                                      : (uri) =>
+                                            unawaited(widget.onOpenUrl!(uri)),
+                                  downloadHubUri: _downloadHubUri,
+                                )
+                              : ViewHost(
+                                  key: ValueKey(
+                                    '$_rootName:$_surfaceReloadEpoch',
+                                  ),
+                                  kind: _renderKind,
+                                  name: _rootName!,
                                 ),
-                                onSelectPreset: (selected) =>
-                                    unawaited(_tool('theme:${selected.id}')),
-                                onCycleBarLayout: () {
-                                  setState(() {
-                                    _barLayout =
-                                        BarLayout.values[(_barLayout.index +
-                                                1) %
-                                            BarLayout.values.length];
-                                  });
-                                },
-                                onOpenCompute: () =>
-                                    unawaited(_tool('compute')),
-                                scenes: widget.programmingClient!.scenes(
-                                  _brain!,
-                                ),
-                                transcribe:
-                                    widget.programmingClient!.transcribe,
-                                talk: widget.programmingClient!.talk,
-                                speak: widget.programmingClient!.speak,
-                                storeSecret: widget
-                                    .programmingClient!
-                                    .storeSecretReference,
-                                journal: (brain, since) => widget
-                                    .programmingClient!
-                                    .watchJournal(brain, since: since),
-                                entries: (brain) => EntriesClient(
-                                  widget.programmingClient!,
-                                  brain,
-                                ),
-                                localPreferences: _localPreferences,
-                                profileMenu: _menu(),
-                                read: (contract, key, method) => widget
-                                    .programmingClient!
-                                    .channel
-                                    .call(_brain!, contract, key, method, []),
-                                callNeuron: (contract, key, method, args) =>
-                                    widget.programmingClient!.channel.call(
-                                      _brain!,
-                                      contract,
-                                      key.startsWith('$_brain/')
-                                          ? key
-                                          : '$_brain/$key',
-                                      method,
-                                      args,
-                                    ),
-                                isGuest: _isGuestSession,
-                                guestRemaining: _guestRemaining,
-                                onSaveBrain: _triggerSaveGuestBrain,
-                                onOpenUrl: widget.onOpenUrl == null
-                                    ? null
-                                    : (uri) =>
-                                          unawaited(widget.onOpenUrl!(uri)),
-                                downloadHubUri: _downloadHubUri,
-                              )
-                            : ViewHost(
-                                key: ValueKey(
-                                  '$_rootName:$_surfaceReloadEpoch',
-                                ),
-                                kind: _renderKind,
-                                name: _rootName!,
-                                load: (kind, name) =>
-                                    widget.programmingClient!.appRequest(
-                                      _brain!,
-                                      appNodePath(kind, name),
-                                    ),
-                                // Reads once per change signal instead of every 2 s.
-                                watch: (kind, name) => widget.programmingClient!
-                                    .watchNode(_brain!, kind, name)
-                                    .map((_) {}),
-                                watchSignal: (contract, key, signal) => widget
-                                    .programmingClient!
-                                    .watches(_brain!)
-                                    .watch(
-                                      WatchSourceSpec(
-                                        contract,
-                                        key.startsWith('$_brain/')
-                                            ? key
-                                            : '$_brain/$key',
-                                        [signal],
-                                      ),
-                                    )
-                                    .map((s) => s.payload),
-                                callNeuron: (contract, key, method, args) =>
-                                    widget.programmingClient!.channel.call(
-                                      _brain!,
-                                      contract,
-                                      key.startsWith('$_brain/')
-                                          ? key
-                                          : '$_brain/$key',
-                                      method,
-                                      args,
-                                    ),
-                                onAction: (event) => widget.programmingClient!
-                                    .uiEvent(_brain!, event),
-                                onActivate: (action) =>
-                                    unawaited(_activate(action)),
-                                transcribe:
-                                    widget.programmingClient!.transcribe,
-                                talk: widget.programmingClient!.talk,
-                                speak: widget.programmingClient!.speak,
-                                storeSecret: widget
-                                    .programmingClient!
-                                    .storeSecretReference,
-                                knowsApp: (app) =>
-                                    _knownApps.contains(app) ||
-                                    _knownApps.contains(app.toLowerCase()),
-                              ),
+                        ),
                       ),
                     )
                   : Center(

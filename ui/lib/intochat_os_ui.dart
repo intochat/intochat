@@ -19,6 +19,7 @@ export 'src/theme/ui_theme.dart';
 export 'src/theme/mix_tokens.dart';
 export 'src/theme/theme_studio_panel.dart';
 
+export 'src/composition/brain_session_controller.dart';
 export 'src/composition/view_host.dart';
 export 'src/primitives/primitives.dart';
 export 'src/core/neuron_method_caller.dart';

@@ -9,40 +9,44 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
-  Widget wrapShell(IntoChatOSUiClient client) {
-    return MaterialApp(
-      theme: UiTheme.dark('fluent-acrylic'),
-      home: Scaffold(
-        body: LiveDesktopShell(
-          knowsApp: (app) => app == 'ino' || app == 'tasks',
-          brain: 'brain-1',
-          name: 'brain-1/apps/desktop/view',
-          load: (kind, name) async {
-            if (name == 'brain-1/apps/desktop/view') {
-              return _sampleDesktopView();
-            }
-            return {
-              'generation': 1,
-              'view': {
-                'title': name,
-                'root': {'kind': 'text', 'value': 'Viewport: $name'},
-              },
-            };
-          },
-          watch: (kind, name) => const Stream.empty(),
-          onAction: (_) async => const {},
-          onActivate: (_) {},
-          stylePreset: IcStylePreset.fluentAcrylic,
-          barLayout: BarLayout.floatingGlass,
-          paletteOpen: false,
-          onTogglePalette: () {},
-          onSelectPreset: (_) {},
-          onCycleBarLayout: () {},
-          notificationsClient: client,
+  Widget wrapShell(BrainSessionController session) {
+    return BrainSessionScope(
+      controller: session,
+      child: MaterialApp(
+        theme: UiTheme.dark('fluent-acrylic'),
+        home: Scaffold(
+          body: LiveDesktopShell(
+            stylePreset: IcStylePreset.fluentAcrylic,
+            barLayout: BarLayout.floatingGlass,
+            paletteOpen: false,
+            onTogglePalette: () {},
+            onSelectPreset: (_) {},
+            onCycleBarLayout: () {},
+          ),
         ),
       ),
     );
   }
+
+  BrainSessionController makeSession(IntoChatOSUiClient client) =>
+      BrainSessionController(
+        brainId: 'brain-1',
+        client: client,
+        loadProjection: (_) async => _sampleProjection(),
+        loadNode: (kind, name) async => {
+          'generation': 1,
+          'view': {
+            'title': name,
+            'root': {'kind': 'text', 'value': 'Viewport: $name'},
+          },
+        },
+        watchNode: (_, _) => const Stream.empty(),
+        watchSignal: (_, _, _) => const Stream.empty(),
+        readContract: (_, _, _) async => null,
+        onAction: (_) async => const {},
+        onActivate: (_) {},
+        knowsApp: (app) => app == 'ino' || app == 'tasks',
+      );
 
   testWidgets('Shows empty state when connected inbox has no notifications', (
     tester,
@@ -57,8 +61,10 @@ void main() {
         return http.Response(jsonEncode({'items': [], 'unreadCount': 0}), 200);
       }),
     );
+    final session = makeSession(client);
+    addTearDown(session.dispose);
 
-    await tester.pumpWidget(wrapShell(client));
+    await tester.pumpWidget(wrapShell(session));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('os-bar-notifications')));
@@ -133,8 +139,10 @@ void main() {
           return http.Response('', 404);
         }),
       );
+      final session = makeSession(client);
+      addTearDown(session.dispose);
 
-      await tester.pumpWidget(wrapShell(client));
+      await tester.pumpWidget(wrapShell(session));
       await tester.pumpAndSettle();
 
       // Badge shows 2 unread notifications.
@@ -193,64 +201,17 @@ void main() {
   );
 }
 
-Map<String, dynamic> _button(
-  String key,
-  String label,
-  String signal, [
-  String? argument,
-  String? icon,
-]) => {
-  'kind': 'button',
-  'key': key,
-  'label': label,
-  'command': {'target': '.', 'signal': signal, 'args': ?argument},
-  'enabled': true,
-  'tone': 'neutral',
-  'style': 'secondary',
-  'icon': ?icon,
-  'small': icon != null,
-};
-
-Map<String, dynamic> _sampleDesktopView() => {
-  'generation': 1,
-  'view': {
-    'title': 'Desktop',
-    'root': {
-      'kind': 'column',
-      'gap': 12,
-      'padding': 0,
-      'extents': [0, 68],
-      'children': [
-        {'kind': 'column', 'gap': 12, 'padding': 0, 'children': <Object>[]},
-        {
-          'kind': 'row',
-          'gap': 12,
-          'padding': 0,
-          'extents': [0, 360],
-          'children': [
-            {
-              'kind': 'row',
-              'gap': 4,
-              'padding': 0,
-              'children': [
-                _button('dock-ino', 'Ino', 'open', 'ino', 'ino'),
-                _button('newtab', 'New tab', 'newtab', null, 'plus'),
-              ],
-            },
-            {
-              'kind': 'row',
-              'gap': 4,
-              'padding': 0,
-              'children': [
-                {'kind': 'text', 'value': 'Usage'},
-                {'kind': 'text', 'value': ''},
-                _button('avatar', 'You', 'open', 'circle'),
-                _button('more-settings', 'Settings', 'settings'),
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  },
-};
+DesktopShellProjection _sampleProjection() => const DesktopShellProjection(
+  windows: [],
+  pins: ['ino'],
+  tiles: [
+    DesktopAppTile(
+      id: 'ino',
+      title: 'Ino',
+      icon: 'ino',
+      category: 'Core',
+      dock: 1,
+    ),
+  ],
+  openWidgets: [],
+);

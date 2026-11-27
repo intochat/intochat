@@ -13,6 +13,7 @@ import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
+import 'brain_session_controller.dart';
 import 'child_route.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
@@ -25,10 +26,10 @@ class ViewHost extends StatefulWidget {
     super.key,
     required this.kind,
     required this.name,
-    required this.load,
+    this.load,
     this.onActivate,
     this.onAction,
-    required this.knowsApp,
+    this.knowsApp,
     this.ancestors = const {},
     this.childDepth = 0,
     this.childAncestors = const {},
@@ -72,13 +73,13 @@ class ViewHost extends StatefulWidget {
   /// For a UI child: the props its parent wrote on the `NeuronRef` node (see [NodeContext.childProps]).
   final Map<String, dynamic> childProps;
 
-  final NeuronLoader load;
+  final NeuronLoader? load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
 
-  /// The app keys the shell can open; an `OpenWindow` intent for any other is refused. Pass `(_) => false` where
-  /// no window may open.
-  final bool Function(String app) knowsApp;
+  /// The app keys the shell can open; an `OpenWindow` intent for any other is refused. Defaults to
+  /// [BrainSessionScope] when present, or `(_) => false` when mounted standalone.
+  final bool Function(String app)? knowsApp;
   final Set<String> ancestors;
   final int revision;
   final bool enabled;
@@ -132,6 +133,40 @@ class _ViewHostState extends State<ViewHost> {
   late String _focusTarget = '${widget.kind}:${widget.name}';
   Stream<List<JournalTailSignal>>? _signals;
 
+  BrainSessionController? get _session => BrainSessionScope.readOf(context);
+
+  NeuronLoader get _effectiveLoad {
+    final load = widget.load ?? _session?.loadNode;
+    assert(
+      load != null,
+      'ViewHost requires either an explicit load callback or an ancestor BrainSessionScope.',
+    );
+    return load!;
+  }
+
+  Stream<void> Function(String kind, String name)? get _effectiveWatch {
+    if (widget.watch != null) return widget.watch;
+    final session = _session;
+    return session != null && session.hasNodeWatch ? session.watchNode : null;
+  }
+
+  NeuronSignalWatcher? get _effectiveWatchSignal =>
+      widget.watchSignal ?? _session?.watchSignal;
+  NeuronMethodCaller? get _effectiveCallNeuron =>
+      widget.callNeuron ?? _session?.callNeuron;
+  NeuronAction? get _effectiveOnAction =>
+      widget.onAction ?? _session?.sendAction;
+  ValueChanged<Map<String, dynamic>>? get _effectiveOnActivate =>
+      widget.onActivate ?? _session?.activate;
+  bool Function(String app) get _effectiveKnowsApp =>
+      widget.knowsApp ?? _session?.knowsApp ?? (_) => false;
+  VoiceTranscriber? get _effectiveTranscribe =>
+      widget.transcribe ?? _session?.transcribe;
+  VoiceTalker? get _effectiveTalk => widget.talk ?? _session?.talk;
+  VoiceSpeaker? get _effectiveSpeak => widget.speak ?? _session?.speak;
+  SecretStore? get _effectiveStoreSecret =>
+      widget.storeSecret ?? _session?.storeSecret;
+
   // One tail per host, opened on first use and shared by the view's scenes.
   Stream<List<JournalTailSignal>>? get _brainSignals {
     final open = widget.signals;
@@ -147,7 +182,7 @@ class _ViewHostState extends State<ViewHost> {
     FocusRegistry.instance.register(_focusTarget, _focusKey);
     _events.addListener(_reload);
     _reload();
-    final watch = widget.watch;
+    final watch = _effectiveWatch;
     if (watch == null) {
       _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
     } else {
@@ -169,7 +204,7 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   void _syncWatchForData(Map<String, dynamic> data) {
-    final watch = widget.watch;
+    final watch = _effectiveWatch;
     if (watch == null || (widget.kind != 'view' && widget.kind != 'screen')) {
       return;
     }
@@ -238,7 +273,7 @@ class _ViewHostState extends State<ViewHost> {
     if (moved || old.watch != widget.watch) {
       _timer?.cancel();
       _timer = null;
-      final watch = widget.watch;
+      final watch = _effectiveWatch;
       if (watch == null) {
         _resubscribe?.cancel();
         _resubscribe = null;
@@ -265,7 +300,7 @@ class _ViewHostState extends State<ViewHost> {
     final generation = _generation;
     final version = _events.version;
     try {
-      final data = await widget.load(widget.kind, widget.name);
+      final data = await _effectiveLoad(widget.kind, widget.name);
       if (mounted && generation == _generation && version == _events.version) {
         setState(() {
           _data = data;
@@ -295,7 +330,7 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   Future<Object?> _dispatch(Map<String, dynamic> event) async {
-    final send = widget.onAction;
+    final send = _effectiveOnAction;
     if (!widget.enabled || send == null) return null;
     try {
       return await _events.dispatch(send, event);
@@ -491,9 +526,10 @@ class _ViewHostState extends State<ViewHost> {
         onRetry: _error == null ? null : _reload,
       );
     }
+    final action = _effectiveOnAction;
     final enabled =
         widget.enabled &&
-        widget.onAction != null &&
+        action != null &&
         !(widget.kind == 'confirmation' && widget.embedded);
     switch (widget.kind) {
       case 'view':
@@ -515,14 +551,14 @@ class _ViewHostState extends State<ViewHost> {
           generation: data['generation'] is num
               ? (data['generation'] as num).toInt()
               : 0,
-          send: widget.onAction == null ? null : _dispatch,
-          load: widget.load,
+          send: action == null ? null : _dispatch,
+          load: _effectiveLoad,
           reload: _reload,
-          watch: widget.watch,
-          watchSignal: widget.watchSignal,
-          callNeuron: widget.callNeuron,
-          onActivate: widget.onActivate,
-          knowsApp: widget.knowsApp,
+          watch: _effectiveWatch,
+          watchSignal: _effectiveWatchSignal,
+          callNeuron: _effectiveCallNeuron,
+          onActivate: _effectiveOnActivate,
+          knowsApp: _effectiveKnowsApp,
           reference: (kind, name, props) => _buildReference(
             kind,
             name,
@@ -537,10 +573,10 @@ class _ViewHostState extends State<ViewHost> {
           actNeuron: widget.actNeuron,
           childPath: widget.childPath,
           childProps: widget.childProps,
-          transcribe: widget.transcribe,
-          talk: widget.talk,
-          speak: widget.speak,
-          storeSecret: widget.storeSecret,
+          transcribe: _effectiveTranscribe,
+          talk: _effectiveTalk,
+          speak: _effectiveSpeak,
+          storeSecret: _effectiveStoreSecret,
         );
         ViewHost.debugOnContext?.call(widget.name, ctx);
         final appView = AppView.fromJson(Map<String, dynamic>.from(rawView));
@@ -596,7 +632,7 @@ class _ViewHostState extends State<ViewHost> {
         }
         return Center(child: Text('${data['error'] ?? ''}'));
       case 'webbrowser':
-        final send = widget.onAction;
+        final send = action;
         if (send == null) {
           return Center(
             child: Padding(

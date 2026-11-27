@@ -194,6 +194,13 @@ extension IntoChatOSUiClientWorkspace on IntoChatOSUiClient {
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
+  /// Reads the typed desktop shell projection (`GET /brains/{workspace}/apps/desktop/projection`).
+  Future<DesktopShellProjection> readDesktopProjection(
+    String workspace,
+  ) async => DesktopShellProjection.fromJson(
+    await appRequest(workspace, 'desktop/projection'),
+  );
+
   /// Posts one UI event from a [NodeContext]: an `act` goes to
   /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), the one route
   /// of a person's action; a `confirmation` answer to [answerConfirmation]; a

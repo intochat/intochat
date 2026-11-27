@@ -73,8 +73,20 @@ public sealed class AppUiScreenEndpointsFacts
             {
                 return (T)(object)new FakeViewport();
             }
+            if (typeof(T) == typeof(IDesktopShell) && _desktopShell is not null)
+            {
+                return (T)(object)_desktopShell;
+            }
             throw new InvalidOperationException($"No {typeof(T).Name} in this mock brain.");
         }
+
+        private IDesktopShell? _desktopShell;
+        public void RegisterDesktopShell(IDesktopShell shell) => _desktopShell = shell;
+    }
+
+    private sealed class FakeDesktopShell(DesktopShellProjection projection) : IDesktopShell
+    {
+        public Task<DesktopShellProjection> ReadProjection() => Task.FromResult(projection);
     }
 
     private sealed class FakeViewport : IViewport
@@ -129,4 +141,52 @@ public sealed class AppUiScreenEndpointsFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             AppUiEndpoints.ReadNode("view", "foreign/apps/calculator/view", brain, Scope, Ct));
     }
+
+    [Fact]
+    public async Task Desktop_Projection_Returns_Typed_Json_For_Signed_In_Owner()
+    {
+        var brain = new ScreenBrain();
+        brain.RegisterDesktopShell(new FakeDesktopShell(new DesktopShellProjection(
+            Windows:
+            [
+                new DesktopWindowProjection(
+                    "w-1",
+                    "calculator",
+                    "Calculator",
+                    "owner/apps/desktop/window/w-1",
+                    [new DesktopTabProjection("tab-1", "calculator", "Calculator", true)],
+                    "tab-1",
+                    IsPinned: true,
+                    IsFavourite: false),
+            ],
+            FocusedViewId: "tab-1",
+            Pins: ["calculator"],
+            Tiles: [new AppTile("calculator", "Calculator", "calculator", Category: "Tools", Dock: null, Launch: AppLaunch.Windowed, Kind: "app")],
+            OpenWidgets: ["launcher", "signal"],
+            StylePreset: "default",
+            BarLayout: "bottom")));
+
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId(Scope));
+        var result = await AppUiEndpoints.ReadDesktopProjection(brain, Scope, Ct, caller);
+        var valueResult = Assert.IsAssignableFrom<IValueHttpResult>(result);
+        var json = JsonSerializer.Serialize(valueResult.Value, AppUiEndpoints.ViewJson);
+
+        Assert.Contains("\"focusedViewId\":\"tab-1\"", json);
+        Assert.Contains("\"openWidgets\":[\"launcher\",\"signal\"]", json);
+        Assert.Contains("\"viewportUri\":\"owner/apps/desktop/window/w-1\"", json);
+        Assert.Contains("\"isPinned\":true", json);
+    }
+
+    [Fact]
+    public async Task Desktop_Projection_Rejects_Anonymous_And_Foreign_Brain_Callers()
+    {
+        var brain = new ScreenBrain();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            AppUiEndpoints.ReadDesktopProjection(brain, Scope, Ct, caller: null));
+
+        var foreignCaller = IntoChat.OS.Tests.TestEdge.Authority.Person("foreign", "foreign", new BrainId("foreign"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            AppUiEndpoints.ReadDesktopProjection(brain, Scope, Ct, foreignCaller));
+    }
 }
+

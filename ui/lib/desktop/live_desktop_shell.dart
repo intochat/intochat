@@ -9,7 +9,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import '../src/widgets/ino/ino_orb_v2.dart';
 import '../workspace/cross_window_router.dart';
 import '../workspace/spatial_app_canvas.dart';
-import '../workspace/workspace_app.dart';
+import '../workspace/workspace_app.dart' show UiThemeSeedsController;
 import 'desktop_overlays.dart';
 import 'guest_status_pill.dart';
 import 'os_bar.dart';
@@ -17,47 +17,11 @@ import 'presence_layer.dart';
 import 'smart_desktop.dart';
 import 'window_frame.dart';
 
-class _ParsedDesktopWindow {
-  const _ParsedDesktopWindow({
-    required this.windowId,
-    required this.numericId,
-    required this.appId,
-    required this.title,
-    required this.neuronUri,
-    required this.viewportRef,
-    required this.tabs,
-    this.focusNode,
-    this.newTabNode,
-    this.starNode,
-    this.pinNode,
-    this.closeNode,
-  });
-
-  final String windowId;
-  final int numericId;
-  final String appId;
-  final String title;
-  final String neuronUri;
-  final Map<String, dynamic> viewportRef;
-  final List<Map<String, dynamic>> tabs;
-  final Map<String, dynamic>? focusNode;
-  final Map<String, dynamic>? newTabNode;
-  final Map<String, dynamic>? starNode;
-  final Map<String, dynamic>? pinNode;
-  final Map<String, dynamic>? closeNode;
-}
-
-/// Live Desktop OS Shell & Floating Acrylic Window Manager backed 100% by
-/// `{brain}/apps/desktop/view` and live kernel viewports.
+/// Live Desktop OS Shell & Floating Acrylic Window Manager backed by
+/// [DesktopShellProjection] and [BrainSessionScope].
 class LiveDesktopShell extends StatefulWidget {
   const LiveDesktopShell({
     super.key,
-    required this.brain,
-    required this.name,
-    required this.load,
-    required this.watch,
-    required this.onAction,
-    required this.onActivate,
     required this.stylePreset,
     required this.barLayout,
     required this.paletteOpen,
@@ -65,22 +29,7 @@ class LiveDesktopShell extends StatefulWidget {
     required this.onSelectPreset,
     required this.onCycleBarLayout,
     this.onOpenCompute,
-    this.scenes,
-    this.entries,
-    this.journal,
-    this.localPreferences,
     this.profileMenu,
-    this.read,
-    this.watchSignal,
-    this.callNeuron,
-    this.requestApp,
-    this.notificationsClient,
-    this.installedApps = const <String>[],
-    this.onDynamicAppsChanged,
-    this.transcribe,
-    this.talk,
-    this.speak,
-    this.storeSecret,
     this.isGuest = false,
     this.isEphemeral = false,
     this.guestRemaining,
@@ -88,15 +37,8 @@ class LiveDesktopShell extends StatefulWidget {
     this.onDownloadApp,
     this.onOpenUrl,
     this.downloadHubUri,
-    required this.knowsApp,
   });
 
-  final String brain;
-  final String name;
-  final NeuronLoader load;
-  final Stream<void> Function(String kind, String name)? watch;
-  final NeuronAction onAction;
-  final ValueChanged<Map<String, dynamic>> onActivate;
   final IcStylePreset stylePreset;
   final BarLayout barLayout;
   final bool paletteOpen;
@@ -104,58 +46,7 @@ class LiveDesktopShell extends StatefulWidget {
   final ValueChanged<IcStylePreset> onSelectPreset;
   final VoidCallback onCycleBarLayout;
   final VoidCallback? onOpenCompute;
-  final SceneClient? scenes;
-  final EntriesClient Function(String brainId)? entries;
-
-  /// The brain's journal tail after a sequence; the Creator's window draws it as pulses on its brain graph.
-  final Stream<List<JournalTailSignal>> Function(String brainId, int since)?
-  journal;
-  final LocalPreferences? localPreferences;
   final Widget? profileMenu;
-
-  /// Sends an operation to an app (POST …/apps/{app}/request): the shell's own desktop gestures that no
-  /// view node carries (open a widget, close an app) and a sandbox's controls.
-  final Future<void> Function(String app, String operation, String input)?
-  requestApp;
-
-  /// The apps the shell knows: an OpenWindow intent from a window's view may open only these.
-  final bool Function(String app) knowsApp;
-
-  /// A read-only contract call (contract, key, method) answering its decoded result; smart mode stays off
-  /// without it.
-  final Future<Map<String, dynamic>?> Function(
-    String contract,
-    String key,
-    String method,
-  )?
-  read;
-
-  /// Watches one signal type on a neuron contract, yielding decoded payloads.
-  final NeuronSignalWatcher? watchSignal;
-
-  /// Invokes any typed method on a neuron contract over `NeuronChannel` (gRPC).
-  final NeuronMethodCaller? callNeuron;
-
-  /// Optional client for real OS notifications; falls back to [entries] when present.
-  final IntoChatOSUiClient? notificationsClient;
-
-  /// Optional list of brain-installed / runtime-deployed app IDs to surface in the Launcher & Dock.
-  final List<String> installedApps;
-
-  /// Optional callback notified whenever runtime apps discovered on the desktop change.
-  final ValueChanged<List<SmartAppTileSpec>>? onDynamicAppsChanged;
-
-  /// Host capability used by dictation composers to transcribe captured audio into a draft.
-  final VoiceTranscriber? transcribe;
-
-  /// Host capability used to open full-duplex voice mode on a conversation.
-  final VoiceTalker? talk;
-
-  /// Host capability used by read-aloud controls to synthesize assistant replies.
-  final VoiceSpeaker? speak;
-
-  /// Host capability a form uses to store a secret field in the person's vault.
-  final SecretStore? storeSecret;
 
   /// True when the active session runs on a Day-0 guest brain.
   final bool isGuest;
@@ -169,7 +60,7 @@ class LiveDesktopShell extends StatefulWidget {
   /// Triggered when the guest taps `Save My Brain →`.
   final VoidCallback? onSaveBrain;
 
-  /// Optional override when the guest taps `Download App ↓`; when omitted, opens the in-shell [DownloadAppModal].
+  /// Optional override when the guest taps `Download App ↓`; when omitted, opens [DownloadAppModal].
   final VoidCallback? onDownloadApp;
 
   /// Opens an external download asset or `/download` hub URL.
@@ -183,51 +74,72 @@ class LiveDesktopShell extends StatefulWidget {
 }
 
 class _LiveDesktopShellState extends State<LiveDesktopShell> {
-  Map<String, dynamic>? _data;
-  Object? _error;
-  StreamSubscription<void>? _watchSub;
-  Timer? _resubscribeTimer;
-  bool _loading = false;
-  bool _reloadAgain = false;
+  static const double _kCompactBreakpoint = 600.0;
+  static const double _kExpandedBreakpoint = 1024.0;
 
   final Map<String, DesktopWindowState> _windowStates = {};
   final List<String> _zOrder = [];
-  final List<String> _clientOpenedApps = [];
-  final Set<String> _clientClosedWindowIds = {};
-  final Set<String> _clientOpenedWidgets = {};
-  final Set<String> _clientClosedWidgets = {};
-  Set<String> _dynamicAppIds = const {};
-  String _lastDynamicSignature = '';
-  bool _showDesktopOnly = false;
+  String? _lastBrainId;
+  String? _lastFocusedViewId;
+  Map<String, SmartAppTileSpec> _catalogById = const {};
 
+  bool _showDesktopOnly = false;
   DesktopPopoverKind _popover = DesktopPopoverKind.none;
   double _popoverAnchorX = 0;
   String? _dockMenuAppId;
   String? _barTooltipLabel;
   double _barTooltipAnchorX = 0;
-  int _notificationsCount = 0;
-  List<DesktopNotificationEntry> _notifications = const [];
-  bool _notificationsLoaded = false;
-  bool _notificationsLoading = false;
-  StreamSubscription<NeuronSignal>? _notificationsSub;
-  bool _smart = false;
-  PresenceState? _presenceState;
-  final StreamController<Presence> _presence =
-      StreamController<Presence>.broadcast();
-  StreamSubscription<void>? _settingsSub, _presenceSub;
-  Timer? _presenceReopen;
-  final Set<String> _pinnedAppIds = {};
-  bool _pinsInitialized = false;
-  Map<String, SmartAppTileSpec> _catalogById = const {};
   bool _allAppsOpen = false;
   bool _themeStudioOpen = false;
   bool _downloadModalOpen = false;
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   DesktopSystemSheetKind _systemSheet = DesktopSystemSheetKind.none;
+  BrainSessionController? _attachedSession;
 
-  bool get _isGuestSession =>
-      widget.isGuest || widget.isEphemeral || widget.brain.startsWith('try-');
+  BrainSessionController get _session => BrainSessionScope.readOf(context)!;
+
+  bool _isGuestSession(String brainId) =>
+      widget.isGuest || widget.isEphemeral || brainId.startsWith('try-');
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onHardwareKey);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = BrainSessionScope.of(context);
+    if (!identical(_attachedSession, session)) {
+      _attachedSession?.enableDesktopSession(false, notify: false);
+      _attachedSession = session;
+    }
+    if (session.brainId.isNotEmpty && _lastBrainId != session.brainId) {
+      _clearLocalWindowGeometry();
+      _lastBrainId = session.brainId;
+    }
+    session.enableDesktopSession(true);
+  }
+
+  void _clearLocalWindowGeometry() {
+    for (final state in _windowStates.values) {
+      state.dispose();
+    }
+    _windowStates.clear();
+    _zOrder.clear();
+    _lastFocusedViewId = null;
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onHardwareKey);
+    _attachedSession?.enableDesktopSession(false, notify: false);
+    _attachedSession = null;
+    _clearLocalWindowGeometry();
+    super.dispose();
+  }
 
   void _handleDownloadAppTap() {
     if (widget.onDownloadApp != null) {
@@ -242,8 +154,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     });
   }
 
-  List<Widget> _buildGuestChromeOverlays() => [
-    if (_isGuestSession)
+  List<Widget> _buildGuestChromeOverlays(String brainId) => [
+    if (_isGuestSession(brainId))
       Positioned(
         top: 10,
         left: 16,
@@ -267,359 +179,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       ),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    HardwareKeyboard.instance.addHandler(_onHardwareKey);
-    _reload();
-    _subscribe();
-    _watchSettings();
-    _subscribeNotifications();
-    unawaited(_loadNotifications());
-  }
-
-  IntoChatOSUiClient? get _notificationsClient =>
-      widget.notificationsClient ?? widget.entries?.call(widget.brain).client;
-
-  NeuronSignalWatcher? get _watchSignal {
-    if (widget.watchSignal != null) return widget.watchSignal;
-    final client = _notificationsClient;
-    if (client == null) return null;
-    return (contract, key, signal) => client
-        .watches(widget.brain)
-        .watch(
-          WatchSourceSpec(
-            contract,
-            key.startsWith('${widget.brain}/') ? key : '${widget.brain}/$key',
-            [signal],
-          ),
-        )
-        .map((s) => s.payload);
-  }
-
-  void _subscribeNotifications() {
-    _notificationsSub?.cancel();
-    _notificationsSub = null;
-    final client = _notificationsClient;
-    if (client == null || !client.grpcLive) return;
-    try {
-      _notificationsSub = client
-          .watches(widget.brain)
-          .watch(
-            const WatchSourceSpec(
-              'IntoChat.OS.Modules.Notifications.INotificationsInbox',
-              'inbox',
-              ['NotificationSent'],
-            ),
-          )
-          .listen(
-            (_) => unawaited(_loadNotifications()),
-            onError: (Object _) {},
-          );
-    } catch (_) {
-      // Live watch is optional; opening the popover refreshes over HTTP.
-    }
-  }
-
-  Future<void> _loadNotifications() async {
-    final client = _notificationsClient;
-    if (client == null) return;
-    if (!_notificationsLoaded && mounted) {
-      setState(() => _notificationsLoading = true);
-    }
-    try {
-      final result = await client.listNotifications(widget.brain);
-      if (!mounted) return;
-      setState(() {
-        _notifications = [
-          for (final item in result.items)
-            DesktopNotificationEntry(
-              id: item.id,
-              sourceApp: item.sourceApp,
-              title: item.title,
-              body: item.body,
-              priority: item.priority.index,
-              read: item.read,
-              createdUtc: item.createdUtc,
-              actionUrl: item.actionUrl,
-            ),
-        ];
-        _notificationsCount = result.unreadCount;
-        _notificationsLoaded = true;
-        _notificationsLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _notificationsLoading = false);
-    }
-  }
-
-  void _markNotificationRead(String id) {
-    final client = _notificationsClient;
-    setState(() {
-      var decremented = false;
-      _notifications = [
-        for (final item in _notifications)
-          if (item.id == id && !item.read)
-            (() {
-              decremented = true;
-              return DesktopNotificationEntry(
-                id: item.id,
-                sourceApp: item.sourceApp,
-                title: item.title,
-                body: item.body,
-                priority: item.priority,
-                read: true,
-                createdUtc: item.createdUtc,
-                actionUrl: item.actionUrl,
-              );
-            })()
-          else
-            item,
-      ];
-      if (decremented && _notificationsCount > 0) {
-        _notificationsCount--;
-      }
-    });
-    if (client == null) return;
-    unawaited(
-      client
-          .markNotificationRead(widget.brain, id)
-          .then((_) => _loadNotifications())
-          .catchError((Object _) {}),
-    );
-  }
-
-  void _markAllNotificationsRead() {
-    final client = _notificationsClient;
-    setState(() {
-      _notifications = [
-        for (final item in _notifications)
-          if (item.read)
-            item
-          else
-            DesktopNotificationEntry(
-              id: item.id,
-              sourceApp: item.sourceApp,
-              title: item.title,
-              body: item.body,
-              priority: item.priority,
-              read: true,
-              createdUtc: item.createdUtc,
-              actionUrl: item.actionUrl,
-            ),
-      ];
-      _notificationsCount = 0;
-    });
-    if (client == null) return;
-    unawaited(
-      client
-          .markAllNotificationsRead(widget.brain)
-          .then((_) => _loadNotifications())
-          .catchError((Object _) {}),
-    );
-  }
-
-  void _clearNotifications() {
-    final client = _notificationsClient;
-    setState(() {
-      _notifications = const [];
-      _notificationsCount = 0;
-    });
-    if (client == null) return;
-    unawaited(
-      client
-          .clearNotifications(widget.brain)
-          .then((_) => _loadNotifications())
-          .catchError((Object _) {}),
-    );
-  }
-
-  static const _settingsContract = 'IntoChat.OS.Modules.Apps.IUserSettings';
-  static const _presenceContract = 'IntoChat.OS.Modules.Apps.IPresence';
-  static const _approvalsContract =
-      'IntoChat.OS.Modules.Apps.Approvals.IApprovals';
-
-  void _watchSettings() {
-    unawaited(_readSmart());
-    _settingsSub = widget.watch
-        ?.call('os.settings', 'settings')
-        .listen((_) => unawaited(_readSmart()), onError: (Object _) {});
-  }
-
-  String? _syncedStylePreset;
-
-  static IcStylePreset? _parseStylePreset(String? raw) =>
-      switch (raw?.trim().toLowerCase()) {
-        'fluent-acrylic' => IcStylePreset.fluentAcrylic,
-        'spatial-glass' => IcStylePreset.spatialGlass,
-        'cyber-synaptic' => IcStylePreset.cyberSynaptic,
-        'warm-paper' || 'intochat' || 'paper' => IcStylePreset.warmPaper,
-        'fluent-warm-mica' => IcStylePreset.fluentWarmMica,
-        'linear-carbon' => IcStylePreset.linearCarbon,
-        'nordic-tactical' => IcStylePreset.nordicTactical,
-        _ => null,
-      };
-
-  /// Syncs `ino.smart` and `stylePreset` from `IUserSettings`.
-  Future<void> _readSmart() async {
-    var on = false;
-    String? remotePreset;
-    try {
-      final settings = await widget.read?.call(
-        _settingsContract,
-        'settings',
-        'Read',
-      );
-      final variables = settings?['variables'];
-      on =
-          variables is List &&
-          variables.any(
-            (v) =>
-                v is Map &&
-                v['key'] == 'ino.smart' &&
-                '${v['value']}'.toLowerCase() == 'on',
-          );
-      final presetRaw = settings?['stylePreset'] as String?;
-      if (presetRaw != null && presetRaw.trim().isNotEmpty) {
-        remotePreset = presetRaw.trim().toLowerCase();
-      }
-    } catch (_) {
-      on = false;
-    }
-    if (!mounted) return;
-    if (remotePreset != null && remotePreset != _syncedStylePreset) {
-      _syncedStylePreset = remotePreset;
-      final parsed = _parseStylePreset(remotePreset);
-      if (parsed != null && parsed != widget.stylePreset) {
-        widget.onSelectPreset(parsed);
-      }
-    }
-    if (on == _smart) return;
-    setState(() {
-      _smart = on;
-      if (!on) {
-        _presenceState = null;
-        if (_notificationsClient == null) {
-          _notificationsCount = 0;
-        }
-      }
-    });
-    if (on) {
-      _watchPresence();
-      unawaited(_readPresence());
-    } else {
-      _presenceSub?.cancel();
-      _presenceSub = null;
-      _presenceReopen?.cancel();
-      _presenceReopen = null;
-    }
-  }
-
-  void _watchPresence() {
-    _presenceSub?.cancel();
-    final watch = widget.watch;
-    if (watch == null) return;
-    _presenceSub = watch('ino.presence', 'ino/presence').listen(
-      (_) => unawaited(_readPresence()),
-      onError: (Object _) => _presenceDropped(),
-      onDone: _presenceDropped,
-    );
-  }
-
-  void _presenceDropped() {
-    if (!mounted || !_smart) return;
-    _presence.add(
-      const Presence(state: PresenceState.disconnected, revision: -1),
-    );
-    setState(() => _presenceState = PresenceState.disconnected);
-    _presenceReopen ??= Timer(const Duration(seconds: 2), () {
-      _presenceReopen = null;
-      if (!mounted || !_smart) return;
-      _watchPresence();
-      unawaited(_readPresence());
-    });
-  }
-
-  Future<void> _readPresence() async {
-    try {
-      final json = await widget.read?.call(
-        _presenceContract,
-        'ino/presence',
-        'Read',
-      );
-      if (json == null || !mounted || !_smart) return;
-      final presence = Presence.fromJson(json);
-      _presence.add(presence);
-      setState(() => _presenceState = presence.state);
-    } catch (_) {
-      // The next change signal reads again.
-    }
-    await _readApprovals();
-  }
-
-  Future<void> _readApprovals() async {
-    var count = 0;
-    try {
-      final reply = await widget.read?.call(
-        _approvalsContract,
-        'approvals/index',
-        'Pending',
-      );
-      final pending = reply?['value'];
-      count = pending is List ? pending.length : 0;
-    } catch (_) {
-      count = 0;
-    }
-    if (mounted && _smart && _notificationsClient == null) {
-      setState(() => _notificationsCount = count);
-    }
-  }
-
-  @override
-  void didUpdateWidget(LiveDesktopShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.name != widget.name || oldWidget.brain != widget.brain) {
-      _data = null;
-      _error = null;
-      _windowStates.clear();
-      _zOrder.clear();
-      _clientOpenedApps.clear();
-      _clientClosedWindowIds.clear();
-      _clientOpenedWidgets.clear();
-      _clientClosedWidgets.clear();
-      _notifications = const [];
-      _notificationsLoaded = false;
-      _notificationsLoading = false;
-      _reload();
-      _subscribe();
-      _subscribeNotifications();
-      unawaited(_loadNotifications());
-    } else if (oldWidget.notificationsClient != widget.notificationsClient ||
-        oldWidget.entries != widget.entries) {
-      _subscribeNotifications();
-      unawaited(_loadNotifications());
-    }
-  }
-
-  @override
-  void dispose() {
-    HardwareKeyboard.instance.removeHandler(_onHardwareKey);
-    _watchSub?.cancel();
-    _resubscribeTimer?.cancel();
-    _settingsSub?.cancel();
-    _presenceSub?.cancel();
-    _presenceReopen?.cancel();
-    _notificationsSub?.cancel();
-    unawaited(_presence.close());
-    for (final w in _windowStates.values) {
-      w.dispose();
-    }
-    super.dispose();
-  }
-
-  /// Ensures pinned windows (`isPinned == true`) always stay above unpinned
-  /// windows in `_zOrder` (always-on-top) with no duplicate IDs.
+  /// Ensures pinned windows (`isPinned == true`) stay above unpinned windows in `_zOrder`.
   void _normalizeZOrder() {
     final seen = <String>{};
     final unpinned = <String>[];
@@ -638,16 +198,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       ..addAll(pinned);
   }
 
-  List<_ParsedDesktopWindow> _currentMruWindows() {
-    final view = _desktopView;
-    if (view == null) return const [];
-    final windows = _parseWindows(view.root);
-    final byId = {for (final w in windows) w.windowId: w};
-    final ordered = _zOrder
+  List<DesktopWindowProjection> _currentMruWindows() {
+    final windows = _session.projection?.windows ?? const [];
+    final byId = {for (final w in windows) w.id: w};
+    return _zOrder
         .map((id) => byId[id])
-        .whereType<_ParsedDesktopWindow>()
+        .whereType<DesktopWindowProjection>()
+        .toList()
+        .reversed
         .toList();
-    return ordered.reversed.toList();
   }
 
   bool _onHardwareKey(KeyEvent e) {
@@ -661,12 +220,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
             e.logicalKey == LogicalKeyboardKey.altRight)) {
       if (_switcherOpen) {
         final mru = _currentMruWindows();
+        setState(() => _switcherOpen = false);
         if (mru.isNotEmpty) {
-          final target = mru[_switcherIndex.clamp(0, mru.length - 1)];
-          setState(() => _switcherOpen = false);
-          _focusWindow(target);
-        } else {
-          setState(() => _switcherOpen = false);
+          _focusWindow(mru[_switcherIndex.clamp(0, mru.length - 1)]);
         }
         return true;
       }
@@ -741,186 +297,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       }
     });
     if (_popover == DesktopPopoverKind.notifications) {
-      unawaited(_loadNotifications());
+      unawaited(_session.loadNotifications());
     }
   }
-
-  void _subscribe() {
-    _watchSub?.cancel();
-    final watch = widget.watch;
-    if (watch == null) return;
-    _watchSub = watch('view', widget.name).listen(
-      (_) => _reload(),
-      onError: (Object _) => _scheduleReopen(),
-      onDone: _scheduleReopen,
-    );
-  }
-
-  void _scheduleReopen() {
-    if (!mounted || _resubscribeTimer != null) return;
-    _resubscribeTimer = Timer(const Duration(seconds: 2), () {
-      _resubscribeTimer = null;
-      if (!mounted) return;
-      _reload();
-      _subscribe();
-    });
-  }
-
-  Future<void> _reload() async {
-    if (_loading) {
-      _reloadAgain = true;
-      return;
-    }
-    _loading = true;
-    try {
-      final data = await widget.load('view', widget.name);
-      if (mounted) {
-        setState(() {
-          _data = data;
-          _error = null;
-        });
-      }
-    } catch (e) {
-      if (mounted && _data == null) {
-        setState(() => _error = e);
-      }
-    } finally {
-      _loading = false;
-      if (mounted && _reloadAgain) {
-        _reloadAgain = false;
-        unawaited(_reload());
-      }
-    }
-  }
-
-  // The keys of the desktop view as last read; only these nodes send their command.
-  Set<String> _viewKeys = const {};
-
-  void _dispatchViewNode(Map<String, dynamic>? node) {
-    final event = desktopNodeAct(node, _viewKeys, widget.name);
-    if (event == null) return;
-    unawaited(
-      widget.onAction(event).then((_) => _reload()).catchError(_refused),
-    );
-  }
-
-  // A window tab pick: Select to the window's tab strip child of the desktop screen, through POST /act.
-  void _selectWindowTab(Map<String, dynamic> tab) {
-    final event = desktopTabSelectEvent(tab, widget.name);
-    if (event == null) return;
-    unawaited(
-      widget.onAction(event).then((_) => _reload()).catchError(_refused),
-    );
-  }
-
-  // A refused activation (a stale generation, a changed view): read the view again and say so.
-  void _refused(Object error) {
-    unawaited(_reload());
-    if (mounted) {
-      showKitToast(
-        context,
-        'The desktop changed. Try again.',
-        tone: UiTone.error,
-      );
-    }
-  }
-
-  bool _knowsDesktopApp(String app) {
-    final norm = app.trim().toLowerCase();
-    if (norm.isEmpty) return false;
-    return widget.knowsApp(app) ||
-        widget.knowsApp(norm) ||
-        _dynamicAppIds.contains(norm);
-  }
-
-  Map<String, String> _collectDynamicApps(
-    List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons,
-  ) {
-    final discovered = <String, String>{};
-    for (final entry in dockButtons.entries) {
-      final btn = entry.value;
-      final rawArg = (btn['argument'] as String?)?.trim();
-      final rawId = (rawArg != null && rawArg.isNotEmpty)
-          ? rawArg.toLowerCase()
-          : entry.key.substring(5).trim().toLowerCase();
-      if (rawId.isEmpty) continue;
-      final label = (btn['text'] as String?)?.trim();
-      discovered[rawId] = (label != null && label.isNotEmpty)
-          ? label
-          : IcAppIcon.humanizeAppTitle(rawId);
-    }
-    for (final w in windows) {
-      final rawId = w.appId.trim().toLowerCase();
-      if (rawId.isEmpty) continue;
-      discovered.putIfAbsent(
-        rawId,
-        () => w.title.trim().isNotEmpty
-            ? w.title.trim()
-            : IcAppIcon.humanizeAppTitle(rawId),
-      );
-    }
-    for (final id in [
-      ..._clientOpenedApps,
-      ..._pinnedAppIds,
-      ...widget.installedApps,
-    ]) {
-      final clean = id.trim().toLowerCase();
-      if (clean.isEmpty) continue;
-      discovered.putIfAbsent(clean, () => IcAppIcon.humanizeAppTitle(clean));
-    }
-    return discovered;
-  }
-
-  void _shellGesture(String app, String operation, String input) {
-    final request = widget.requestApp;
-    final scope = app == 'desktop' || app == 'settings' ? app : 'window';
-    if (request == null || !desktopShellOperationAllowed(scope, operation)) {
-      return;
-    }
-    if (scope == 'window' && !_knowsDesktopApp(app)) return;
-    unawaited(
-      request(
-        app,
-        operation,
-        input,
-      ).then((_) => _reload()).catchError(_refused),
-    );
-  }
-
-  // A desktop button as the window chrome reads it: its key, label, argument and state.
-  Map<String, dynamic> _button(ButtonNode node) => desktopButton(node);
-
-  static Iterable<Node> _children(Node node) => switch (node) {
-    ColumnNode(:final children) ||
-    RowNode(:final children) ||
-    GridNode(:final children) ||
-    CardNode(:final children) ||
-    SurfaceNode(:final children) => children,
-    _ => const <Node>[],
-  };
-
-  static Iterable<Node> _walk(Node node) sync* {
-    yield node;
-    for (final child in _children(node)) {
-      yield* _walk(child);
-    }
-  }
-
-  // The desktop's published view: {generation, view}.
-  AppView? get _desktopView => switch (_data?['view']) {
-    final Map view => AppView.fromJson(Map<String, dynamic>.from(view)),
-    _ => null,
-  };
-
-  // The host's window shell has a dock of `dock-{app}` tiles or legacy buttons.
-  static bool _isDesktopTree(AppView? view) =>
-      view != null &&
-      _walk(view.root).any(
-        (node) =>
-            (node is AppTileNode && node.key.startsWith('dock-')) ||
-            (node is ButtonNode && node.key.startsWith('dock-')),
-      );
 
   String _titleForAppId(String appId) {
     final normalized = appId.trim().toLowerCase();
@@ -930,207 +309,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     return IcAppIcon.humanizeAppTitle(appId);
   }
 
-  String _inferAppId(String title, Map<String, dynamic>? pinNode) {
-    if (pinNode?['argument'] case final String app when app.isNotEmpty) {
-      return app;
-    }
-    final lower = title.trim().toLowerCase();
-    for (final spec in _catalogById.values) {
-      if (lower == spec.id.toLowerCase() || lower == spec.name.toLowerCase()) {
-        return spec.id;
-      }
-    }
-    final normalized = IcAppIcon.normalizeAppId(title);
-    if (_catalogById.containsKey(normalized) ||
-        IcAppIcon.builtInSpecs.containsKey(normalized)) {
-      return normalized;
-    }
-    return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
-  }
-
-  List<_ParsedDesktopWindow> _parseWindows(Node root) {
-    NeuronRefNode? viewportOf(Node node) => _children(node)
-        .whereType<NeuronRefNode>()
-        .where(
-          (ref) =>
-              ref.refKind == 'viewport' &&
-              ref.neuronUri.contains('/apps/desktop/window/'),
-        )
-        .firstOrNull;
-    final frameNodes = [
-      for (final node in _walk(root))
-        if (node is ColumnNode && viewportOf(node) != null) node,
-    ];
-
-    final serverWindowKeys = <String>{};
-    final serverAppIds = <String>{};
-    final result = <_ParsedDesktopWindow>[];
-    for (var i = 0; i < frameNodes.length; i++) {
-      final frame = frameNodes[i];
-      final reference = viewportOf(frame)!;
-      final winId = reference.neuronUri.substring(
-        reference.neuronUri.lastIndexOf('/') + 1,
-      );
-
-      final numericId =
-          int.tryParse(winId.replaceAll(RegExp(r'[^0-9]'), '')) ?? (i + 1);
-
-      Map<String, dynamic>? focusNode;
-      Map<String, dynamic>? newTabNode;
-      Map<String, dynamic>? starNode;
-      Map<String, dynamic>? pinNode;
-      Map<String, dynamic>? closeNode;
-      var title = winId;
-
-      final chrome = frame.children.whereType<RowNode>().firstOrNull;
-      for (final btn
-          in chrome?.children.whereType<ButtonNode>() ?? const <ButtonNode>[]) {
-        final k = btn.key;
-        final map = _button(btn);
-        if (k.startsWith('focus-')) {
-          focusNode = map;
-          title = btn.label;
-        } else if (k.startsWith('newtab-')) {
-          newTabNode = map;
-        } else if (k.startsWith('star-')) {
-          starNode = map;
-        } else if (k.startsWith('pin-') || k.startsWith('unpin-')) {
-          pinNode = map;
-        } else if (k.startsWith('close-')) {
-          closeNode = map;
-        }
-      }
-
-      final tabs = desktopWindowTabs(frame.children);
-
-      Map<String, dynamic>? viewportRef = {
-        'kind': reference.refKind,
-        'name': reference.neuronUri,
-      };
-
-      final appId = _inferAppId(title, pinNode);
-      final winKey = '$winId:$appId';
-      serverWindowKeys.add(winKey);
-      serverAppIds.add(appId);
-      if (_clientClosedWindowIds.contains(winKey) ||
-          _clientClosedWindowIds.contains(winId)) {
-        continue;
-      }
-
-      if (IcAppIcon.isArtCraftApp(appId)) {
-        viewportRef = <String, dynamic>{
-          'kind': 'view',
-          'name': '${widget.brain}/apps/$appId/view',
-        };
-      }
-      result.add(
-        _ParsedDesktopWindow(
-          windowId: winId,
-          numericId: numericId,
-          appId: appId,
-          title: title,
-          neuronUri: 'neuron://${widget.brain}/apps/$appId',
-          viewportRef: viewportRef,
-          tabs: tabs,
-          focusNode: focusNode,
-          newTabNode: newTabNode,
-          starNode: starNode,
-          pinNode: pinNode,
-          closeNode: closeNode,
-        ),
-      );
-    }
-
-    _clientClosedWindowIds.removeWhere(
-      (k) => !k.startsWith('local-') && !serverWindowKeys.contains(k),
-    );
-    _clientOpenedApps.removeWhere(serverAppIds.contains);
-
-    for (var i = 0; i < _clientOpenedApps.length; i++) {
-      final appId = _clientOpenedApps[i];
-      if (result.any((w) => w.appId == appId)) continue;
-      final localWinId = 'local-$appId';
-      if (_clientClosedWindowIds.contains('$localWinId:$appId') ||
-          _clientClosedWindowIds.contains(localWinId)) {
-        continue;
-      }
-      result.add(
-        _ParsedDesktopWindow(
-          windowId: localWinId,
-          numericId: 100 + i,
-          appId: appId,
-          title: _titleForAppId(appId),
-          neuronUri: 'neuron://${widget.brain}/apps/$appId',
-          viewportRef: <String, dynamic>{
-            'kind': 'view',
-            'name': '${widget.brain}/apps/$appId/view',
-          },
-          tabs: const [],
-        ),
-      );
-    }
-
-    return result;
-  }
-
-  List<String> _parseOpenWidgets(Node root) {
-    String? rawText;
-    TextNode? previous;
-    for (final node in _walk(root)) {
-      if (node is! TextNode) continue;
-      if (previous?.value == 'Usage') {
-        rawText = node.value;
-        break;
-      }
-      previous = node;
-    }
-    final serverWidgets = <String>{
-      if (rawText != null && rawText.trim().isNotEmpty)
-        for (final part in rawText.split(','))
-          if (part.trim().isNotEmpty) part.trim().toLowerCase(),
-    };
-    _clientOpenedWidgets.removeWhere(serverWidgets.contains);
-    _clientClosedWidgets.removeWhere((id) => !serverWidgets.contains(id));
-
-    return [
-      for (final id in SmartDesktopState.cardOrder)
-        if ((serverWidgets.contains(id) || _clientOpenedWidgets.contains(id)) &&
-            !_clientClosedWidgets.contains(id))
-          id,
-    ];
-  }
-
-  Map<String, dynamic> _appTileButton(AppTileNode node) => {
-    'key': node.key,
-    'text': node.title,
-    'enabled': true,
-    'argument': node.appId,
-  };
-
-  Map<String, Map<String, dynamic>> _parseDockButtons(Node root) => {
-    for (final node in _walk(root))
-      if (node is AppTileNode && node.key.startsWith('dock-'))
-        node.key: _appTileButton(node)
-      else if (node is ButtonNode && node.key.startsWith('dock-'))
-        node.key: _button(node),
-  };
-
-  List<SmartAppTileSpec> _parseDockTiles(Node root) => [
-    for (final node in _walk(root))
-      if (node is AppTileNode && node.key.startsWith('dock-'))
-        SmartAppTileSpec.fromNode(node, brain: widget.brain),
-  ];
-
-  List<SmartAppTileSpec> _parseCatalogTiles(Node root) => [
-    for (final node in _walk(root))
-      if (node is AppTileNode && node.key.startsWith('catalog-'))
-        SmartAppTileSpec.fromNode(node, brain: widget.brain),
-  ];
-
   Rect _initialWindowBounds(int index, Size desk) {
     final w = (desk.width * 0.64).clamp(680.0, 980.0);
     final h = (desk.height * 0.78).clamp(460.0, 680.0);
-    // Position first window slightly right of center so SmartDesktop left cards remain visible.
     final baseLeft = desk.width > 1180
         ? (desk.width - w - 36).clamp(380.0, desk.width - w - 24)
         : ((desk.width - w) / 2).clamp(16.0, max(16.0, desk.width - w - 16));
@@ -1147,86 +328,87 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 
-  bool _shouldLaunchMaximized(String appId) {
-    final normalized = appId.trim().toLowerCase();
-    return _catalogById[normalized]?.launch == AppLaunch.maximized;
-  }
+  bool _shouldLaunchMaximized(String appId) =>
+      _catalogById[appId.trim().toLowerCase()]?.launch == AppLaunch.maximized;
 
-  void _syncWindowStates(List<_ParsedDesktopWindow> parsed, Size desk) {
-    for (var i = 0; i < parsed.length; i++) {
-      final spec = parsed[i];
-      final existing = _windowStates[spec.windowId];
-      final nodePinned = (spec.pinNode?['key'] as String? ?? '').startsWith(
-        'unpin-',
-      );
+  void _syncWindowStates(
+    String brainId,
+    List<DesktopWindowProjection> windows,
+    String? focusedViewId,
+    Size desk,
+  ) {
+    for (var i = 0; i < windows.length; i++) {
+      final spec = windows[i];
+      final existing = _windowStates[spec.id];
       if (existing == null) {
-        final optimisticId = 'local-${spec.appId}';
-        final optimistic = spec.windowId == optimisticId
-            ? null
-            : _windowStates[optimisticId];
-        final launchMax = _shouldLaunchMaximized(spec.appId);
-        _windowStates[spec.windowId] = DesktopWindowState(
+        _windowStates[spec.id] = DesktopWindowState(
           id: spec.numericId,
           appId: spec.appId,
           title: spec.title,
-          neuronUri: spec.neuronUri,
-          bounds: optimistic?.bounds ?? _initialWindowBounds(i, desk),
-          zoomed: optimistic?.zoomed ?? launchMax,
-          minimized: optimistic?.minimized ?? false,
-          isPinned: (optimistic?.isPinned ?? false) || nodePinned,
+          neuronUri: 'neuron://$brainId/apps/${spec.appId}',
+          bounds: _initialWindowBounds(i, desk),
+          zoomed: _shouldLaunchMaximized(spec.appId),
         );
-        final optIdx = _zOrder.indexOf(optimisticId);
-        if (optIdx >= 0 && !_zOrder.contains(spec.windowId)) {
-          _zOrder[optIdx] = spec.windowId;
-        } else if (!_zOrder.contains(spec.windowId)) {
-          _zOrder.add(spec.windowId);
+        if (!_zOrder.contains(spec.id)) {
+          _zOrder.add(spec.id);
         }
       } else {
         existing.title = spec.title;
-        if (!_zOrder.contains(spec.windowId)) {
-          _zOrder.add(spec.windowId);
+        if (!_zOrder.contains(spec.id)) {
+          _zOrder.add(spec.id);
         }
       }
     }
 
-    final activeIds = {for (final w in parsed) w.windowId};
+    final activeIds = {for (final w in windows) w.id};
     _windowStates.removeWhere((id, state) {
       final gone = !activeIds.contains(id);
       if (gone) state.dispose();
       return gone;
     });
     _zOrder.removeWhere((id) => !activeIds.contains(id));
+
+    if (focusedViewId != null && focusedViewId != _lastFocusedViewId) {
+      _lastFocusedViewId = focusedViewId;
+      for (final w in windows) {
+        if (w.activeTabId == focusedViewId ||
+            w.tabs.any((t) => t.id == focusedViewId)) {
+          _zOrder.remove(w.id);
+          _zOrder.add(w.id);
+          break;
+        }
+      }
+    }
     _normalizeZOrder();
   }
 
-  void _focusWindow(_ParsedDesktopWindow spec) {
-    final state = _windowStates[spec.windowId];
+  void _focusWindow(DesktopWindowProjection spec) {
+    final state = _windowStates[spec.id];
     if (state != null && state.minimized) {
       state.setMinimized(false);
     }
     setState(() {
       _showDesktopOnly = false;
-      _zOrder.remove(spec.windowId);
-      _zOrder.add(spec.windowId);
+      _zOrder.remove(spec.id);
+      _zOrder.add(spec.id);
       _normalizeZOrder();
     });
-    _dispatchViewNode(spec.focusNode);
+    unawaited(_session.focusWindow(spec.id));
   }
 
-  void _closeWindow(_ParsedDesktopWindow spec) {
-    setState(() {
-      _clientOpenedApps.remove(spec.appId);
-      _clientClosedWindowIds.add('${spec.windowId}:${spec.appId}');
-    });
-    if (spec.closeNode case final close?) {
-      _dispatchViewNode(close);
+  void _closeWindow(DesktopWindowProjection spec) {
+    unawaited(_session.closeWindow(spec.id, tabIndex: spec.activeTabIndex));
+  }
+
+  void _togglePinApp(String appId, Set<String> pinnedAppIds) {
+    if (pinnedAppIds.contains(appId.toLowerCase())) {
+      unawaited(_session.unpinApp(appId));
     } else {
-      _shellGesture('desktop', 'close-app', spec.appId);
+      unawaited(_session.pinApp(appId));
     }
   }
 
-  /// Auto-arranges all unpinned windows into a clean grid while strictly
-  /// locking the `Rect` bounds of any pinned window (`isPinned == true`).
+  /// Auto-arranges unpinned windows into a clean grid while locking pinned windows.
   void _autoArrangeWindows(Size desk) {
     final unpinnedStates = <DesktopWindowState>[
       for (final id in _zOrder)
@@ -1254,25 +436,25 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       for (var i = 0; i < unpinnedStates.length; i++) {
         final col = i % cols;
         final row = i ~/ cols;
-        final x = pad + col * (cellW + gap);
-        final y = pad + row * (cellH + gap);
-        unpinnedStates[i].setBounds(Rect.fromLTWH(x, y, cellW, cellH));
+        unpinnedStates[i].setBounds(
+          Rect.fromLTWH(
+            pad + col * (cellW + gap),
+            pad + row * (cellH + gap),
+            cellW,
+            cellH,
+          ),
+        );
       }
       _normalizeZOrder();
     });
   }
 
-  void _navigateSettingsSection(String? settingsSection) {
-    if (settingsSection == null || settingsSection.isEmpty) return;
-    _shellGesture('settings', 'navigate', settingsSection);
-  }
-
   void _handleChildActivation(
     Map<String, dynamic> activation,
-    List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons, {
+    List<DesktopWindowProjection> windows, {
     String? sourceAppId,
   }) {
+    final brain = _session.brainId;
     if (activation['kind'] == 'os_uri') {
       final uriStr = '${activation['uri'] ?? ''}';
       final sheet = DesktopSystemModalSheet.parseUri(uriStr);
@@ -1281,7 +463,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         return;
       }
       final fallbackFrom = sourceAppId != null && sourceAppId.isNotEmpty
-          ? '${widget.brain}/apps/$sourceAppId'
+          ? '$brain/apps/$sourceAppId'
           : null;
       final route = openWindowRouteOf(
         uriStr,
@@ -1292,7 +474,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         _launchOrFocusApp(
           route.app,
           windows,
-          dockButtons,
           settingsSection: route.section,
           openInput: route.input,
           openRoute: route,
@@ -1300,13 +481,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         return;
       }
       final uri = Uri.tryParse(uriStr);
-      final querySection = uri?.queryParameters['section'];
       if (uriStr.contains('settings')) {
         _launchOrFocusApp(
           'settings',
           windows,
-          dockButtons,
-          settingsSection: querySection,
+          settingsSection: uri?.queryParameters['section'],
         );
         return;
       }
@@ -1317,11 +496,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _launchOrFocusApp(
         targetApp,
         windows,
-        dockButtons,
         settingsSection: activation['tab'] as String?,
       );
     }
-    widget.onActivate({'brainId': widget.brain, ...activation});
+    _session.activate({'brainId': brain, ...activation});
   }
 
   Future<void> _dispatchWindowNavigateTo(
@@ -1333,8 +511,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     String? fromNeuron,
   }) async {
     final delivered = await dispatchNavigateTo(
-      sendAct: widget.onAction,
-      targetNeuron: '${widget.brain}/apps/$appId',
+      sendAct: _session.sendAction,
+      targetNeuron: '${_session.brainId}/apps/$appId',
       fromNeuron: fromNeuron,
       argsJson: argsJson,
       transition: transition,
@@ -1346,32 +524,22 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         _windowStates[windowId]?.reloadEpoch++;
       } else {
         for (final st in _windowStates.values) {
-          if (st.appId == appId) {
-            st.reloadEpoch++;
-          }
+          if (st.appId == appId) st.reloadEpoch++;
         }
       }
     });
   }
 
-  void _openAppGraph(
-    String appId,
-    List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons,
-  ) {
-    // The Creator opens with the app's node selected in its brain graph.
-    _launchOrFocusApp(
-      'creator',
-      windows,
-      dockButtons,
-      openInput: 'node:${widget.brain}/apps/$appId',
-    );
-  }
+  void _openAppGraph(String appId, List<DesktopWindowProjection> windows) =>
+      _launchOrFocusApp(
+        'creator',
+        windows,
+        openInput: 'node:${_session.brainId}/apps/$appId',
+      );
 
   void _launchOrFocusApp(
     String appId,
-    List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons, {
+    List<DesktopWindowProjection> windows, {
     String? settingsSection,
     String? openInput,
     OpenWindowRoute? openRoute,
@@ -1392,6 +560,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       setState(() => _systemSheet = DesktopSystemSheetKind.profile);
       return;
     }
+
+    final session = _session;
     final effectiveInput =
         openRoute?.input ??
         (openInput != null && openInput.isNotEmpty ? openInput : null);
@@ -1402,8 +572,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         effectiveInput != null ||
         argsJson != null ||
         (openRoute?.hasExplicitTransition ?? false);
-    if (appId == 'settings' && !shouldNavigateTo) {
-      _navigateSettingsSection(settingsSection);
+    if (appId == 'settings' &&
+        !shouldNavigateTo &&
+        settingsSection != null &&
+        settingsSection.isNotEmpty) {
+      unawaited(
+        session.requestShellOperation('settings', 'navigate', settingsSection),
+      );
     }
 
     for (final w in windows.reversed) {
@@ -1413,15 +588,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
           unawaited(
             _dispatchWindowNavigateTo(
               appId,
-              windowId: w.windowId,
+              windowId: w.id,
               input: effectiveInput,
               argsJson: argsJson,
               transition: transition,
               fromNeuron: fromNeuron,
             ),
           );
-          widget.onActivate({
-            'brainId': widget.brain,
+          session.activate({
+            'brainId': session.brainId,
             'kind': 'workspace',
             'application': appId,
             'operation': 'open',
@@ -1431,38 +606,18 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
             'fromNeuron': ?fromNeuron,
             'navigatedTo': true,
           });
-          setState(() {
-            _windowStates[w.windowId]?.reloadEpoch++;
-          });
+          setState(() => _windowStates[w.id]?.reloadEpoch++);
         }
         return;
       }
     }
-    setState(() {
-      final localWinId = 'local-$appId';
-      _clientClosedWindowIds.removeWhere(
-        (id) =>
-            id == localWinId ||
-            id == '$localWinId:$appId' ||
-            id.endsWith(':$appId') ||
-            _windowStates[id]?.appId == appId,
-      );
-      if (!_clientOpenedApps.contains(appId)) {
-        _clientOpenedApps.add(appId);
-      }
-      _zOrder.remove(localWinId);
-      _zOrder.add(localWinId);
-      _normalizeZOrder();
-    });
-    if (dockButtons['dock-$appId'] case final dockBtn?) {
-      _dispatchViewNode(dockBtn);
-    } else {
-      _shellGesture('desktop', 'open', appId);
-    }
+
+    unawaited(session.openApp(appId));
+
     if (appId == 'settings' && !shouldNavigateTo) {
-      widget.onActivate({
+      session.activate({
         'kind': 'settings',
-        'brainId': widget.brain,
+        'brainId': session.brainId,
         'tab': ?settingsSection,
       });
       return;
@@ -1471,7 +626,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       unawaited(
         _dispatchWindowNavigateTo(
           appId,
-          windowId: 'local-$appId',
           input: effectiveInput,
           argsJson: argsJson,
           transition: transition,
@@ -1479,8 +633,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         ),
       );
     }
-    widget.onActivate({
-      'brainId': widget.brain,
+    session.activate({
+      'brainId': session.brainId,
       'kind': 'workspace',
       'application': appId,
       'operation': 'open',
@@ -1492,38 +646,34 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     });
   }
 
-  static const _debuggerContract =
-      'IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads';
+  List<DesktopTabSpec> _buildWindowTabs(DesktopWindowProjection spec) => [
+    for (var i = 0; i < spec.tabs.length; i++)
+      DesktopTabSpec(
+        key: spec.tabs[i].id,
+        label: spec.tabs[i].title,
+        selected: spec.tabs[i].selected,
+        onTap: () {
+          if (!spec.tabs[i].selected) {
+            unawaited(_session.selectTab(spec.id, i));
+          }
+        },
+      ),
+  ];
 
-  // Only the Creator's view gets the journal tail: its brain graph is the one place pulses are drawn. The tail starts at the
-  // journal's head, read from the Creator's reads neuron, so nothing journaled before the window opened is replayed.
-  Stream<List<JournalTailSignal>> Function()? _journalFor(String view) {
-    final journal = widget.journal;
-    final read = widget.read;
-    if (journal == null ||
-        read == null ||
-        !view.startsWith('${widget.brain}/apps/creator/')) {
-      return null;
-    }
-    return () async* {
-      Object? head;
-      try {
-        head = (await read(
-          _debuggerContract,
-          'creator/reads',
-          'Head',
-        ))?['value'];
-      } catch (_) {
-        // No head, no pulses: the graph stays still rather than replaying the journal.
-        return;
-      }
-      if (head is! num) return;
-      yield* journal(widget.brain, head.toInt());
-    };
-  }
-
-  static const double _kCompactBreakpoint = 600.0;
-  static const double _kExpandedBreakpoint = 1024.0;
+  Widget _buildWindowViewHost(
+    DesktopWindowProjection spec,
+    List<DesktopWindowProjection> windows, {
+    required String keyPrefix,
+  }) => ViewHost(
+    key: ValueKey(
+      '$keyPrefix:${spec.viewportUri}:${_windowStates[spec.id]?.reloadEpoch ?? 0}',
+    ),
+    kind: 'viewport',
+    name: spec.viewportUri,
+    signals: _session.journalFor(spec.viewportUri),
+    onActivate: (activation) =>
+        _handleChildActivation(activation, windows, sourceAppId: spec.appId),
+  );
 
   List<UiNavBarItem> _buildAdaptiveNavItems(int activeCount) => [
     const UiNavBarItem(id: 'ino', label: 'Ino', icon: LucideIcons.sparkles),
@@ -1545,41 +695,39 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     ),
   ];
 
-  Widget _adaptiveTopActions(
-    List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons,
-  ) => Positioned(
-    top: 8,
-    right: 8,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Home',
-          isSelected: _showDesktopOnly,
-          icon: const Icon(LucideIcons.brainCircuit),
-          onPressed: () => setState(() {
-            _popover = DesktopPopoverKind.none;
-            _allAppsOpen = false;
-            _themeStudioOpen = false;
-            _showDesktopOnly = !_showDesktopOnly;
-          }),
+  Widget _adaptiveTopActions(List<DesktopWindowProjection> windows) =>
+      Positioned(
+        top: 8,
+        right: 8,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Home',
+              isSelected: _showDesktopOnly,
+              icon: const Icon(LucideIcons.brainCircuit),
+              onPressed: () => setState(() {
+                _popover = DesktopPopoverKind.none;
+                _allAppsOpen = false;
+                _themeStudioOpen = false;
+                _showDesktopOnly = !_showDesktopOnly;
+              }),
+            ),
+            IconButton(
+              tooltip: 'Settings',
+              icon: const Icon(LucideIcons.settings),
+              onPressed: () {
+                setState(() => _popover = DesktopPopoverKind.none);
+                _launchOrFocusApp('settings', windows);
+              },
+            ),
+            if (widget.profileMenu != null)
+              SizedBox(height: 32, child: widget.profileMenu),
+          ],
         ),
-        IconButton(
-          tooltip: 'Settings',
-          icon: const Icon(LucideIcons.settings),
-          onPressed: () {
-            setState(() => _popover = DesktopPopoverKind.none);
-            _launchOrFocusApp('settings', windows, dockButtons);
-          },
-        ),
-        if (widget.profileMenu != null)
-          SizedBox(height: 32, child: widget.profileMenu),
-      ],
-    ),
-  );
+      );
 
-  int _adaptiveSelectedIndex(_ParsedDesktopWindow? topWindow) {
+  int _adaptiveSelectedIndex(DesktopWindowProjection? topWindow) {
     if (_themeStudioOpen) return 3;
     if (_allAppsOpen) return 2;
     if (topWindow != null && topWindow.appId != 'ino') return 1;
@@ -1587,13 +735,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 
   Widget _buildSinglePaneContent({
-    required _ParsedDesktopWindow? topWindow,
-    required List<_ParsedDesktopWindow> windows,
-    required Map<String, Map<String, dynamic>> dockButtons,
+    required DesktopWindowProjection? topWindow,
+    required List<DesktopWindowProjection> windows,
     required List<SmartAppTileSpec> dockApps,
     required List<String> openWidgets,
     required Size desk,
-    required bool isCompact,
   }) {
     if (topWindow == null) {
       return SmartDesktop(
@@ -1602,21 +748,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         barLayout: widget.barLayout,
         apps: dockApps,
         openCardIds: openWidgets,
-        onOpenCard: (cardId) {
-          setState(() {
-            _clientClosedWidgets.remove(cardId);
-            _clientOpenedWidgets.add(cardId);
-          });
-          _shellGesture('desktop', 'widget-open', cardId);
-        },
-        onCloseCard: (cardId) {
-          setState(() {
-            _clientOpenedWidgets.remove(cardId);
-            _clientClosedWidgets.add(cardId);
-          });
-          _shellGesture('desktop', 'widget-close', cardId);
-        },
-        onLaunchApp: (appId) => _launchOrFocusApp(appId, windows, dockButtons),
+        onOpenCard: (cardId) => unawaited(_session.openWidget(cardId)),
+        onCloseCard: (cardId) => unawaited(_session.closeWidget(cardId)),
+        onLaunchApp: (appId) => _launchOrFocusApp(appId, windows),
         onOpenPalette: widget.onTogglePalette,
         onOpenAllApps: () => setState(() {
           _popover = DesktopPopoverKind.none;
@@ -1628,36 +762,17 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       );
     }
 
-    return ViewHost(
-      key: ValueKey(
-        'adaptive-viewport:${topWindow.viewportRef['name']}:${_windowStates[topWindow.windowId]?.reloadEpoch ?? 0}',
-      ),
-      kind: topWindow.viewportRef['kind'] as String,
-      name: topWindow.viewportRef['name'] as String,
-      load: widget.load,
-      watch: widget.watch,
-      watchSignal: _watchSignal,
-      callNeuron: widget.callNeuron,
-      onAction: widget.onAction,
-      knowsApp: _knowsDesktopApp,
-      transcribe: widget.transcribe,
-      talk: widget.talk,
-      speak: widget.speak,
-      storeSecret: widget.storeSecret,
-      signals: _journalFor(topWindow.viewportRef['name'] as String),
-      onActivate: (activation) => _handleChildActivation(
-        activation,
-        windows,
-        dockButtons,
-        sourceAppId: topWindow.appId,
-      ),
+    return _buildWindowViewHost(
+      topWindow,
+      windows,
+      keyPrefix: 'adaptive-viewport',
     );
   }
 
   Future<void> _showActiveAppsSheet(
     BuildContext context,
-    List<_ParsedDesktopWindow> orderedWindows,
-    Map<String, _ParsedDesktopWindow> byId,
+    List<DesktopWindowProjection> orderedWindows,
+    Map<String, DesktopWindowProjection> byId,
   ) {
     final activeList = orderedWindows.reversed.toList(growable: false);
     return showUiSheet<void>(
@@ -1716,7 +831,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         ),
                         onTap: () {
                           Navigator.of(sheetCtx).pop();
-                          final target = byId[w.windowId];
+                          final target = byId[w.id];
                           if (target != null) _focusWindow(target);
                         },
                       );
@@ -1731,8 +846,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   Future<void> _showAllAppsSheet(
     BuildContext context,
     List<SmartAppTileSpec> launcherApps,
-    List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons,
+    List<DesktopWindowProjection> windows,
   ) {
     return showUiSheet<void>(
       context: context,
@@ -1761,7 +875,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
                     Navigator.of(sheetCtx).pop();
-                    _launchOrFocusApp(spec.id, windows, dockButtons);
+                    _launchOrFocusApp(spec.id, windows);
                   },
                   child: Container(
                     padding: const EdgeInsets.all(8),
@@ -1837,15 +951,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   Widget _buildCompactShell({
     required BuildContext context,
+    required BrainSessionController session,
     required UiColors c,
-    required Size size,
     required Size desk,
-    required List<_ParsedDesktopWindow> windows,
-    required Map<String, _ParsedDesktopWindow> byId,
-    required List<_ParsedDesktopWindow> orderedWindows,
-    required List<_ParsedDesktopWindow> visibleWindows,
-    required _ParsedDesktopWindow? topWindow,
-    required Map<String, Map<String, dynamic>> dockButtons,
+    required List<DesktopWindowProjection> windows,
+    required Map<String, DesktopWindowProjection> byId,
+    required List<DesktopWindowProjection> orderedWindows,
+    required List<DesktopWindowProjection> visibleWindows,
+    required DesktopWindowProjection? topWindow,
     required List<SmartAppTileSpec> dockApps,
     required List<SmartAppTileSpec> launcherApps,
     required List<String> openWidgets,
@@ -1871,11 +984,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       child: _buildSinglePaneContent(
                         topWindow: topWindow,
                         windows: windows,
-                        dockButtons: dockButtons,
                         dockApps: dockApps,
                         openWidgets: openWidgets,
                         desk: desk,
-                        isCompact: true,
                       ),
                     ),
                     if (_systemSheet == DesktopSystemSheetKind.none &&
@@ -1884,7 +995,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         right: 12,
                         bottom: 12,
                         child: InoOrbV2(
-                          state: _presenceState ?? PresenceState.idle,
+                          state: session.presenceState ?? PresenceState.idle,
                           size: 48,
                           semanticsId: 'compact:ino-orb',
                           onTap: () {
@@ -1892,12 +1003,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                               _allAppsOpen = false;
                               _themeStudioOpen = false;
                             });
-                            _launchOrFocusApp('ino', windows, dockButtons);
+                            _launchOrFocusApp('ino', windows);
                           },
                         ),
                       ),
-                    _adaptiveTopActions(windows, dockButtons),
-                    ..._buildGuestChromeOverlays(),
+                    _adaptiveTopActions(windows),
+                    ..._buildGuestChromeOverlays(session.brainId),
                     if (_systemSheet != DesktopSystemSheetKind.none)
                       Positioned.fill(
                         child: DesktopSystemModalSheet(
@@ -1924,19 +1035,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         _allAppsOpen = false;
                         _themeStudioOpen = false;
                       });
-                      _launchOrFocusApp('ino', windows, dockButtons);
+                      _launchOrFocusApp('ino', windows);
                     case 1:
                       unawaited(
                         _showActiveAppsSheet(compactCtx, orderedWindows, byId),
                       );
                     case 2:
                       unawaited(
-                        _showAllAppsSheet(
-                          compactCtx,
-                          launcherApps,
-                          windows,
-                          dockButtons,
-                        ),
+                        _showAllAppsSheet(compactCtx, launcherApps, windows),
                       );
                     case 3:
                       unawaited(_showThemeStudioSheet(compactCtx));
@@ -1952,15 +1058,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   Widget _buildMediumShell({
     required BuildContext context,
+    required BrainSessionController session,
     required UiColors c,
-    required Size size,
     required Size desk,
-    required List<_ParsedDesktopWindow> windows,
-    required Map<String, _ParsedDesktopWindow> byId,
-    required List<_ParsedDesktopWindow> orderedWindows,
-    required List<_ParsedDesktopWindow> visibleWindows,
-    required _ParsedDesktopWindow? topWindow,
-    required Map<String, Map<String, dynamic>> dockButtons,
+    required List<DesktopWindowProjection> windows,
+    required Map<String, DesktopWindowProjection> byId,
+    required List<DesktopWindowProjection> orderedWindows,
+    required List<DesktopWindowProjection> visibleWindows,
+    required DesktopWindowProjection? topWindow,
     required List<SmartAppTileSpec> dockApps,
     required List<SmartAppTileSpec> launcherApps,
     required List<String> openWidgets,
@@ -1982,7 +1087,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     _allAppsOpen = false;
                     _themeStudioOpen = false;
                   });
-                  _launchOrFocusApp('ino', windows, dockButtons);
+                  _launchOrFocusApp('ino', windows);
                 case 1:
                   setState(() {
                     _allAppsOpen = false;
@@ -2011,34 +1116,27 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   child: _buildSinglePaneContent(
                     topWindow: topWindow,
                     windows: windows,
-                    dockButtons: dockButtons,
                     dockApps: dockApps,
                     openWidgets: openWidgets,
                     desk: desk,
-                    isCompact: false,
                   ),
                 ),
-                if (_smart)
+                if (session.smart)
                   Positioned.fill(
                     child: PresenceLayer(
-                      presence: _presence.stream,
-                      enabled: _smart,
-                      onOpenIno: () =>
-                          _launchOrFocusApp('ino', windows, dockButtons),
+                      presence: session.presenceStream,
+                      enabled: session.smart,
+                      onOpenIno: () => _launchOrFocusApp('ino', windows),
                       onAction: (action) {
                         if (action.kind == 'open' ||
                             action.kind == 'navigate') {
-                          _launchOrFocusApp(
-                            action.argument,
-                            windows,
-                            dockButtons,
-                          );
+                          _launchOrFocusApp(action.argument, windows);
                         }
                       },
                     ),
                   ),
-                _adaptiveTopActions(windows, dockButtons),
-                ..._buildGuestChromeOverlays(),
+                _adaptiveTopActions(windows),
+                ..._buildGuestChromeOverlays(session.brainId),
                 if (_systemSheet != DesktopSystemSheetKind.none)
                   Positioned.fill(
                     child: DesktopSystemModalSheet(
@@ -2057,7 +1155,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       onClose: () => setState(() => _allAppsOpen = false),
                       onLaunchApp: (appId) {
                         setState(() => _allAppsOpen = false);
-                        _launchOrFocusApp(appId, windows, dockButtons);
+                        _launchOrFocusApp(appId, windows);
                       },
                     ),
                   ),
@@ -2095,129 +1193,153 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 
+  Widget _buildAmbientGlows(UiColors c) => Positioned.fill(
+    child: IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(-0.6, -0.7),
+            radius: 0.9,
+            colors: [
+              c.accent.withValues(alpha: c.isDark ? 0.16 : 0.08),
+              const Color(0x00000000),
+            ],
+          ),
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(0.7, 0.6),
+              radius: 0.85,
+              colors: [
+                c.secondaryGlow.withValues(alpha: c.isDark ? 0.12 : 0.06),
+                const Color(0x00000000),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  List<DesktopNotificationEntry> _notificationEntries(
+    BrainSessionController session,
+  ) => [
+    for (final item in session.notifications)
+      DesktopNotificationEntry(
+        id: item.id,
+        sourceApp: item.sourceApp,
+        title: item.title,
+        body: item.body,
+        priority: item.priority.index,
+        read: item.read,
+        createdUtc: item.createdUtc,
+        actionUrl: item.actionUrl,
+      ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final data = _data;
-    final view = _desktopView;
-    final isDesktopTree = _isDesktopTree(view);
+    final session = BrainSessionScope.of(context);
+    final projection = session.projection;
+    final c = UiColors.of(context);
 
-    if (data == null || !isDesktopTree) {
-      if (_error != null && data == null) {
-        return Center(child: Text('$_error'));
+    if (projection == null) {
+      if (session.desktopError != null) {
+        return ColoredBox(
+          color: c.surfacePage,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('${session.desktopError}'),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => unawaited(session.reloadDesktop()),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        );
       }
-      return ViewHost(
-        key: ValueKey('fallback:${widget.name}'),
-        kind: 'view',
-        name: widget.name,
-        load: widget.load,
-        watch: widget.watch,
-        watchSignal: _watchSignal,
-        callNeuron: widget.callNeuron,
-        onAction: widget.onAction,
-        knowsApp: widget.knowsApp,
-        transcribe: widget.transcribe,
-        talk: widget.talk,
-        speak: widget.speak,
-        storeSecret: widget.storeSecret,
-        onActivate: widget.onActivate,
+      return ColoredBox(
+        color: c.surfacePage,
+        child: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final effectiveRoot = view!.root;
-    _viewKeys = {
-      for (final node in _walk(effectiveRoot))
-        if (node is AppTileNode) node.key else if (node is ButtonNode) node.key,
-    };
-    final c = UiColors.of(context);
-    final dockTiles = _parseDockTiles(effectiveRoot);
-    final catalogTiles = _parseCatalogTiles(effectiveRoot);
-    final catalogById = <String, SmartAppTileSpec>{
-      for (final tile in catalogTiles) tile.id.toLowerCase(): tile,
-      for (final tile in dockTiles) tile.id.toLowerCase(): tile,
-    };
-    _catalogById = catalogById;
+    final brainId = session.brainId;
+    final windows = projection.windows;
+    final openWidgets = projection.openWidgets;
+    final pinnedAppIds = {for (final pin in projection.pins) pin.toLowerCase()};
 
-    final windows = _parseWindows(effectiveRoot);
-    final dockButtons = _parseDockButtons(effectiveRoot);
-    final openWidgets = _parseOpenWidgets(effectiveRoot);
-    final discoveredApps = _collectDynamicApps(windows, dockButtons);
-
-    if (!_pinsInitialized && (dockTiles.isNotEmpty || dockButtons.isNotEmpty)) {
-      _pinsInitialized = true;
-      for (final tile in dockTiles) {
-        _pinnedAppIds.add(tile.id.toLowerCase());
-      }
-      for (final entry in dockButtons.entries) {
-        final rawArg = (entry.value['argument'] as String?)?.trim();
-        final rawId = (rawArg != null && rawArg.isNotEmpty)
-            ? rawArg
-            : entry.key.substring(5).trim();
-        if (rawId.isNotEmpty) {
-          _pinnedAppIds.add(rawId.toLowerCase());
-        }
-      }
-    }
-
-    final dockSeen = <String>{};
-    final dockApps = <SmartAppTileSpec>[];
-    for (final tile in dockTiles) {
-      if (dockSeen.add(tile.id.toLowerCase())) {
-        dockApps.add(tile);
-      }
-    }
-    for (final entry in discoveredApps.entries) {
-      if (dockSeen.add(entry.key)) {
-        dockApps.add(
-          catalogById[entry.key] ??
-              SmartAppTileSpec.fromIconSpec(
-                entry.key,
-                titleOverride: entry.value,
-                brain: widget.brain,
-              ),
+    final launcherApps = <SmartAppTileSpec>[];
+    final launcherSeen = <String>{};
+    for (final tile in projection.tiles) {
+      final norm = tile.id.toLowerCase();
+      if (norm.isNotEmpty && launcherSeen.add(norm)) {
+        launcherApps.add(
+          SmartAppTileSpec.fromProjectionTile(tile, brain: brainId),
         );
       }
     }
-
-    final launcherSeen = <String>{};
-    final launcherApps = <SmartAppTileSpec>[];
-    for (final tile in catalogTiles) {
-      if (launcherSeen.add(tile.id.toLowerCase())) {
-        launcherApps.add(tile);
-      }
-    }
-    for (final tile in dockApps) {
-      if (launcherSeen.add(tile.id.toLowerCase())) {
-        launcherApps.add(tile);
-      }
-    }
-    for (final entry in discoveredApps.entries) {
-      if (launcherSeen.add(entry.key)) {
+    for (final w in windows) {
+      final norm = w.appId.toLowerCase();
+      if (norm.isNotEmpty && launcherSeen.add(norm)) {
         launcherApps.add(
           SmartAppTileSpec.fromIconSpec(
-            entry.key,
-            titleOverride: entry.value,
-            categoryOverride: 'Micro-Apps',
-            brain: widget.brain,
+            w.appId,
+            titleOverride: w.title,
+            brain: brainId,
           ),
         );
       }
     }
-    _dynamicAppIds = {
-      ...discoveredApps.keys,
-      for (final tile in launcherApps) tile.id.toLowerCase(),
-    };
+    for (final id in [...projection.pins, ...session.installedApps]) {
+      final norm = id.trim().toLowerCase();
+      if (norm.isNotEmpty && launcherSeen.add(norm)) {
+        launcherApps.add(SmartAppTileSpec.fromIconSpec(norm, brain: brainId));
+      }
+    }
 
-    if (widget.onDynamicAppsChanged != null) {
-      final sig = [
-        for (final s in launcherApps) '${s.id}:${s.name}:${s.launch.name}',
-      ].join('|');
-      if (sig != _lastDynamicSignature) {
-        _lastDynamicSignature = sig;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            widget.onDynamicAppsChanged?.call(launcherApps);
-          }
-        });
+    final catalogById = <String, SmartAppTileSpec>{
+      for (final spec in launcherApps) spec.id.toLowerCase(): spec,
+    };
+    _catalogById = catalogById;
+
+    final dockSeen = <String>{};
+    final dockApps = <SmartAppTileSpec>[];
+    for (final spec in launcherApps) {
+      if (spec.dock != null && dockSeen.add(spec.id.toLowerCase())) {
+        dockApps.add(spec);
+      }
+    }
+    for (final pin in projection.pins) {
+      final norm = pin.toLowerCase();
+      if (dockSeen.add(norm)) {
+        dockApps.add(
+          catalogById[norm] ??
+              SmartAppTileSpec.fromIconSpec(pin, brain: brainId),
+        );
+      }
+    }
+    for (final spec in launcherApps) {
+      if (spec.appKind == 'unit' && dockSeen.add(spec.id.toLowerCase())) {
+        dockApps.add(spec);
+      }
+    }
+    for (final w in windows) {
+      final norm = w.appId.toLowerCase();
+      if (dockSeen.add(norm)) {
+        dockApps.add(
+          catalogById[norm] ??
+              SmartAppTileSpec.fromIconSpec(
+                w.appId,
+                titleOverride: w.title,
+                brain: brainId,
+              ),
+        );
       }
     }
 
@@ -2234,18 +1356,18 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
           size.width,
           max(320.0, size.height - kOsBarHeight - 8),
         );
-        _syncWindowStates(windows, desk);
+        _syncWindowStates(brainId, windows, projection.focusedViewId, desk);
 
-        final byId = {for (final w in windows) w.windowId: w};
+        final byId = {for (final w in windows) w.id: w};
         final orderedWindows = _zOrder
             .map((id) => byId[id])
-            .whereType<_ParsedDesktopWindow>()
+            .whereType<DesktopWindowProjection>()
             .toList();
         final visibleWindows = _showDesktopOnly
-            ? const <_ParsedDesktopWindow>[]
+            ? const <DesktopWindowProjection>[]
             : [
                 for (final w in orderedWindows)
-                  if (!(_windowStates[w.windowId]?.minimized ?? false)) w,
+                  if (!(_windowStates[w.id]?.minimized ?? false)) w,
               ];
         final topWindow = visibleWindows.isEmpty ? null : visibleWindows.last;
         final openAppIds = {for (final w in windows) w.appId};
@@ -2253,15 +1375,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         if (isCompact) {
           return _buildCompactShell(
             context: context,
+            session: session,
             c: c,
-            size: size,
             desk: desk,
             windows: windows,
             byId: byId,
             orderedWindows: orderedWindows,
             visibleWindows: visibleWindows,
             topWindow: topWindow,
-            dockButtons: dockButtons,
             dockApps: dockApps,
             launcherApps: launcherApps,
             openWidgets: openWidgets,
@@ -2271,15 +1392,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         if (isMedium) {
           return _buildMediumShell(
             context: context,
+            session: session,
             c: c,
-            size: size,
             desk: desk,
             windows: windows,
             byId: byId,
             orderedWindows: orderedWindows,
             visibleWindows: visibleWindows,
             topWindow: topWindow,
-            dockButtons: dockButtons,
             dockApps: dockApps,
             launcherApps: launcherApps,
             openWidgets: openWidgets,
@@ -2291,40 +1411,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // 1. Ambient glass radial glows matching E:\intochat\design\apps\os\lib\shell\desktop.dart
-              if (c.isGlass)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(-0.6, -0.7),
-                          radius: 0.9,
-                          colors: [
-                            c.accent.withValues(alpha: c.isDark ? 0.16 : 0.08),
-                            const Color(0x00000000),
-                          ],
-                        ),
-                      ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: const Alignment(0.7, 0.6),
-                            radius: 0.85,
-                            colors: [
-                              c.secondaryGlow.withValues(
-                                alpha: c.isDark ? 0.12 : 0.06,
-                              ),
-                              const Color(0x00000000),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              if (c.isGlass) _buildAmbientGlows(c),
 
-              // 2. SmartDesktop (Interactive 3D Orbital Neural Graph + Whiteboard Sticky Cards)
+              // SmartDesktop (3D Orbital Neural Graph + Whiteboard Sticky Cards)
               Positioned(
                 left: 0,
                 top: 0,
@@ -2337,22 +1426,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   apps: dockApps,
                   totalAppsCount: launcherApps.length,
                   openCardIds: openWidgets,
-                  onOpenCard: (cardId) {
-                    setState(() {
-                      _clientClosedWidgets.remove(cardId);
-                      _clientOpenedWidgets.add(cardId);
-                    });
-                    _shellGesture('desktop', 'widget-open', cardId);
-                  },
-                  onCloseCard: (cardId) {
-                    setState(() {
-                      _clientOpenedWidgets.remove(cardId);
-                      _clientClosedWidgets.add(cardId);
-                    });
-                    _shellGesture('desktop', 'widget-close', cardId);
-                  },
-                  onLaunchApp: (appId) =>
-                      _launchOrFocusApp(appId, windows, dockButtons),
+                  onOpenCard: (cardId) => unawaited(session.openWidget(cardId)),
+                  onCloseCard: (cardId) =>
+                      unawaited(session.closeWidget(cardId)),
+                  onLaunchApp: (appId) => _launchOrFocusApp(appId, windows),
                   onOpenPalette: widget.onTogglePalette,
                   onOpenAllApps: () => setState(() {
                     _popover = DesktopPopoverKind.none;
@@ -2364,7 +1441,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 ),
               ),
 
-              // 3. Free-Floating, Draggable, 8-Way Resizable Acrylic Windows
+              // Floating, Draggable, Resizable Acrylic Windows
               Positioned(
                 left: 0,
                 top: 0,
@@ -2375,59 +1452,54 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   children: [
                     for (final spec in visibleWindows)
                       WindowFrame(
-                        key: ValueKey('window:${spec.windowId}'),
-                        window: _windowStates[spec.windowId]!,
+                        key: ValueKey('window:${spec.id}'),
+                        window: _windowStates[spec.id]!,
                         focused: spec == topWindow,
                         forceZoom: focusMode,
                         desk: desk,
-                        tabs: [
-                          for (final t in spec.tabs)
-                            DesktopTabSpec(
-                              key: '${t['key']}',
-                              label: '${t['text'] ?? ''}',
-                              selected: t['selected'] == true,
-                              onTap: () => _selectWindowTab(t),
-                            ),
-                        ],
+                        tabs: _buildWindowTabs(spec),
                         onFocus: () => _focusWindow(spec),
                         onClose: () => _closeWindow(spec),
                         onMinimize: () {
-                          final st = _windowStates[spec.windowId];
+                          final st = _windowStates[spec.id];
                           if (st != null) {
                             setState(() => st.setMinimized(!st.minimized));
                           }
                         },
-                        onNewTab: spec.newTabNode != null
-                            ? () => _dispatchViewNode(spec.newTabNode)
-                            : null,
-                        onFavourite: spec.starNode != null
-                            ? () => _dispatchViewNode(spec.starNode)
-                            : null,
-                        isFavourite: (spec.starNode?['text'] as String? ?? '')
-                            .toLowerCase()
-                            .contains('remove'),
-                        onPin: () {
-                          setState(() => _normalizeZOrder());
-                          if (spec.pinNode != null) {
-                            _dispatchViewNode(spec.pinNode);
-                          }
-                        },
+                        onNewTab: () => unawaited(session.newTab(spec.id)),
+                        onFavourite: () =>
+                            unawaited(session.toggleFavourite(spec.id)),
+                        isFavourite: spec.isFavourite,
+                        onPin: spec.appId == 'ino'
+                            ? null
+                            : () {
+                                setState(() => _normalizeZOrder());
+                                _togglePinApp(spec.appId, pinnedAppIds);
+                              },
                         isPinned:
-                            _windowStates[spec.windowId]?.isPinned ?? false,
+                            _windowStates[spec.id]?.isPinned ?? spec.isPinned,
                         onReload: () {
                           setState(() {});
-                          unawaited(_reload());
+                          unawaited(session.reloadDesktop());
                         },
-                        onHardRestartSandbox: () {
-                          _shellGesture(spec.appId, 'sandbox-restart', '');
-                        },
-                        onSwitchExecutionMode: (mode) {
-                          _shellGesture(spec.appId, 'switch-mode', mode);
-                        },
+                        onHardRestartSandbox: () => unawaited(
+                          session.requestShellOperation(
+                            spec.appId,
+                            'sandbox-restart',
+                            '',
+                          ),
+                        ),
+                        onSwitchExecutionMode: (mode) => unawaited(
+                          session.requestShellOperation(
+                            spec.appId,
+                            'switch-mode',
+                            mode,
+                          ),
+                        ),
                         onInspectSandbox: () {
-                          _launchOrFocusApp('creator', windows, dockButtons);
-                          widget.onActivate({
-                            'brainId': widget.brain,
+                          _launchOrFocusApp('creator', windows);
+                          session.activate({
+                            'brainId': brainId,
                             'kind': 'workspace',
                             'application': 'creator',
                             'operation': 'inspect',
@@ -2435,15 +1507,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                           });
                         },
                         onOpenAppSettings: () =>
-                            _openAppGraph(spec.appId, windows, dockButtons),
+                            _openAppGraph(spec.appId, windows),
                         child: spec.appId == 'workspace'
                             ? SpatialAppCanvas(
                                 windows: [
                                   for (final w in visibleWindows)
-                                    if (w.windowId != spec.windowId) w.windowId,
+                                    if (w.id != spec.id) w.id,
                                 ],
                                 windowStates: _windowStates,
-                                topWindowId: topWindow?.windowId,
+                                topWindowId: topWindow?.id,
                                 onFocusWindow: (id) {
                                   final target = byId[id];
                                   if (target != null) _focusWindow(target);
@@ -2452,52 +1524,49 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                   final target = byId[id];
                                   if (target != null) _closeWindow(target);
                                 },
-                                onToggleZoom: (id) {
-                                  _windowStates[id]?.toggleZoom();
-                                },
+                                onToggleZoom: (id) =>
+                                    _windowStates[id]?.toggleZoom(),
                                 onPinWindow: (id) {
                                   final target = byId[id];
                                   if (target != null) {
                                     setState(() => _normalizeZOrder());
-                                    if (target.pinNode != null) {
-                                      _dispatchViewNode(target.pinNode);
-                                    }
+                                    _togglePinApp(target.appId, pinnedAppIds);
                                   }
                                 },
                                 onReloadWindow: (id) {
                                   setState(() {});
-                                  unawaited(_reload());
+                                  unawaited(session.reloadDesktop());
                                 },
                                 onHardRestartWindow: (id) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    _shellGesture(
-                                      target.appId,
-                                      'sandbox-restart',
-                                      '',
+                                    unawaited(
+                                      session.requestShellOperation(
+                                        target.appId,
+                                        'sandbox-restart',
+                                        '',
+                                      ),
                                     );
                                   }
                                 },
                                 onSwitchExecutionMode: (id, mode) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    _shellGesture(
-                                      target.appId,
-                                      'switch-mode',
-                                      mode,
+                                    unawaited(
+                                      session.requestShellOperation(
+                                        target.appId,
+                                        'switch-mode',
+                                        mode,
+                                      ),
                                     );
                                   }
                                 },
                                 onInspectSandbox: (id) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    _launchOrFocusApp(
-                                      'creator',
-                                      windows,
-                                      dockButtons,
-                                    );
-                                    widget.onActivate({
-                                      'brainId': widget.brain,
+                                    _launchOrFocusApp('creator', windows);
+                                    session.activate({
+                                      'brainId': brainId,
                                       'kind': 'workspace',
                                       'application': 'creator',
                                       'operation': 'inspect',
@@ -2508,115 +1577,54 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 onOpenAppSettings: (id) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    _openAppGraph(
-                                      target.appId,
-                                      windows,
-                                      dockButtons,
-                                    );
+                                    _openAppGraph(target.appId, windows);
                                   }
                                 },
                                 tabs: {
                                   for (final w in visibleWindows)
-                                    if (w.windowId != spec.windowId)
-                                      w.windowId: [
-                                        for (final t in w.tabs)
-                                          DesktopTabSpec(
-                                            key: '${t['key']}',
-                                            label: '${t['text'] ?? ''}',
-                                            selected: t['selected'] == true,
-                                            onTap: () => _selectWindowTab(t),
-                                          ),
-                                      ],
+                                    if (w.id != spec.id)
+                                      w.id: _buildWindowTabs(w),
                                 },
                                 windowBuilders: {
                                   for (final w in visibleWindows)
-                                    if (w.windowId != spec.windowId)
-                                      w.windowId: (context) => ViewHost(
-                                        key: ValueKey(
-                                          'canvas-viewport:${w.viewportRef['name']}:${_windowStates[w.windowId]?.reloadEpoch ?? 0}',
-                                        ),
-                                        kind: w.viewportRef['kind'] as String,
-                                        name: w.viewportRef['name'] as String,
-                                        load: widget.load,
-                                        watch: widget.watch,
-                                        watchSignal: _watchSignal,
-                                        callNeuron: widget.callNeuron,
-                                        onAction: widget.onAction,
-                                        knowsApp: _knowsDesktopApp,
-                                        transcribe: widget.transcribe,
-                                        talk: widget.talk,
-                                        speak: widget.speak,
-                                        storeSecret: widget.storeSecret,
-                                        signals: _journalFor(
-                                          w.viewportRef['name'] as String,
-                                        ),
-                                        onActivate: (activation) =>
-                                            _handleChildActivation(
-                                              activation,
-                                              windows,
-                                              dockButtons,
-                                              sourceAppId: w.appId,
-                                            ),
+                                    if (w.id != spec.id)
+                                      w.id: (context) => _buildWindowViewHost(
+                                        w,
+                                        windows,
+                                        keyPrefix: 'canvas-viewport',
                                       ),
                                 },
                               )
-                            : ViewHost(
-                                key: ValueKey(
-                                  'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
-                                ),
-                                kind: spec.viewportRef['kind'] as String,
-                                name: spec.viewportRef['name'] as String,
-                                load: widget.load,
-                                watch: widget.watch,
-                                watchSignal: _watchSignal,
-                                callNeuron: widget.callNeuron,
-                                onAction: widget.onAction,
-                                knowsApp: _knowsDesktopApp,
-                                transcribe: widget.transcribe,
-                                talk: widget.talk,
-                                speak: widget.speak,
-                                storeSecret: widget.storeSecret,
-                                signals: _journalFor(
-                                  spec.viewportRef['name'] as String,
-                                ),
-                                onActivate: (activation) =>
-                                    _handleChildActivation(
-                                      activation,
-                                      windows,
-                                      dockButtons,
-                                      sourceAppId: spec.appId,
-                                    ),
+                            : _buildWindowViewHost(
+                                spec,
+                                windows,
+                                keyPrefix: 'viewport',
                               ),
                       ),
                   ],
                 ),
               ),
 
-              // 3b. Ino's presence: above the windows, below the bar and its popovers and sheets.
-              if (_smart)
+              // Ino Presence Layer
+              if (session.smart)
                 Positioned(
                   left: 0,
                   top: 0,
                   width: desk.width,
                   height: desk.height,
                   child: PresenceLayer(
-                    presence: _presence.stream,
-                    enabled: _smart,
-                    onOpenIno: () =>
-                        _launchOrFocusApp('ino', windows, dockButtons),
+                    presence: session.presenceStream,
+                    enabled: session.smart,
+                    onOpenIno: () => _launchOrFocusApp('ino', windows),
                     onAction: (action) {
                       if (action.kind == 'open' || action.kind == 'navigate') {
-                        _launchOrFocusApp(
-                          action.argument,
-                          windows,
-                          dockButtons,
-                        );
+                        _launchOrFocusApp(action.argument, windows);
                       }
                     },
                   ),
                 ),
 
-              // 4. Adaptive 36px Glass OS Bar & Dock
+              // Adaptive Glass OS Bar & Dock
               Positioned(
                 left: 0,
                 right: 0,
@@ -2632,8 +1640,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   allAppsOpen: _allAppsOpen,
                   showingDesktop: _showDesktopOnly || visibleWindows.isEmpty,
                   themeStudioOpen: _themeStudioOpen,
-                  notifications: _notificationsCount,
-                  presence: _smart ? _presenceState : null,
+                  notifications: session.unreadNotifications,
+                  presence: session.smart ? session.presenceState : null,
                   profileMenu: widget.profileMenu,
                   onTogglePalette: () {
                     setState(() {
@@ -2676,7 +1684,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       _popover = DesktopPopoverKind.none;
                       _allAppsOpen = false;
                     });
-                    _launchOrFocusApp(appId, windows, dockButtons);
+                    _launchOrFocusApp(appId, windows);
                   },
                   onSecondaryTapApp: (appId, globalPos) => _togglePopover(
                     DesktopPopoverKind.dockMenu,
@@ -2694,7 +1702,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   },
                   onOpenSettings: () {
                     setState(() => _popover = DesktopPopoverKind.none);
-                    _launchOrFocusApp('settings', windows, dockButtons);
+                    _launchOrFocusApp('settings', windows);
                   },
                   onOpenCompute: () =>
                       _togglePopover(DesktopPopoverKind.tokens),
@@ -2704,7 +1712,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 ),
               ),
 
-              // 5. Unclipped Hover Tooltip Above OsBar
+              // Hover Tooltip Above OsBar
               Positioned.fill(
                 child: IgnorePointer(
                   child: BarTooltip(
@@ -2718,7 +1726,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 ),
               ),
 
-              // 6. OS Bar Popovers (Clock, Tokens & Compute, Notifications, Right-Click Dock Menu)
+              // OS Bar Popovers
               if (_popover != DesktopPopoverKind.none) ...[
                 Positioned(
                   left: 0,
@@ -2740,21 +1748,20 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   dockAppTitle: _dockMenuAppId == null
                       ? null
                       : _titleForAppId(_dockMenuAppId!),
-                  notificationsCount: _notificationsCount,
-                  notifications: _notifications,
-                  notificationsLoaded: _notificationsLoaded,
-                  notificationsLoading: _notificationsLoading,
-                  pinnedAppIds: _pinnedAppIds,
+                  notificationsCount: session.unreadNotifications,
+                  notifications: _notificationEntries(session),
+                  notificationsLoaded: session.notificationsLoaded,
+                  notificationsLoading: session.notificationsLoading,
+                  pinnedAppIds: pinnedAppIds,
                   windows: [
                     for (final w in orderedWindows.reversed)
                       DesktopWindowSummary(
-                        windowId: w.windowId,
+                        windowId: w.id,
                         numericId: w.numericId,
                         appId: w.appId,
                         title: w.title,
-                        minimized:
-                            _windowStates[w.windowId]?.minimized ?? false,
-                        isPinned: _pinnedAppIds.contains(w.appId),
+                        minimized: _windowStates[w.id]?.minimized ?? false,
+                        isPinned: pinnedAppIds.contains(w.appId.toLowerCase()),
                       ),
                   ],
                   onClose: () =>
@@ -2763,9 +1770,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     final targetApp = _dockMenuAppId;
                     setState(() => _popover = DesktopPopoverKind.none);
                     if (targetApp != null && targetApp.isNotEmpty) {
-                      _openAppGraph(targetApp, windows, dockButtons);
+                      _openAppGraph(targetApp, windows);
                     } else {
-                      _launchOrFocusApp('settings', windows, dockButtons);
+                      _launchOrFocusApp('settings', windows);
                     }
                   },
                   onOpenComputeSettings: () {
@@ -2775,65 +1782,39 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       _launchOrFocusApp(
                         'settings',
                         windows,
-                        dockButtons,
                         settingsSection: 'billing',
                       );
                     }
                   },
-                  onMarkNotificationRead: _markNotificationRead,
-                  onMarkAllNotificationsRead: _markAllNotificationsRead,
-                  onClearNotifications: _clearNotifications,
+                  onMarkNotificationRead: session.markNotificationRead,
+                  onMarkAllNotificationsRead: session.markAllNotificationsRead,
+                  onClearNotifications: session.clearNotifications,
                   onFocusWindow: (winId) {
                     final target = byId[winId];
                     if (target != null) _focusWindow(target);
                   },
-                  onNewWindowForApp: (appId) {
-                    final dockBtn = dockButtons['dock-$appId'];
-                    if (dockBtn != null) {
-                      _dispatchViewNode(dockBtn);
-                    } else {
-                      _launchOrFocusApp(appId, windows, dockButtons);
-                    }
-                  },
-                  onTogglePinApp: (appId) {
-                    setState(() {
-                      if (_pinnedAppIds.contains(appId)) {
-                        _pinnedAppIds.remove(appId);
-                      } else {
-                        _pinnedAppIds.add(appId);
-                      }
-                    });
-                    for (final w in windows) {
-                      if (w.appId == appId && w.pinNode != null) {
-                        _dispatchViewNode(w.pinNode);
-                        break;
-                      }
-                    }
-                  },
-                  onQuitApp: (appId) {
-                    for (final w in windows) {
-                      if (w.appId == appId) {
-                        _closeWindow(w);
-                      }
-                    }
-                  },
+                  onNewWindowForApp: (appId) =>
+                      _launchOrFocusApp(appId, windows),
+                  onTogglePinApp: (appId) => _togglePinApp(appId, pinnedAppIds),
+                  onQuitApp: (appId) => unawaited(session.closeApp(appId)),
                 ),
               ],
 
-              // 7. Alt+` (⌥`) Visual MRU Window Switcher
+              // Alt+` Visual MRU Window Switcher
               if (_switcherOpen && orderedWindows.isNotEmpty)
                 Positioned.fill(
                   child: AltBacktickWindowSwitcher(
                     windows: [
                       for (final w in orderedWindows.reversed)
                         DesktopWindowSummary(
-                          windowId: w.windowId,
+                          windowId: w.id,
                           numericId: w.numericId,
                           appId: w.appId,
                           title: w.title,
-                          minimized:
-                              _windowStates[w.windowId]?.minimized ?? false,
-                          isPinned: _pinnedAppIds.contains(w.appId),
+                          minimized: _windowStates[w.id]?.minimized ?? false,
+                          isPinned: pinnedAppIds.contains(
+                            w.appId.toLowerCase(),
+                          ),
                         ),
                     ],
                     selectedIndex: _switcherIndex.clamp(
@@ -2849,7 +1830,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   ),
                 ),
 
-              // 8. Declarative os:// System Modal Sheets & Utility Windows (Secure, Profile, Install, Re-Consent, Conflict, 2FA)
+              // System Modal Sheets
               if (_systemSheet != DesktopSystemSheetKind.none)
                 Positioned.fill(
                   child: DesktopSystemModalSheet(
@@ -2861,7 +1842,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   ),
                 ),
 
-              // 9. All Apps & ArtCraft Studio Catalog Launcher Overlay
+              // All Apps Catalog Launcher Overlay
               if (_allAppsOpen)
                 Positioned.fill(
                   child: AllAppsLauncherOverlay(
@@ -2869,12 +1850,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     onClose: () => setState(() => _allAppsOpen = false),
                     onLaunchApp: (appId) {
                       setState(() => _allAppsOpen = false);
-                      _launchOrFocusApp(appId, windows, dockButtons);
+                      _launchOrFocusApp(appId, windows);
                     },
                   ),
                 ),
 
-              // 10. Floating Live Theme Studio Overlay (anchored bottom-right above the OS bar)
+              // Live Theme Studio Overlay
               if (_themeStudioOpen) ...[
                 Positioned(
                   left: 0,
@@ -2907,8 +1888,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 ),
               ],
 
-              // 11. Day-0 Guest Status Pill & In-Shell Download Modal
-              ..._buildGuestChromeOverlays(),
+              // Day-0 Guest Status Pill & Download Modal
+              ..._buildGuestChromeOverlays(brainId),
             ],
           ),
         );
@@ -2916,107 +1897,3 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 }
-
-/// The tabs of a desktop window frame, from its tab strip child (a `child`
-/// reference whose props are the strip's [TabStripProps]): each tab's id,
-/// label, whether it is selected and enabled, and the child key a pick acts on.
-List<Map<String, dynamic>> desktopWindowTabs(List<Node> frameChildren) {
-  final strip = frameChildren
-      .whereType<NeuronRefNode>()
-      .where((ref) => ref.refKind == 'child' && ref.props is Map)
-      .firstOrNull;
-  if (strip == null) return const [];
-  final props = TabStripProps.fromJson(
-    Map<String, dynamic>.from(strip.props as Map),
-  );
-  final child = strip.neuronUri.substring(strip.neuronUri.lastIndexOf('/') + 1);
-  return [
-    for (final item in props.items)
-      {
-        'key': item.id,
-        'text': item.label,
-        'selected': item.id == props.selectedId,
-        'enabled': props.isEnabled,
-        'child': child,
-      },
-  ];
-}
-
-/// The act a window tab pick sends: `Select` with the tab's id to the window's
-/// tab strip child of the desktop screen named by [view]; none for a tab that
-/// is disabled, already selected, or names no child.
-Map<String, dynamic>? desktopTabSelectEvent(
-  Map<String, dynamic> tab,
-  String view,
-) {
-  final child = tab['child'];
-  final id = tab['key'];
-  if (child is! String || id is! String) return null;
-  if (tab['enabled'] == false || tab['selected'] == true) return null;
-  return {
-    'kind': 'act',
-    'neuron': view.endsWith('/view')
-        ? view.substring(0, view.length - 5)
-        : view,
-    'target': child,
-    'signal': 'control.select',
-    'args': {'id': id},
-  };
-}
-
-/// What a desktop node sends: only a node the published view holds, by its
-/// key, sends its own command to the desktop screen through `POST /act`; any
-/// other data on the node (an old `action`) is never sent anywhere.
-Map<String, dynamic>? desktopNodeAct(
-  Map<String, dynamic>? node,
-  Set<String> viewKeys,
-  String name,
-) {
-  if (node == null || node['enabled'] == false) return null;
-  final key = node['key'] as String?;
-  if (key == null || !viewKeys.contains(key)) return null;
-  final command = node['command'];
-  if (command is! Map) return null;
-  final target = command['target'];
-  final signal = command['signal'];
-  if (target is! String || target.isEmpty) return null;
-  if (signal is! String || signal.isEmpty) return null;
-  return {
-    'kind': 'act',
-    'neuron': name.endsWith('/view')
-        ? name.substring(0, name.length - 5)
-        : name,
-    'target': target,
-    'signal': signal,
-    'args': command['args'],
-  };
-}
-
-// The shell's own desktop gestures that no view node carries. Task 22 debt: each becomes a node of the desktop
-// view. Only these (app, operation) pairs are sent, with arguments the shell itself holds; anything else is refused.
-// `window` stands for the app of a window the shell shows (sandbox controls).
-const _desktopShellOperations = <(String, String)>{
-  ('desktop', 'open'),
-  ('desktop', 'close-app'),
-  ('desktop', 'widget-open'),
-  ('desktop', 'widget-close'),
-  ('settings', 'navigate'),
-  ('window', 'sandbox-restart'),
-  ('window', 'switch-mode'),
-};
-
-bool desktopShellOperationAllowed(String app, String operation) =>
-    _desktopShellOperations.contains((app, operation));
-
-/// A desktop button as the window chrome reads it: its key, label, argument
-/// (the command's text args) and state. A stored view's legacy emits are
-/// commands by the time the server serves it.
-Map<String, dynamic> desktopButton(ButtonNode node) => {
-  'key': node.key,
-  'text': node.label,
-  'enabled': node.enabled,
-  'argument': switch (node.command?.args) {
-    final String text => text,
-    _ => null,
-  },
-};

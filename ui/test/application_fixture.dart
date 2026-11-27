@@ -49,90 +49,47 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
   if (request.url.path.endsWith('/request')) {
     return {'requestId': 'request-1'};
   }
+  if (request.url.path.endsWith('/apps/desktop/projection')) {
+    return desktopPublishedProjection(segments[1]);
+  }
   if (!request.url.path.endsWith('/apps/node')) return null;
-  final name = request.url.queryParameters['name'] ?? '';
   return switch (request.url.queryParameters['kind']) {
     'viewport' => {
       'revision': 1,
       'root': {'kind': 'view', 'name': '${segments[1]}/apps/ino/surface'},
     },
-    'view' =>
-      name.endsWith('/apps/desktop/view')
-          ? desktopPublishedView(segments[1])
-          : assistantPublishedView(root),
+    'view' => assistantPublishedView(root),
     _ => null,
   };
 }
 
-/// The desktop view the host publishes: one Ino window above the dock.
-Map<String, dynamic> desktopPublishedView(String brain) {
-  Map<String, dynamic> button(
-    String key,
-    String label,
-    String signal,
-    String arg,
-  ) => {
-    'kind': 'button',
-    'key': key,
-    'label': label,
-    'command': {'target': '.', 'signal': signal, 'args': arg},
-    'enabled': true,
-  };
-  return {
-    'generation': 1,
-    'view': {
-      'title': 'Desktop',
-      'root': {
-        'kind': 'column',
-        'children': [
-          {
-            'kind': 'column',
-            'children': [
-              {
-                'kind': 'row',
-                'children': [
-                  {
-                    'kind': 'column',
-                    'children': [
-                      {
-                        'kind': 'row',
-                        'children': [
-                          button('focus-w1', 'Ino', 'focus', 'w1'),
-                          button('close-w1', 'Close tab', 'close', 'w1/0'),
-                        ],
-                      },
-                      {
-                        'kind': 'neuronRef',
-                        'refKind': 'child',
-                        'neuronUri':
-                            '$brain/control.tabStrip/$brain/app.desktop/default/tabs-w1',
-                        'props': {
-                          'items': [
-                            {'id': 'w1/0', 'label': 'Ino'},
-                          ],
-                          'selectedId': 'w1/0',
-                        },
-                      },
-                      {
-                        'kind': 'neuronRef',
-                        'refKind': 'viewport',
-                        'neuronUri': '$brain/apps/desktop/window/w1',
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            'kind': 'row',
-            'children': [button('dock-ino', 'Ino', 'open', 'ino')],
-          },
-        ],
-      },
+/// The typed desktop projection the host publishes: one Ino window pinned in the dock.
+Map<String, dynamic> desktopPublishedProjection(String brain) => {
+  'windows': [
+    {
+      'id': 'w1',
+      'appId': 'ino',
+      'title': 'Ino',
+      'viewportUri': '$brain/apps/desktop/window/w1',
+      'tabs': [
+        {'id': 'w1/0', 'appId': 'ino', 'title': 'Ino', 'selected': true},
+      ],
+      'activeTabId': 'w1/0',
+      'isPinned': true,
+      'isFavourite': false,
     },
-  };
-}
+  ],
+  'focusedViewId': 'w1',
+  'pins': ['ino'],
+  'tiles': [
+    {'id': 'ino', 'title': 'Ino'},
+  ],
+  'openWidgets': <String>[],
+  'stylePreset': 'warm-paper',
+  'barLayout': 'floating-dock',
+  'layoutMode': 'smart-desktop',
+  'isNarrow': false,
+};
 
 /// The assistant's published view: prompts, the draft field and Send.
 Map<String, dynamic> assistantPublishedView(String root) {
