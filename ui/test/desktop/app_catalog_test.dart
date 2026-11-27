@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intochat_os_flutter_shell/desktop/app_catalog_launcher.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 

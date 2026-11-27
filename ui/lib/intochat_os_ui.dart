@@ -59,6 +59,7 @@ export 'src/design/controls.dart';
 export 'package:lucide_icons_flutter/lucide_icons.dart';
 
 export 'src/design/app_tile.dart';
+export 'src/design/smart_app_tile_spec.dart';
 export 'src/design/brain_scene_3d.dart';
 
 export 'src/design/cards/cards.dart';

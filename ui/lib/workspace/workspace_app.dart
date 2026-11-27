@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -13,7 +12,7 @@ import '../desktop/guest_status_pill.dart';
 import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
 import 'apps/app_activations.dart';
-import 'cross_window_router.dart';
+import 'shell_activation_router.dart';
 import 'width_hint.dart';
 import 'known_apps.dart';
 import 'workspace_store.dart';
@@ -23,38 +22,7 @@ import 'workspace_preferences_io.dart'
     if (dart.library.js_interop) 'workspace_preferences_web.dart'
     as preferences;
 
-/// Inherited controller allowing any desktop button, settings panel, or
-/// studio widget to inspect and live-morph the active [UiThemeSeeds] across
-/// the entire Desktop OS shell in real time.
-class UiThemeSeedsController extends InheritedWidget {
-  const UiThemeSeedsController({
-    super.key,
-    required this.seeds,
-    required this.setSeeds,
-    required this.resetSeeds,
-    required super.child,
-  });
-
-  final UiThemeSeeds seeds;
-  final ValueChanged<UiThemeSeeds> setSeeds;
-  final VoidCallback resetSeeds;
-
-  static UiThemeSeedsController? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<UiThemeSeedsController>();
-
-  static UiThemeSeedsController of(BuildContext context) {
-    final controller = maybeOf(context);
-    assert(
-      controller != null,
-      'No UiThemeSeedsController found in widget tree.',
-    );
-    return controller!;
-  }
-
-  @override
-  bool updateShouldNotify(UiThemeSeedsController oldWidget) =>
-      seeds != oldWidget.seeds;
-}
+export 'shell_activation_router.dart' show settingsActivation;
 
 class WorkspaceApp extends StatefulWidget {
   const WorkspaceApp({
@@ -139,6 +107,130 @@ class WorkspaceAppState extends State<WorkspaceApp>
   Set<String> _knownApps = knownAppsFor(const []);
   BrainSessionController? _session;
 
+  late final ShellActivationRouter _activationRouter = ShellActivationRouter(
+    readState: () => ShellRoutingState(
+      currentBrain: _brain,
+      isDesktopRoot: _isDesktopRoot,
+      hasExplicitRoot: _hasExplicitRoot,
+      activationApp: _activationApp,
+      rootName: _rootName,
+      focusedNeuron: _focusedNeuron,
+    ),
+    sendAct: (brain, event) {
+      final client = widget.programmingClient;
+      if (client == null) return Future<Object?>.value(null);
+      return client.uiEvent(brain, event);
+    },
+    requestApp: (brain, app, operation, input) async {
+      final client = widget.programmingClient;
+      if (client == null) return;
+      await client.requestApp(brain, app, operation, input);
+    },
+    listBrainIds: () async {
+      final client = widget.programmingClient;
+      if (client == null) return const [];
+      return [for (final entry in await client.listBrains()) entry.id];
+    },
+    selectBrain: (brain, {show}) => _selectBrain(brain, show: show),
+    onSwitchAccount: () async => await widget.onSwitchAccount?.call(),
+    onEndLobby: () async => await widget.programmingClient?.endLobby(),
+    onReconnect: _reconnect,
+    onAppLifecycle: (brain, action) async {
+      final client = widget.programmingClient;
+      if (client == null) return;
+      final changingBrain = brain != _brain;
+      final result = await runAppActivation(action, client.jsonRequest);
+      if (!mounted) return;
+      if (!changingBrain) unawaited(_readKnownApps(brain));
+      if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
+      if (result.reopen case final String reopen) {
+        await _activate({
+          'brainId': brain,
+          'kind': 'workspace',
+          'application': 'apps',
+          'operation': 'open',
+          'input': reopen,
+        });
+      }
+      if (result.open case final String open) {
+        await _activate({
+          'brainId': brain,
+          'kind': 'workspace',
+          'application': open,
+          'operation': 'open',
+        });
+      }
+    },
+    onOpenConnections: (brain, action) {
+      final client = widget.programmingClient;
+      if (client == null || !mounted) return;
+      showDialog<void>(
+        context: _navigator.currentContext!,
+        builder: (_) => Dialog(
+          child: SizedBox(
+            width: 560,
+            height: 520,
+            child: ConnectWindow(
+              // Connect preselects its connector; the connection is the one the activation names, else the connector.
+              initialConnectorId: action['connector'] as String?,
+              initialConnectionId: connectWindowConnectionId(action),
+              request: (path, {body}) =>
+                  client.workspaceConnectionsRequest(brain, path, body: body),
+              connectorRequest: (path, {body}) =>
+                  client.connectorRequest(brain, path, body: body),
+              windowsRequest: (path, {body}) =>
+                  client.workspaceWindowsRequest(brain, path, body: body),
+              onOpen: widget.onOpenUrl,
+            ),
+          ),
+        ),
+      );
+    },
+    onShowNeuron: (brain, neuron) async {
+      final client = widget.programmingClient;
+      if (client == null) return;
+      final snap = await client.showNeuron(
+        brain,
+        neuron,
+        const Uuid().v4(),
+        _workspaceSnapshot?.revision ?? 0,
+      );
+      if (mounted) {
+        setState(() {
+          _departureRefusal = null;
+          _workspaceSnapshot = snap;
+          _focusedNeuron = snap.path.isNotEmpty ? snap.path.last : neuron;
+        });
+      }
+    },
+    onSwitchExplicitSurface: (brain, app, neuron) {
+      if (!mounted) return;
+      setState(() {
+        _departureRefusal = null;
+        _rootName = '$brain/apps/$app/view';
+        _renderKind = 'view';
+        _focusedNeuron = neuron;
+        _surfaceReloadEpoch++;
+      });
+    },
+    onDepartureRefused: (refusal) {
+      if (!mounted) return;
+      setState(() {
+        _departureRefusal = refusal;
+        _surfaceReloadEpoch++;
+      });
+    },
+    onRegisterKnownApp: (normApp) {
+      if (!_knownApps.contains(normApp)) {
+        final next = {..._knownApps, normApp};
+        _session?.updateInstalledApps(next);
+        if (mounted) setState(() => _knownApps = next);
+      }
+    },
+    onToast: _toast,
+    isMounted: () => mounted,
+  );
+
   void _syncSession(String brain, {required bool isDesktopRoot}) {
     final client = widget.programmingClient;
     if (client == null) return;
@@ -162,26 +254,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
       existing.switchBrain(brain, desktopEnabled: isDesktopRoot);
       existing.updateInstalledApps(_knownApps);
     }
-  }
-
-  List<SmartAppTileSpec> _paletteApps() {
-    final brain = _brain ?? 'local';
-    final seen = <String>{};
-    final merged = <SmartAppTileSpec>[];
-    final tiles = _session?.projection?.tiles ?? const <DesktopAppTile>[];
-    for (final tile in tiles) {
-      final norm = tile.id.toLowerCase();
-      if (norm.isNotEmpty && seen.add(norm)) {
-        merged.add(SmartAppTileSpec.fromProjectionTile(tile, brain: brain));
-      }
-    }
-    for (final id in _knownApps) {
-      final norm = id.trim().toLowerCase();
-      if (norm.isNotEmpty && seen.add(norm)) {
-        merged.add(SmartAppTileSpec.fromIconSpec(norm, brain: brain));
-      }
-    }
-    return merged;
   }
 
   Future<void> _readKnownApps(String brain) async {
@@ -466,356 +538,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
     if (overlay != null) showKitToast(overlay, message, tone: tone);
   }
 
-  static String? _nonEmptyField(Object? value) {
-    if (value is! String) return null;
-    final trimmed = value.trim();
-    return trimmed.isEmpty ? null : value;
-  }
-
   Future<void> _activate(Map<String, dynamic> action) async {
-    final client = widget.programmingClient;
-    if (client == null) return;
-    if (action['kind'] == 'os_uri') {
-      final uriStr = '${action['uri'] ?? ''}';
-      final currentScreen = screenNeuronFromViewName(
-        _rootName ?? _focusedNeuron,
-        brain: _brain,
-      );
-      final openRoute = openWindowRouteOf(
-        uriStr,
-        intent: action['intent'] as String?,
-        fallbackFromNeuron: currentScreen,
-      );
-      if (openRoute != null) {
-        if (openRoute.app == 'settings' && !openRoute.hasNavigationPayload) {
-          action = {
-            'kind': 'settings',
-            if (action['brainId'] case final String b) 'brainId': b,
-            if (openRoute.section case final String sec) 'tab': sec,
-          };
-        } else {
-          action = {
-            if (action['brainId'] case final String b) 'brainId': b,
-            'kind': 'workspace',
-            'application': openRoute.app,
-            'operation': 'open',
-            if (openRoute.input != null) 'input': openRoute.input,
-            if (openRoute.argsJson != null) 'argsJson': openRoute.argsJson,
-            if (openRoute.hasExplicitTransition)
-              'transition': openRoute.transition,
-            if (openRoute.fromNeuron != null)
-              'fromNeuron': openRoute.fromNeuron,
-            if (openRoute.hasNavigationPayload) 'hasNavigationPayload': true,
-          };
-        }
-      } else if (uriStr.contains('settings')) {
-        final uri = Uri.tryParse(uriStr);
-        action = {
-          'kind': 'settings',
-          if (action['brainId'] case final String b) 'brainId': b,
-          if (uri?.queryParameters['section'] case final String sec) 'tab': sec,
-        };
-      } else {
-        return;
-      }
-    }
-    // A legacy settings activation is the Settings app's workspace activation.
-    final isLegacySettings = action['kind'] == 'settings';
-    if (isLegacySettings) action = settingsActivation(action);
-    // An app's configuration is the Apps app's detail for it.
-    if (action['view'] == 'configuration' && action['application'] is String) {
-      action = configurationActivation(action);
-    }
-    try {
-      if (action['kind'] == 'account') {
-        await widget.onSwitchAccount?.call();
-        return;
-      }
-      // The lobby neuron signed the visitor in: leave the lobby and read the member session.
-      if (action['kind'] == 'lobby-ended') {
-        await client.endLobby();
-        return;
-      }
-      // The layout switch: hand the app its request, then connect again and mount the new root.
-      // Only the desktop's layout switch may reconnect; any other reconnect is ignored.
-      if (action['kind'] == 'reconnect') {
-        if (action['application'] == 'desktop' && _brain != null) {
-          await _reconnect(action);
-        }
-        return;
-      }
-      final brain = action['brainId'] as String? ?? _brain!;
-      final app = action['application'] as String?;
-      final neuron =
-          action['neuron'] as String? ??
-          (app == null ? null : '$brain/apps/$app');
-      final changingBrain = brain != _brain;
-      final navInput = _nonEmptyField(action['input']);
-      final navArgsJson = _nonEmptyField(action['argsJson'] ?? action['args']);
-      final rawTransition = _nonEmptyField(action['transition']);
-      final navTransition = normalizeViewTransition(rawTransition);
-      final fromNeuron = _nonEmptyField(action['fromNeuron']);
-      final hasNavPayload =
-          action['hasNavigationPayload'] == true ||
-          navInput != null ||
-          navArgsJson != null ||
-          rawTransition != null;
-      final alreadyNavigatedTo = action['navigatedTo'] == true;
-      // Install, update and remove run over the person's own session in a brain they belong to; the space
-      // stays where it is, and an install then opens the app.
-      if (const {'install', 'update', 'remove'}.contains(action['kind'])) {
-        if (changingBrain &&
-            !(await client.listBrains()).any((entry) => entry.id == brain)) {
-          throw StateError('This account is not a member of that brain.');
-        }
-        final result = await runAppActivation({
-          ...action,
-          'brainId': brain,
-        }, client.jsonRequest);
-        if (!mounted) return;
-        if (!changingBrain) unawaited(_readKnownApps(brain));
-        if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
-        if (result.reopen case final String reopen) {
-          await _activate({
-            'brainId': brain,
-            'kind': 'workspace',
-            'application': 'apps',
-            'operation': 'open',
-            'input': reopen,
-          });
-        }
-        if (result.open case final String open) {
-          await _activate({
-            'brainId': brain,
-            'kind': 'workspace',
-            'application': open,
-            'operation': 'open',
-          });
-        }
-        return;
-      }
-      if (changingBrain) {
-        final brains = await client.listBrains();
-        if (!brains.any((entry) => entry.id == brain)) {
-          throw StateError('This account is not a member of that brain.');
-        }
-        if (!mounted) return;
-        await _selectBrain(
-          brain,
-          show:
-              const {
-                'connections',
-                'install',
-                'update',
-                'remove',
-              }.contains(action['kind'])
-              ? null
-              : neuron,
-        );
-      } else if (app != null && app.trim().isNotEmpty) {
-        final normApp = app.trim().toLowerCase();
-        if (!_knownApps.contains(normApp)) {
-          setState(() => _knownApps = {..._knownApps, normApp});
-        }
-      }
-      if (action['kind'] == 'connections') {
-        if (!mounted) return;
-        showDialog<void>(
-          context: _navigator.currentContext!,
-          builder: (_) => Dialog(
-            child: SizedBox(
-              width: 560,
-              height: 520,
-              child: ConnectWindow(
-                // Connect preselects its connector; the connection is the one the activation names, else the connector.
-                initialConnectorId: action['connector'] as String?,
-                initialConnectionId: connectWindowConnectionId(action),
-                request: (path, {body}) =>
-                    client.workspaceConnectionsRequest(brain, path, body: body),
-                connectorRequest: (path, {body}) =>
-                    client.connectorRequest(brain, path, body: body),
-                windowsRequest: (path, {body}) =>
-                    client.workspaceWindowsRequest(brain, path, body: body),
-                onOpen: widget.onOpenUrl,
-              ),
-            ),
-          ),
-        );
-        return;
-      }
-      if (_hasExplicitRoot) {
-        final receiver = _activationApp;
-        if (receiver == null && !_isDesktopRoot) {
-          if (app == null || neuron == null) {
-            throw StateError('This root has no navigation receiver.');
-          }
-          final currentScreen = screenNeuronFromViewName(
-            _rootName,
-            brain: brain,
-          );
-          if (!changingBrain &&
-              currentScreen != null &&
-              currentScreen != neuron) {
-            final refusal = await checkDepartureGuard(
-              sendAct: (event) => client.uiEvent(brain, event),
-              fromNeuron: currentScreen,
-              toNeuron: neuron,
-              route: navArgsJson ?? navInput,
-            );
-            if (refusal != null) {
-              if (mounted) {
-                setState(() {
-                  _departureRefusal = refusal;
-                  _surfaceReloadEpoch++;
-                });
-                _toast(refusal, tone: UiTone.error);
-              }
-              return;
-            }
-          }
-          var navDelivered = alreadyNavigatedTo;
-          if (!isLegacySettings && hasNavPayload && !alreadyNavigatedTo) {
-            navDelivered = await dispatchNavigateTo(
-              sendAct: (event) => client.uiEvent(brain, event),
-              targetNeuron: neuron,
-              fromNeuron: fromNeuron ?? currentScreen,
-              argsJson: navArgsJson,
-              transition: navTransition,
-              input: navInput,
-            );
-          }
-          if (action['operation'] case final String operation
-              when !navDelivered) {
-            unawaited(
-              client
-                  .requestApp(
-                    brain,
-                    app,
-                    operation,
-                    action['input'] as String? ?? '',
-                  )
-                  .then<void>((_) {}, onError: (Object _) {}),
-            );
-          }
-          if (mounted) {
-            setState(() {
-              _departureRefusal = null;
-              _rootName = '$brain/apps/$app/view';
-              _renderKind = 'view';
-              _focusedNeuron = neuron;
-              _surfaceReloadEpoch++;
-            });
-          }
-          return;
-        }
-        if (receiver != null) {
-          await client.requestApp(
-            brain,
-            receiver,
-            'activate',
-            jsonEncode(action),
-          );
-        }
-        if (_isDesktopRoot) {
-          var navDelivered = alreadyNavigatedTo;
-          if (neuron != null &&
-              !isLegacySettings &&
-              hasNavPayload &&
-              !alreadyNavigatedTo) {
-            navDelivered = await dispatchNavigateTo(
-              sendAct: (event) => client.uiEvent(brain, event),
-              targetNeuron: neuron,
-              fromNeuron: fromNeuron,
-              argsJson: navArgsJson,
-              transition: navTransition,
-              input: navInput,
-            );
-          }
-          if (action['operation'] case final String operation
-              when !navDelivered && app != null && app != receiver) {
-            await client.requestApp(
-              brain,
-              app,
-              operation,
-              action['input'] as String? ?? '',
-            );
-          }
-        }
-        return;
-      }
-      final previousScreen = screenNeuronFromViewName(
-        _focusedNeuron,
-        brain: brain,
-      );
-      if (!_isDesktopRoot &&
-          neuron != null &&
-          !changingBrain &&
-          previousScreen != null &&
-          previousScreen != neuron) {
-        final refusal = await checkDepartureGuard(
-          sendAct: (event) => client.uiEvent(brain, event),
-          fromNeuron: previousScreen,
-          toNeuron: neuron,
-          route: navArgsJson ?? navInput,
-        );
-        if (refusal != null) {
-          if (mounted) {
-            setState(() {
-              _departureRefusal = refusal;
-              _surfaceReloadEpoch++;
-            });
-            _toast(refusal, tone: UiTone.error);
-          }
-          return;
-        }
-      }
-      if (neuron != null && !changingBrain) {
-        final snap = await client.showNeuron(
-          brain,
-          neuron,
-          const Uuid().v4(),
-          _workspaceSnapshot?.revision ?? 0,
-        );
-        if (mounted) {
-          setState(() {
-            _departureRefusal = null;
-            _workspaceSnapshot = snap;
-            _focusedNeuron = snap.path.isNotEmpty ? snap.path.last : neuron;
-          });
-        }
-      }
-      var navDelivered = alreadyNavigatedTo;
-      if (neuron != null &&
-          !isLegacySettings &&
-          hasNavPayload &&
-          !alreadyNavigatedTo) {
-        navDelivered = await dispatchNavigateTo(
-          sendAct: (event) => client.uiEvent(brain, event),
-          targetNeuron: neuron,
-          fromNeuron: fromNeuron ?? previousScreen,
-          argsJson: navArgsJson,
-          transition: navTransition,
-          input: navInput,
-        );
-      }
-      if (action['operation'] case final String operation when !navDelivered) {
-        if (app != null) {
-          await client.requestApp(
-            brain,
-            app,
-            operation,
-            action['input'] as String? ?? '',
-          );
-        }
-      }
-    } on StateError catch (error) {
-      // Shell-authored copy (e.g. membership), never a transport exception.
-      if (mounted) _toast(error.message, tone: UiTone.error);
-    } catch (_) {
-      if (mounted) {
-        _toast('Could not navigate there. Try again.', tone: UiTone.error);
-      }
-    }
+    if (widget.programmingClient == null) return;
+    await _activationRouter.activate(action);
   }
 
   Future<void> _tool(String name) async {
@@ -1060,6 +785,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                       : (uri) =>
                                             unawaited(widget.onOpenUrl!(uri)),
                                   downloadHubUri: _downloadHubUri,
+                                  activationRouter: _activationRouter,
                                 )
                               : ViewHost(
                                   key: ValueKey(
@@ -1145,7 +871,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                 ),
               if (_paletteOpen)
                 CommandPalette(
-                  apps: _paletteApps(),
+                  apps: _session?.launcherApps ?? const [],
                   onClose: () => setState(() => _paletteOpen = false),
                   onLaunchApp: (appId) {
                     if (appId == 'settings') {
@@ -1178,34 +904,28 @@ class WorkspaceAppState extends State<WorkspaceApp>
                     });
                   },
                 ),
-              if (_isGuestSession &&
-                  !_isDesktopRoot &&
-                  widget.programmingClient?.chromeless != true)
-                Positioned(
-                  top: 10,
-                  left: 16,
-                  right: 16,
-                  child: SafeArea(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: GuestStatusPill(
-                        remaining: _guestRemaining,
-                        onSaveBrain: _triggerSaveGuestBrain,
-                        onDownloadApp: () =>
-                            setState(() => _guestDownloadModalOpen = true),
-                      ),
-                    ),
-                  ),
-                ),
-              if (_guestDownloadModalOpen)
+              if ((_isGuestSession &&
+                      !_isDesktopRoot &&
+                      widget.programmingClient?.chromeless != true) ||
+                  _guestDownloadModalOpen)
                 Positioned.fill(
-                  child: DownloadAppModal(
-                    onClose: () =>
+                  child: GuestChromeOverlay(
+                    showPill:
+                        _isGuestSession &&
+                        !_isDesktopRoot &&
+                        widget.programmingClient?.chromeless != true,
+                    downloadModalOpen: _guestDownloadModalOpen,
+                    remaining: _guestRemaining,
+                    onSaveBrain: _triggerSaveGuestBrain,
+                    onDownloadApp: () =>
+                        setState(() => _guestDownloadModalOpen = true),
+                    onCloseDownloadModal: () =>
                         setState(() => _guestDownloadModalOpen = false),
                     onOpenUrl: widget.onOpenUrl == null
                         ? null
                         : (uri) => unawaited(widget.onOpenUrl!(uri)),
                     downloadHubUri: _downloadHubUri,
+                    useSafeArea: true,
                   ),
                 ),
             ],
@@ -1215,13 +935,3 @@ class WorkspaceAppState extends State<WorkspaceApp>
     );
   }
 }
-
-/// A legacy `{kind: settings, brainId?, tab?}` (an older Ino card or Desktop button) as the Settings app's
-/// workspace activation: open its window in that brain and ask it for the tab (the app maps an old or no name).
-Map<String, dynamic> settingsActivation(Map<String, dynamic> action) => {
-  'kind': 'workspace',
-  if (action['brainId'] case final String brain) 'brainId': brain,
-  'application': 'settings',
-  'operation': 'open',
-  'input': action['tab'] is String ? action['tab'] as String : '',
-};
