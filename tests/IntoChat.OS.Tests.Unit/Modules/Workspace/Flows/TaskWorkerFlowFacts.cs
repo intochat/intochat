@@ -90,7 +90,7 @@ public sealed class TaskWorkerFlowFacts
                 "recommendedIndex": 0
               },
               "artifacts": [
-                { "kind": "pr", "title": "Wave 1A PR", "reference": "https://github.com/intochat/intochat/pull/999" }
+                { "kind": "pr", "label": "Wave 1A PR", "uri": "https://github.com/intochat/intochat/pull/999", "commitSha": "abc1234" }
               ]
             }
             """;
@@ -100,12 +100,11 @@ public sealed class TaskWorkerFlowFacts
             .Register<TaskWorkerFlow>()
             .Register<ScriptedWorkerConversation>();
 
-        var ct = TestContext.Current.CancellationToken;
-        var tasks = os.Get<ITasks>(ITasks.Key(Brain.Value));
+        var tasks = os.Get<ITasks>(ITasks.Key(Brain));
         TaskRecord task;
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", Brain)))
         {
-            task = await tasks.Create("Run migration", "Execute with least-privilege tools", ct: ct);
+            task = await tasks.Create("Run migration", "Execute with least-privilege tools");
         }
 
         var flowKey = "worker-1";
@@ -139,7 +138,7 @@ public sealed class TaskWorkerFlowFacts
             var pausedHead = await starter.Head();
             Assert.Equal(FlowStatus.Waiting, pausedHead.Status);
 
-            var pausedTask = await tasks.Get(task.TaskId, ct);
+            var pausedTask = await tasks.Read(task.TaskId);
             Assert.Equal(TaskStatus.NeedsYou, pausedTask?.Status);
             Assert.Equal("Which branch should we target?", pausedTask?.PendingAsk?.Question);
         }
@@ -163,10 +162,10 @@ public sealed class TaskWorkerFlowFacts
             var completedHead = await starter.Head();
             Assert.Equal(FlowStatus.Completed, completedHead.Status);
 
-            var finalTask = await tasks.Get(task.TaskId, ct);
+            var finalTask = await tasks.Read(task.TaskId);
             Assert.Equal(TaskStatus.Completed, finalTask?.Status);
             Assert.Contains("release/v2", finalTask?.Summary ?? "", StringComparison.Ordinal);
-            Assert.Contains(finalTask!.Artifacts, a => a.Kind == "pr" && a.Reference == "https://github.com/intochat/intochat/pull/999");
+            Assert.Contains(finalTask!.Artifacts, a => a.Kind == "pr" && a.Uri == "https://github.com/intochat/intochat/pull/999" && a.CommitSha == "abc1234");
         }
     }
 }

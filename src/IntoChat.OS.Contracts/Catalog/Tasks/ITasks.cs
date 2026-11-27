@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Signals;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Modules.Apps.Tasks;
 
@@ -46,8 +47,7 @@ public sealed record TaskAskAnswer(
     [property: Id(0)] int SelectedOptionIndex,
     [property: Id(1)] string SelectedOption,
     [property: Id(2)] string AnsweredBy,
-    [property: Id(3)] DateTimeOffset AnsweredAt,
-    [property: Id(4)] string? Note = null);
+    [property: Id(3)] DateTimeOffset AnsweredAt);
 
 /// <summary>
 /// A link to a PR, branch, file, trace, or external artifact produced by a task.
@@ -55,8 +55,9 @@ public sealed record TaskAskAnswer(
 [GenerateSerializer, Alias("tasks.artifact-link")]
 public sealed record TaskArtifactLink(
     [property: Id(0)] string Kind,
-    [property: Id(1)] string Title,
-    [property: Id(2)] string Reference);
+    [property: Id(1)] string Label,
+    [property: Id(2)] string Uri,
+    [property: Id(3)] string? CommitSha = null);
 
 /// <summary>
 /// Durable domain record for one workspace task tracked by <see cref="ITasks"/>.
@@ -75,29 +76,28 @@ public sealed record TaskRecord(
     [property: Id(9)] string? ConversationId = null,
     [property: Id(10)] string? Summary = null,
     [property: Id(11)] TaskAskPrompt? PendingAsk = null,
-    [property: Id(12)] string? ConfirmationPlanId = null,
-    [property: Id(13)] TaskAskAnswer? LastAnswer = null,
+    [property: Id(12)] TaskAskAnswer? LastAnswer = null,
     TaskArtifactLink[]? Artifacts = null,
-    string[]? Contracts = null)
+    string[]? AllowedContracts = null)
 {
-    [Id(14)]
+    [Id(13)]
     public TaskArtifactLink[] Artifacts { get; init; } = Artifacts ?? [];
 
-    [Id(15)]
-    public string[] Contracts { get; init; } = Contracts ?? [];
+    [Id(14)]
+    public string[] AllowedContracts { get; init; } = AllowedContracts ?? [];
 }
 
 /// <summary>Published whenever a task is created, transitioned, answered, linked, or cleared.</summary>
 [Signal("tasks.changed")]
-public sealed record TaskChangedSignal(string TaskId, TaskStatus Status, long Revision) : Signal;
+public sealed record TasksChanged(string TaskId, TaskStatus Status) : Signal;
 
 /// <summary>Published when a task pauses in <see cref="TaskStatus.NeedsYou"/> with a person-only multi-option question.</summary>
 [Signal("tasks.asked")]
-public sealed record TaskAskedSignal(
+public sealed record TaskAsked(
     string TaskId,
-    TaskAskPrompt Prompt,
-    string? ConfirmationPlanId,
-    string? ConversationId) : Signal;
+    string Question,
+    string[] Options,
+    int? RecommendedIndex) : Signal;
 
 /// <summary>
 /// Durable domain contract for workspace tasks backed by <c>TasksNeuron</c>.
@@ -105,59 +105,50 @@ public sealed record TaskAskedSignal(
 [NeuronAlias("tasks"), DefaultNeuronType("tasks")]
 public interface ITasks
 {
-    const string DefaultKey = "tasks/index";
+    const string DefaultKey = "tasks/board";
 
-    static NeuronId Key(string brain) => new(new BrainId(brain), "tasks", DefaultKey);
+    static NeuronId Key(BrainId brain) => new(brain, "tasks", DefaultKey);
 
-    /// <summary>Lists tasks without an arbitrary UI cap, optionally filtered by status or owner.</summary>
-    [ReadOnlyCall]
-    Task<TaskRecord[]> List(TaskStatus? status = null, string? owner = null, CancellationToken ct = default);
+    /// <summary>Lists tasks without an arbitrary UI cap, optionally filtered by status.</summary>
+    [ReadOnlyCall, Interleaves]
+    Task<TaskRecord[]> List(TaskStatus? status = null);
 
     /// <summary>Reads a single task by id, or null when unknown.</summary>
-    [ReadOnlyCall]
-    Task<TaskRecord?> Get(string taskId, CancellationToken ct = default);
+    [ReadOnlyCall, Interleaves]
+    Task<TaskRecord?> Read(string taskId);
 
     /// <summary>Creates and enqueues a durable task.</summary>
     Task<TaskRecord> Create(
         string title,
-        string? description = null,
-        string? owner = null,
-        string? tag = null,
+        string description = "",
+        string tag = "Task",
         string? flowId = null,
-        string? conversationId = null,
-        string[]? contracts = null,
-        CancellationToken ct = default);
+        string[]? allowedContracts = null);
 
-    /// <summary>Transitions a task to a new lifecycle status, optionally recording a summary or linked flow id.</summary>
+    /// <summary>Transitions a task to a new lifecycle status, optionally recording a summary.</summary>
     Task<TaskRecord> Transition(
         string taskId,
         TaskStatus status,
-        string? summary = null,
-        string? flowId = null,
-        CancellationToken ct = default);
+        string? summary = null);
 
     /// <summary>Pauses a task in <see cref="TaskStatus.NeedsYou"/> with a person-only multi-option question.</summary>
     Task<TaskRecord> Ask(
         string taskId,
-        TaskAskPrompt prompt,
-        string? confirmationPlanId = null,
-        CancellationToken ct = default);
+        TaskAskPrompt prompt);
 
     /// <summary>
     /// Answers a pending multi-option question on a task. Enforces person-only authority: agents and apps are refused.
     /// </summary>
+    [PersonOnly]
     Task<TaskRecord> AnswerAsk(
         string taskId,
-        int selectedOptionIndex,
-        string? note = null,
-        CancellationToken ct = default);
+        string selectedOption);
 
     /// <summary>Links a PR, branch, file, trace, or other artifact to a task.</summary>
     Task<TaskRecord> LinkArtifact(
         string taskId,
-        TaskArtifactLink artifact,
-        CancellationToken ct = default);
+        TaskArtifactLink link);
 
     /// <summary>Removes all completed tasks and returns how many were cleared.</summary>
-    Task<int> ClearCompleted(CancellationToken ct = default);
+    Task<int> ClearCompleted();
 }

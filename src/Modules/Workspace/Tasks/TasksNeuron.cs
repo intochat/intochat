@@ -8,29 +8,24 @@ namespace IntoChat.OS.Modules.Apps.Tasks;
 
 /// <summary>
 /// Durable Orleans neuron backing <see cref="ITasks"/>. Stores workspace tasks without arbitrary item caps,
-/// emits reactive <see cref="TaskChangedSignal"/> / <see cref="TaskAskedSignal"/> signals, and enforces
+/// emits reactive <see cref="TasksChanged"/> / <see cref="TaskAsked"/> signals, and enforces
 /// person-only authority on <see cref="AnswerAsk"/>.
 /// </summary>
 [Neuron("tasks")]
 internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
 {
-    public Task<TaskRecord[]> List(TaskStatus? status = null, string? owner = null, CancellationToken ct = default)
+    public Task<TaskRecord[]> List(TaskStatus? status = null)
     {
         IEnumerable<TaskRecord> query = State.Tasks;
         if (status is { } s)
         {
             query = query.Where(t => t.Status == s);
         }
-        if (!string.IsNullOrWhiteSpace(owner))
-        {
-            var trimmed = owner.Trim();
-            query = query.Where(t => string.Equals(t.Owner, trimmed, StringComparison.Ordinal));
-        }
 
         return Task.FromResult(query.ToArray());
     }
 
-    public Task<TaskRecord?> Get(string taskId, CancellationToken ct = default)
+    public Task<TaskRecord?> Read(string taskId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
         var trimmed = taskId.Trim();
@@ -39,13 +34,10 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
 
     public async Task<TaskRecord> Create(
         string title,
-        string? description = null,
-        string? owner = null,
-        string? tag = null,
+        string description = "",
+        string tag = "Task",
         string? flowId = null,
-        string? conversationId = null,
-        string[]? contracts = null,
-        CancellationToken ct = default)
+        string[]? allowedContracts = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         var now = Context.Time.GetUtcNow();
@@ -57,12 +49,8 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
             taskId = string.Create(CultureInfo.InvariantCulture, $"task-{seq}");
         }
 
-        var resolvedOwner = string.IsNullOrWhiteSpace(owner)
-            ? (CallerRules.ActsFor(Context.Caller) ?? "owner")
-            : owner.Trim();
-        var resolvedConversation = string.IsNullOrWhiteSpace(conversationId)
-            ? Context.Caller?.Conversation
-            : conversationId.Trim();
+        var resolvedOwner = CallerRules.ActsFor(Context.Caller) ?? "owner";
+        var resolvedConversation = Context.Caller?.Conversation;
 
         var record = new TaskRecord(
             TaskId: taskId,
@@ -75,7 +63,7 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
             UpdatedAt: now,
             FlowId: string.IsNullOrWhiteSpace(flowId) ? null : flowId.Trim(),
             ConversationId: string.IsNullOrWhiteSpace(resolvedConversation) ? null : resolvedConversation,
-            Contracts: contracts is { Length: > 0 } ? [.. contracts] : []);
+            AllowedContracts: allowedContracts is { Length: > 0 } ? [.. allowedContracts] : []);
 
         var revision = State.Revision + 1;
         var next = State with
@@ -84,16 +72,14 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
             Revision = revision,
             NextSequence = seq + 1,
         };
-        await Save(next, new TaskChangedSignal(record.TaskId, record.Status, revision)).ConfigureAwait(true);
+        await Save(next, new TasksChanged(record.TaskId, record.Status)).ConfigureAwait(true);
         return record;
     }
 
     public async Task<TaskRecord> Transition(
         string taskId,
         TaskStatus status,
-        string? summary = null,
-        string? flowId = null,
-        CancellationToken ct = default)
+        string? summary = null)
     {
         var (index, current) = FindTask(taskId);
         var now = Context.Time.GetUtcNow();
@@ -101,7 +87,6 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         {
             Status = status,
             Summary = summary is null ? current.Summary : summary.Trim(),
-            FlowId = string.IsNullOrWhiteSpace(flowId) ? current.FlowId : flowId.Trim(),
             PendingAsk = status == TaskStatus.NeedsYou ? current.PendingAsk : null,
             UpdatedAt = now,
         };
@@ -109,31 +94,28 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         var tasks = State.Tasks.ToArray();
         tasks[index] = updated;
         var revision = State.Revision + 1;
-        await Save(State with { Tasks = tasks, Revision = revision }, new TaskChangedSignal(updated.TaskId, updated.Status, revision)).ConfigureAwait(true);
+        await Save(State with { Tasks = tasks, Revision = revision }, new TasksChanged(updated.TaskId, updated.Status)).ConfigureAwait(true);
         return updated;
     }
 
     public async Task<TaskRecord> Ask(
         string taskId,
-        TaskAskPrompt prompt,
-        string? confirmationPlanId = null,
-        CancellationToken ct = default)
+        TaskAskPrompt prompt)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         ValidatePrompt(prompt);
         var (index, current) = FindTask(taskId);
         var now = Context.Time.GetUtcNow();
+        var normalizedOptions = prompt.Options.Select(static o => o.Trim()).ToArray();
         var normalizedPrompt = new TaskAskPrompt(
             prompt.Question.Trim(),
-            [.. prompt.Options.Select(static o => o.Trim())],
+            normalizedOptions,
             prompt.RecommendedIndex);
-        var planId = string.IsNullOrWhiteSpace(confirmationPlanId) ? current.ConfirmationPlanId : confirmationPlanId.Trim();
 
         var updated = current with
         {
             Status = TaskStatus.NeedsYou,
             PendingAsk = normalizedPrompt,
-            ConfirmationPlanId = planId,
             UpdatedAt = now,
         };
 
@@ -143,18 +125,17 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         await Save(
             State with { Tasks = tasks, Revision = revision },
             [
-                new TaskAskedSignal(updated.TaskId, normalizedPrompt, planId, updated.ConversationId),
-                new TaskChangedSignal(updated.TaskId, updated.Status, revision),
+                new TaskAsked(updated.TaskId, normalizedPrompt.Question, normalizedPrompt.Options, normalizedPrompt.RecommendedIndex),
+                new TasksChanged(updated.TaskId, updated.Status),
             ]).ConfigureAwait(true);
         return updated;
     }
 
     public async Task<TaskRecord> AnswerAsk(
         string taskId,
-        int selectedOptionIndex,
-        string? note = null,
-        CancellationToken ct = default)
+        string selectedOption)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(selectedOption);
         var caller = RequireSameBrain(() => new UnauthorizedAccessException("Only a signed-in person of this brain may answer a task question."));
         var answerer = Answerer.Of(caller, Id.Brain);
         if (!answerer.IsPerson)
@@ -168,19 +149,19 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
             throw new InvalidOperationException($"Task '{current.TaskId}' has no pending question to answer.");
         }
 
-        if (selectedOptionIndex < 0 || selectedOptionIndex >= pending.Options.Length)
+        var trimmedOption = selectedOption.Trim();
+        var optionIndex = Array.FindIndex(pending.Options, o => string.Equals(o, trimmedOption, StringComparison.OrdinalIgnoreCase));
+        if (optionIndex < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(selectedOptionIndex), selectedOptionIndex, "Selected option index is out of range.");
+            throw new ArgumentException($"Option '{trimmedOption}' is not one of the choices for task '{current.TaskId}'.", nameof(selectedOption));
         }
 
         var now = Context.Time.GetUtcNow();
-        var chosen = pending.Options[selectedOptionIndex];
         var answer = new TaskAskAnswer(
-            SelectedOptionIndex: selectedOptionIndex,
-            SelectedOption: chosen,
+            SelectedOptionIndex: optionIndex,
+            SelectedOption: pending.Options[optionIndex],
             AnsweredBy: answerer.Principal.Id,
-            AnsweredAt: now,
-            Note: string.IsNullOrWhiteSpace(note) ? null : note.Trim());
+            AnsweredAt: now);
 
         var updated = current with
         {
@@ -193,25 +174,28 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         var tasks = State.Tasks.ToArray();
         tasks[index] = updated;
         var revision = State.Revision + 1;
-        await Save(State with { Tasks = tasks, Revision = revision }, new TaskChangedSignal(updated.TaskId, updated.Status, revision)).ConfigureAwait(true);
+        await Save(State with { Tasks = tasks, Revision = revision }, new TasksChanged(updated.TaskId, updated.Status)).ConfigureAwait(true);
         return updated;
     }
 
     public async Task<TaskRecord> LinkArtifact(
         string taskId,
-        TaskArtifactLink artifact,
-        CancellationToken ct = default)
+        TaskArtifactLink link)
     {
-        ArgumentNullException.ThrowIfNull(artifact);
-        ArgumentException.ThrowIfNullOrWhiteSpace(artifact.Kind);
-        ArgumentException.ThrowIfNullOrWhiteSpace(artifact.Title);
-        ArgumentException.ThrowIfNullOrWhiteSpace(artifact.Reference);
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentException.ThrowIfNullOrWhiteSpace(link.Kind);
+        ArgumentException.ThrowIfNullOrWhiteSpace(link.Label);
+        ArgumentException.ThrowIfNullOrWhiteSpace(link.Uri);
 
         var (index, current) = FindTask(taskId);
-        var normalized = new TaskArtifactLink(artifact.Kind.Trim(), artifact.Title.Trim(), artifact.Reference.Trim());
+        var normalized = new TaskArtifactLink(
+            link.Kind.Trim(),
+            link.Label.Trim(),
+            link.Uri.Trim(),
+            string.IsNullOrWhiteSpace(link.CommitSha) ? null : link.CommitSha.Trim());
         var existing = current.Artifacts;
         if (existing.Any(a => string.Equals(a.Kind, normalized.Kind, StringComparison.Ordinal)
-            && string.Equals(a.Reference, normalized.Reference, StringComparison.Ordinal)))
+            && string.Equals(a.Uri, normalized.Uri, StringComparison.Ordinal)))
         {
             return current;
         }
@@ -225,11 +209,11 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         var tasks = State.Tasks.ToArray();
         tasks[index] = updated;
         var revision = State.Revision + 1;
-        await Save(State with { Tasks = tasks, Revision = revision }, new TaskChangedSignal(updated.TaskId, updated.Status, revision)).ConfigureAwait(true);
+        await Save(State with { Tasks = tasks, Revision = revision }, new TasksChanged(updated.TaskId, updated.Status)).ConfigureAwait(true);
         return updated;
     }
 
-    public async Task<int> ClearCompleted(CancellationToken ct = default)
+    public async Task<int> ClearCompleted()
     {
         var remaining = State.Tasks.Where(static t => t.Status != TaskStatus.Completed).ToArray();
         var cleared = State.Tasks.Length - remaining.Length;
@@ -239,7 +223,7 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         }
 
         var revision = State.Revision + 1;
-        await Save(State with { Tasks = remaining, Revision = revision }, new TaskChangedSignal("*", TaskStatus.Completed, revision)).ConfigureAwait(true);
+        await Save(State with { Tasks = remaining, Revision = revision }, new TasksChanged("*", TaskStatus.Completed)).ConfigureAwait(true);
         return cleared;
     }
 

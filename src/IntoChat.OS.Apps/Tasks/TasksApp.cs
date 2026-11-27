@@ -233,8 +233,8 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         await FollowChild<ITabStripControl, SelectionChanged>(TabsKey);
         await FollowChild<IQueryTableControl, RowSelected>(TableKey);
         await TryFollowOptionalAsync<IFlows, FlowsChanged>(FlowsKey);
-        await TryFollowOptionalAsync<ITasks, TaskChangedSignal>(ITasks.DefaultKey);
-        await TryFollowOptionalAsync<ITasks, TaskAskedSignal>(ITasks.DefaultKey);
+        await TryFollowOptionalAsync<ITasks, TasksChanged>(ITasks.DefaultKey);
+        await TryFollowOptionalAsync<ITasks, TaskAsked>(ITasks.DefaultKey);
 
         await RefreshFlowsAndSyncAsync();
     }
@@ -700,11 +700,11 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         => changed is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
 
     [On]
-    public Task OnTaskChanged(TaskChangedSignal? changed)
+    public Task OnTasksChanged(TasksChanged? changed)
         => changed is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
 
     [On]
-    public Task OnTaskAsked(TaskAskedSignal? asked)
+    public Task OnTaskAsked(TaskAsked? asked)
         => asked is null ? Task.CompletedTask : RefreshFlowsAndSyncAsync();
 
     private async Task TrySyncTaskStageToStoreAsync(string taskId, string stage)
@@ -712,7 +712,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if (TasksStore is not { } store) { return; }
         try
         {
-            if (await store.Get(taskId) is not null)
+            if (await store.Read(taskId) is not null)
             {
                 await store.Transition(taskId, TasksWorkspaceState.TaskStatusForStage(stage));
             }

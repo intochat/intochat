@@ -131,7 +131,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
             switch (step)
             {
                 case "execute":
-                    await TryTransitionTaskAsync(inner.TaskId, TaskStatus.InProgress, null, Id.ToString()).ConfigureAwait(true);
+                    await TryTransitionTaskAsync(inner.TaskId, TaskStatus.InProgress, null).ConfigureAwait(true);
                     return await Ask(step, inner, BuildPrompt(inner)).ConfigureAwait(true);
 
                 case "ask":
@@ -154,7 +154,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
                         inner.PendingAsk = parsed.Ask;
                         inner.AskPlanId ??= $"task-ask:{Id.Key}";
                         inner.AskExpires = Context.Time.GetUtcNow() + AskWindow;
-                        await TryAskTaskAsync(inner.TaskId, parsed.Ask, inner.AskPlanId).ConfigureAwait(true);
+                        await TryAskTaskAsync(inner.TaskId, parsed.Ask).ConfigureAwait(true);
                         return inner.WaitApproval(step, inner.AskExpires);
                     }
 
@@ -171,7 +171,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
                         {
                             await TryLinkArtifactAsync(inner.TaskId, artifact).ConfigureAwait(true);
                         }
-                        await TryTransitionTaskAsync(inner.TaskId, TaskStatus.Completed, summary, Id.ToString()).ConfigureAwait(true);
+                        await TryTransitionTaskAsync(inner.TaskId, TaskStatus.Completed, summary).ConfigureAwait(true);
                         return inner.Advance();
                     }
 
@@ -181,7 +181,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         }
         catch (FlowFailed failed)
         {
-            await TryTransitionTaskAsync(inner.TaskId, TaskStatus.Failed, failed.Message, Id.ToString()).ConfigureAwait(true);
+            await TryTransitionTaskAsync(inner.TaskId, TaskStatus.Failed, failed.Message).ConfigureAwait(true);
             throw;
         }
     }
@@ -218,11 +218,11 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         if (answer.Approved)
         {
             var note = answer.SelectedOption is { Length: > 0 } chosen ? $"User chose: {chosen}" : "User approved";
-            await TryTransitionTaskAsync(State.Inner.TaskId, TaskStatus.InProgress, note, Id.ToString()).ConfigureAwait(true);
+            await TryTransitionTaskAsync(State.Inner.TaskId, TaskStatus.InProgress, note).ConfigureAwait(true);
         }
         else
         {
-            await TryTransitionTaskAsync(State.Inner.TaskId, TaskStatus.Failed, $"Ask {answer.Outcome}: {answer.Reason}", Id.ToString()).ConfigureAwait(true);
+            await TryTransitionTaskAsync(State.Inner.TaskId, TaskStatus.Failed, $"Ask {answer.Outcome}: {answer.Reason}").ConfigureAwait(true);
         }
     }
 
@@ -287,11 +287,16 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
                 {
                     if (item.ValueKind != JsonValueKind.Object) { continue; }
                     var kind = item.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString() : null;
-                    var title = item.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
-                    var reference = item.TryGetProperty("reference", out var rf) && rf.ValueKind == JsonValueKind.String ? rf.GetString() : null;
-                    if (!string.IsNullOrWhiteSpace(kind) && !string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(reference))
+                    var label = item.TryGetProperty("label", out var l) && l.ValueKind == JsonValueKind.String
+                        ? l.GetString()
+                        : (item.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null);
+                    var uri = item.TryGetProperty("uri", out var u) && u.ValueKind == JsonValueKind.String
+                        ? u.GetString()
+                        : (item.TryGetProperty("reference", out var rf) && rf.ValueKind == JsonValueKind.String ? rf.GetString() : null);
+                    var sha = item.TryGetProperty("commitSha", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(kind) && !string.IsNullOrWhiteSpace(label) && !string.IsNullOrWhiteSpace(uri))
                     {
-                        artifacts.Add(new TaskArtifactLink(kind.Trim(), title.Trim(), reference.Trim()));
+                        artifacts.Add(new TaskArtifactLink(kind.Trim(), label.Trim(), uri.Trim(), string.IsNullOrWhiteSpace(sha) ? null : sha.Trim()));
                     }
                 }
             }
@@ -306,12 +311,12 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<TaskWorkerFlow>();
 
-    private async Task TryTransitionTaskAsync(string? taskId, TaskStatus status, string? summary, string? flowId)
+    private async Task TryTransitionTaskAsync(string? taskId, TaskStatus status, string? summary)
     {
         if (string.IsNullOrWhiteSpace(taskId)) { return; }
         try
         {
-            await Context.Get<ITasks>(ITasks.Key(Id.Brain.Value)).Transition(taskId, status, summary, flowId).ConfigureAwait(true);
+            await Context.Get<ITasks>(ITasks.Key(Id.Brain)).Transition(taskId, status, summary).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -319,12 +324,12 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         }
     }
 
-    private async Task TryAskTaskAsync(string? taskId, TaskAskPrompt prompt, string? planId)
+    private async Task TryAskTaskAsync(string? taskId, TaskAskPrompt prompt)
     {
         if (string.IsNullOrWhiteSpace(taskId)) { return; }
         try
         {
-            await Context.Get<ITasks>(ITasks.Key(Id.Brain.Value)).Ask(taskId, prompt, planId).ConfigureAwait(true);
+            await Context.Get<ITasks>(ITasks.Key(Id.Brain)).Ask(taskId, prompt).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -337,7 +342,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         if (string.IsNullOrWhiteSpace(taskId)) { return; }
         try
         {
-            await Context.Get<ITasks>(ITasks.Key(Id.Brain.Value)).LinkArtifact(taskId, artifact).ConfigureAwait(true);
+            await Context.Get<ITasks>(ITasks.Key(Id.Brain)).LinkArtifact(taskId, artifact).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {

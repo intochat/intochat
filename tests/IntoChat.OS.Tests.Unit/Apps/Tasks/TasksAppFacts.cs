@@ -116,10 +116,10 @@ public sealed class TasksAppFacts
 
         await using var os = FakeOs();
         os.Register<IntoChat.OS.Modules.Apps.Tasks.TasksNeuron>();
-        var store = os.Get<IntoChat.OS.Modules.Apps.Tasks.ITasks>(IntoChat.OS.Modules.Apps.Tasks.ITasks.Key(LocalBrain.Value));
+        var store = os.Get<IntoChat.OS.Modules.Apps.Tasks.ITasks>(IntoChat.OS.Modules.Apps.Tasks.ITasks.Key(LocalBrain));
         using (os.Edge.Enter(os.Edge.Person("local", "local", LocalBrain)))
         {
-            await store.Create("Durable task from ITasks", "Backed by TasksNeuron", ct: TestContext.Current.CancellationToken);
+            await store.Create("Durable task from ITasks", "Backed by TasksNeuron");
         }
 
         var tasks = await os.Install<TasksApp>();
