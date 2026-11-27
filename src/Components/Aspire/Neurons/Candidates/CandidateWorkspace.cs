@@ -48,3 +48,5 @@ internal static partial class CandidateWorkspace
     [GeneratedRegex("^[0-9a-f]{7,40}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha();
 }
+
+internal sealed record CandidateSecrets(IReadOnlyDictionary<string, string> Model);

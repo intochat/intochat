@@ -1194,7 +1194,7 @@ internal sealed class EngineerFlow(
             }
 
             var changedPaths = instance.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
-            var instanceLiveContext = liveContext with { CommitSha = instance.Commit.Commit.Value };
+            var instanceLiveContext = liveContext with { CommitSha = instance.Commit.Commit.Value, BrainId = Id.Brain.Value };
             var report = verifier is EngineerLiveVerifier stageVerifier
                 ? await stageVerifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, instanceLiveContext, ct).ConfigureAwait(true)
                 : await Task.Run(

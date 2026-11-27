@@ -95,6 +95,10 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<IDeviceLinkCredentialsProvider>(static sp => new DeviceLinkCredentialsProvider(
+            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetRequiredService<CloudClient>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<ICloudBrainRelayClient>(static sp => new CloudBrainRelayClient(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
             sp.GetRequiredService<CloudClient>(),

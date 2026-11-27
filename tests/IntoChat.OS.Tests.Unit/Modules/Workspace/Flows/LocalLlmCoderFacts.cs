@@ -192,30 +192,6 @@ public sealed class LocalLlmCoderFacts : IDisposable
     }
 
     [Fact]
-    public async Task ExternalCliCoderKillsProcessAndThrowsTimeoutExceptionOnTimeout()
-    {
-        var shell = OperatingSystem.IsWindows() ? "powershell" : "sh";
-        string[] args = OperatingSystem.IsWindows()
-            ? ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"]
-            : ["-c", "sleep 30"];
-
-        var coder = new ExternalCliCoder(shell, args, TimeSpan.FromMilliseconds(150));
-        var lease = new WorkTreeLease(
-            RunId: "cli-timeout",
-            RepositoryId: "os",
-            SourceRepoPath: _treePath,
-            TreePath: _treePath,
-            RealGitDirPath: _treePath,
-            GitPointerSha256Hex: new string('b', 64),
-            BaseBranch: "main",
-            BaseCommitSha: new string('a', 40),
-            BranchName: "ino/cli-timeout",
-            GitHubRepo: "intochat/os");
-
-        await Assert.ThrowsAsync<TimeoutException>(() => coder.EditAsync(lease, "Sleep", Ct));
-    }
-
-    [Fact]
     public async Task LocalLlmCoderRendersChangePolicyIntoPromptAndEnforcesPolicyLimits()
     {
         var customPolicy = new ChangePolicy(

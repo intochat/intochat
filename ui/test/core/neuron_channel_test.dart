@@ -1,11 +1,12 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/src/generated/neurons.pb.dart' as pb;
 import 'package:fixnum/fixnum.dart';
-import 'package:grpc/grpc.dart' show GrpcError;
+import 'package:grpc/grpc.dart'
+    show CallOptions, ClientMethod, GrpcError, ResponseFuture, ResponseStream;
 import 'package:test/test.dart';
 
 void main() {
@@ -34,15 +35,138 @@ void main() {
     expect(request.brainId, 'owner');
   });
 
-  test('a call carries the default 15 s deadline unless it names one', () {
-    final channel = NeuronChannel(Uri.parse('http://127.0.0.1:1'));
-    addTearDown(channel.shutdown);
-    expect(NeuronChannel.defaultCallTimeout, const Duration(seconds: 15));
-    expect(channel.callOptions().timeout, const Duration(seconds: 15));
-    expect(
-      channel.callOptions(timeout: const Duration(seconds: 2)).timeout,
-      const Duration(seconds: 2),
+  group('_NeuronAuthAndDeadlineInterceptor', () {
+    final method = ClientMethod<String, String>(
+      '/intochat.os.Neurons/Call',
+      (s) => utf8.encode(s),
+      (b) => utf8.decode(b),
     );
+
+    Future<Map<String, String>> resolveMetadata(CallOptions options) async {
+      final map = Map<String, String>.from(options.metadata);
+      for (final provider in options.metadataProviders) {
+        await provider(map, method.path);
+      }
+      return map;
+    }
+
+    test('unary RPC injects auth + session headers and applies default 15s deadline', () async {
+      final channel = NeuronChannel(
+        Uri.parse('http://127.0.0.1:1'),
+        authorization: 'Bearer token-123',
+        sessionHeaders: () => {'x-session-id': 'sess-42'},
+      );
+      addTearDown(channel.shutdown);
+      expect(NeuronChannel.defaultCallTimeout, const Duration(seconds: 15));
+
+      late CallOptions captured;
+      channel.interceptorForTesting.interceptUnary<String, String>(
+        method,
+        'req',
+        CallOptions(),
+        (m, r, opts) {
+          captured = opts;
+          return _StubResponseFuture<String>();
+        },
+      );
+
+      expect(captured.timeout, const Duration(seconds: 15));
+      final metadata = await resolveMetadata(captured);
+      expect(metadata['authorization'], 'Bearer token-123');
+      expect(metadata['x-session-id'], 'sess-42');
+    });
+
+    test(
+      'unary RPC preserves explicit caller timeout and metadata overrides',
+      () async {
+        final channel = NeuronChannel(
+          Uri.parse('http://127.0.0.1:1'),
+          authorization: 'Bearer default-token',
+          sessionHeaders: () => {
+            'x-session-id': 'default-session',
+            'x-trace': 'trace-1',
+          },
+          callTimeout: const Duration(seconds: 10),
+        );
+        addTearDown(channel.shutdown);
+
+        late CallOptions captured;
+        channel.interceptorForTesting.interceptUnary<String, String>(
+          method,
+          'req',
+          CallOptions(
+            timeout: const Duration(seconds: 2),
+            metadata: const {
+              'authorization': 'Bearer custom-token',
+              'x-session-id': 'custom-session',
+              'x-extra': 'yes',
+            },
+          ),
+          (m, r, opts) {
+            captured = opts;
+            return _StubResponseFuture<String>();
+          },
+        );
+
+        expect(captured.timeout, const Duration(seconds: 2));
+        final metadata = await resolveMetadata(captured);
+        expect(metadata['authorization'], 'Bearer custom-token');
+        expect(metadata['x-session-id'], 'custom-session');
+        expect(metadata['x-trace'], 'trace-1');
+        expect(metadata['x-extra'], 'yes');
+      },
+    );
+
+    test(
+      'streaming RPC injects auth + session headers without default deadline',
+      () async {
+        final channel = NeuronChannel(
+          Uri.parse('http://127.0.0.1:1'),
+          authorization: 'Bearer stream-token',
+          sessionHeaders: () => {'x-session-id': 'stream-sess'},
+        );
+        addTearDown(channel.shutdown);
+
+        late CallOptions captured;
+        channel.interceptorForTesting.interceptStreaming<String, String>(
+          method,
+          const Stream<String>.empty(),
+          CallOptions(),
+          (m, reqs, opts) {
+            captured = opts;
+            return _StubResponseStream<String>();
+          },
+        );
+
+        expect(captured.timeout, isNull);
+        final metadata = await resolveMetadata(captured);
+        expect(metadata['authorization'], 'Bearer stream-token');
+        expect(metadata['x-session-id'], 'stream-sess');
+      },
+    );
+
+    test('streaming RPC preserves explicit caller timeout override', () async {
+      final channel = NeuronChannel(
+        Uri.parse('http://127.0.0.1:1'),
+        authorization: 'Bearer stream-token',
+      );
+      addTearDown(channel.shutdown);
+
+      late CallOptions captured;
+      channel.interceptorForTesting.interceptStreaming<String, String>(
+        method,
+        const Stream<String>.empty(),
+        CallOptions(timeout: const Duration(seconds: 45)),
+        (m, reqs, opts) {
+          captured = opts;
+          return _StubResponseStream<String>();
+        },
+      );
+
+      expect(captured.timeout, const Duration(seconds: 45));
+      final metadata = await resolveMetadata(captured);
+      expect(metadata['authorization'], 'Bearer stream-token');
+    });
   });
 
   group('NeuronWatchMux', () {
@@ -301,4 +425,14 @@ final class FakeLink implements NeuronLink {
 
   @override
   Future<void> shutdown() async {}
+}
+
+final class _StubResponseFuture<R> implements ResponseFuture<R> {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+final class _StubResponseStream<R> implements ResponseStream<R> {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

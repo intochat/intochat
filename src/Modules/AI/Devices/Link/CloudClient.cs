@@ -207,6 +207,30 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<bool> StreamSandboxAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        ArgumentNullException.ThrowIfNull(ndjsonContent);
+
+        var secrets = await EnsureFreshSecretsAsync(ct).ConfigureAwait(false);
+        var url = Combine(secrets.Server, DeviceRoutes.SandboxStreamFor(jobId));
+        using var request = BuildSignedRequest(HttpMethod.Post, url, secrets, ndjsonContent);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            await credentials.Revoke(ct).ConfigureAwait(false);
+            throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
+        }
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
     internal async Task<HttpResponseMessage> SendSignedAsync(
         HttpMethod method,
         string route,
@@ -257,6 +281,22 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
 
     private async Task<LinkSecrets> EnsureFreshSecretsAsync(CancellationToken ct)
         => (await EnsureFreshSecretsWithFlagAsync(ct).ConfigureAwait(false)).Secrets;
+
+    internal async Task<LinkSecrets?> TryGetFreshSecretsAsync(bool forceRefresh, CancellationToken ct)
+    {
+        var secrets = await credentials.Read(ct).ConfigureAwait(false);
+        if (secrets is null || credentials.IsRevoked)
+        {
+            return null;
+        }
+
+        if (forceRefresh || NeedsRefresh(secrets))
+        {
+            return await RefreshAsync(secrets, ct).ConfigureAwait(false);
+        }
+
+        return secrets;
+    }
 
     private async Task<(LinkSecrets Secrets, bool Refreshed)> EnsureFreshSecretsWithFlagAsync(CancellationToken ct)
     {

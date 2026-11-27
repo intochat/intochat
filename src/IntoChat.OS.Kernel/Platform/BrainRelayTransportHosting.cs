@@ -48,8 +48,21 @@ public sealed class BrainRelayOptions
     /// <summary>Maximum number of <c>(SenderBrainId, MessageId)</c> entries retained in the replay defense cache.</summary>
     public int ReplayCacheCapacity { get; set; } = BrainEnvelopeReplayCache.DefaultCapacity;
 
-    /// <summary>When <see langword="true"/> and <see cref="RelayBaseUri"/> is configured, starts the background relay poll loop.</summary>
+    /// <summary>When <see langword="true"/> and <see cref="RelayBaseUri"/> is configured, starts the background relay receiver loop.</summary>
     public bool EnablePollLoop { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/> (default) and <see cref="RelayBaseUri"/> is not explicitly configured,
+    /// automatically binds the desktop <c>link.bin</c> server URI and machine-proof header signing from
+    /// <see cref="IDeviceLinkCredentialsProvider"/> without exposing raw tokens or private keys in options.
+    /// </summary>
+    public bool AutoBindDeviceCredentials { get; set; } = true;
+
+    /// <summary>
+    /// When <see langword="true"/> (default), the background relay receiver connects over WebSocket
+    /// <c>GET /circle/v1/brains/stream</c> with automatic HTTP polling fallback when WebSocket upgrade is unavailable.
+    /// </summary>
+    public bool PreferWebSocket { get; set; } = true;
 }
 
 /// <summary>
@@ -292,9 +305,11 @@ public sealed class KernelBrainKeyDirectory(
 }
 
 /// <summary>
-/// Resolves <see cref="HttpBrainRelayClient"/> when <see cref="BrainRelayOptions.RelayBaseUri"/> is configured,
+/// Resolves <see cref="HttpBrainRelayClient"/> when <see cref="BrainRelayOptions.RelayBaseUri"/> is configured
+/// (explicitly, via <see cref="IServiceAssertionSigner"/>, or auto-bound from desktop <c>link.bin</c>),
 /// and degrades cleanly to unconfigured (<see cref="IsConfigured"/> = <see langword="false"/>) on local-only boots.
-/// Supports both Cloud <c>ServiceAssertion</c> auth and desktop/home-server <c>Bearer</c> + <c>X-Machine-Proof</c> fallback.
+/// Supports Cloud <c>ServiceAssertion</c> auth, explicit <c>Bearer</c> + <c>X-Machine-Proof</c>, and
+/// auto-bound desktop <see cref="IDeviceLinkCredentialsProvider"/> header signing.
 /// </summary>
 public sealed class KernelBrainRelayClientProvider
 {
@@ -303,15 +318,19 @@ public sealed class KernelBrainRelayClientProvider
     private readonly IHttpClientFactory _httpFactory;
     private readonly IOptions<BrainRelayOptions> _options;
     private readonly IServiceAssertionSigner? _assertionSigner;
+    private readonly IDeviceLinkCredentialsProvider? _deviceCredentials;
     private readonly TimeProvider _timeProvider;
     private readonly ICallerAmbient? _callers;
+    private readonly ILogger<KernelBrainRelayClientProvider>? _logger;
 
     public KernelBrainRelayClientProvider(
         IHttpClientFactory httpFactory,
         IOptions<BrainRelayOptions> options,
         TimeProvider? timeProvider = null,
         IServiceAssertionSigner? assertionSigner = null,
-        ICallerAmbient? callers = null)
+        ICallerAmbient? callers = null,
+        IDeviceLinkCredentialsProvider? deviceCredentials = null,
+        ILogger<KernelBrainRelayClientProvider>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(httpFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -320,6 +339,8 @@ public sealed class KernelBrainRelayClientProvider
         _timeProvider = timeProvider ?? TimeProvider.System;
         _assertionSigner = assertionSigner;
         _callers = callers;
+        _deviceCredentials = deviceCredentials;
+        _logger = logger;
     }
 
     /// <summary>True when a remote relay endpoint is configured.</summary>
@@ -335,21 +356,140 @@ public sealed class KernelBrainRelayClientProvider
         }
 
         var http = _httpFactory.CreateClient(BrainRelayTransportHosting.HttpClientName);
-        return new HttpBrainRelayClient(http, baseUri, AuthorizeAsync, _timeProvider);
+        var clientOptions = new BrainRelayClientOptions
+        {
+            RecipientsHeaderName = BrainRelayTransportHosting.CircleBlobRecipientsHeader,
+            ContentSha256HeaderName = BrainRelayTransportHosting.CircleBlobContentSha256Header,
+            AuthorizeWebSocketAsync = AuthorizeWebSocketAsync,
+            CreateAuthRefreshFrameAsync = CreateAuthRefreshFrameAsync,
+            OnStreamDiagnostic = message => _logger?.LogDebug("Brain relay stream: {Diagnostic}", message),
+        };
+        return new HttpBrainRelayClient(http, baseUri, AuthorizeAsync, _timeProvider, clientOptions);
     }
 
     private Uri? ResolveBaseUri()
-        => _options.Value.RelayBaseUri ?? (_assertionSigner is { IsConfigured: true, ServiceUri: { } uri } ? uri : null);
+    {
+        var opts = _options.Value;
+        if (opts.RelayBaseUri is not null)
+        {
+            return opts.RelayBaseUri;
+        }
 
-    private ValueTask AuthorizeAsync(HttpRequestMessage request, CancellationToken ct)
-        => CloudRelayRequestSigner.AuthorizeServiceOrBearerAsync(
-            request,
-            _assertionSigner,
-            _callers?.Current?.Brain.Value ?? _options.Value.LocalBrainId,
-            RelayPurpose,
-            _options.Value.BearerToken,
-            _options.Value.MachineProofFactory,
-            ct);
+        if (_assertionSigner is { IsConfigured: true, ServiceUri: { } uri })
+        {
+            return uri;
+        }
+
+        if (opts.AutoBindDeviceCredentials && _deviceCredentials is not null)
+        {
+            return _deviceCredentials.TryGetServerUri();
+        }
+
+        return null;
+    }
+
+    private async ValueTask AuthorizeAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        var opts = _options.Value;
+        var brainId = _callers?.Current?.Brain.Value ?? opts.LocalBrainId;
+
+        if (await CloudRelayRequestSigner.TrySignWithServiceAssertionAsync(
+                request,
+                _assertionSigner,
+                brainId,
+                RelayPurpose,
+                ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        if (await CloudRelayRequestSigner.TrySignWithBearerAsync(
+                request,
+                opts.BearerToken,
+                opts.MachineProofFactory,
+                ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        if (opts.AutoBindDeviceCredentials
+            && _deviceCredentials is not null
+            && HasMatchingOrigin(request.RequestUri, _deviceCredentials.TryGetServerUri()))
+        {
+            await _deviceCredentials.TryAuthorizeRequestAsync(request, ct).ConfigureAwait(false);
+        }
+    }
+
+    internal async ValueTask AuthorizeWebSocketAsync(
+        Uri httpStreamUri,
+        IDictionary<string, string> headers,
+        CancellationToken ct)
+    {
+        using var probe = new HttpRequestMessage(HttpMethod.Get, httpStreamUri);
+        await AuthorizeAsync(probe, ct).ConfigureAwait(false);
+
+        if (probe.Headers.Authorization is not null)
+        {
+            headers["Authorization"] = probe.Headers.Authorization.ToString();
+        }
+
+        foreach (var header in probe.Headers)
+        {
+            if (!string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
+            {
+                headers[header.Key] = string.Join(", ", header.Value);
+            }
+        }
+    }
+
+    internal async ValueTask<BrainStreamFrame?> CreateAuthRefreshFrameAsync(Uri httpStreamUri, CancellationToken ct)
+    {
+        var opts = _options.Value;
+        var brainId = _callers?.Current?.Brain.Value ?? opts.LocalBrainId;
+
+        if (_assertionSigner is { IsConfigured: true } && !string.IsNullOrWhiteSpace(brainId))
+        {
+            var token = _assertionSigner.Sign(
+                brainId,
+                RelayPurpose,
+                HttpMethod.Get.Method,
+                httpStreamUri.PathAndQuery,
+                []);
+            return new BrainStreamFrame(BrainStreamFrameTypes.AuthRefresh, ServiceAssertion: token);
+        }
+
+        if (string.IsNullOrWhiteSpace(opts.BearerToken)
+            && opts.AutoBindDeviceCredentials
+            && _deviceCredentials is not null
+            && HasMatchingOrigin(httpStreamUri, _deviceCredentials.TryGetServerUri()))
+        {
+            var creds = await _deviceCredentials
+                .TryCreateStreamCredentialsAsync(httpStreamUri, forceRefresh: true, ct)
+                .ConfigureAwait(false);
+            if (creds is not null)
+            {
+                return new BrainStreamFrame(
+                    BrainStreamFrameTypes.AuthRefresh,
+                    AccessToken: creds.AccessToken,
+                    MachineProof: creds.MachineProof);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasMatchingOrigin(Uri? targetUri, Uri? serverUri)
+    {
+        if (targetUri is null || serverUri is null || !targetUri.IsAbsoluteUri || !serverUri.IsAbsoluteUri)
+        {
+            return false;
+        }
+
+        return targetUri.Port > 0
+            && string.Equals(targetUri.Scheme, serverUri.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(targetUri.IdnHost, serverUri.IdnHost, StringComparison.OrdinalIgnoreCase)
+            && targetUri.Port == serverUri.Port;
+    }
 }
 
 /// <summary>
@@ -359,6 +499,8 @@ public sealed class KernelBrainRelayClientProvider
 public static class BrainRelayTransportHosting
 {
     public const string HttpClientName = "IntoChatOS.BrainRelay";
+    public const string CircleBlobRecipientsHeader = "X-IntoChat-Recipients";
+    public const string CircleBlobContentSha256Header = "X-IntoChat-Content-Sha256";
 
     public static IServiceCollection AddKernelBrainRelayTransport(this IServiceCollection services)
     {
@@ -366,7 +508,34 @@ public static class BrainRelayTransportHosting
 
         services.AddOptions<BrainRelayOptions>()
             .Configure<IServiceProvider>(static (options, sp) =>
-                sp.GetService<IConfiguration>()?.GetSection(BrainRelayOptions.SectionName).Bind(options));
+                sp.GetService<IConfiguration>()?.GetSection(BrainRelayOptions.SectionName).Bind(options))
+            .PostConfigure<IServiceProvider>(static (options, sp) =>
+            {
+                if (!options.AutoBindDeviceCredentials || options.RelayBaseUri is not null)
+                {
+                    return;
+                }
+
+                if (sp.GetService<IServiceAssertionSigner>() is { IsConfigured: true })
+                {
+                    return;
+                }
+
+                var serverUri = sp.GetService<IDeviceLinkCredentialsProvider>()?.TryGetServerUri();
+                if (serverUri is null)
+                {
+                    return;
+                }
+
+                options.RelayBaseUri = serverUri;
+
+                var explicitPollLoop = sp.GetService<IConfiguration>()
+                    ?.GetSection(BrainRelayOptions.SectionName)[nameof(BrainRelayOptions.EnablePollLoop)];
+                if (string.IsNullOrWhiteSpace(explicitPollLoop))
+                {
+                    options.EnablePollLoop = true;
+                }
+            });
         services.AddHttpClient(HttpClientName, static client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
@@ -395,7 +564,9 @@ public static class BrainRelayTransportHosting
                 sp.GetRequiredService<IOptions<BrainRelayOptions>>(),
                 sp.GetService<TimeProvider>(),
                 sp.GetService<IServiceAssertionSigner>(),
-                sp.GetService<ICallerAmbient>()));
+                sp.GetService<ICallerAmbient>(),
+                sp.GetService<IDeviceLinkCredentialsProvider>(),
+                sp.GetService<ILogger<KernelBrainRelayClientProvider>>()));
 
         services.TryAddSingleton<SealedRelayBrainTransport>(static sp =>
         {
@@ -509,11 +680,13 @@ public static class BrainRelayTransportHosting
         IOptions<BrainRelayOptions> options,
         KernelBrainRelayClientProvider clientProvider,
         BrainEnvelopeReceiver receiver,
+        TimeProvider timeProvider,
         ILogger<BrainRelayPollService> logger) : BackgroundService
     {
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            if (!options.Value.EnablePollLoop || !clientProvider.IsConfigured)
+            var opts = options.Value;
+            if (!opts.EnablePollLoop || !clientProvider.IsConfigured)
             {
                 return;
             }
@@ -528,7 +701,14 @@ public static class BrainRelayTransportHosting
             {
                 try
                 {
-                    await client.RunPollLoopAsync(receiver, stoppingToken).ConfigureAwait(false);
+                    if (opts.PreferWebSocket)
+                    {
+                        await client.RunStreamLoopAsync(receiver, stoppingToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await client.RunPollLoopAsync(receiver, stoppingToken).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -536,10 +716,10 @@ public static class BrainRelayTransportHosting
                 }
                 catch (Exception error)
                 {
-                    logger.LogWarning(error, "Brain relay poll loop encountered an error; backing off before retry.");
+                    logger.LogWarning(error, "Brain relay receiver loop encountered an error; backing off before retry.");
                     try
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
+                        await Task.Delay(TimeSpan.FromSeconds(5), timeProvider, stoppingToken).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                     {

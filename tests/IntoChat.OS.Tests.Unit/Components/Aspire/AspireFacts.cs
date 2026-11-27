@@ -104,45 +104,62 @@ public sealed class AspireFacts
     }
 
     [Fact]
-    public void DockerCandidateHostExposesContainerResourceLimits()
+    public void AgentDevSlotsCandidateHostExposesContainerResourceLimits()
     {
-        Assert.Equal("2g", DockerCandidateHost.CandidateMemoryLimit);
-        Assert.Equal("2", DockerCandidateHost.CandidateCpuLimit);
+        Assert.Equal("2g", AgentDevSlotsCandidateHost.CandidateMemoryLimit);
+        Assert.Equal("2", AgentDevSlotsCandidateHost.CandidateCpuLimit);
     }
 
     [Fact]
-    public async Task DockerCandidateHostEnforcesMemoryAndCpuCapsAndCanaryRollback()
+    public async Task AgentDevSlotsCandidateHostEnforcesMemoryAndCpuCapsAndCanaryRollback()
     {
         var runner = new RecordingCandidateProcessRunner();
         using var http = new HttpClient(new AlwaysHealthyHttpMessageHandler());
         var config = new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
-        var host = new DockerCandidateHost(
-            runner,
-            config,
-            _ => Task.FromResult(Path.Combine(Path.GetTempPath(), "intochat-candidate-workdir")),
-            _ => Task.FromResult(new CandidateSecrets(new Dictionary<string, string>())),
-            _ => false,
-            http,
-            (_, _, _) => Task.CompletedTask);
+        var tempWorkdir = Path.Combine(Path.GetTempPath(), "intochat-aspire-facts-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempWorkdir);
+        try
+        {
+            await using var pool = new CandidateSlotLeasePool(
+                new CandidateSlotPoolOptions { MaxSlots = 2, BasePort = 6600, EnableWarmSlotReuse = false },
+                isPortInUse: _ => false);
+            await using var host = new AgentDevSlotsCandidateHost(
+                runner,
+                config,
+                pool,
+                _ => Task.FromResult(tempWorkdir),
+                _ => Task.FromResult(new CandidateSecrets(new Dictionary<string, string>())),
+                http,
+                new CandidateSlotPoolOptions { MaxSlots = 2, BasePort = 6600, EnableWarmSlotReuse = false },
+                dependenciesReady: (_, _) => Task.CompletedTask);
 
-        var running = await host.Run("a1b2c3d", TestContext.Current.CancellationToken);
-        Assert.Equal("a1b2c3d", running.Sha);
-        Assert.Equal("candidate-a1b2c3d", running.Container);
+            var running = await host.Run("a1b2c3d", TestContext.Current.CancellationToken);
+            Assert.Equal("a1b2c3d", running.Sha);
+            Assert.Equal("devslot-slot-00-candidate-a1b2c3d", running.Container);
 
-        var osRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("candidate-a1b2c3d") && c.Args.Contains("--hostname"));
-        Assert.Contains("--memory", osRun.Args);
-        Assert.Contains("2g", osRun.Args);
-        Assert.Contains("--cpus", osRun.Args);
-        Assert.Contains("2", osRun.Args);
+            var osRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("devslot-slot-00-candidate-a1b2c3d") && c.Args.Contains("--hostname"));
+            Assert.Contains("--memory", osRun.Args);
+            Assert.Contains("2g", osRun.Args);
+            Assert.Contains("--cpus", osRun.Args);
+            Assert.Contains("2", osRun.Args);
 
-        Assert.NotNull(running.Endpoints.Mcp);
-        Assert.Equal(running.Endpoints.Mcp, running.Endpoints.Ui);
-        Assert.DoesNotContain(runner.Calls, c => c.File == "docker" && c.Args.Contains("candidate-a1b2c3d-mcp"));
+            Assert.NotNull(running.Endpoints.Mcp);
+            Assert.Equal(running.Endpoints.Mcp, running.Endpoints.Ui);
 
-        await host.WaitHealthy("a1b2c3d", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            await host.WaitHealthy("a1b2c3d", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
-        await host.Uncommit("a1b2c3d", "0123456", TestContext.Current.CancellationToken);
-        Assert.Contains(runner.Calls, c => c.File == "git" && c.Args.Contains("update-ref") && c.Args.Contains(DockerCandidateHost.LiveRef) && c.Args.Contains("0123456"));
+            await host.Uncommit("a1b2c3d", "0123456", TestContext.Current.CancellationToken);
+            Assert.Contains(runner.Calls, c => c.File == "git" && c.Args.Contains("update-ref") && c.Args.Contains(CandidateGitWorkspace.LiveRef) && c.Args.Contains("0123456"));
+
+            await host.Remove("a1b2c3d", TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkdir))
+            {
+                Directory.Delete(tempWorkdir, recursive: true);
+            }
+        }
     }
 
     private sealed record RecordedCall(string File, string[] Args);

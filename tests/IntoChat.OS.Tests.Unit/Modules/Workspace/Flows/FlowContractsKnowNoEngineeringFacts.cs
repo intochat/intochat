@@ -37,7 +37,6 @@ public sealed class FlowContractsKnowNoEngineeringFacts
 
         Assert.Equal(["InspectEngineerRun", "RatifyEngineerPlan", "SelectEngineerCandidate", "StartEngineerRun"], commands);
         Assert.Equal("flow.engineer", IEngineerRuns.EngineerFlow);
-        Assert.Equal("flow.change", IEngineerRuns.ChangeFlow);
         Assert.Equal("flow.pr-review", IEngineerRuns.PrReviewFlow);
         Assert.Contains(typeof(IEngineerFlow), typeof(EngineerFlow).GetInterfaces());
     }

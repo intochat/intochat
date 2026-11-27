@@ -88,7 +88,13 @@ public interface ILiveVerifier
         CancellationToken ct = default);
 }
 
-/// <summary>Request sent by <c>EngineerLiveVerifier</c> to verify a candidate worktree through an <c>ICandidateHost</c>.</summary>
+/// <summary>Planned MCP verification call for <see cref="CandidateLiveVerificationRequest"/>.</summary>
+public sealed record CandidateMcpCall(
+    string Target,
+    string Method,
+    string Expected = "ok");
+
+/// <summary>Request sent by <c>EngineerLiveVerifier</c> to verify a candidate worktree through <c>CandidateLiveVerifier</c>.</summary>
 public sealed record CandidateLiveVerificationRequest(
     string WorktreePath,
     string Goal,
@@ -96,11 +102,13 @@ public sealed record CandidateLiveVerificationRequest(
     string? CommitSha = null,
     string HealthPath = "/health",
     bool TouchesUi = false,
-    string? TraceId = null);
+    string? TraceId = null,
+    string? BrainId = null,
+    IReadOnlyList<CandidateMcpCall>? McpCalls = null);
 
 /// <summary>
-/// DI bridge implemented by the Aspire component over <c>ICandidateHost</c> (<c>ProcessCandidateHost</c> and
-/// <c>AgentDevSlotsCandidateHost</c>) so <c>EngineerLiveVerifier</c> executes real isolated candidates.
+/// DI bridge implemented by the Aspire component (<c>CandidateLiveVerifier</c>) over <c>ICandidateHost</c>
+/// so <c>EngineerLiveVerifier</c> executes real isolated candidates with MCP, Playwright, and OTel checks.
 /// </summary>
 public interface IEngineerCandidateHostVerifier
 {

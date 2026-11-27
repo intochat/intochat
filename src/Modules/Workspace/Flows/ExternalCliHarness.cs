@@ -192,7 +192,7 @@ internal sealed class ExternalCliHarness : IEngineeringHarness
             .Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !cleanupResult.DeletedFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
             .ToArray();
         var diags = csFiles.Length > 0
-            ? await _orchestrator.GetSemanticDiagnosticsAsync(request.WorktreePath, csFiles, ct).ConfigureAwait(false)
+            ? await _orchestrator.Roslyn.AnalyzeAsync(request.WorktreePath, csFiles, ct).ConfigureAwait(false)
             : [];
         var errCount = diags.Count(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase));
 

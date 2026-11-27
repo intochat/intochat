@@ -69,16 +69,36 @@ void main() {
 
   testWidgets('focus draws a 3 px focus ring', (tester) async {
     await host(tester, select(onChanged: (_) {}, value: 'a'));
-    expect(find.byKey(const ValueKey('ui_kit_select_ring')), findsNothing);
+    var d = mixBox(tester, find.byKey(boxKey)).decoration as BoxDecoration;
+    expect(
+      d.boxShadow?.any((s) => s.color == c.focus && s.spreadRadius == 3),
+      isNot(true),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    d = mixBox(tester, find.byKey(boxKey)).decoration as BoxDecoration;
+    expect((d.border as Border).top.color, c.accent);
+    expect(
+      d.boxShadow?.any((s) => s.color == c.focus && s.spreadRadius == 3),
+      isTrue,
+    );
+  });
+
+  testWidgets('keyboard Space opens overlay and Escape closes it', (
+    tester,
+  ) async {
+    String? got;
+    await host(tester, select(onChanged: (v) => got = v, value: 'a'));
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
-    final ring = mixBox(
-      tester,
-      find.byKey(const ValueKey('ui_kit_select_ring')),
-    );
-    final border = (ring.decoration as BoxDecoration).border as Border;
-    expect(border.top.width, 3);
-    expect(border.top.color, c.focus);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(find.text('Gamma'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Gamma'), findsNothing);
+    expect(got, isNull);
   });
 }
 

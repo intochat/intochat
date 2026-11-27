@@ -308,9 +308,11 @@ public sealed class CandidateSlotLeasePoolFacts : IDisposable
     }
 
     [Fact]
-    public void AspireOptions_ValidatesSlotPoolAndUnprivilegedUidConstraints()
+    public void AspireOptions_DefaultsToAgentDevSlots_AndValidatesSlotPoolAndUnprivilegedUidConstraints()
     {
-        new AspireOptions { CandidateHostMode = CandidateHostMode.AgentDevSlots }.Validate();
+        var defaults = new AspireOptions();
+        Assert.Equal(CandidateHostMode.AgentDevSlots, defaults.CandidateHostMode);
+        defaults.Validate();
 
         // Root UID 0 and GID 0 must always be refused.
         Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CandidateUserId = 0 }.Validate());
@@ -319,6 +321,21 @@ public sealed class CandidateSlotLeasePoolFacts : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CandidateSlotPortStride = 4 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CandidateSlotBasePort = 65500, MaxCandidateSlots = 10, CandidateSlotPortStride = 10 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CandidateSlotLeaseTimeout = TimeSpan.Zero }.Validate());
+    }
+
+    [Fact]
+    public void AspireModule_DefaultsToAgentDevSlotsHostAndSlotPool_WhenModeIsUnset()
+    {
+        var config = new ConfigurationBuilder().Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(config);
+        AspireModule.ConfigureServices(services, config);
+
+        var hostRegistration = Assert.Single(services, d => d.ServiceType == typeof(ICandidateHost));
+        Assert.Equal(typeof(AgentDevSlotsCandidateHost), hostRegistration.ImplementationType);
+
+        var poolRegistration = Assert.Single(services, d => d.ServiceType == typeof(ICandidateSlotPool));
+        Assert.NotNull(poolRegistration.ImplementationFactory);
     }
 
     [Fact]

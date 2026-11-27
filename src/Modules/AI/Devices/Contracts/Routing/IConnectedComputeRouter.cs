@@ -247,9 +247,6 @@ public enum ComputeExecutionTarget
 
     [JsonStringEnumMemberName("local-unit-host")]
     LocalUnitHost = 2,
-
-    [JsonStringEnumMemberName("aca-dynamic-sessions")]
-    AcaDynamicSessions = 3,
 }
 
 /// <summary>
@@ -410,6 +407,18 @@ public interface IConnectedComputeTransport
 public interface ILocalSandboxExecutor
 {
     Task<ConnectedSandboxResponse> ExecuteAsync(
+        ConnectedSandboxRequest request,
+        CancellationToken ct = default);
+}
+
+/// <summary>
+/// Optional streaming extension for <see cref="ILocalSandboxExecutor"/> implementations that emit
+/// incremental <see cref="SandboxStreamChunk"/> progress, stdout, and stderr frames over NDJSON
+/// (<c>POST /circle/v1/compute/sandbox/{jobId}/stream</c>).
+/// </summary>
+public interface IStreamingLocalSandboxExecutor : ILocalSandboxExecutor
+{
+    IAsyncEnumerable<SandboxStreamChunk> ExecuteStreamingAsync(
         ConnectedSandboxRequest request,
         CancellationToken ct = default);
 }

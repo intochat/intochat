@@ -27,6 +27,52 @@ internal sealed class DeviceCredentials(IMachineKeyProtector protector, string f
     public string FilePath => file;
     public bool IsRevoked => _revoked;
 
+    /// <summary>
+    /// Synchronously reads only the non-secret <see cref="LinkSecrets.Server"/> URI from <c>link.bin</c>
+    /// if the file exists and is not revoked, without exposing tokens or private keys.
+    /// </summary>
+    public Uri? TryReadServerUri()
+    {
+        if (_revoked || !File.Exists(file))
+        {
+            return null;
+        }
+
+        _gate.Wait();
+        try
+        {
+            if (_revoked || !File.Exists(file))
+            {
+                return null;
+            }
+
+            var stored = File.ReadAllBytes(file);
+            if (stored.Length == 0)
+            {
+                return null;
+            }
+
+            var plain = protector.Unprotect(stored);
+            try
+            {
+                var secrets = JsonSerializer.Deserialize(plain, DeviceLinkJson.Default.LinkSecrets);
+                return secrets?.Server;
+            }
+            finally
+            {
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(plain);
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or System.Security.Cryptography.CryptographicException)
+        {
+            return null;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<LinkSecrets?> Read(CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct).ConfigureAwait(false);

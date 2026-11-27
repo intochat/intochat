@@ -27,6 +27,7 @@
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore.Web" />
     <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />

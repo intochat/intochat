@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Identity.Local.Machine;
@@ -20,32 +21,39 @@ using Microsoft.Extensions.Options;
 namespace IntoChat.OS.Modules.Devices.Link;
 
 // Background service on the PC: advertises Ready local models and local sandbox compute capability + heartbeats,
-// long-polls GET /circle/v1/compute/next, executes text-only chat jobs on the local ILocalRuntime,
-// and executes scoped Plane 1 sandbox jobs on the local IntoChat.OS.Sandbox (--unit-host).
-internal sealed class DeviceWorker(
-    CloudClient cloud,
-    DeviceCredentials credentials,
-    IEnumerable<ILocalRuntime> runtimes,
-    MachineId thisMachine,
-    ILogger<DeviceWorker> logger,
-    TimeProvider? clock = null,
-    Func<string>? deviceNameProvider = null,
-    IServiceProvider? services = null,
-    IOptionsMonitor<DevicesOptions>? options = null,
-    IConnectedComputeRouter? computeRouter = null,
-    ILocalSandboxExecutor? localSandbox = null,
-    IClientCodeSandboxConsent? consentStore = null,
-    IClientResourceConsent? resourceConsent = null,
-    ILocalPcResourceExecutor? localResourceExecutor = null) : BackgroundService
+// and supervises independent concurrent long-poll lanes for chat (/circle/v1/compute/next),
+// scoped Plane 1 sandbox jobs (/circle/v1/compute/sandbox/next), and Mode B PC resource jobs
+// (/circle/v1/compute/resource/next) so a 25 s idle poll or transient error on one lane never starves another.
+internal sealed class DeviceWorker : BackgroundService
 {
     private static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Devices");
-    private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan ErrorDelay = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
+    internal static readonly TimeSpan ErrorDelay = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan InitialBackoffDelay = TimeSpan.FromMilliseconds(500);
+    internal static readonly TimeSpan MaxBackoffDelay = TimeSpan.FromSeconds(30);
 
-    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
-    private readonly ILocalRuntime[] _runtimes = OrderRuntimes(runtimes);
-    private readonly Dictionary<string, (ILocalRuntime Runtime, ModelCard Card)> _advertised = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CloudClient _cloud;
+    private readonly DeviceCredentials _credentials;
+    private readonly MachineId _thisMachine;
+    private readonly ILogger<DeviceWorker> _logger;
+    private readonly TimeProvider _clock;
+    private readonly Func<string>? _deviceNameProvider;
+    private readonly IServiceProvider? _services;
+    private readonly IOptionsMonitor<DevicesOptions>? _options;
+    private readonly IConnectedComputeRouter? _computeRouter;
+    private readonly ILocalSandboxExecutor? _localSandbox;
+    private readonly IClientCodeSandboxConsent? _consentStore;
+    private readonly IClientResourceConsent? _resourceConsent;
+    private readonly ILocalPcResourceExecutor? _localResourceExecutor;
+    private readonly Func<double> _jitterProvider;
+
+    private readonly ILocalRuntime[] _runtimes;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
+    private readonly SemaphoreSlim _heartbeatWake = new(0, 1);
+    private readonly SemaphoreSlim _syncGate = new(1, 1);
+
+    private volatile IReadOnlyDictionary<string, (ILocalRuntime Runtime, ModelCard Card)> _advertised =
+        new Dictionary<string, (ILocalRuntime Runtime, ModelCard Card)>(StringComparer.OrdinalIgnoreCase);
 
     private volatile bool _modelsDirty = true;
     private bool _reportedOnce;
@@ -57,18 +65,49 @@ internal sealed class DeviceWorker(
     private ComputeConsentMode _lastAdvertisedConsentMode = ComputeConsentMode.ExplicitToggle;
     private DateTimeOffset _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
 
+    public DeviceWorker(
+        CloudClient cloud,
+        DeviceCredentials credentials,
+        IEnumerable<ILocalRuntime> runtimes,
+        MachineId thisMachine,
+        ILogger<DeviceWorker> logger,
+        TimeProvider? clock = null,
+        Func<string>? deviceNameProvider = null,
+        IServiceProvider? services = null,
+        IOptionsMonitor<DevicesOptions>? options = null,
+        IConnectedComputeRouter? computeRouter = null,
+        ILocalSandboxExecutor? localSandbox = null,
+        IClientCodeSandboxConsent? consentStore = null,
+        IClientResourceConsent? resourceConsent = null,
+        ILocalPcResourceExecutor? localResourceExecutor = null,
+        Func<double>? jitterProvider = null)
+    {
+        _cloud = cloud;
+        _credentials = credentials;
+        _runtimes = OrderRuntimes(runtimes);
+        _thisMachine = thisMachine;
+        _logger = logger;
+        _clock = clock ?? TimeProvider.System;
+        _deviceNameProvider = deviceNameProvider;
+        _services = services;
+        _options = options;
+        _computeRouter = computeRouter;
+        _localSandbox = localSandbox;
+        _consentStore = consentStore;
+        _resourceConsent = resourceConsent;
+        _localResourceExecutor = localResourceExecutor;
+        _jitterProvider = jitterProvider ?? DefaultJitter;
+
+        _consentStore?.Changed += OnSandboxConsentChanged;
+        _resourceConsent?.Changed += OnResourceConsentChanged;
+    }
+
     internal void NotifyLinkChanged()
     {
         _modelsDirty = true;
         _computeReportedOnce = false;
-        if (_wakeSignal.CurrentCount == 0)
-        {
-            try { _wakeSignal.Release(); }
-            catch (SemaphoreFullException ex)
-            {
-                logger.LogDebug(ex, "DeviceWorker wake signal already queued.");
-            }
-        }
+        ReleaseSignal(_wakeSignal);
+        ReleaseSignal(_heartbeatWake);
     }
 
     internal void NotifyInstallChanged(InstallChanged signal)
@@ -77,25 +116,51 @@ internal sealed class DeviceWorker(
         if (signal.State is InstallState.Ready or InstallState.Cancelled or InstallState.Failed)
         {
             _modelsDirty = true;
+            ReleaseSignal(_heartbeatWake);
         }
     }
 
-    internal void NotifyModelsChanged() => _modelsDirty = true;
+    internal void NotifyModelsChanged()
+    {
+        _modelsDirty = true;
+        ReleaseSignal(_heartbeatWake);
+    }
+
+    public override void Dispose()
+    {
+        _consentStore?.Changed -= OnSandboxConsentChanged;
+        _resourceConsent?.Changed -= OnResourceConsentChanged;
+
+        base.Dispose();
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var sessionFailures = 0;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                if (await credentials.Read(stoppingToken).ConfigureAwait(false) is null)
+                var secrets = await _credentials.Read(stoppingToken).ConfigureAwait(false);
+                if (secrets is null)
                 {
-                    ResetAdvertised();
-                    await DelayOrWakeAsync(IdleDelay, stoppingToken).ConfigureAwait(false);
+                    await ResetAdvertisedAsync(stoppingToken).ConfigureAwait(false);
+                    sessionFailures = 0;
+                    await DelayOrWakeAsync(_wakeSignal, IdleDelay, stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
-                await Tick(stoppingToken).ConfigureAwait(false);
+                await SyncMetadataAsync(secrets, stoppingToken).ConfigureAwait(false);
+                sessionFailures = 0;
+
+                var revoked = await RunLinkedSessionAsync(stoppingToken).ConfigureAwait(false);
+                if (revoked)
+                {
+                    await ResetAdvertisedAsync(CancellationToken.None).ConfigureAwait(false);
+                    await PersistRevokedStatusBestEffortAsync().ConfigureAwait(false);
+                    await DelayOrWakeAsync(_wakeSignal, ErrorDelay, stoppingToken).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -103,72 +168,82 @@ internal sealed class DeviceWorker(
             }
             catch (DeviceLinkRevokedException error)
             {
-                logger.LogInformation(error, "Device worker stopping poll: cloud credential was revoked.");
-                ResetAdvertised();
+                _logger.LogInformation(error, "Device worker stopping poll: cloud credential was revoked.");
+                await ResetAdvertisedAsync(CancellationToken.None).ConfigureAwait(false);
                 await PersistRevokedStatusBestEffortAsync().ConfigureAwait(false);
-                await DelayQuietlyAsync(ErrorDelay, stoppingToken).ConfigureAwait(false);
+                sessionFailures = 0;
+                await DelayOrWakeAsync(_wakeSignal, ErrorDelay, stoppingToken).ConfigureAwait(false);
             }
             catch (HttpRequestException error)
             {
-                logger.LogWarning(error, "Device worker could not reach cloud; retrying.");
+                sessionFailures++;
+                var delay = ComputeBackoffDelay(sessionFailures, _jitterProvider);
+                _logger.LogWarning(error, "Device worker could not reach cloud; retrying in {DelayMs:F0} ms.", delay.TotalMilliseconds);
                 _modelsDirty = true;
-                await DelayQuietlyAsync(ErrorDelay, stoppingToken).ConfigureAwait(false);
+                await DelayOrWakeAsync(_wakeSignal, delay, stoppingToken).ConfigureAwait(false);
             }
             catch (TaskCanceledException error) when (!stoppingToken.IsCancellationRequested)
             {
-                logger.LogWarning(error, "Device worker cloud call timed out; retrying.");
+                sessionFailures++;
+                var delay = ComputeBackoffDelay(sessionFailures, _jitterProvider);
+                _logger.LogWarning(error, "Device worker cloud call timed out; retrying in {DelayMs:F0} ms.", delay.TotalMilliseconds);
                 _modelsDirty = true;
-                await DelayQuietlyAsync(ErrorDelay, stoppingToken).ConfigureAwait(false);
+                await DelayOrWakeAsync(_wakeSignal, delay, stoppingToken).ConfigureAwait(false);
             }
             catch (Exception error)
             {
-                logger.LogWarning(error, "Device worker encountered an unexpected error; retrying.");
+                sessionFailures++;
+                var delay = ComputeBackoffDelay(sessionFailures, _jitterProvider);
+                _logger.LogWarning(error, "Device worker encountered an unexpected error; retrying in {DelayMs:F0} ms.", delay.TotalMilliseconds);
                 _modelsDirty = true;
-                await DelayQuietlyAsync(ErrorDelay, stoppingToken).ConfigureAwait(false);
+                await DelayOrWakeAsync(_wakeSignal, delay, stoppingToken).ConfigureAwait(false);
             }
         }
     }
 
     // One deterministic cycle: ensure Ready models and compute capability heartbeat are reported,
-    // poll one chat job (and scoped sandbox job if a local sandbox executor is attached), and report answers.
+    // then poll all active lanes concurrently so a slow poll on one lane does not serialize the others.
     internal async Task Tick(CancellationToken ct = default)
     {
-        var secrets = await credentials.Read(ct).ConfigureAwait(false);
+        var secrets = await _credentials.Read(ct).ConfigureAwait(false);
         if (secrets is null)
         {
-            ResetAdvertised();
+            await ResetAdvertisedAsync(ct).ConfigureAwait(false);
             return;
         }
 
-        await ReportReadyModelsIfNeededAsync(ct).ConfigureAwait(false);
-        await ReportComputeCapabilityIfNeededAsync(secrets, ct).ConfigureAwait(false);
+        await SyncMetadataAsync(secrets, ct).ConfigureAwait(false);
 
-        if (localSandbox is not null)
+        var laneTasks = new List<Task>(3)
         {
-            var sandboxJob = await cloud.PollNextSandboxAsync(ct).ConfigureAwait(false);
-            if (sandboxJob is not null)
-            {
-                await ExecuteSandboxJobAsync(sandboxJob, ct).ConfigureAwait(false);
-            }
+            PollAndExecuteChatOnceAsync(ct),
+        };
+
+        if (_localSandbox is not null)
+        {
+            laneTasks.Add(PollAndExecuteSandboxOnceAsync(ct));
         }
 
-        if (localResourceExecutor is not null)
+        if (_localResourceExecutor is not null)
         {
-            var resourceJob = await cloud.PollNextResourceAsync(ct).ConfigureAwait(false);
-            if (resourceJob is not null)
-            {
-                await ExecuteResourceJobAsync(resourceJob, ct).ConfigureAwait(false);
-            }
+            laneTasks.Add(PollAndExecuteResourceOnceAsync(ct));
         }
 
-        var job = await cloud.PollNextAsync(ct).ConfigureAwait(false);
-        if (job is null)
-        {
-            return;
-        }
-
-        await ExecuteJobAsync(job, ct).ConfigureAwait(false);
+        await Task.WhenAll(laneTasks).ConfigureAwait(false);
     }
+
+    internal static TimeSpan ComputeBackoffDelay(int consecutiveFailures, Func<double>? jitterProvider = null)
+    {
+        var exponent = Math.Clamp(consecutiveFailures - 1, 0, 10);
+        var rawMs = InitialBackoffDelay.TotalMilliseconds * (1 << exponent);
+        var cappedMs = Math.Min(rawMs, MaxBackoffDelay.TotalMilliseconds);
+        var sample = Math.Clamp((jitterProvider ?? DefaultJitter)(), 0.0, 1.0);
+        var jitterFactor = 0.75 + (0.5 * sample);
+        var jitteredMs = Math.Min(cappedMs * jitterFactor, MaxBackoffDelay.TotalMilliseconds);
+        return TimeSpan.FromMilliseconds(Math.Max(1.0, jitteredMs));
+    }
+
+    private static double DefaultJitter() => Random.Shared.NextDouble();
 
     internal ComputeCapabilityAdvertisement BuildComputeCapabilityAdvertisement(LinkSecrets secrets, string[]? consentedFolderLabels = null)
     {
@@ -179,7 +254,7 @@ internal sealed class DeviceWorker(
         var allowConsole = EffectiveAllowConsole();
         var safeFolderLabels = allowFolders ? consentedFolderLabels : null;
         return new ComputeCapabilityAdvertisement(
-            MachineId: thisMachine.Value,
+            MachineId: _thisMachine.Value,
             DeviceName: DeviceName(),
             ConsentMode: compute.ConsentMode,
             SandboxReady: sandboxReady,
@@ -194,6 +269,202 @@ internal sealed class DeviceWorker(
             AllowConsole: allowConsole,
             ConsentedFolderLabels: safeFolderLabels,
             ConsoleRequiresPersonApproval: true);
+    }
+
+    private async Task<bool> RunLinkedSessionAsync(CancellationToken stoppingToken)
+    {
+        using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var sessionCt = sessionCts.Token;
+        var revokedFlag = 0;
+
+        void SignalRevoked(DeviceLinkRevokedException error, string lane)
+        {
+            if (Interlocked.Exchange(ref revokedFlag, 1) == 0)
+            {
+                _logger.LogInformation(error, "Device worker lane '{Lane}' detected credential revocation; stopping active lanes.", lane);
+                sessionCts.Cancel();
+            }
+        }
+
+        void SignalUnlinked()
+        {
+            sessionCts.Cancel();
+        }
+
+        var supervisedTasks = new List<Task>(4)
+        {
+            RunHeartbeatLoopAsync(sessionCt, SignalRevoked, SignalUnlinked),
+            RunLaneLoopAsync("chat", PollAndExecuteChatOnceAsync, sessionCt, SignalRevoked),
+        };
+
+        if (_localSandbox is not null)
+        {
+            supervisedTasks.Add(RunLaneLoopAsync("sandbox", PollAndExecuteSandboxOnceAsync, sessionCt, SignalRevoked));
+        }
+
+        if (_localResourceExecutor is not null)
+        {
+            supervisedTasks.Add(RunLaneLoopAsync("resource", PollAndExecuteResourceOnceAsync, sessionCt, SignalRevoked));
+        }
+
+        await Task.WhenAll(supervisedTasks).ConfigureAwait(false);
+        return Volatile.Read(ref revokedFlag) != 0;
+    }
+
+    private async Task RunHeartbeatLoopAsync(
+        CancellationToken sessionCt,
+        Action<DeviceLinkRevokedException, string> onRevoked,
+        Action onUnlinked)
+    {
+        var consecutiveFailures = 0;
+
+        while (!sessionCt.IsCancellationRequested)
+        {
+            var interval = TimeSpan.FromSeconds(Math.Clamp(CurrentComputeOptions().HeartbeatIntervalSeconds, 1, 300));
+            await DelayOrWakeAsync(_heartbeatWake, interval, sessionCt).ConfigureAwait(false);
+            if (sessionCt.IsCancellationRequested)
+            {
+                break;
+            }
+
+            try
+            {
+                var secrets = await _credentials.Read(sessionCt).ConfigureAwait(false);
+                if (secrets is null)
+                {
+                    onUnlinked();
+                    break;
+                }
+
+                await SyncMetadataAsync(secrets, sessionCt).ConfigureAwait(false);
+                consecutiveFailures = 0;
+            }
+            catch (OperationCanceledException) when (sessionCt.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (DeviceLinkRevokedException error)
+            {
+                onRevoked(error, "heartbeat");
+                break;
+            }
+            catch (Exception error)
+            {
+                consecutiveFailures++;
+                var backoff = ComputeBackoffDelay(consecutiveFailures, _jitterProvider);
+                _modelsDirty = true;
+                _logger.LogWarning(
+                    error,
+                    "Device worker lane 'heartbeat' failed (attempt {Attempt}); backing off {DelayMs:F0} ms.",
+                    consecutiveFailures,
+                    backoff.TotalMilliseconds);
+                await DelayOrWakeAsync(_heartbeatWake, backoff, sessionCt).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task RunLaneLoopAsync(
+        string laneName,
+        Func<CancellationToken, Task> pollAndExecuteOnce,
+        CancellationToken sessionCt,
+        Action<DeviceLinkRevokedException, string> onRevoked)
+    {
+        var consecutiveFailures = 0;
+
+        while (!sessionCt.IsCancellationRequested)
+        {
+            try
+            {
+                await pollAndExecuteOnce(sessionCt).ConfigureAwait(false);
+                consecutiveFailures = 0;
+            }
+            catch (OperationCanceledException) when (sessionCt.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (DeviceLinkRevokedException error)
+            {
+                onRevoked(error, laneName);
+                break;
+            }
+            catch (HttpRequestException error)
+            {
+                consecutiveFailures++;
+                var backoff = ComputeBackoffDelay(consecutiveFailures, _jitterProvider);
+                _logger.LogWarning(
+                    error,
+                    "Device worker lane '{Lane}' could not reach cloud (attempt {Attempt}); backing off {DelayMs:F0} ms.",
+                    laneName,
+                    consecutiveFailures,
+                    backoff.TotalMilliseconds);
+                await DelayQuietlyAsync(backoff, sessionCt).ConfigureAwait(false);
+            }
+            catch (TaskCanceledException error) when (!sessionCt.IsCancellationRequested)
+            {
+                consecutiveFailures++;
+                var backoff = ComputeBackoffDelay(consecutiveFailures, _jitterProvider);
+                _logger.LogWarning(
+                    error,
+                    "Device worker lane '{Lane}' cloud call timed out (attempt {Attempt}); backing off {DelayMs:F0} ms.",
+                    laneName,
+                    consecutiveFailures,
+                    backoff.TotalMilliseconds);
+                await DelayQuietlyAsync(backoff, sessionCt).ConfigureAwait(false);
+            }
+            catch (Exception error)
+            {
+                consecutiveFailures++;
+                var backoff = ComputeBackoffDelay(consecutiveFailures, _jitterProvider);
+                _logger.LogWarning(
+                    error,
+                    "Device worker lane '{Lane}' encountered an unexpected error (attempt {Attempt}); backing off {DelayMs:F0} ms.",
+                    laneName,
+                    consecutiveFailures,
+                    backoff.TotalMilliseconds);
+                await DelayQuietlyAsync(backoff, sessionCt).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task PollAndExecuteChatOnceAsync(CancellationToken ct)
+    {
+        var job = await _cloud.PollNextAsync(ct).ConfigureAwait(false);
+        if (job is not null)
+        {
+            await ExecuteJobAsync(job, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task PollAndExecuteSandboxOnceAsync(CancellationToken ct)
+    {
+        var sandboxJob = await _cloud.PollNextSandboxAsync(ct).ConfigureAwait(false);
+        if (sandboxJob is not null)
+        {
+            await ExecuteSandboxJobAsync(sandboxJob, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task PollAndExecuteResourceOnceAsync(CancellationToken ct)
+    {
+        var resourceJob = await _cloud.PollNextResourceAsync(ct).ConfigureAwait(false);
+        if (resourceJob is not null)
+        {
+            await ExecuteResourceJobAsync(resourceJob, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task SyncMetadataAsync(LinkSecrets secrets, CancellationToken ct)
+    {
+        await _syncGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await ReportReadyModelsIfNeededAsync(ct).ConfigureAwait(false);
+            await ReportComputeCapabilityIfNeededAsync(secrets, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _syncGate.Release();
+        }
     }
 
     private async Task ReportComputeCapabilityIfNeededAsync(LinkSecrets secrets, CancellationToken ct)
@@ -228,28 +499,28 @@ internal sealed class DeviceWorker(
         }
 
         string[]? folderLabels = null;
-        if (allowFolders && localResourceExecutor is not null)
+        if (allowFolders && _localResourceExecutor is not null)
         {
             try
             {
-                folderLabels = await localResourceExecutor.GetConsentedFolderLabelsAsync(ct).ConfigureAwait(false);
+                folderLabels = await _localResourceExecutor.GetConsentedFolderLabelsAsync(ct).ConfigureAwait(false);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                logger.LogDebug(error, "Could not enumerate consented folder labels for capability heartbeat.");
+                _logger.LogDebug(error, "Could not enumerate consented folder labels for capability heartbeat.");
             }
         }
 
         var advertisement = BuildComputeCapabilityAdvertisement(secrets, folderLabels);
-        await cloud.ReportComputeCapabilityAsync(advertisement, ct).ConfigureAwait(false);
+        await _cloud.ReportComputeCapabilityAsync(advertisement, ct).ConfigureAwait(false);
 
-        if (computeRouter is not null)
+        if (_computeRouter is not null)
         {
             var ownerBrain = new BrainId(IntoChatOSNames.DefaultOwnerBrainId);
-            await computeRouter.RecordHeartbeatAsync(ownerBrain, advertisement, ct).ConfigureAwait(false);
+            await _computeRouter.RecordHeartbeatAsync(ownerBrain, advertisement, ct).ConfigureAwait(false);
             if (!anyConsented)
             {
-                await computeRouter.MarkOfflineAsync(ownerBrain, thisMachine.Value, ct).ConfigureAwait(false);
+                await _computeRouter.MarkOfflineAsync(ownerBrain, _thisMachine.Value, ct).ConfigureAwait(false);
             }
         }
 
@@ -271,52 +542,52 @@ internal sealed class DeviceWorker(
 
         if (!isConsole && !isFolder)
         {
-            logger.LogInformation("Refused Mode B resource job {JobId}: unsupported capability '{Capability}'.", job.JobId, job.Capability);
-            await cloud.ReportResourceResultAsync(
+            _logger.LogInformation("Refused Mode B resource job {JobId}: unsupported capability '{Capability}'.", job.JobId, job.Capability);
+            await _cloud.ReportResourceResultAsync(
                 job.JobId,
                 new PcResourceResponse(
                     Ok: false,
                     Error: $"unsupported-capability: '{job.Capability}' is not supported on this PC.",
-                    ExecutedByMachineId: thisMachine.Value),
+                    ExecutedByMachineId: _thisMachine.Value),
                 ct).ConfigureAwait(false);
             return;
         }
 
         if (isFolder && !allowFolders)
         {
-            logger.LogInformation("Refused Mode B folder job {JobId}: IWindowsFolderGateway consent is OFF.", job.JobId);
-            await cloud.ReportResourceResultAsync(
+            _logger.LogInformation("Refused Mode B folder job {JobId}: IWindowsFolderGateway consent is OFF.", job.JobId);
+            await _cloud.ReportResourceResultAsync(
                 job.JobId,
                 new PcResourceResponse(
                     Ok: false,
                     Error: "consent-disabled: IWindowsFolderGateway is disabled on this PC.",
-                    ExecutedByMachineId: thisMachine.Value),
+                    ExecutedByMachineId: _thisMachine.Value),
                 ct).ConfigureAwait(false);
             return;
         }
 
         if (isConsole && !allowConsole)
         {
-            logger.LogInformation("Refused Mode B console job {JobId}: IConsole consent is OFF.", job.JobId);
-            await cloud.ReportResourceResultAsync(
+            _logger.LogInformation("Refused Mode B console job {JobId}: IConsole consent is OFF.", job.JobId);
+            await _cloud.ReportResourceResultAsync(
                 job.JobId,
                 new PcResourceResponse(
                     Ok: false,
                     Error: "consent-disabled: IConsole is disabled on this PC.",
-                    ExecutedByMachineId: thisMachine.Value),
+                    ExecutedByMachineId: _thisMachine.Value),
                 ct).ConfigureAwait(false);
             return;
         }
 
         if (isConsole && string.IsNullOrWhiteSpace(job.ApprovalToken))
         {
-            logger.LogInformation("Refused Mode B console job {JobId}: missing [PersonOnly] approval proof.", job.JobId);
-            await cloud.ReportResourceResultAsync(
+            _logger.LogInformation("Refused Mode B console job {JobId}: missing [PersonOnly] approval proof.", job.JobId);
+            await _cloud.ReportResourceResultAsync(
                 job.JobId,
                 new PcResourceResponse(
                     Ok: false,
                     Error: "person-approval-required: IConsole requires [PersonOnly] human approval proof.",
-                    ExecutedByMachineId: thisMachine.Value),
+                    ExecutedByMachineId: _thisMachine.Value),
                 ct).ConfigureAwait(false);
             return;
         }
@@ -324,10 +595,10 @@ internal sealed class DeviceWorker(
         PcResourceResponse response;
         try
         {
-            response = await localResourceExecutor!.ExecuteAsync(job, ct).ConfigureAwait(false);
+            response = await _localResourceExecutor!.ExecuteAsync(job, ct).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(response.ExecutedByMachineId))
             {
-                response = response with { ExecutedByMachineId = thisMachine.Value };
+                response = response with { ExecutedByMachineId = _thisMachine.Value };
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -336,14 +607,14 @@ internal sealed class DeviceWorker(
         }
         catch (Exception error)
         {
-            logger.LogWarning(error, "Mode B local PC resource job {JobId} ({Capability}/{Operation}) failed with {ErrorType}.", job.JobId, job.Capability, job.Operation, error.GetType().Name);
+            _logger.LogWarning(error, "Mode B local PC resource job {JobId} ({Capability}/{Operation}) failed with {ErrorType}.", job.JobId, job.Capability, job.Operation, error.GetType().Name);
             response = new PcResourceResponse(
                 Ok: false,
                 Error: error.Message,
-                ExecutedByMachineId: thisMachine.Value);
+                ExecutedByMachineId: _thisMachine.Value);
         }
 
-        await cloud.ReportResourceResultAsync(job.JobId, response, ct).ConfigureAwait(false);
+        await _cloud.ReportResourceResultAsync(job.JobId, response, ct).ConfigureAwait(false);
     }
 
     private async Task ExecuteSandboxJobAsync(ConnectedSandboxRequest job, CancellationToken ct)
@@ -352,30 +623,36 @@ internal sealed class DeviceWorker(
         var allowClientCodeSandbox = EffectiveAllowClientCodeSandbox(compute);
         if (!compute.IsClientCodeSandboxConsentedWith(allowClientCodeSandbox))
         {
-            logger.LogInformation(
+            _logger.LogInformation(
                 "Refused connected sandbox job {JobId}: local compute consent mode is {ConsentMode} (AllowClientCodeSandbox={AllowClientCodeSandbox}).",
                 job.JobId,
                 compute.ConsentMode,
                 allowClientCodeSandbox);
-            await cloud.ReportSandboxResultAsync(
+            await _cloud.ReportSandboxResultAsync(
                 job.JobId,
                 new ConnectedSandboxResponse(
                     Handled: false,
                     ResultJson: null,
                     UpdatedStateJson: null,
                     Error: "consent-disabled",
-                    ExecutedByMachineId: thisMachine.Value),
+                    ExecutedByMachineId: _thisMachine.Value),
                 ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (_localSandbox is IStreamingLocalSandboxExecutor streamingSandbox)
+        {
+            await ExecuteStreamingSandboxJobAsync(job, streamingSandbox, ct).ConfigureAwait(false);
             return;
         }
 
         ConnectedSandboxResponse response;
         try
         {
-            response = await localSandbox!.ExecuteAsync(job, ct).ConfigureAwait(false);
+            response = await _localSandbox!.ExecuteAsync(job, ct).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(response.ExecutedByMachineId))
             {
-                response = response with { ExecutedByMachineId = thisMachine.Value };
+                response = response with { ExecutedByMachineId = _thisMachine.Value };
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -384,22 +661,134 @@ internal sealed class DeviceWorker(
         }
         catch (Exception error)
         {
-            logger.LogWarning(error, "Local UnitHost sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
+            _logger.LogWarning(error, "Local UnitHost sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
             response = new ConnectedSandboxResponse(
                 Handled: false,
                 ResultJson: null,
                 UpdatedStateJson: null,
                 Error: error.Message,
-                ExecutedByMachineId: thisMachine.Value);
+                ExecutedByMachineId: _thisMachine.Value);
         }
 
-        await cloud.ReportSandboxResultAsync(job.JobId, response, ct).ConfigureAwait(false);
+        await _cloud.ReportSandboxResultAsync(job.JobId, response, ct).ConfigureAwait(false);
+    }
+
+    private async Task ExecuteStreamingSandboxJobAsync(
+        ConnectedSandboxRequest job,
+        IStreamingLocalSandboxExecutor streamingSandbox,
+        CancellationToken ct)
+    {
+        ConnectedSandboxResponse? capturedResult = null;
+        var producerRan = false;
+
+        using var content = new NdjsonPushContent<SandboxStreamChunk>(
+            DeviceWireJson.Default.SandboxStreamChunk,
+            async (write, token) =>
+            {
+                producerRan = true;
+                var emittedDone = false;
+                try
+                {
+                    await foreach (var rawChunk in streamingSandbox.ExecuteStreamingAsync(job, token).ConfigureAwait(false))
+                    {
+                        var chunk = StampMachineId(rawChunk);
+                        if (chunk.Result is not null)
+                        {
+                            capturedResult = chunk.Result;
+                        }
+
+                        if (chunk.Done)
+                        {
+                            emittedDone = true;
+                        }
+
+                        await write(chunk, token).ConfigureAwait(false);
+                    }
+
+                    if (!emittedDone)
+                    {
+                        capturedResult ??= new ConnectedSandboxResponse(
+                            Handled: true,
+                            ResultJson: null,
+                            UpdatedStateJson: null,
+                            Error: null,
+                            ExecutedByMachineId: _thisMachine.Value);
+                        await write(new SandboxStreamChunk(Done: true, Result: capturedResult), token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    _logger.LogWarning(error, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
+                    capturedResult = new ConnectedSandboxResponse(
+                        Handled: false,
+                        ResultJson: null,
+                        UpdatedStateJson: null,
+                        Error: error.Message,
+                        ExecutedByMachineId: _thisMachine.Value);
+                    await write(new SandboxStreamChunk(Done: true, Error: error.Message, Result: capturedResult), token).ConfigureAwait(false);
+                }
+            });
+
+        var streamed = await _cloud.StreamSandboxAsync(job.JobId, content, ct).ConfigureAwait(false);
+        if (streamed)
+        {
+            return;
+        }
+
+        // Backward compatibility: older relays return 404/501 for /sandbox/{jobId}/stream.
+        // Report the already-produced terminal result, or execute via the unary path if the server rejected before reading body.
+        var fallback = capturedResult;
+        if (!producerRan || fallback is null)
+        {
+            try
+            {
+                fallback = await streamingSandbox.ExecuteAsync(job, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(fallback.ExecutedByMachineId))
+                {
+                    fallback = fallback with { ExecutedByMachineId = _thisMachine.Value };
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error)
+            {
+                _logger.LogWarning(error, "Local UnitHost sandbox job {JobId} fallback failed with {ErrorType}.", job.JobId, error.GetType().Name);
+                fallback = new ConnectedSandboxResponse(
+                    Handled: false,
+                    ResultJson: null,
+                    UpdatedStateJson: null,
+                    Error: error.Message,
+                    ExecutedByMachineId: _thisMachine.Value);
+            }
+        }
+
+        await _cloud.ReportSandboxResultAsync(job.JobId, fallback, ct).ConfigureAwait(false);
+    }
+
+    private SandboxStreamChunk StampMachineId(SandboxStreamChunk chunk)
+    {
+        if (chunk.Result is null || !string.IsNullOrWhiteSpace(chunk.Result.ExecutedByMachineId))
+        {
+            return chunk;
+        }
+
+        return chunk with
+        {
+            Result = chunk.Result with { ExecutedByMachineId = _thisMachine.Value },
+        };
     }
 
     private async Task ReportReadyModelsIfNeededAsync(CancellationToken ct)
     {
         var ready = await CollectReadyModelsAsync(ct).ConfigureAwait(false);
-        var changed = !_reportedOnce || _modelsDirty || !SameModelKeys(ready, _advertised);
+        var current = _advertised;
+        var changed = !_reportedOnce || _modelsDirty || !SameModelKeys(ready, current);
         if (!changed)
         {
             return;
@@ -414,14 +803,9 @@ internal sealed class DeviceWorker(
             .OrderBy(static m => m.Id, StringComparer.Ordinal)
             .ToArray();
 
-        await cloud.ReportModelsAsync(new ModelsReport(DeviceName(), advertised), ct).ConfigureAwait(false);
+        await _cloud.ReportModelsAsync(new ModelsReport(DeviceName(), advertised), ct).ConfigureAwait(false);
 
-        _advertised.Clear();
-        foreach (var (id, value) in ready)
-        {
-            _advertised[id] = value;
-        }
-
+        _advertised = ready;
         _reportedOnce = true;
         _modelsDirty = false;
     }
@@ -432,12 +816,14 @@ internal sealed class DeviceWorker(
 
         if (!_advertised.TryGetValue(job.Model, out var target))
         {
-            logger.LogInformation("Refused device job {JobId} for model {Model}: not-ready.", job.JobId, job.Model);
-            using var refused = new NdjsonPushContent(async (write, token) =>
-            {
-                await write(new DeviceChunk(Delta: null, Done: true, Error: "not-ready"), token).ConfigureAwait(false);
-            });
-            await cloud.StreamAsync(job.JobId, refused, ct).ConfigureAwait(false);
+            _logger.LogInformation("Refused device job {JobId} for model {Model}: not-ready.", job.JobId, job.Model);
+            using var refused = new NdjsonPushContent<DeviceChunk>(
+                DeviceWireJson.Default.DeviceChunk,
+                async (write, token) =>
+                {
+                    await write(new DeviceChunk(Delta: null, Done: true, Error: "not-ready"), token).ConfigureAwait(false);
+                });
+            await _cloud.StreamAsync(job.JobId, refused, ct).ConfigureAwait(false);
             return;
         }
 
@@ -453,7 +839,7 @@ internal sealed class DeviceWorker(
             messages.Add(new ChatMessage(role, msg.Text));
         }
 
-        var options = new ChatOptions
+        var chatOptions = new ChatOptions
         {
             ModelId = target.Card.Id.Value,
             Temperature = job.Temperature,
@@ -466,46 +852,48 @@ internal sealed class DeviceWorker(
         int? outputTokens = null;
 
         using var client = target.Runtime.Chat(target.Card.Id);
-        using var content = new NdjsonPushContent(async (write, token) =>
-        {
-            try
+        using var content = new NdjsonPushContent<DeviceChunk>(
+            DeviceWireJson.Default.DeviceChunk,
+            async (write, token) =>
             {
-                await foreach (var update in client.GetStreamingResponseAsync(messages, options, token).ConfigureAwait(false))
+                try
                 {
-                    foreach (var usage in update.Contents.OfType<UsageContent>())
+                    await foreach (var update in client.GetStreamingResponseAsync(messages, chatOptions, token).ConfigureAwait(false))
                     {
-                        if (usage.Details.InputTokenCount is { } input)
+                        foreach (var usage in update.Contents.OfType<UsageContent>())
                         {
-                            inputTokens = (inputTokens ?? 0) + (int)Math.Min(input, int.MaxValue);
+                            if (usage.Details.InputTokenCount is { } input)
+                            {
+                                inputTokens = (inputTokens ?? 0) + (int)Math.Min(input, int.MaxValue);
+                            }
+                            if (usage.Details.OutputTokenCount is { } output)
+                            {
+                                outputTokens = (outputTokens ?? 0) + (int)Math.Min(output, int.MaxValue);
+                            }
                         }
-                        if (usage.Details.OutputTokenCount is { } output)
+
+                        if (!string.IsNullOrEmpty(update.Text))
                         {
-                            outputTokens = (outputTokens ?? 0) + (int)Math.Min(output, int.MaxValue);
+                            await write(new DeviceChunk(update.Text), token).ConfigureAwait(false);
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(update.Text))
-                    {
-                        await write(new DeviceChunk(update.Text), token).ConfigureAwait(false);
-                    }
+                    await write(new DeviceChunk(null, Done: true, Error: null, InputTokens: inputTokens, OutputTokens: outputTokens), token).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    _logger.LogWarning("Device job {JobId} on model {Model} failed with {ErrorType}.", job.JobId, job.Model, error.GetType().Name);
+                    activity?.SetStatus(ActivityStatusCode.Error, error.GetType().Name);
+                    await write(new DeviceChunk(null, Done: true, Error: error.Message, InputTokens: inputTokens, OutputTokens: outputTokens), token).ConfigureAwait(false);
+                }
+            });
 
-                await write(new DeviceChunk(null, Done: true, Error: null, InputTokens: inputTokens, OutputTokens: outputTokens), token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception error)
-            {
-                logger.LogWarning("Device job {JobId} on model {Model} failed with {ErrorType}.", job.JobId, job.Model, error.GetType().Name);
-                activity?.SetStatus(ActivityStatusCode.Error, error.GetType().Name);
-                await write(new DeviceChunk(null, Done: true, Error: error.Message, InputTokens: inputTokens, OutputTokens: outputTokens), token).ConfigureAwait(false);
-            }
-        });
-
-        await cloud.StreamAsync(job.JobId, content, ct).ConfigureAwait(false);
-        logger.LogInformation(
+        await _cloud.StreamAsync(job.JobId, content, ct).ConfigureAwait(false);
+        _logger.LogInformation(
             "Completed device job {JobId} on model {Model} (input_tokens={InputTokens}, output_tokens={OutputTokens}).",
             job.JobId,
             job.Model,
@@ -553,7 +941,7 @@ internal sealed class DeviceWorker(
             }
             catch (Exception error)
             {
-                logger.LogDebug(error, "Skipping unreachable local runtime {RuntimeId}.", runtime.Id.Value);
+                _logger.LogDebug(error, "Skipping unreachable local runtime {RuntimeId}.", runtime.Id.Value);
                 continue;
             }
 
@@ -579,49 +967,81 @@ internal sealed class DeviceWorker(
             }
             catch (Exception error)
             {
-                logger.LogDebug(error, "Could not list installed models on runtime {RuntimeId}.", runtime.Id.Value);
+                _logger.LogDebug(error, "Could not list installed models on runtime {RuntimeId}.", runtime.Id.Value);
             }
         }
         return ready;
     }
 
-    private void ResetAdvertised()
+    private async Task ResetAdvertisedAsync(CancellationToken ct)
     {
-        _advertised.Clear();
-        _reportedOnce = false;
-        _modelsDirty = true;
-        _computeReportedOnce = false;
-        _lastAdvertisedSandboxReady = false;
-        _lastAdvertisedAllowClientCodeSandbox = false;
-        _lastAdvertisedAllowFolders = false;
-        _lastAdvertisedAllowConsole = false;
-        _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
+        await _syncGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _advertised = new Dictionary<string, (ILocalRuntime Runtime, ModelCard Card)>(StringComparer.OrdinalIgnoreCase);
+            _reportedOnce = false;
+            _modelsDirty = true;
+            _computeReportedOnce = false;
+            _lastAdvertisedSandboxReady = false;
+            _lastAdvertisedAllowClientCodeSandbox = false;
+            _lastAdvertisedAllowFolders = false;
+            _lastAdvertisedAllowConsole = false;
+            _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
+        }
+        finally
+        {
+            _syncGate.Release();
+        }
+    }
+
+    private void OnSandboxConsentChanged(bool _) => ReleaseSignal(_heartbeatWake);
+
+    private void OnResourceConsentChanged() => ReleaseSignal(_heartbeatWake);
+
+    private void ReleaseSignal(SemaphoreSlim signal)
+    {
+        if (signal.CurrentCount == 0)
+        {
+            try { signal.Release(); }
+            catch (SemaphoreFullException ex)
+            {
+                _logger.LogDebug(ex, "DeviceWorker wake signal already queued.");
+            }
+        }
     }
 
     private ComputeCapabilityOptions CurrentComputeOptions()
-        => options?.CurrentValue.Compute ?? new ComputeCapabilityOptions();
+        => _options?.CurrentValue.Compute ?? new ComputeCapabilityOptions();
 
     private bool EffectiveAllowClientCodeSandbox(ComputeCapabilityOptions compute)
-        => consentStore is not null
-            ? consentStore.Resolve(compute.AllowClientCodeSandbox)
+        => _consentStore is not null
+            ? _consentStore.Resolve(compute.AllowClientCodeSandbox)
             : compute.AllowClientCodeSandbox;
 
     private bool EffectiveAllowWindowsFolderGateway()
-        => resourceConsent?.AllowWindowsFolderGateway ?? false;
+        => _resourceConsent?.AllowWindowsFolderGateway ?? false;
 
     private bool EffectiveAllowConsole()
-        => resourceConsent?.AllowConsole ?? false;
+        => _resourceConsent?.AllowConsole ?? false;
 
-    private async Task DelayOrWakeAsync(TimeSpan delay, CancellationToken ct)
+    private async Task DelayOrWakeAsync(SemaphoreSlim signal, TimeSpan delay, CancellationToken ct)
     {
         using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var delayTask = Task.Delay(delay, _clock, delayCts.Token);
-        var wakeTask = _wakeSignal.WaitAsync(delayCts.Token);
+        var wakeTask = signal.WaitAsync(delayCts.Token);
         var completed = await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
         await delayCts.CancelAsync().ConfigureAwait(false);
-        if (completed == wakeTask)
+        try
         {
-            await wakeTask.ConfigureAwait(false);
+            await Task.WhenAll(delayTask, wakeTask).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+        }
+
+        if (completed == wakeTask && ct.IsCancellationRequested)
+        {
+            ct.ThrowIfCancellationRequested();
         }
     }
 
@@ -639,7 +1059,7 @@ internal sealed class DeviceWorker(
 
     private async Task PersistRevokedStatusBestEffortAsync()
     {
-        if (services is null)
+        if (_services is null)
         {
             return;
         }
@@ -647,26 +1067,26 @@ internal sealed class DeviceWorker(
         try
         {
             var brainId = IntoChatOSNames.DefaultOwnerBrainId;
-            var edge = services.GetService<EdgeAuthority>();
+            var edge = _services.GetService<EdgeAuthority>();
             using var scope = edge?.Enter(edge.Module(DevicesModule.ManifestName, new BrainId(brainId)));
-            var link = SiloNeurons.Get<IDeviceLink>(services, IDeviceLink.Key(brainId));
+            var link = SiloNeurons.Get<IDeviceLink>(_services, IDeviceLink.Key(brainId));
             _ = await link.Status().ConfigureAwait(false);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            logger.LogDebug(error, "Could not persist revoked device link status immediately; status will reconcile on next check.");
+            _logger.LogDebug(error, "Could not persist revoked device link status immediately; status will reconcile on next check.");
         }
     }
 
     private string DeviceName()
     {
-        var custom = deviceNameProvider?.Invoke();
+        var custom = _deviceNameProvider?.Invoke();
         if (!string.IsNullOrWhiteSpace(custom))
         {
             return custom.Trim();
         }
 
-        return string.IsNullOrWhiteSpace(Environment.MachineName) ? thisMachine.Value : Environment.MachineName;
+        return string.IsNullOrWhiteSpace(Environment.MachineName) ? _thisMachine.Value : Environment.MachineName;
     }
 
     private async Task DelayQuietlyAsync(TimeSpan delay, CancellationToken ct)
@@ -681,8 +1101,8 @@ internal sealed class DeviceWorker(
     }
 
     private static bool SameModelKeys(
-        Dictionary<string, (ILocalRuntime Runtime, ModelCard Card)> a,
-        Dictionary<string, (ILocalRuntime Runtime, ModelCard Card)> b)
+        IReadOnlyDictionary<string, (ILocalRuntime Runtime, ModelCard Card)> a,
+        IReadOnlyDictionary<string, (ILocalRuntime Runtime, ModelCard Card)> b)
     {
         if (a.Count != b.Count)
         {
@@ -703,12 +1123,16 @@ internal sealed class DeviceWorker(
             .OrderBy(static r => r.Id == RuntimeId.Ollama ? 0 : r.Id == RuntimeId.FoundryLocal ? 1 : 2)
             .ThenBy(static r => r.Id.Value, StringComparer.Ordinal)];
 
-    private sealed class NdjsonPushContent : HttpContent
+    private sealed class NdjsonPushContent<T> : HttpContent
     {
-        private readonly Func<Func<DeviceChunk, CancellationToken, Task>, CancellationToken, Task> _producer;
+        private readonly JsonTypeInfo<T> _typeInfo;
+        private readonly Func<Func<T, CancellationToken, Task>, CancellationToken, Task> _producer;
 
-        public NdjsonPushContent(Func<Func<DeviceChunk, CancellationToken, Task>, CancellationToken, Task> producer)
+        public NdjsonPushContent(
+            JsonTypeInfo<T> typeInfo,
+            Func<Func<T, CancellationToken, Task>, CancellationToken, Task> producer)
         {
+            _typeInfo = typeInfo;
             _producer = producer;
             Headers.ContentType = new MediaTypeHeaderValue("application/x-ndjson") { CharSet = "utf-8" };
         }
@@ -721,7 +1145,7 @@ internal sealed class DeviceWorker(
             await using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), bufferSize: 1024, leaveOpen: true);
             await _producer(async (chunk, ct) =>
             {
-                var line = JsonSerializer.Serialize(chunk, DeviceWireJson.Default.DeviceChunk);
+                var line = JsonSerializer.Serialize(chunk, _typeInfo);
                 await writer.WriteAsync(line.AsMemory(), ct).ConfigureAwait(false);
                 await writer.WriteAsync('\n').ConfigureAwait(false);
                 await writer.FlushAsync(ct).ConfigureAwait(false);

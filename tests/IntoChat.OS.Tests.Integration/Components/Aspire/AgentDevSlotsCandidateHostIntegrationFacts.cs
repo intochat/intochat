@@ -198,7 +198,9 @@ public sealed class AgentDevSlotsCandidateHostIntegrationFacts : IDisposable
                 var portMapping = FlagValue(args, "-p");
                 if (name is not null && args.Contains("--user") && portMapping is not null)
                 {
-                    var hostPort = int.Parse(portMapping.Split(':')[0], System.Globalization.CultureInfo.InvariantCulture);
+                    var parts = portMapping.Split(':');
+                    Assert.Equal("127.0.0.1", parts[0]);
+                    var hostPort = int.Parse(parts[^2], System.Globalization.CultureInfo.InvariantCulture);
                     StartHealthEndpoint(name, hostPort);
                 }
 

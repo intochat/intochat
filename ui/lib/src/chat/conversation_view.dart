@@ -21,11 +21,9 @@ import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
-import '../widgets/voice/audio_out.dart';
-import '../widgets/voice/mic_stream.dart';
-import '../widgets/voice/talk_socket.dart';
 import '../widgets/voice/ui_voice_input.dart';
 import '../widgets/voice/voice_mode_view.dart';
+import 'conversation_controller.dart';
 import 'model_label.dart';
 import 'model_picker.dart';
 import 'ui_copyable_message.dart';
@@ -108,17 +106,7 @@ class _ConversationViewState extends State<ConversationView> {
   bool _hadWaiting = false;
   bool _suppressWaitingDefault = false;
 
-  StreamSubscription<Map<String, dynamic>>? _deltaSub;
-  ({String entry, String text})? _pending;
-  final List<WireTextDelta> _queuedDeltas = <WireTextDelta>[];
-  bool _healing = false;
-  int _healEpoch = 0;
-
-  AudioOut? _readAloudOut;
-  String? _readingMessageId;
-  int _readAloudEpoch = 0;
-
-  _VoiceSession? _voiceSession;
+  late final ConversationController _conversation;
   final List<AttachmentNode> _stagedAttachments = <AttachmentNode>[];
   bool _uploadingAttachment = false;
 
@@ -126,9 +114,18 @@ class _ConversationViewState extends State<ConversationView> {
   void initState() {
     super.initState();
     _hadWaiting = widget.node.waiting != null;
+    _conversation = ConversationController(
+      messages: widget.node.messages,
+      deltas: widget.deltas,
+      readConversation: widget.readConversation,
+      createAudioOut: widget.ctx.createAudioOut,
+      createMicStream: widget.ctx.createMicStream,
+      speak: widget.ctx.speak,
+      talk: widget.ctx.talk,
+      talkConversation: widget.talkConversation,
+    )..addListener(_onControllerChanged);
     _composerFocus.addListener(_onFocusChange);
     _controller.addListener(_onDraftChange);
-    _subscribeDeltas();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.node.waiting != null && !_suppressWaitingDefault) {
@@ -140,12 +137,16 @@ class _ConversationViewState extends State<ConversationView> {
   @override
   void didUpdateWidget(covariant ConversationView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.deltas != oldWidget.deltas) {
-      _clearPending();
-      _subscribeDeltas();
-    } else {
-      _syncPendingWithNode();
-    }
+    _conversation.update(
+      messages: widget.node.messages,
+      deltas: widget.deltas,
+      readConversation: widget.readConversation,
+      createAudioOut: widget.ctx.createAudioOut,
+      createMicStream: widget.ctx.createMicStream,
+      speak: widget.ctx.speak,
+      talk: widget.ctx.talk,
+      talkConversation: widget.talkConversation,
+    );
     final hasWaiting = widget.node.waiting != null;
     if (hasWaiting && !_hadWaiting) {
       // Never steal focus or preselect the default option when a prompt arrives over an active draft.
@@ -164,15 +165,6 @@ class _ConversationViewState extends State<ConversationView> {
       _suppressWaitingDefault = false;
     }
     _hadWaiting = hasWaiting;
-
-    final nextTalkConversation = widget.talkConversation?.trim();
-    if (_voiceSession != null &&
-        (widget.ctx.talk == null ||
-            nextTalkConversation == null ||
-            nextTalkConversation.isEmpty ||
-            _voiceSession!.conversation != nextTalkConversation)) {
-      _voiceSession = null;
-    }
 
     final addedMessage =
         widget.node.messages.length > oldWidget.node.messages.length ||
@@ -193,13 +185,9 @@ class _ConversationViewState extends State<ConversationView> {
 
   @override
   void dispose() {
-    _readAloudEpoch++;
-    final readAloudOut = _readAloudOut;
-    _readAloudOut = null;
-    if (readAloudOut != null) {
-      unawaited(readAloudOut.stop().catchError((Object _) {}));
-    }
-    _deltaSub?.cancel();
+    _conversation
+      ..removeListener(_onControllerChanged)
+      ..dispose();
     _composerFocus.removeListener(_onFocusChange);
     _controller.removeListener(_onDraftChange);
     _controller.dispose();
@@ -209,128 +197,8 @@ class _ConversationViewState extends State<ConversationView> {
     super.dispose();
   }
 
-  void _subscribeDeltas() {
-    _deltaSub?.cancel();
-    _deltaSub = widget.deltas?.listen(_onDelta, onError: (Object _) {});
-  }
-
-  void _clearPending() {
-    _pending = null;
-    _queuedDeltas.clear();
-    _healing = false;
-    _healEpoch++;
-  }
-
-  MessageNode? _findMessage(String id) {
-    for (final msg in widget.node.messages) {
-      if (msg.id == id) return msg;
-    }
-    return null;
-  }
-
-  void _syncPendingWithNode() {
-    final pending = _pending;
-    if (pending == null) return;
-    final msg = _findMessage(pending.entry);
-    if (msg == null) return;
-    if (parseMessageStatus(msg.status) != WireMessageStatus.running) {
-      _clearPending();
-      return;
-    }
-    if (msg.text.length > pending.text.length) {
-      _pending = (entry: msg.id, text: msg.text);
-    }
-  }
-
-  void _onDelta(Map<String, dynamic> payload) {
-    final parsed = parseTextDelta(payload);
-    if (parsed == null || parsed.delta.isEmpty) return;
-
-    final existing = _findMessage(parsed.entry);
-    if (existing != null &&
-        parseMessageStatus(existing.status) != WireMessageStatus.running) {
-      return;
-    }
-
-    if (_pending == null || _pending!.entry != parsed.entry) {
-      _queuedDeltas.clear();
-      _healing = false;
-      _healEpoch++;
-      _pending = (entry: parsed.entry, text: existing?.text ?? '');
-    }
-
-    if (_healing) {
-      _queuedDeltas.add(parsed);
-      return;
-    }
-
-    final current = _pending!.text;
-    if (parsed.at > current.length) {
-      _queuedDeltas.add(parsed);
-      unawaited(_healGap(parsed.entry));
-      return;
-    }
-
-    if (_applyDelta(parsed) && mounted) {
-      setState(() {});
-    }
-  }
-
-  bool _applyDelta(WireTextDelta delta) {
-    final pending = _pending;
-    if (pending == null || pending.entry != delta.entry) return false;
-    final current = pending.text;
-    if (delta.at == current.length) {
-      _pending = (entry: pending.entry, text: '$current${delta.delta}');
-      return true;
-    }
-    if (delta.at < current.length) {
-      final overlap = current.length - delta.at;
-      if (overlap < delta.delta.length) {
-        final suffix = delta.delta.substring(overlap);
-        _pending = (entry: pending.entry, text: '$current$suffix');
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Future<void> _healGap(String entry) async {
-    final reader = widget.readConversation;
-    if (reader == null) {
-      _queuedDeltas.clear();
-      return;
-    }
-    _healing = true;
-    final epoch = _healEpoch;
-    try {
-      final view = await reader();
-      if (!mounted || epoch != _healEpoch) return;
-      final reply = parseActiveConversationReply(view, entry);
-      var changed = false;
-      if (reply != null &&
-          _pending != null &&
-          _pending!.entry == entry &&
-          reply.length > _pending!.text.length) {
-        _pending = (entry: entry, text: reply);
-        changed = true;
-      }
-      _queuedDeltas.sort((a, b) => a.at.compareTo(b.at));
-      final queued = List<WireTextDelta>.of(_queuedDeltas);
-      _queuedDeltas.clear();
-      for (final delta in queued) {
-        if (_applyDelta(delta)) changed = true;
-      }
-      if (changed && mounted) setState(() {});
-    } catch (_) {
-      if (epoch == _healEpoch) {
-        _queuedDeltas.clear();
-      }
-    } finally {
-      if (epoch == _healEpoch) {
-        _healing = false;
-      }
-    }
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onFocusChange() {
@@ -362,17 +230,6 @@ class _ConversationViewState extends State<ConversationView> {
       widget.ctx.interactive &&
       !_submitting &&
       !_uploadingAttachment;
-
-  static Map<String, Object?> _attachmentToWireJson(AttachmentNode a) => {
-    'id': a.id,
-    'kind': a.kind,
-    'fileName': a.fileName,
-    'mediaType': a.mediaType,
-    'sizeBytes': a.sizeBytes,
-    'url': a.url,
-    if (a.durationMs != null) 'durationMs': a.durationMs,
-    if (a.transcript != null) 'transcript': a.transcript,
-  };
 
   Future<void> _stageVoiceNoteClip(Uint8List audio, String mimeType) async {
     final uploader = widget.ctx.uploadAttachment;
@@ -418,29 +275,14 @@ class _ConversationViewState extends State<ConversationView> {
     setState(() => _submitting = true);
     try {
       if (staged.isNotEmpty) {
-        final explicitSend = widget.ctx.sendWithAttachments;
-        final callNeuron = widget.ctx.callNeuron;
-        final rawConv = (widget.conversationKey ?? widget.talkConversation)
-            ?.trim();
-        final convKey = (rawConv != null && rawConv.isNotEmpty)
-            ? (rawConv.startsWith('conversations/')
-                  ? rawConv
-                  : 'conversations/$rawConv')
-            : null;
-        if (explicitSend != null) {
-          await explicitSend(draft, staged);
-        } else if (callNeuron != null && convKey != null) {
-          await callNeuron(
-            'IntoChat.OS.Modules.Flutter.Conversations.IConversation',
-            convKey,
-            'Say',
-            [
-              draft,
-              null,
-              [for (final item in staged) _attachmentToWireJson(item)],
-            ],
-          );
-        } else {
+        final sent = await _conversation.sendWithAttachments(
+          draft: draft,
+          attachments: staged,
+          explicitSend: widget.ctx.sendWithAttachments,
+          callNeuron: widget.ctx.callNeuron,
+          conversationKey: widget.conversationKey ?? widget.talkConversation,
+        );
+        if (!sent) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -488,74 +330,6 @@ class _ConversationViewState extends State<ConversationView> {
     unawaited(pressCommand(stop.key, stop.command, widget.ctx, context));
   }
 
-  Future<void> _stopReadAloud() async {
-    _readAloudEpoch++;
-    if (mounted && _readingMessageId != null) {
-      setState(() => _readingMessageId = null);
-    }
-    final out = _readAloudOut;
-    if (out != null) {
-      await out.stop().catchError((Object _) {});
-    }
-  }
-
-  Future<void> _toggleReadAloud(String messageId, String text) async {
-    final speak = widget.ctx.speak;
-    if (speak == null) return;
-    if (_readingMessageId == messageId) {
-      await _stopReadAloud();
-      return;
-    }
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
-    final epoch = ++_readAloudEpoch;
-    await _readAloudOut?.stop().catchError((Object _) {});
-    if (!mounted || epoch != _readAloudEpoch) return;
-    setState(() => _readingMessageId = messageId);
-    final out = _readAloudOut ??=
-        (widget.ctx.createAudioOut ?? SoLoudAudioOut.new)();
-    try {
-      final wav = await speak(trimmed);
-      if (!mounted || epoch != _readAloudEpoch) return;
-      await out.playClip(wav);
-    } catch (_) {
-      // Recover button state cleanly when synthesis or playback fails.
-    } finally {
-      if (mounted && epoch == _readAloudEpoch) {
-        setState(() => _readingMessageId = null);
-      }
-    }
-  }
-
-  void _toggleVoiceMode(String conversation) {
-    if (_voiceSession != null) {
-      _closeVoiceMode();
-      return;
-    }
-    final talk = widget.ctx.talk;
-    if (talk == null) return;
-    unawaited(_stopReadAloud());
-    final mic = (widget.ctx.createMicStream ?? RecordMicStream.new)();
-    final out = (widget.ctx.createAudioOut ?? SoLoudAudioOut.new)();
-    setState(() {
-      _voiceSession = _VoiceSession(
-        conversation: conversation,
-        connect: () => talk(conversation),
-        mic: mic,
-        out: out,
-      );
-    });
-  }
-
-  void _closeVoiceMode() {
-    if (_voiceSession == null) return;
-    if (mounted) {
-      setState(() => _voiceSession = null);
-    } else {
-      _voiceSession = null;
-    }
-  }
-
   // Sends the picker's command with the model id as its value.
   Future<void> _selectModel(ModelSelectNode picker, String modelId) async {
     if (!widget.ctx.interactive || modelId.trim().isEmpty) return;
@@ -576,8 +350,8 @@ class _ConversationViewState extends State<ConversationView> {
         _activateStop();
         return KeyEventResult.handled;
       }
-      if (_voiceSession != null) {
-        _closeVoiceMode();
+      if (_conversation.voiceSession != null) {
+        _conversation.closeVoiceMode();
         return KeyEventResult.handled;
       }
     }
@@ -680,14 +454,7 @@ class _ConversationViewState extends State<ConversationView> {
         final msgOffset = hasError ? reversedIndex - 1 : reversedIndex;
         final messageIndex = visibleMessages.length - 1 - msgOffset;
         final msg = visibleMessages[messageIndex];
-        final pending = _pending;
-        final pendingText =
-            pending != null &&
-                pending.entry == msg.id &&
-                parseMessageStatus(msg.status) == WireMessageStatus.running &&
-                pending.text.length > msg.text.length
-            ? pending.text
-            : null;
+        final pendingText = _conversation.pendingTextFor(msg);
         final sender = msg.sender;
         final isSelf = sender != null
             ? sender.kind == SenderKind.self
@@ -713,9 +480,10 @@ class _ConversationViewState extends State<ConversationView> {
                       modelNames: modelNames,
                       textOverride: pendingText,
                       readAloud: widget.readAloud,
-                      reading: _readingMessageId == msg.id,
-                      onReadAloud: (text) =>
-                          unawaited(_toggleReadAloud(msg.id, text)),
+                      reading: _conversation.readingMessageId == msg.id,
+                      onReadAloud: (text) => unawaited(
+                        _conversation.toggleReadAloud(msg.id, text),
+                      ),
                     ),
             ),
           ),
@@ -786,7 +554,7 @@ class _ConversationViewState extends State<ConversationView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_voiceSession case final voice?)
+              if (_conversation.voiceSession case final voice?)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: VoiceModeView(
@@ -794,7 +562,7 @@ class _ConversationViewState extends State<ConversationView> {
                     connect: voice.connect,
                     mic: voice.mic,
                     out: voice.out,
-                    onClose: _closeVoiceMode,
+                    onClose: _conversation.closeVoiceMode,
                   ),
                 ),
               if (waiting != null)
@@ -975,8 +743,10 @@ class _ConversationViewState extends State<ConversationView> {
                             _VoiceModeIconButton(
                               key: const ValueKey('composer-voice-mode'),
                               enabled: widget.ctx.enabled,
-                              active: _voiceSession != null,
-                              onTap: () => _toggleVoiceMode(talkConversation),
+                              active: _conversation.voiceSession != null,
+                              onTap: () => _conversation.toggleVoiceMode(
+                                talkConversation,
+                              ),
                             ),
                           ],
                           const SizedBox(width: 8),
@@ -1675,20 +1445,6 @@ class _ReadAloudActionButton extends StatelessWidget {
       ),
     );
   }
-}
-
-final class _VoiceSession {
-  const _VoiceSession({
-    required this.conversation,
-    required this.connect,
-    required this.mic,
-    required this.out,
-  });
-
-  final String conversation;
-  final Future<TalkSocket> Function() connect;
-  final MicStream mic;
-  final AudioOut out;
 }
 
 class _VoiceModeIconButton extends StatelessWidget {

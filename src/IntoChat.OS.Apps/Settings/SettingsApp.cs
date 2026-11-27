@@ -156,45 +156,16 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<IMcpToolConnection> McpServers { get; }
 
-    private MachineId? ThisMachine { get; }
+    internal SettingsHostServices Services { get; }
 
-    public SettingsApp() : this(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null) { }
+    private MachineId? ThisMachine => Services.ThisMachine;
+
+    public SettingsApp() : this(null) { }
 
     [ActivatorUtilitiesConstructor]
-    public SettingsApp(
-        ISecretVault? secretVault = null,
-        BrainPreferenceStore? preferenceStore = null,
-        MachineId? thisMachine = null,
-        IBrainObserver? observer = null,
-        IOptions<WebModuleOptions>? webOptions = null,
-        IOptions<McpModuleOptions>? mcpOptions = null,
-        IClientCodeSandboxConsent? clientComputeConsent = null,
-        IClientResourceConsent? clientResourceConsent = null,
-        IConnectedComputeRouter? connectedComputeRouter = null,
-        IConfiguration? configuration = null,
-        Action<Uri>? openBrowser = null,
-        IPendingDeviceEnrollmentStore? pendingEnrollmentStore = null,
-        IReadOnlyList<ConnectorDefinition>? connectors = null,
-        ISecretVaultPort? secretVaultPort = null,
-        IOAuthDeviceFlow? oauthDeviceFlow = null,
-        IConnectionSecretBinder? connectionSecretBinder = null)
+    public SettingsApp(IServiceProvider? services = null)
     {
-        SecretVault = secretVault;
-        PreferenceStore = preferenceStore;
-        ThisMachine = thisMachine;
-        Observer = observer;
-        WebOptions = webOptions;
-        McpOptions = mcpOptions;
-        ClientComputeConsent = clientComputeConsent;
-        ClientResourceConsent = clientResourceConsent;
-        ConnectedComputeRouter = connectedComputeRouter;
-        Configuration = configuration;
-        OpenBrowserAction = openBrowser;
-        PendingEnrollmentStore = pendingEnrollmentStore;
-        Connectors = connectors;
-        SecretVaultPort = secretVaultPort;
-        OAuthDeviceFlow = oauthDeviceFlow;
-        ConnectionSecretBinder = connectionSecretBinder;
+        Services = SettingsHostServices.From(services);
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -203,32 +174,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         var normalizedTransition = ViewTransition.Normalize(arrival.Transition);
         ActiveTransition = normalizedTransition;
         var next = State.ApplyArrival(arrival.Args, normalizedTransition);
-        if (string.Equals(next.Section, "models", StringComparison.Ordinal))
-        {
-            var modelInfo = await TryReadModelCatalogAsync(next.DefaultModel);
-            next = next with
-            {
-                Roles = modelInfo.Roles,
-                Providers = modelInfo.Providers,
-                LocalOllamaEndpoint = modelInfo.LocalEndpoint,
-                Device = modelInfo.Device,
-            };
-
-            if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
-            {
-                next = await RefreshWebToolsProjectionAsync(next);
-            }
-        }
-        else if (string.Equals(next.Section, "keys", StringComparison.Ordinal))
-        {
-            var secrets = await InspectSecretStatusesAsync(next.Variables ?? []);
-            next = next with { SecretStatuses = secrets };
-        }
-        else if (string.Equals(next.Section, "connections", StringComparison.Ordinal))
-        {
-            next = await RefreshConnectionsProjectionAsync(next);
-        }
-
+        next = await RefreshSectionProjectionAsync(next);
         await UpdateAsync(next);
     }
 
@@ -430,21 +376,21 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         });
     }
 
-    public ISecretVault? SecretVault { get; set; }
-    public BrainPreferenceStore? PreferenceStore { get; set; }
-    public IBrainObserver? Observer { get; set; }
-    public IOptions<WebModuleOptions>? WebOptions { get; set; }
-    public IOptions<McpModuleOptions>? McpOptions { get; set; }
-    public IClientCodeSandboxConsent? ClientComputeConsent { get; set; }
-    public IClientResourceConsent? ClientResourceConsent { get; set; }
-    public IConnectedComputeRouter? ConnectedComputeRouter { get; set; }
-    public IConfiguration? Configuration { get; set; }
-    public Action<Uri>? OpenBrowserAction { get; set; }
-    public IPendingDeviceEnrollmentStore? PendingEnrollmentStore { get; set; }
-    public IReadOnlyList<ConnectorDefinition>? Connectors { get; set; }
-    public ISecretVaultPort? SecretVaultPort { get; set; }
-    public IOAuthDeviceFlow? OAuthDeviceFlow { get; set; }
-    public IConnectionSecretBinder? ConnectionSecretBinder { get; set; }
+    public ISecretVault? SecretVault { get => Services.SecretVault; set => Services.SecretVault = value; }
+    public BrainPreferenceStore? PreferenceStore { get => Services.PreferenceStore; set => Services.PreferenceStore = value; }
+    public IBrainObserver? Observer { get => Services.Observer; set => Services.Observer = value; }
+    public IOptions<WebModuleOptions>? WebOptions { get => Services.WebOptions; set => Services.WebOptions = value; }
+    public IOptions<McpModuleOptions>? McpOptions { get => Services.McpOptions; set => Services.McpOptions = value; }
+    public IClientCodeSandboxConsent? ClientComputeConsent { get => Services.ClientComputeConsent; set => Services.ClientComputeConsent = value; }
+    public IClientResourceConsent? ClientResourceConsent { get => Services.ClientResourceConsent; set => Services.ClientResourceConsent = value; }
+    public IConnectedComputeRouter? ConnectedComputeRouter { get => Services.ConnectedComputeRouter; set => Services.ConnectedComputeRouter = value; }
+    public IConfiguration? Configuration { get => Services.Configuration; set => Services.Configuration = value; }
+    public Action<Uri>? OpenBrowserAction { get => Services.OpenBrowserAction; set => Services.OpenBrowserAction = value; }
+    public IPendingDeviceEnrollmentStore? PendingEnrollmentStore { get => Services.PendingEnrollmentStore; set => Services.PendingEnrollmentStore = value; }
+    public IReadOnlyList<ConnectorDefinition>? Connectors { get => Services.Connectors; set => Services.Connectors = value; }
+    public ISecretVaultPort? SecretVaultPort { get => Services.SecretVaultPort; set => Services.SecretVaultPort = value; }
+    public IOAuthDeviceFlow? OAuthDeviceFlow { get => Services.OAuthDeviceFlow; set => Services.OAuthDeviceFlow = value; }
+    public IConnectionSecretBinder? ConnectionSecretBinder { get => Services.ConnectionSecretBinder; set => Services.ConnectionSecretBinder = value; }
 
     private ILogger Log => GetLogger();
 
