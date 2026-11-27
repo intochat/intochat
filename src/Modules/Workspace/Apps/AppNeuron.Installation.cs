@@ -333,7 +333,7 @@ internal sealed partial class AppNeuron
     private async Task EnsureAppPrincipal()
     {
         if (services?.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
-        if (Context.Caller?.Actor is not Actor.Person person) { return; }
+        if (Context.Caller is not { Actor: Actor.Person person, Direct: true }) { return; }
         var brain = BrainId();
         try
         {
@@ -367,7 +367,7 @@ internal sealed partial class AppNeuron
     private async Task RemoveAppPrincipal()
     {
         if (services?.GetService<ICapabilityBroker>() is not { } broker) { return; }
-        if (Context.Caller?.Actor is not Actor.Person person) { return; }
+        if (Context.Caller is not { Actor: Actor.Person person, Direct: true }) { return; }
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
         try

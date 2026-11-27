@@ -198,7 +198,6 @@ public static class OsDirectoryHosting
             sp.GetService<IBrainBirths>(),
             sp.GetService<IEdgeGrantsCache>()));
         services.TryAddSingleton<IIdentityDirectoryPort>(sp => sp.GetRequiredService<EphemeralDirectoryPort>());
-        services.TryAddSingleton<IIdentitySessionPort>(sp => sp.GetRequiredService<LocalDirectoryPort>());
         return services;
     }
 }

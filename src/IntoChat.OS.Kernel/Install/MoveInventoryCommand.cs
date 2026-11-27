@@ -49,7 +49,7 @@ public static class MoveInventoryCommand
                 return 1;
             }
             string[] brains = [.. Ids(state, "brains", "brainId").Append(SystemBrain).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
-            string[] principals = [.. Ids(state, "principals", "principalId").Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+            string[] principals = [.. Ids(state, "principals", "principalId").Concat(Ids(state, "members", "principalId")).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
             var enrollments = await BrainRecordMove.Read(home, brains, new BrainRecordRule(Neuron: EnrollmentType), configuration, OsRuntimeOptions.Value, ct, custody);
             string[] machines = [.. enrollments
                 .SelectMany(record => Parse(record.Bytes) is { } enrollment ? LiveMachines(enrollment).Select(machine => record.Brain + " " + machine) : [])
