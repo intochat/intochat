@@ -1380,21 +1380,24 @@ internal sealed class EngineerFlow(
             return injected;
         }
 
+        // Local-only / bare-filesystem remotes have no GitHubRepo coordinates; keep them on WorkTree.PushAsync.
+        if (string.IsNullOrWhiteSpace(lease?.GitHubRepo))
+        {
+            return null;
+        }
+
         var candidateKeys = new List<string>(4);
         if (!string.IsNullOrWhiteSpace(inner.Repository?.Value))
         {
             candidateKeys.Add($"connection/github/{inner.Repository.Value.Trim()}");
         }
 
-        if (!string.IsNullOrWhiteSpace(lease?.GitHubRepo))
+        var ghRepo = lease.GitHubRepo.Trim();
+        candidateKeys.Add($"connection/github/{ghRepo}");
+        var slash = ghRepo.IndexOf('/', StringComparison.Ordinal);
+        if (slash > 0 && slash + 1 < ghRepo.Length)
         {
-            var ghRepo = lease.GitHubRepo.Trim();
-            candidateKeys.Add($"connection/github/{ghRepo}");
-            var slash = ghRepo.IndexOf('/', StringComparison.Ordinal);
-            if (slash > 0 && slash + 1 < ghRepo.Length)
-            {
-                candidateKeys.Add($"connection/github/{ghRepo[(slash + 1)..]}");
-            }
+            candidateKeys.Add($"connection/github/{ghRepo[(slash + 1)..]}");
         }
 
         candidateKeys.Add("connection/github/main");
@@ -1416,7 +1419,7 @@ internal sealed class EngineerFlow(
                     return candidate;
                 }
             }
-            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+            catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or NotSupportedException)
             {
                 ConsoleLogger.LogDebug(ex, "Skipping unavailable GitHub IRepository candidate '{Key}'.", key);
             }
