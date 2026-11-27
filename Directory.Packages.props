@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <AspireVersion>17.1.0-preview.1.26573.9</AspireVersion>
+    <AspireVersion>17.1.0-preview.1.26577.1</AspireVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Pin patched transitive dependencies; keep NuGet auditing enabled.
@@ -31,14 +31,14 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting" Version="17.1.0-preview.1.26573.9" />
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.1.0-preview.1.26573.9" />
-    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.1.0-preview.1.26573.9" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="17.1.0-preview.1.26573.9" />
-    <PackageVersion Include="Aspire.Hosting.Orleans" Version="17.1.0-preview.1.26573.9" />
-    <PackageVersion Include="Aspire.Hosting.Yarp" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Orleans" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Yarp" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Hosting.ClickHouse" Version="13.5.3" />
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="$(AspireVersion)" />
@@ -53,7 +53,7 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
-    <PackageVersion Include="QRCoder" Version="1.8.0" />
+    <PackageVersion Include="QRCoder" Version="1.9.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.11.2" />
     <PackageVersion Include="Azure.ResourceManager" Version="1.14.0" />
     <PackageVersion Include="Azure.ResourceManager.AppContainers" Version="1.6.0" />
@@ -89,15 +89,15 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.21.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.21.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.21.0" />
-    <PackageVersion Include="Microsoft.Orleans.Client" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Clustering.AzureStorage" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Persistence.AzureStorage" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Dashboard" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Server" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Client" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Clustering.AzureStorage" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Persistence.AzureStorage" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Dashboard" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Server" Version="10.4.2" />
+    <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.4.2" />
     <PackageVersion Include="Microsoft.AI.Foundry.Local" Version="2.5.0" />
     <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />
     <PackageVersion Include="Concentus" Version="2.2.2" />
@@ -127,6 +127,6 @@
     <PackageVersion Include="Aspire.Dashboard.Sdk.osx-x64" Version="$(AspireVersion)" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.4.2" />
   </ItemGroup>
 </Project>
