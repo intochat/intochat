@@ -6,7 +6,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 
 Modules and components coexist. A component (see [concepts](concepts.md)) is the newer layout and replaces a module and its system app together, one at a time; only `Aspire` has moved, and every module in the table below is still in `src/Modules`. A component differs from a module in layout:
 
-- It lives in `src/Components/<Name>`: `IntoChat.<Name>.csproj` and its contracts in `Contracts/IntoChat.<Name>.Contracts.csproj`. Assemblies are `IntoChat.<Name>` and `IntoChat.<Name>.Contracts`; the package ids are `IntoChat.OS.Components.<Name>` and `IntoChat.OS.Components.<Name>.Contracts`.
+- It lives in `src/Components/<Name>`: `IntoChat.<Name>.csproj` (and, when split, its contracts in `Contracts/IntoChat.<Name>.Contracts.csproj`; `src/Components/Aspire` currently keeps its contracts in `IntoChat.Aspire.csproj`). Assemblies are `IntoChat.<Name>` (and `IntoChat.<Name>.Contracts` when split); the package ids are `IntoChat.OS.Components.<Name>` and `IntoChat.OS.Components.<Name>.Contracts`.
 - It owns its app screens in `Screens/` and registers them from its module class, so no project in `src/IntoChat.OS.Apps` carries them.
 - Any AppHost code is in `Hosting/`, which the component's own project does not compile; the AppHost includes it through a linked item.
 - Its unit tests are in `tests/IntoChat.OS.Tests.Unit/Components/<Name>`.
@@ -16,33 +16,19 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 
 ## The modules
 
-| Folder | Module id | What it does |
-| --- | --- | --- |
-| `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients). Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
-| `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
-| `Authoring` | `authoring` | Unit authoring: the Creator's Author and Builder, the build flow (`BuildFlow`), the synapse studio (`ISynapseStudio`) and the deploy gate that runs a unit's scenarios (`IUnitVerifier`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`, and it reads the Author and Builder models from the `apps` options. |
-| `Azure` | `azure` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager, and Pulumi stacks. |
-| `Catalog` | `apps` | App manifests, install, versions, approvals and flows. Units are built by the `Authoring` module. |
-| `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) |
-| `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
-| `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |
-| `Diagnostics` | `diagnostics` | The read side of diagnostics: the Creator's reads of the running brain (`IDebuggerReads`: a unit's state, view, signals and failures, and the topology) and the trace reader (`ITraceReader`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
-| `GitHub` | `github` | GitHub repository connection neurons. |
-| `Google` | `google-auth`, `google-drive`, `gmail` | Google sign-in shared by Drive and Gmail; Drive as storage; Gmail. |
-| `Mcp` | `mcp`, `tools` | Any Streamable-HTTP MCP server as a tool source, and the per-brain registry of tool sources. |
-| `Notifications` | `notifications` | A durable notification inbox per brain, with an HTTP API. |
-| `Playwright` | `playwright` | Browser sessions and page tools. |
-| `Postgres` | `postgres` | Read-only PostgreSQL queries, schema discovery and table neurons. Needs a container. |
-| `Roslyn` | `roslyn` | A Roslyn workspace over a solution: symbols, references, diagnostics and checked edits. |
-| `Runs` | `runs` | The runs read model: the runs index of a brain (`IRuns`) and its synapse definitions (`ISynapseDefinitions`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
-| `Salesforce` | `salesforce` | One org connection: bounded queries and confirmed record writes. |
-| `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. Its contracts assembly (`IntoChat.OS.Modules.Shell.Contracts`) lives in `src/Modules/Shell/Contracts`. |
-| `Storage` | `local-disk`, `cloud` | Local disks as storage (allowed roots, volume quota, confined file access) and each brain's workspace, a confined folder at `{home}/brains/{brain}/workspace`. |
-| `Time` | `time` | Timers and persistent periodic reminders. |
-| `Web` | `webtools` | Web search and vetted public web page reading. Its contracts assembly (`IntoChat.OS.Modules.Web.Contracts`) lives in `src/Modules/Web/Contracts`. |
-| `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |
+Shared module contracts live in `IntoChat.OS.Contracts` (`src/IntoChat.OS.Contracts`), except Identity's contracts which remain in `IntoChat.OS.Modules.Identity.Contracts` (`src/Modules/Identity/Contracts`).
 
-The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`, and `IdentityModule` in `src/Modules/Identity`, whose contracts (`IntoChat.OS.Modules.Identity.Contracts`) are in `src/Modules/Identity/Contracts`.
+| Folder | Module id(s) | What it does |
+| --- | --- | --- |
+| `AI` | `ai`, `devices` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory, voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients), and this machine's hardware, local model runtimes (`FoundryLocal`, `SherpaOnnx`) and model installs. Contracts live in `IntoChat.OS.Contracts` (`src/IntoChat.OS.Contracts/AI`). |
+| `Identity` | `identity`, `local-vault`, `azure-key-vault`, `bitwarden` | Accounts, sessions, grants, pluggable secrets vault and key custody, connections and integrations. Its contracts assembly (`IntoChat.OS.Modules.Identity.Contracts`) lives in `src/Modules/Identity/Contracts`. |
+| `Infrastructure` | `azure`, `clickhouse`, `local-disk`, `cloud`, `notifications`, `postgres`, `time`, `windows` | Azure ARM/Pulumi, read-only ClickHouse and PostgreSQL queries (container-backed), local-disk and per-brain workspace storage (`{home}/brains/{brain}/workspace`), durable notifications inbox, timers/reminders, and Windows host files/console (Windows only). |
+| `Plugins` | `artcraft`, `github`, `google-auth`, `google-drive`, `gmail`, `mcp`, `tools`, `muncly`, `playwright`, `salesforce`, `treg`, `webtools` | External connectors and tool integrations: ArtCraft (PhotoCraft/FilmCraft, container-backed), GitHub, Google Auth/Drive/Gmail, Streamable-HTTP MCP servers and tool registry, Playwright browser sessions, Salesforce, and web search/reading. |
+| `Roslyn` | `roslyn` | A Roslyn workspace over a solution: symbols, references, diagnostics and checked edits. |
+| `UI` | `ui` | Shared UI control neurons (`src/Modules/UI/Controls`) and control contracts (`src/Modules/UI/Contracts`). |
+| `Workspace` | `apps`, `authoring`, `diagnostics`, `flutter`, `runs` | App manifests, install, versions, approvals, flows, unit authoring (`BuildFlow`, `ISynapseStudio`, `IUnitVerifier`), read-side diagnostics (`IDebuggerReads`, `ITraceReader`), runs read model (`IRuns`, `ISynapseDefinitions`), and the kernel side of the Flutter shell (views, screens, chat, workspace and settings neurons). Contracts live in `IntoChat.OS.Contracts` (`src/IntoChat.OS.Contracts/Catalog`, `src/IntoChat.OS.Contracts/Shell`). |
+
+The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`.
 
 ## How a module is added
 
@@ -52,7 +38,7 @@ To add a component instead, create `src/Components/<Name>` in the shape of `src/
 2. Add a public module class with a parameterless constructor, the `[Module]` attribute and a static `Manifest` of type `ModuleManifest`. The manifest names what the module provides, requires and needs, and its settings and secrets.
 3. Reference the project from `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj`.
 
-Nothing else registers it. `OperatingSystemModules` walks the assemblies the kernel references and takes every module class it finds there. It does not scan the folder beside the process.
+Nothing else registers it. `OperatingSystemModules` uses compile-time source generation (`[GeneratedModuleRegistry]` / `BuiltInModuleTypes()`) across the kernel and its referenced module and component assemblies, plus `RegisteredModuleAttribute` for external roots; it performs no runtime folder or assembly scanning.
 
 A module can declare more through static members that the host reads:
 

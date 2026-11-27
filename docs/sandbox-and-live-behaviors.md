@@ -9,7 +9,7 @@ Both are compiled by the same compiler.
 
 ## Compiling
 
-`SynapseCompiler` (`framework/src/DigitalBrain.Runtime.Synapses`) takes a `SynapseSource`: a key and its files.
+`SynapseCompiler` (`framework/src/DigitalBrain.Simulation/RuntimeSynapses`) takes a `SynapseSource`: a key and its files.
 
 - Only `.cs` files compile. Other files, such as `spec.md` and `scenarios.json`, travel with the source and count toward its hash.
 - Every DigitalBrain analyzer and the synapse rules run over the code. Any error fails the build, with file, id, line and message. A crashed analyzer also fails the build.
@@ -40,7 +40,7 @@ The kernel then deploys the assembly through `ISandboxRuntimeBridge`, implemente
 - When `Url` is set, the kernel posts to a sandbox worker at that address, for example a container built from `src/IntoChat.OS.Sandbox/Dockerfile`. The worker serves `/apps/deploy`, `/apps/dispatch` and `/apps/unload`. When an enroll key is configured, each request must carry it.
 - Otherwise the kernel starts `IntoChat.OS.Sandbox` as a child process with `--unit-host`. The two talk in JSON lines over standard input and output. The child opens no socket. `ChildEnvironmentPolicy` scrubs its environment so the kernel's secrets do not reach it. On Windows the child is attached to a job object.
 
-Inside the worker, `AppSandboxHost` loads each app into its own collectible `AppLoadContext`. That context refuses to load process, networking, kernel and Orleans runtime assemblies. From the OS it admits `IntoChat.OS`, `IntoChat.OS.UI` and each module's `Contracts` assembly (except identity's), never a module implementation. The `notifications@1` slot interface is in `IntoChat.OS.Modules.Catalog.Contracts` for that reason.
+Inside the worker, `AppSandboxHost` loads each app into its own collectible `AppLoadContext`. That context refuses to load process, networking, kernel and Orleans runtime assemblies. From the OS it admits `IntoChat.OS`, `IntoChat.OS.UI`, `IntoChat.OS.Contracts`, and each module's `Contracts` assembly (except identity's), never a module implementation. The `notifications@1` slot interface is in `IntoChat.OS.Contracts` for that reason.
 
 ## What a sandboxed app can do
 

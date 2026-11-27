@@ -26,7 +26,7 @@ Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Mod
 
 ## Tools
 
-Each method on a contract in the agent definition is exposed directly as a typed tool (`ContractTool`, generated from `ToolSchema`) taking named JSON arguments; `ToolRouter` picks the top-K tools for each turn alongside `neurons_search`, `neurons_list`, and `neurons_context` (`AgentTools`). When the model calls `neurons_search`, matching allowed contracts are added to the turn's tools for the next step. All calls bind through `NeuronBinder` on `OsNeuronSurface`, the same surface MCP and gRPC use. See [architecture](architecture.md).
+Each method on a contract in the agent definition is exposed directly as a typed tool (`ContractTool`, generated from `ToolSchema`) taking named JSON arguments; `ToolRouter` picks the top-K tools for each turn alongside `neurons_search`, `neurons_list`, and `neurons_context` (`AgentTools`). When the model calls `neurons_search`, matching allowed contracts are added to the turn's tools for the next step. All calls bind through `NeuronBinder` on `NeuronSurface`, the same surface MCP and gRPC use. See [architecture](architecture.md).
 
 The tools come only from the contracts in the agent definition. A context entry never adds a tool.
 
@@ -72,10 +72,10 @@ Embeddings come from a local Ollama endpoint when one answers in time. Otherwise
 
 ## Voice
 
-Ino hears, speaks and holds live voice conversations through Microsoft.Extensions.AI's speech and realtime interfaces (`ISpeechToTextClient`, `ITextToSpeechClient` and `IRealtimeClient`), routed by `Role.Hear`, `Role.Speak` and `Role.Talk` via `IModelCatalog` and `VoiceClients`:
+Ino hears, speaks and holds live voice conversations through Microsoft.Extensions.AI's speech and realtime interfaces (`ISpeechToTextClient`, `ITextToSpeechClient` and `IRealtimeClient`), routed by `ModelRole.Hear`, `ModelRole.Speak` and `ModelRole.Talk` via `IModelCatalog` and `VoiceClients`:
 
-- **Dictation (`POST /ai/transcriptions`).** Uploads audio (including OGG/Opus converted through `IAudioConverter`) to the picked `Role.Hear` model — locally through `FoundryLocalRuntime` (`KnownModels.WhisperLargeV3Turbo`) or in the cloud through OpenAI Audio (`KnownModels.Gpt4oTranscribe`).
-- **Read-aloud (`POST /ai/speech`).** Synthesizes a reply through `SpeechEndpoint` and the picked `Role.Speak` model — locally through `SherpaOnnxRuntime` (`KnownModels.Kokoro82M`, 24 kHz PCM wrapped as WAV) or in the cloud through OpenAI TTS (`KnownModels.Gpt4oMiniTts`).
-- **Voice mode (`GET /ai/talk?conversation={id}`).** Opens a full-duplex WebSocket handled by `TalkEndpoint` carrying 16 kHz PCM16 LE mono input, 24 kHz PCM16 LE mono output and `TalkJson` control frames (`TalkEvent`). On the device, an unbound `Role.Talk` runs `LocalTalk` (Silero `IVoiceActivityDetector` → Hear → `ConversationChatClient` over `IConversation.Say` and `TextDelta` → Speak) with barge-in that cancels the active conversation run via `IConversation.Stop`. When `Role.Talk` is bound to a cloud card (`KnownModels.GptRealtime`), `VoiceClients` opens an `OpenAIRealtimeClient` and `TalkEndpoint` records each completed exchange once via `IConversation.Voiced` (`EntryIds.Heard` and `EntryIds.Spoken`).
+- **Dictation (`POST /ai/transcriptions`).** Uploads audio (including OGG/Opus converted through `IAudioConverter`) to the picked `ModelRole.Hear` model — locally through `FoundryLocalRuntime` (`KnownModels.WhisperLargeV3Turbo`) or in the cloud through OpenAI Audio (`KnownModels.Gpt4oTranscribe`).
+- **Read-aloud (`POST /ai/speech`).** Synthesizes a reply through `SpeechEndpoint` and the picked `ModelRole.Speak` model — locally through `SherpaOnnxRuntime` (`KnownModels.Kokoro82M`, 24 kHz PCM wrapped as WAV) or in the cloud through OpenAI TTS (`KnownModels.Gpt4oMiniTts`).
+- **Voice mode (`GET /ai/talk?conversation={id}`).** Opens a full-duplex WebSocket handled by `TalkEndpoint` carrying 16 kHz PCM16 LE mono input, 24 kHz PCM16 LE mono output and `TalkJson` control frames (`TalkEvent`). On the device, an unbound `ModelRole.Talk` runs `LocalTalk` (Silero `IVoiceActivityDetector` → Hear → `ConversationChatClient` over `IConversation.Say` and `TextDelta` → Speak) with barge-in that cancels the active conversation run via `IConversation.Stop`. When `ModelRole.Talk` is bound to a cloud card (`KnownModels.GptRealtime`), `VoiceClients` opens an `OpenAIRealtimeClient` and `TalkEndpoint` records each completed exchange once via `IConversation.Voiced` (`EntryIds.Heard` and `EntryIds.Spoken`).
 
 `InoModelSetup.ReadVoiceAsync` checks `IModelCatalog.Availability` for the voice roles and `InoView.ThreadProps` exposes the result on `ChatThreadProps` (`Dictation`, `ReadAloud` and `TalkConversation`).

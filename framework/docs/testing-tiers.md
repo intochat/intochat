@@ -4,13 +4,13 @@ DigitalBrain organizes automated verification into three tiers enforced by [`Tes
 
 ## 1. Unit (`*.Tests.Unit`)
 
-Unit test projects run fast, deterministic facts in-process without starting an Orleans silo or referencing `DigitalBrain.Runtime.Orleans` or `DigitalBrain.Testing.Silo` (except the dedicated runtime unit assemblies `DigitalBrain.Runtime.Orleans.Tests.Unit` and `DigitalBrain.Runtime.Http.Tests.Unit`):
+Unit test projects run fast, deterministic facts in-process without starting an Orleans silo or referencing `DigitalBrain.Runtime.Orleans` or `DigitalBrain.Testing.Silo` (except the dedicated runtime unit assembly `DigitalBrain.Runtime.Orleans.Tests.Unit`):
 
 - **In-process simulation (`DigitalBrain.Simulation`)**: `TestOS.Local()` hosts neurons on an in-memory journal with a manual clock (`os.Clock.Advance`), capability fakes (`With<TCapability>`, `WithStorage`, `WithSecrets`, `WithIdentity`), and `os.Idle()` drain checks; `NeuronHarness.Create<TNeuron>` exercises single-neuron activations with `FakeNeuronContext`.
 - **Screen baselines, view fixtures, and module floors (`DigitalBrain.Testing`)**: `ScreenBaseline` generates one theory row per `[On]` reaction of a `Screen<TState>`, `ViewFixtures.Verify` compares rendered `View` JSON against stored fixtures (writing on `DIGITALBRAIN_UPDATE_VIEWS=1`), and `ModuleOnTestOSFacts<TModule>` verifies every `[Neuron]` registers and every contract binds on `TestOS`.
 - **UI scenarios (`DigitalBrain.Testing`)**: a `UiScenario` is a list of steps on one app's top-level screen (`Act`, `Expect`, `ExpectShown`), each addressed by key path. `ScenarioRunner.Run` plays it through an `IScenarioDriver` and returns a `RunVerdict` with the driver's evidence for a failing step. `ScenarioJson` writes the shared file every driver reads. The OS has three drivers: a kernel driver on `TestOS`, a Flutter driver (`ui/test/scenarios/flutter_driver.dart`) and a browser driver (`BrowserDriver`, nightly).
-- **Roslyn analyzers (`DigitalBrain.Analyzers.Tests.Unit`)**: `Verify<TAnalyzer>` checks analyzer diagnostics and code fixes over source snippets with no runtime dependency.
-- **Architecture and template smoke checks**: `DigitalBrain.Architecture.Tests.Unit` checks ring boundaries (`VocabularyRingFacts`, `CoreHasNoOrleansFacts`, `ReferenceClosureFacts`), package rules, delivery-contract invariants (`DeliveryContractFacts`), and tier rules (`TestTierFacts`), while `DigitalBrain.Templates.Tests.Unit` (`TemplateSmokeFacts`) validates template scaffolding.
+- **Roslyn analyzers (`DigitalBrain.Tests.Unit`)**: `Verify<TAnalyzer>` checks analyzer diagnostics and code fixes over source snippets with no runtime dependency.
+- **Architecture and template smoke checks**: `DigitalBrain.Architecture.Tests.Unit` checks ring boundaries (`VocabularyRingFacts`, `CoreHasNoOrleansFacts`, `ReferenceClosureFacts`), package rules, delivery-contract invariants (`DeliveryContractFacts`), and tier rules (`TestTierFacts`), while `DigitalBrain.Tests.Unit` (`TemplateSmokeFacts`) validates template scaffolding.
 
 ## 2. Integration (`*.Tests.Integration`)
 

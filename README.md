@@ -71,7 +71,7 @@ Adding a new connector or capability requires **zero external configuration edit
 dotnet new digitalbrain-module
 ```
 
-Drop your module folder under `src/Modules/`, implement a `Module` class with `[Module]` and `Manifest`, and automatic reflection discovery registers it into the OS catalog. Every module's README stays synchronized with its bound options and secrets via `ModuleDocumentationFacts` (`UPDATE_DOCS=1`). Read the full guide in [`docs/modules.md`](docs/modules.md).
+Drop your module folder under `src/Modules/`, implement a `Module` class with `[Module]` and `Manifest`, and compile-time source generation (`[GeneratedModuleRegistry]` / `BuiltInModuleTypes()`, plus `RegisteredModuleAttribute` for external roots) registers it into the OS catalog. Every module's README stays synchronized with its bound options and secrets via `ModuleDocumentationFacts` (`UPDATE_DOCS=1`). Read the full guide in [`docs/modules.md`](docs/modules.md).
 
 ### Repository Map
 

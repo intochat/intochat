@@ -24,7 +24,7 @@ See `src/DigitalBrain.Runtime.Http/README.md`.
 
 ## Sandbox for runtime-compiled units
 
-Synapse units arrive as source. `DigitalBrain.Runtime.Synapses` compiles and loads them inside the host process, under these limits:
+Synapse units arrive as source. `DigitalBrain.Simulation` (`RuntimeSynapses`) compiles and loads them inside the host process, under these limits:
 
 - `SynapseCompiler` compiles the source with the DigitalBrain analyzers.
 - `UnitLoader` loads each build into its own collectible load context.
