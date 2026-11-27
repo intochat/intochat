@@ -126,7 +126,7 @@ public sealed class BrainRelayClientOptions
 
     /// <summary>
     /// Optional async delegate invoked when a WebSocket handshake fails with HTTP <c>401</c>/<c>403</c>
-    /// so the credential provider can force-refresh tokens before the next reconnect attempt.
+    /// so authentication credentials can be force-refreshed before the next reconnect attempt.
     /// </summary>
     public Func<Uri, CancellationToken, ValueTask>? RefreshAuthOnHandshakeFailureAsync { get; set; }
 
