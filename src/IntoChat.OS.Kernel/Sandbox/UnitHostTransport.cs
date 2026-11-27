@@ -1,22 +1,436 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using DigitalBrain.UI;
+using DigitalBrain.Identity.Local.Machine;
+using DigitalBrain.Log;
 using IntoChat.OS.Host.Execution;
-using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel.Sandbox;
 
-internal sealed partial class HttpSandboxRuntimeBridge
+/// <summary>
+/// Manages the confined out-of-process <c>IntoChat.OS.Sandbox --unit-host</c> child session,
+/// including binary/apphost discovery, confinement specification, AppContainer-to-JobObject fallback,
+/// NDJSON stdio framing, and local connected-sandbox execution.
+/// </summary>
+internal sealed class UnitHostTransport(
+    IOptions<SandboxOptions> options,
+    IServiceProvider services,
+    SandboxCallbackProxy callbackProxy,
+    ILogger logger,
+    IConfinedProcessRunner? confinedProcessRunner = null) : IAsyncDisposable
 {
-    internal static ConfinementSpec BuildUnitHostConfinementSpec(
+    private readonly SemaphoreSlim _unitHostLock = new(1, 1);
+    private UnitHostChildSession? _unitHost;
+    private int _disposed;
+
+    internal ConfinementMode? ActiveConfinementMode => _unitHost?.EffectiveMode;
+
+    internal string? ActiveTempDirectory => _unitHost?.TempDirectory;
+
+    internal string? ActiveWorkingDirectory => _unitHost?.WorkingDirectory;
+
+    internal async Task<IReadOnlyDictionary<string, string>> ProbeEnvironmentAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await SendAsync(
+            new UnitHostFrameRequest(Id: NewFrameId(), Op: "env"),
+            cancellationToken).ConfigureAwait(false);
+        if (!response.Ok || response.EnvironmentSnapshot is null)
+        {
+            throw new InvalidOperationException(
+                $"Sandbox --unit-host env probe failed: {response.Error ?? "Empty environment snapshot."}");
+        }
+
+        return response.EnvironmentSnapshot;
+    }
+
+    internal async Task<UnitHostFrameResponse> SendAsync(UnitHostFrameRequest frame, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        var session = await EnsureSessionAsync(cancellationToken).ConfigureAwait(false);
+        return await session.SendAsync(frame, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task TryUnloadAsync(string brainId, string appKey, string contextDescription, CancellationToken cancellationToken)
+    {
+        if (_unitHost is { } activeHost && !activeHost.HasExited)
+        {
+            try
+            {
+                _ = await activeHost.SendAsync(
+                    new UnitHostFrameRequest(
+                        Id: NewFrameId(),
+                        Op: "unload",
+                        Unload: new UnloadWorkerRequest(brainId, appKey)),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                logger.LogSwallowed(error, contextDescription);
+            }
+        }
+    }
+
+    internal async Task<ConnectedSandboxResponse> ExecuteLocalAsync(
+        ConnectedSandboxRequest request,
+        Func<string, string, string> deploymentKeyFactory,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.BrainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.AppKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Command);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.AppToken);
+        ct.ThrowIfCancellationRequested();
+
+        var machineId = services.GetService<MachineId>()?.Value;
+        var deploymentKey = deploymentKeyFactory(request.BrainId, request.AppKey);
+        var remoteCallbackRegistrationId = callbackProxy.RegisterForRemoteJob(
+            deploymentKey,
+            request.JobId,
+            request.BrainId,
+            request.AppKey,
+            request.KernelCallbackUrl);
+
+        // Always route callbacks from the confined --unit-host child over its stdio pipe so the
+        // child process runs with NetworkPolicy.None (zero sockets); parent Kernel forwards HTTP when remote.
+        const string unitHostCallbackUrl = "pipe://edge";
+        try
+        {
+            var deployFrame = await SendAsync(
+                new UnitHostFrameRequest(
+                    Id: NewFrameId(),
+                    Op: "deploy",
+                    Deploy: new DeployWorkerRequest(
+                        request.BrainId,
+                        request.AppKey,
+                        request.Version,
+                        request.Digest,
+                        request.AssemblyBase64,
+                        request.StateJson,
+                        request.SettingsJson,
+                        unitHostCallbackUrl,
+                        request.AppToken)),
+                ct).ConfigureAwait(false);
+
+            if (!deployFrame.Ok || deployFrame.Deploy is null)
+            {
+                return new ConnectedSandboxResponse(
+                    Handled: false,
+                    ResultJson: null,
+                    UpdatedStateJson: null,
+                    Error: deployFrame.Error ?? "Local --unit-host deploy failed.",
+                    ExecutedByMachineId: machineId);
+            }
+
+            try
+            {
+                var dispatchFrame = await SendAsync(
+                    new UnitHostFrameRequest(
+                        Id: NewFrameId(),
+                        Op: "dispatch",
+                        Dispatch: new DispatchWorkerRequest(
+                            request.BrainId,
+                            request.AppKey,
+                            Kind: "command",
+                            Name: request.Command,
+                            PayloadJson: request.PayloadJson,
+                            StateJson: deployFrame.Deploy.StateJson ?? request.StateJson,
+                            SettingsJson: request.SettingsJson,
+                            KernelUrl: unitHostCallbackUrl,
+                            AppToken: request.AppToken)),
+                    ct).ConfigureAwait(false);
+
+                if (!dispatchFrame.Ok || dispatchFrame.Dispatch is null)
+                {
+                    return new ConnectedSandboxResponse(
+                        Handled: false,
+                        ResultJson: null,
+                        UpdatedStateJson: null,
+                        Error: dispatchFrame.Error ?? "Local --unit-host dispatch failed.",
+                        ExecutedByMachineId: machineId);
+                }
+
+                return new ConnectedSandboxResponse(
+                    Handled: dispatchFrame.Dispatch.Handled,
+                    ResultJson: dispatchFrame.Dispatch.ResultJson,
+                    UpdatedStateJson: dispatchFrame.Dispatch.UpdatedStateJson,
+                    Error: dispatchFrame.Dispatch.Error,
+                    ExecutedByMachineId: machineId);
+            }
+            finally
+            {
+                await TryUnloadAsync(
+                    request.BrainId,
+                    request.AppKey,
+                    $"Local --unit-host unload failed for connected sandbox job '{request.JobId}'.",
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            if (remoteCallbackRegistrationId is { } registrationId)
+            {
+                callbackProxy.UnregisterRemoteCallback(deploymentKey, registrationId);
+            }
+        }
+    }
+
+    internal IConfinedProcessRunner ResolveConfinedProcessRunner()
+    {
+        if (confinedProcessRunner is not null)
+        {
+            return confinedProcessRunner;
+        }
+
+        if (services.GetService<IConfinedProcessRunner>() is { } registered)
+        {
+            return registered;
+        }
+
+        var loggerFactory = services.GetService<ILoggerFactory>();
+        return OperatingSystem.IsWindows()
+            ? new WindowsAppContainerRunner(loggerFactory?.CreateLogger<WindowsAppContainerRunner>())
+            : new PosixConfinedProcessRunner(loggerFactory?.CreateLogger<PosixConfinedProcessRunner>());
+    }
+
+    internal static ConfinementSpec BuildConfinementSpec(
         UnitHostLaunchCommand command,
         string assemblyPath,
         string contractsDirectory,
         string sessionWorkingDirectory,
         string? sandboxId = null)
         => UnitHostChildSession.BuildConfinementSpec(command, assemblyPath, contractsDirectory, sessionWorkingDirectory, sandboxId);
+
+    /// <summary>
+    /// Resolves the command line for launching <c>IntoChat.OS.Sandbox --unit-host</c>.
+    /// Prefers the bundled self-contained native apphost (<c>IntoChat.OS.Sandbox.exe</c> on Windows,
+    /// <c>IntoChat.OS.Sandbox</c> on POSIX) when present so SDK-less desktop installs never invoke
+    /// <c>dotnet</c>; falls back to <c>dotnet exec &lt;dll&gt; --unit-host</c> only when no native apphost
+    /// exists alongside the <c>.dll</c>.
+    /// </summary>
+    internal static UnitHostLaunchCommand ResolveLaunchCommand(
+        string assemblyPath,
+        string contractsDirectory,
+        bool? isWindows = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
+        var windows = isWindows ?? OperatingSystem.IsWindows();
+        var arguments = new List<string>(4);
+        string fileName;
+
+        if (TryResolveApphostExecutable(assemblyPath, windows, out var apphostPath))
+        {
+            fileName = apphostPath;
+        }
+        else
+        {
+            fileName = ResolveDotNetExecutable();
+            arguments.Add("exec");
+            arguments.Add(assemblyPath);
+        }
+
+        arguments.Add("--unit-host");
+        if (!string.IsNullOrWhiteSpace(contractsDirectory))
+        {
+            arguments.Add("--contracts-dir");
+            arguments.Add(contractsDirectory);
+        }
+
+        return new UnitHostLaunchCommand(fileName, [.. arguments]);
+    }
+
+    internal static string ResolveAssemblyPath(string? configuredPath)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            if (File.Exists(configuredPath))
+            {
+                return Path.GetFullPath(configuredPath);
+            }
+
+            throw new FileNotFoundException($"Configured UnitHostAssemblyPath '{configuredPath}' was not found.", configuredPath);
+        }
+
+        var baseDir = AppContext.BaseDirectory;
+        var nativeBinaryName = OperatingSystem.IsWindows() ? "IntoChat.OS.Sandbox.exe" : "IntoChat.OS.Sandbox";
+        string[] nativeCandidates =
+        [
+            Path.Combine(baseDir, nativeBinaryName),
+            Path.Combine(baseDir, "unithost", nativeBinaryName),
+            Path.Combine(baseDir, "..", "unithost", nativeBinaryName),
+        ];
+        foreach (var native in nativeCandidates)
+        {
+            if (File.Exists(native))
+            {
+                return Path.GetFullPath(native);
+            }
+        }
+
+        string[] relativeCandidates =
+        [
+            Path.Combine(baseDir, "IntoChat.OS.Sandbox.dll"),
+            Path.Combine(baseDir, "unithost", "IntoChat.OS.Sandbox.dll"),
+            Path.Combine(baseDir, "..", "unithost", "IntoChat.OS.Sandbox.dll"),
+        ];
+        foreach (var rel in relativeCandidates)
+        {
+            if (HasValidRuntimeConfig(rel))
+            {
+                return Path.GetFullPath(rel);
+            }
+        }
+
+        var current = new DirectoryInfo(baseDir);
+        for (var depth = 0; depth < 8 && current is not null; depth++, current = current.Parent)
+        {
+            string[] candidates =
+            [
+                Path.Combine(current.FullName, "artifacts", "bin", "IntoChat.OS.Sandbox", "release", "IntoChat.OS.Sandbox.dll"),
+                Path.Combine(current.FullName, "artifacts", "bin", "IntoChat.OS.Sandbox", "debug", "IntoChat.OS.Sandbox.dll"),
+                Path.Combine(current.FullName, "src", "IntoChat.OS.Sandbox", "bin", "Release", "net11.0", "IntoChat.OS.Sandbox.dll"),
+                Path.Combine(current.FullName, "src", "IntoChat.OS.Sandbox", "bin", "Debug", "net11.0", "IntoChat.OS.Sandbox.dll"),
+            ];
+
+            foreach (var candidate in candidates)
+            {
+                if (HasValidRuntimeConfig(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        throw new FileNotFoundException(
+            $"Could not locate IntoChat.OS.Sandbox.dll with a valid .runtimeconfig.json starting from '{baseDir}'.");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        await _unitHostLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_unitHost is { } session)
+            {
+                _unitHost = null;
+                await session.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _unitHostLock.Release();
+            _unitHostLock.Dispose();
+        }
+    }
+
+    private async Task<UnitHostChildSession> EnsureSessionAsync(CancellationToken cancellationToken)
+    {
+        var current = _unitHost;
+        if (current is not null && !current.HasExited)
+        {
+            return current;
+        }
+
+        await _unitHostLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (_unitHost is not null && !_unitHost.HasExited)
+            {
+                return _unitHost;
+            }
+
+            if (_unitHost is { } stale)
+            {
+                _unitHost = null;
+                await stale.DisposeAsync().ConfigureAwait(false);
+            }
+
+            var assemblyPath = ResolveAssemblyPath(options.Value.UnitHostAssemblyPath);
+            var contractsDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var runner = ResolveConfinedProcessRunner();
+            var session = await UnitHostChildSession.StartAsync(
+                assemblyPath,
+                contractsDir,
+                runner,
+                callbackProxy.HandlePipeCallbackAsync,
+                logger,
+                cancellationToken).ConfigureAwait(false);
+            _unitHost = session;
+            return session;
+        }
+        finally
+        {
+            _unitHostLock.Release();
+        }
+    }
+
+    private static bool HasValidRuntimeConfig(string dllPath)
+        => File.Exists(dllPath) && File.Exists(Path.ChangeExtension(dllPath, ".runtimeconfig.json"));
+
+    private static bool TryResolveApphostExecutable(string assemblyOrExecutablePath, bool isWindows, out string executablePath)
+    {
+        var extension = Path.GetExtension(assemblyOrExecutablePath);
+        if (!string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            if (File.Exists(assemblyOrExecutablePath))
+            {
+                executablePath = Path.GetFullPath(assemblyOrExecutablePath);
+                return true;
+            }
+
+            executablePath = string.Empty;
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(assemblyOrExecutablePath);
+        var baseName = Path.GetFileNameWithoutExtension(assemblyOrExecutablePath);
+        if (!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(baseName))
+        {
+            var candidate = Path.Combine(directory, isWindows ? baseName + ".exe" : baseName);
+            if (File.Exists(candidate))
+            {
+                executablePath = Path.GetFullPath(candidate);
+                return true;
+            }
+        }
+
+        executablePath = string.Empty;
+        return false;
+    }
+
+    private static string ResolveDotNetExecutable()
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath)
+            && string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return processPath;
+        }
+
+        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrWhiteSpace(dotnetRoot))
+        {
+            var candidate = Path.Combine(dotnetRoot, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return "dotnet";
+    }
+
+    internal static string NewFrameId() => Guid.NewGuid().ToString("N");
 
     private sealed class UnitHostChildSession : IAsyncDisposable
     {
@@ -127,7 +541,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
             ArgumentNullException.ThrowIfNull(callbackHandler);
             ArgumentNullException.ThrowIfNull(logger);
 
-            var launchCommand = ResolveUnitHostLaunchCommand(assemblyPath, contractsDirectory);
+            var launchCommand = ResolveLaunchCommand(assemblyPath, contractsDirectory);
             var session = StartCore(
                 launchCommand,
                 assemblyPath,
@@ -258,7 +672,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
 
         private async Task WriteRequestLineAsync(UnitHostFrameRequest request, CancellationToken cancellationToken)
         {
-            var line = JsonSerializer.Serialize(request, FrameJson);
+            var line = JsonSerializer.Serialize(request, UnitHostFrameJsonContext.Default.UnitHostFrameRequest);
             await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -291,7 +705,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
                     UnitHostFrameResponse? frame;
                     try
                     {
-                        frame = JsonSerializer.Deserialize<UnitHostFrameResponse>(line, FrameJson);
+                        frame = JsonSerializer.Deserialize(line, UnitHostFrameJsonContext.Default.UnitHostFrameResponse);
                     }
                     catch (JsonException error)
                     {
@@ -487,205 +901,35 @@ internal sealed partial class HttpSandboxRuntimeBridge
                 }
             }
         }
-
-        private static string ResolveDotNetExecutable()
-            => HttpSandboxRuntimeBridge.ResolveDotNetExecutable();
     }
-
-    internal sealed record UnitHostLaunchCommand(string FileName, string[] Arguments);
-
-    /// <summary>
-    /// Resolves the command line for launching <c>IntoChat.OS.Sandbox --unit-host</c>.
-    /// Prefers the bundled self-contained native apphost (<c>IntoChat.OS.Sandbox.exe</c> on Windows,
-    /// <c>IntoChat.OS.Sandbox</c> on POSIX) when present so SDK-less desktop installs never invoke
-    /// <c>dotnet</c>; falls back to <c>dotnet exec &lt;dll&gt; --unit-host</c> only when no native apphost
-    /// exists alongside the <c>.dll</c>.
-    /// </summary>
-    internal static UnitHostLaunchCommand ResolveUnitHostLaunchCommand(
-        string assemblyPath,
-        string contractsDirectory,
-        bool? isWindows = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
-        var windows = isWindows ?? OperatingSystem.IsWindows();
-        var arguments = new List<string>(4);
-        string fileName;
-
-        if (TryResolveApphostExecutable(assemblyPath, windows, out var apphostPath))
-        {
-            fileName = apphostPath;
-        }
-        else
-        {
-            fileName = ResolveDotNetExecutable();
-            arguments.Add("exec");
-            arguments.Add(assemblyPath);
-        }
-
-        arguments.Add("--unit-host");
-        if (!string.IsNullOrWhiteSpace(contractsDirectory))
-        {
-            arguments.Add("--contracts-dir");
-            arguments.Add(contractsDirectory);
-        }
-
-        return new UnitHostLaunchCommand(fileName, [.. arguments]);
-    }
-
-    private static bool TryResolveApphostExecutable(string assemblyOrExecutablePath, bool isWindows, out string executablePath)
-    {
-        var extension = Path.GetExtension(assemblyOrExecutablePath);
-        if (!string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase))
-        {
-            if (File.Exists(assemblyOrExecutablePath))
-            {
-                executablePath = Path.GetFullPath(assemblyOrExecutablePath);
-                return true;
-            }
-
-            executablePath = string.Empty;
-            return false;
-        }
-
-        var directory = Path.GetDirectoryName(assemblyOrExecutablePath);
-        var baseName = Path.GetFileNameWithoutExtension(assemblyOrExecutablePath);
-        if (!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(baseName))
-        {
-            var candidate = Path.Combine(directory, isWindows ? baseName + ".exe" : baseName);
-            if (File.Exists(candidate))
-            {
-                executablePath = Path.GetFullPath(candidate);
-                return true;
-            }
-        }
-
-        executablePath = string.Empty;
-        return false;
-    }
-
-    private static string ResolveDotNetExecutable()
-    {
-        var processPath = Environment.ProcessPath;
-        if (!string.IsNullOrWhiteSpace(processPath)
-            && string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase))
-        {
-            return processPath;
-        }
-
-        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-        if (!string.IsNullOrWhiteSpace(dotnetRoot))
-        {
-            var candidate = Path.Combine(dotnetRoot, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return "dotnet";
-    }
-
-    private sealed class DeployedAppEntry(
-        string brainId,
-        string appKey,
-        AppPackage package,
-        string[] signals,
-        string[] schedules,
-        string[] commands,
-        string? stateJson,
-        string? settingsJson,
-        View? latestView,
-        string[]? allowedContracts = null)
-    {
-        private long _viewGeneration;
-
-        public string BrainId { get; } = brainId;
-        public string AppKey { get; } = appKey;
-        public AppPackage Package { get; } = package;
-        public string[] Signals { get; } = signals;
-        public string[] Schedules { get; } = schedules;
-        public string[] Commands { get; } = commands;
-        public string? StateJson { get; set; } = stateJson;
-        public string? SettingsJson { get; set; } = settingsJson;
-        public View? LatestView { get; set; } = latestView;
-        public string[]? AllowedContracts { get; } = allowedContracts;
-
-        public long NextViewGeneration() => Interlocked.Increment(ref _viewGeneration);
-    }
-
-    private sealed record WorkerCommandDescriptor(string Name, string Description);
-
-    private sealed record DeployWorkerRequest(
-        string BrainId,
-        string AppKey,
-        string Version,
-        string Digest,
-        string AssemblyBase64,
-        string? StateJson,
-        string? SettingsJson,
-        string? KernelUrl,
-        string? AppToken);
-
-    private sealed record DeployWorkerResponse(
-        string BrainId,
-        string AppKey,
-        string Version,
-        string Digest,
-        string Title,
-        string Summary,
-        WorkerCommandDescriptor[] Commands,
-        string[] Signals,
-        string[] Schedules,
-        string? InitialViewJson,
-        string? StateJson);
-
-    private sealed record DispatchWorkerRequest(
-        string BrainId,
-        string AppKey,
-        string Kind,
-        string? Name,
-        string? PayloadJson,
-        string? StateJson,
-        string? SettingsJson,
-        string? KernelUrl,
-        string? AppToken);
-
-    private sealed record DispatchWorkerResponse(
-        bool Handled,
-        string? ResultJson,
-        string? UpdatedStateJson,
-        string? UpdatedViewJson,
-        string? Error);
-
-    private sealed record UnloadWorkerRequest(string BrainId, string AppKey);
-
-    private sealed record UnloadWorkerResponse(bool Unloaded, string BrainId, string AppKey);
-
-    private sealed record UnitHostFrameRequest(
-        string Id,
-        string Op,
-        DeployWorkerRequest? Deploy = null,
-        DispatchWorkerRequest? Dispatch = null,
-        UnloadWorkerRequest? Unload = null,
-        bool? Ok = null,
-        int? StatusCode = null,
-        SandboxEdgeEndpoints.EdgeInvokeResponse? InvokeResult = null,
-        string? Error = null);
-
-    private sealed record UnitHostFrameResponse(
-        string Id,
-        bool Ok,
-        string? Error = null,
-        DeployWorkerResponse? Deploy = null,
-        DispatchWorkerResponse? Dispatch = null,
-        UnloadWorkerResponse? Unload = null,
-        IReadOnlyDictionary<string, string>? EnvironmentSnapshot = null,
-        int? ProcessId = null,
-        string? CallbackKind = null,
-        string? BrainId = null,
-        string? AppKey = null,
-        string? AppToken = null,
-        SandboxEdgeEndpoints.EdgeInvokeRequest? Invoke = null,
-        SandboxEdgeEndpoints.EdgeSignalRequest? Signal = null,
-        SandboxEdgeEndpoints.EdgeLogRequest? Log = null);
 }
+
+internal sealed record UnitHostLaunchCommand(string FileName, string[] Arguments);
+
+internal sealed record UnitHostFrameRequest(
+    string Id,
+    string Op,
+    DeployWorkerRequest? Deploy = null,
+    DispatchWorkerRequest? Dispatch = null,
+    UnloadWorkerRequest? Unload = null,
+    bool? Ok = null,
+    int? StatusCode = null,
+    SandboxEdgeEndpoints.EdgeInvokeResponse? InvokeResult = null,
+    string? Error = null);
+
+internal sealed record UnitHostFrameResponse(
+    string Id,
+    bool Ok,
+    string? Error = null,
+    DeployWorkerResponse? Deploy = null,
+    DispatchWorkerResponse? Dispatch = null,
+    UnloadWorkerResponse? Unload = null,
+    IReadOnlyDictionary<string, string>? EnvironmentSnapshot = null,
+    int? ProcessId = null,
+    string? CallbackKind = null,
+    string? BrainId = null,
+    string? AppKey = null,
+    string? AppToken = null,
+    SandboxEdgeEndpoints.EdgeInvokeRequest? Invoke = null,
+    SandboxEdgeEndpoints.EdgeSignalRequest? Signal = null,
+    SandboxEdgeEndpoints.EdgeLogRequest? Log = null);
