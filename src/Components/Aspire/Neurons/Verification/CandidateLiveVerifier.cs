@@ -220,13 +220,37 @@ internal sealed class CandidateLiveVerifier : ICandidateVerifier, IEngineerCandi
             count5xx += m5xx;
             errorLogs += mErr;
 
-            // 3. Real UI surface check when TouchesUi is set (headless Playwright DOM check runs in EngineerLiveVerifier).
+            // 3. Real UI surface check when TouchesUi is set (runs against the live candidate BEFORE finally teardown).
             var playwrightPassed = uiProbe.Passed;
             if (request.TouchesUi)
             {
-                var uiRootProbe = await ProbeHttpAsync("candidate-ui-root", "playwright", uiBaseUrl + "/", ct).ConfigureAwait(false);
-                RecordProbe(uiRootProbe, probes, traces, $"span candidate.ui_root url={uiBaseUrl}/", ref count4xx, ref count5xx, ref errorLogs);
+                var uiRootUrl = uiBaseUrl + "/";
+                var uiRootProbe = await ProbeHttpAsync("candidate-ui-root", "playwright", uiRootUrl, ct).ConfigureAwait(false);
+                RecordProbe(uiRootProbe, probes, traces, $"span candidate.ui_root url={uiRootUrl}", ref count4xx, ref count5xx, ref errorLogs);
                 if (!uiRootProbe.Passed) { playwrightPassed = false; }
+
+                if (request.VerifyUiAsync is not null)
+                {
+                    try
+                    {
+                        var uiResult = await request.VerifyUiAsync(uiRootUrl, ct).ConfigureAwait(false);
+                        probes.AddRange(uiResult.Probes);
+                        traces.AddRange(uiResult.TraceSummaries);
+                        count4xx += uiResult.Http4xxCount;
+                        count5xx += uiResult.Http5xxCount;
+                        errorLogs += uiResult.ErrorLogCount;
+                        if (!uiResult.Passed) { playwrightPassed = false; }
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogSwallowed(ex, $"Candidate UI verification failed for '{uiRootUrl}'.");
+                        probes.Add(new EngineerLiveProbe("playwright-live-ui", "playwright", false, 500, $"Candidate UI verification failed for '{uiRootUrl}': {ex.Message}"));
+                        traces.Add($"span candidate.ui_verify url={uiRootUrl} status=ERROR error={ex.GetType().Name}");
+                        count5xx++;
+                        errorLogs++;
+                        playwrightPassed = false;
+                    }
+                }
             }
 
             // 4. Optional cluster OTel span check when IClusterHost is wired.
