@@ -73,6 +73,10 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
 
     private static readonly HashSet<string> AllowedContracts = new(DefaultContracts, StringComparer.Ordinal);
 
+    private ITasks TasksProxy => Context.Get<ITasks>(ITasks.Key(Id.Brain));
+
+    private IConfirmationRequests ConfirmationsProxy => Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
+
     protected override IReadOnlyList<string> Steps => StepNames;
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
@@ -163,8 +167,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
                         await TryAskTaskAsync(inner.TaskId, parsed.Ask).ConfigureAwait(true);
 
                         var plan = PlanFor(step, inner);
-                        var requests = Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
-                        var immediate = await requests.Request(plan).ConfigureAwait(true);
+                        var immediate = await ConfirmationsProxy.Request(plan).ConfigureAwait(true);
                         if (immediate is { } answer)
                         {
                             inner.SelectedOptionIndex = answer.SelectedOptionIndex;
@@ -240,8 +243,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
             return;
         }
 
-        var requests = Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
-        var outcome = await requests.Outcome(planId).ConfigureAwait(true);
+        var outcome = await ConfirmationsProxy.Outcome(planId).ConfigureAwait(true);
         if (outcome is not { } answer)
         {
             return;
@@ -278,7 +280,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         TaskRecord? task;
         try
         {
-            task = await Context.Get<ITasks>(ITasks.Key(Id.Brain)).Read(State.Inner.TaskId).ConfigureAwait(true);
+            task = await TasksProxy.Read(State.Inner.TaskId).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -298,7 +300,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         {
             try
             {
-                await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain))
+                await ConfirmationsProxy
                     .Withdraw(waiting.ConfirmationPlanId)
                     .ConfigureAwait(true);
             }
@@ -401,7 +403,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         if (string.IsNullOrWhiteSpace(taskId)) { return; }
         try
         {
-            await Context.Get<ITasks>(ITasks.Key(Id.Brain)).Transition(taskId, status, summary).ConfigureAwait(true);
+            await TasksProxy.Transition(taskId, status, summary).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -414,7 +416,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         if (string.IsNullOrWhiteSpace(taskId)) { return; }
         try
         {
-            await Context.Get<ITasks>(ITasks.Key(Id.Brain)).Ask(taskId, prompt).ConfigureAwait(true);
+            await TasksProxy.Ask(taskId, prompt).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -427,7 +429,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         if (string.IsNullOrWhiteSpace(taskId)) { return; }
         try
         {
-            await Context.Get<ITasks>(ITasks.Key(Id.Brain)).LinkArtifact(taskId, artifact).ConfigureAwait(true);
+            await TasksProxy.LinkArtifact(taskId, artifact).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
