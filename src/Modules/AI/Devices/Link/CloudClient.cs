@@ -258,6 +258,22 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
     private async Task<LinkSecrets> EnsureFreshSecretsAsync(CancellationToken ct)
         => (await EnsureFreshSecretsWithFlagAsync(ct).ConfigureAwait(false)).Secrets;
 
+    internal async Task<LinkSecrets?> TryGetFreshSecretsAsync(bool forceRefresh, CancellationToken ct)
+    {
+        var secrets = await credentials.Read(ct).ConfigureAwait(false);
+        if (secrets is null || credentials.IsRevoked)
+        {
+            return null;
+        }
+
+        if (forceRefresh || NeedsRefresh(secrets))
+        {
+            return await RefreshAsync(secrets, ct).ConfigureAwait(false);
+        }
+
+        return secrets;
+    }
+
     private async Task<(LinkSecrets Secrets, bool Refreshed)> EnsureFreshSecretsWithFlagAsync(CancellationToken ct)
     {
         var secrets = await credentials.Read(ct).ConfigureAwait(false)
