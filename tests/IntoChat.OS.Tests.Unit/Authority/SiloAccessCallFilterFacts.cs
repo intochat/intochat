@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
@@ -17,11 +18,25 @@ namespace IntoChat.OS.Tests.Unit.Authority;
 
 public sealed class SiloAccessCallFilterFacts
 {
+    private static readonly Assembly OrleansRuntimeAssembly = typeof(Orleans.Runtime.Silo).Assembly;
+
     private static readonly Type OrleansTimerInvokerType =
-        typeof(Orleans.Runtime.Silo).Assembly.GetType("Orleans.Runtime.IGrainTimerInvoker", throwOnError: true)!;
+        OrleansRuntimeAssembly.GetType("Orleans.Runtime.IGrainTimerInvoker", throwOnError: true)!;
 
     private static readonly MethodInfo OrleansTimerInvokeMethod =
         OrleansTimerInvokerType.GetMethod("InvokeCallbackAsync", BindingFlags.Public | BindingFlags.Instance)!;
+
+    private static readonly Type InternalTimerTickInvokerType =
+        OrleansRuntimeAssembly.GetType("Orleans.Runtime.GrainTimer+TimerTickInvoker", throwOnError: true)!;
+
+    private static readonly Type WireSerializableTimerInvokerType =
+        OrleansRuntimeAssembly.GetType("OrleansCodeGen.Orleans.Runtime.Invokable_IGrainTimerInvoker_GrainReference_7E17F475", throwOnError: true)!;
+
+    private static IInvokable CreateInternalTimerTickInvoker()
+        => (IInvokable)RuntimeHelpers.GetUninitializedObject(InternalTimerTickInvokerType);
+
+    private static IInvokable CreateWireSerializableTimerInvoker()
+        => (IInvokable)RuntimeHelpers.GetUninitializedObject(WireSerializableTimerInvokerType);
 
     [Fact]
     public async Task SelfTargetedOrleansGrainTimerTick_IsAdmitted_AndEntersSiloOrigin()
@@ -34,6 +49,7 @@ public sealed class SiloAccessCallFilterFacts
             sourceId: grainId,
             grain: new DummyGrain(),
             interfaceMethod: OrleansTimerInvokeMethod,
+            request: CreateInternalTimerTickInvoker(),
             onInvoke: () => observedOrigin = SiloOrigin.IsCurrent);
 
         RequestContext.Clear();
@@ -47,12 +63,46 @@ public sealed class SiloAccessCallFilterFacts
     }
 
     [Fact]
+    public async Task GrainTimerSpoof_WireSerializableInvokerWithSelfSourceId_IsRejected()
+    {
+        var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
+        var grainId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
+        var context = new CallContext(
+            targetId: grainId,
+            sourceId: grainId,
+            grain: new DummyGrain(),
+            interfaceMethod: OrleansTimerInvokeMethod,
+            request: CreateWireSerializableTimerInvoker());
+
+        RequestContext.Clear();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
+        Assert.False(context.Invoked);
+    }
+
+    [Fact]
+    public async Task GrainTimerSpoof_NullRequestWithSelfSourceId_IsRejected()
+    {
+        var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
+        var grainId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
+        var context = new CallContext(
+            targetId: grainId,
+            sourceId: grainId,
+            grain: new DummyGrain(),
+            interfaceMethod: OrleansTimerInvokeMethod,
+            request: null!);
+
+        RequestContext.Clear();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
+        Assert.False(context.Invoked);
+    }
+
+    [Fact]
     public async Task GrainTimerSpoof_DifferentSourceId_IsRejected()
     {
         var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
         var targetId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
         var otherSource = GrainId.Create("client", "external-caller");
-        var context = new CallContext(targetId, otherSource, new DummyGrain(), OrleansTimerInvokeMethod);
+        var context = new CallContext(targetId, otherSource, new DummyGrain(), OrleansTimerInvokeMethod, CreateInternalTimerTickInvoker());
 
         RequestContext.Clear();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
@@ -64,7 +114,7 @@ public sealed class SiloAccessCallFilterFacts
     {
         var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
         var targetId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
-        var context = new CallContext(targetId, sourceId: null, new DummyGrain(), OrleansTimerInvokeMethod);
+        var context = new CallContext(targetId, sourceId: null, new DummyGrain(), OrleansTimerInvokeMethod, CreateInternalTimerTickInvoker());
 
         RequestContext.Clear();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
@@ -76,7 +126,7 @@ public sealed class SiloAccessCallFilterFacts
     {
         var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
         var grainId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
-        var context = new CallContext(grainId, sourceId: grainId, grain: null!, OrleansTimerInvokeMethod);
+        var context = new CallContext(grainId, sourceId: grainId, grain: null!, OrleansTimerInvokeMethod, CreateInternalTimerTickInvoker());
 
         RequestContext.Clear();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
@@ -89,7 +139,7 @@ public sealed class SiloAccessCallFilterFacts
         var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
         var grainId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
         var nonTimerMethod = typeof(INeuronHost).GetMethod(nameof(INeuronHost.InspectState))!;
-        var context = new CallContext(grainId, sourceId: grainId, new DummyGrain(), nonTimerMethod);
+        var context = new CallContext(grainId, sourceId: grainId, new DummyGrain(), nonTimerMethod, CreateInternalTimerTickInvoker());
 
         RequestContext.Clear();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
@@ -102,7 +152,7 @@ public sealed class SiloAccessCallFilterFacts
         var filter = new SiloAccessCallFilter([new AllowAll()], new Ambient(null));
         var grainId = GrainId.Create("neuron.host", "owner/runtime.session/watch/test");
         var wrongMethod = typeof(IFakeTimerInvoker).GetMethod(nameof(IFakeTimerInvoker.OtherMethod))!;
-        var context = new CallContext(grainId, sourceId: grainId, new DummyGrain(), wrongMethod);
+        var context = new CallContext(grainId, sourceId: grainId, new DummyGrain(), wrongMethod, CreateInternalTimerTickInvoker());
 
         RequestContext.Clear();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
@@ -145,6 +195,7 @@ public sealed class SiloAccessCallFilterFacts
         GrainId? sourceId,
         object grain,
         MethodInfo interfaceMethod,
+        IInvokable request,
         Action? onInvoke = null) : IIncomingGrainCallContext
     {
         public bool Invoked { get; private set; }
@@ -153,7 +204,7 @@ public sealed class SiloAccessCallFilterFacts
         public string InterfaceName => InterfaceMethod.DeclaringType?.FullName ?? string.Empty;
         public string MethodName => InterfaceMethod.Name;
         public object Grain { get; } = grain;
-        public IInvokable Request => null!;
+        public IInvokable Request { get; } = request;
         public object? Result { get; set; }
         public Response? Response { get; set; }
         public MethodInfo InterfaceMethod { get; } = interfaceMethod;

@@ -113,6 +113,9 @@ public sealed class SiloAccessCallFilter(
         => context.Grain is not null
             && context.SourceId is { } sourceId
             && sourceId == context.TargetId
+            && context.Request is { } request
+            && request.GetType() is { FullName: "Orleans.Runtime.GrainTimer+TimerTickInvoker" } requestType
+            && IsOrleans(requestType)
             && context.InterfaceMethod.DeclaringType is { FullName: "Orleans.Runtime.IGrainTimerInvoker" } declaringType
             && IsOrleans(declaringType)
             && string.Equals(context.InterfaceMethod.Name, "InvokeCallbackAsync", StringComparison.Ordinal);

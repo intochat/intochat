@@ -270,6 +270,7 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
         var tick = await arrived.First.Task.WaitAsync(TimeSpan.FromSeconds(15), Ct);
 
         Assert.True(tick.SelfTargeted, "A real Orleans GrainTimer tick must be self-targeted (SourceId == TargetId).");
+        Assert.Equal("Orleans.Runtime.GrainTimer+TimerTickInvoker", tick.RequestTypeName);
         Assert.True(tick.SentByThisSilo, "SiloAccessCallFilter must enter SiloOrigin for admitted GrainTimer ticks.");
         Assert.Null(tick.Error);
 
@@ -279,7 +280,7 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
 
     private sealed class GrainTimerArrivals : IIncomingGrainCallFilter
     {
-        public TaskCompletionSource<(bool SelfTargeted, bool SentByThisSilo, Exception? Error, bool OutboundSucceeded, string? OutboundError)> First { get; } =
+        public TaskCompletionSource<(bool SelfTargeted, string? RequestTypeName, bool SentByThisSilo, Exception? Error, bool OutboundSucceeded, string? OutboundError)> First { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async Task Invoke(IIncomingGrainCallContext context)
@@ -289,6 +290,7 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
                 && (context.TargetId.Key.ToString()?.Contains("watch/timer-test", StringComparison.Ordinal) ?? false))
             {
                 var selfTargeted = context.SourceId is { } src && src == context.TargetId;
+                var requestTypeName = context.Request?.GetType().FullName;
                 var sentByThisSilo = SiloOrigin.IsCurrent;
                 Exception? invokeError = null;
                 var outboundSucceeded = false;
@@ -316,7 +318,7 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
                 }
                 finally
                 {
-                    First.TrySetResult((selfTargeted, sentByThisSilo, invokeError, outboundSucceeded, outboundError));
+                    First.TrySetResult((selfTargeted, requestTypeName, sentByThisSilo, invokeError, outboundSucceeded, outboundError));
                 }
                 return;
             }
