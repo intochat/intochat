@@ -148,7 +148,7 @@ public sealed record ApproveConfirmationArgs(bool Approve);
 public sealed record LinkUriArgs(string Uri);
 public sealed record LinkServerCodeArgs(string Server, string Code);
 
-[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(ListRunsArgs))]
 [JsonSerializable(typeof(StartAppRunArgs))]
 [JsonSerializable(typeof(StartWorkflowArgs))]
@@ -157,9 +157,12 @@ public sealed record LinkServerCodeArgs(string Server, string Code);
 [JsonSerializable(typeof(ApproveConfirmationArgs))]
 [JsonSerializable(typeof(LinkUriArgs))]
 [JsonSerializable(typeof(LinkServerCodeArgs))]
+public sealed partial class CliRequestJsonContext : JsonSerializerContext;
+
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(RunView[]))]
 [JsonSerializable(typeof(AppRunView))]
 [JsonSerializable(typeof(WorkflowRunView))]
 [JsonSerializable(typeof(CodeOrchestrationView))]
 [JsonSerializable(typeof(JsonElement))]
-public sealed partial class CliJsonContext : JsonSerializerContext;
+public sealed partial class CliReplyJsonContext : JsonSerializerContext;
