@@ -26,7 +26,7 @@ public static class ConfirmationAudit
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(result);
         return new(request.PlanId, request.Plan.Action, request.Plan.TargetLabel, request.Requester, approver, request.Policy,
-            result.Outcome, result.Reason, result.Skipped, at);
+            result.Outcome, result.Reason, result.Skipped, at, result.SelectedOptionIndex, result.SelectedOption);
     }
 }
 
@@ -64,6 +64,22 @@ public sealed record ConfirmationState
         if (plan.Id.Length > MaxIdLength || plan.Expiry <= TimeSpan.Zero)
         {
             throw new ArgumentException("Invalid confirmation plan.", nameof(plan));
+        }
+
+        if (plan.Options is { Length: > 0 } options)
+        {
+            if (!plan.RequiresPerson || options.Length < 2 || options.Any(string.IsNullOrWhiteSpace))
+            {
+                throw new ArgumentException("A multi-option confirmation plan requires RequiresPerson = true and at least two non-empty options.", nameof(plan));
+            }
+            if (plan.RecommendedOptionIndex is { } rec && (rec < 0 || rec >= options.Length))
+            {
+                throw new ArgumentException("RecommendedOptionIndex must reference an option in Options.", nameof(plan));
+            }
+        }
+        else if (plan.RecommendedOptionIndex is not null)
+        {
+            throw new ArgumentException("RecommendedOptionIndex requires Options.", nameof(plan));
         }
 
         if (Entries.FirstOrDefault(entry => entry.Request.PlanId == plan.Id) is { } known)
@@ -120,6 +136,32 @@ public sealed record ConfirmationState
         return End(planId, outcome, reason, answerer.Principal, now);
     }
 
+    public Outcome<ConfirmationState> AnswerOption(
+        string planId,
+        int optionIndex,
+        Answerer answerer,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(answerer);
+
+        if (Entries.FirstOrDefault(entry => entry.Request.PlanId == planId && entry.Result is null) is not { } open)
+        {
+            return new ConfirmationRefusals.NotOpen(planId);
+        }
+
+        if (open.Request.Plan.RequiresPerson && !answerer.IsPerson)
+        {
+            return new ConfirmationRefusals.PersonOnly(planId);
+        }
+
+        if (open.Request.Plan.Options is not { Length: > 0 } options || optionIndex < 0 || optionIndex >= options.Length)
+        {
+            return new ConfirmationRefusals.InvalidOption(planId, optionIndex);
+        }
+
+        return End(planId, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, answerer.Principal, now, optionIndex, options[optionIndex]);
+    }
+
     private static bool SameRaiser(ConfirmationEntry entry, ConfirmationPrincipal requester, string raisedBy)
         => entry.RaisedBy is { } by ? string.Equals(by, raisedBy, StringComparison.Ordinal) : entry.Request.Requester == requester;
 
@@ -134,7 +176,9 @@ public sealed record ConfirmationState
         ConfirmationOutcome outcome,
         ConfirmationDenyReason reason,
         ConfirmationPrincipal? approver,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        int? selectedOptionIndex = null,
+        string? selectedOption = null)
     {
         var index = Array.FindIndex(Entries, entry => entry.Request.PlanId == planId);
         if (index < 0 || Entries[index].Result is not null)
@@ -143,7 +187,12 @@ public sealed record ConfirmationState
         }
 
         var entry = Entries[index];
-        var result = new ConfirmationResult(planId, outcome, reason, false) { Approver = approver };
+        var result = new ConfirmationResult(planId, outcome, reason, false)
+        {
+            Approver = approver,
+            SelectedOptionIndex = selectedOptionIndex,
+            SelectedOption = selectedOption,
+        };
         var entries = Entries.ToArray();
         entries[index] = entry with { Result = result };
 

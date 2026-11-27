@@ -68,4 +68,11 @@ public sealed class AwaitedConfirmations(
         ct.ThrowIfCancellationRequested();
         return inbox.Resolve(planId, approve);
     }
+
+    public Task ResolveOption(string planId, int optionIndex, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(planId);
+        ct.ThrowIfCancellationRequested();
+        return inbox.ResolveOption(planId, optionIndex);
+    }
 }

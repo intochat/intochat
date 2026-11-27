@@ -79,7 +79,7 @@ public sealed class InoFormerNamesFacts
         public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) => throw new NotSupportedException();
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
-        public Task Post(string text, string id) => Task.CompletedTask;
+        public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
         public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
         public Task<ConversationView> Read(long? sinceRevision = null) => Task.FromResult(new ConversationView(ConversationId.Parse("main"), 0, [], [], null, [], false, []));
         public Task Invite(AccountId friend) => throw new NotSupportedException();

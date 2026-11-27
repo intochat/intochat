@@ -62,7 +62,8 @@ public sealed record Said(
     string Text,
     ModelId? Model = null,
     EntryId? Replaces = null,
-    AttachmentRef[]? Attachments = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    AttachmentRef[]? Attachments = null,
+    Visibility Visible = Visibility.Everyone) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Called(
     EntryId Id,

@@ -482,7 +482,7 @@ public sealed class GeminiVoiceFacts
         public Task Invite(AccountId account) => Task.CompletedTask;
         public Task Stop() => Task.CompletedTask;
         public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
-        public Task Post(string text, string? id = null) => Task.CompletedTask;
+        public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
         public Task Voiced(string heard, string spoken, ModelId model, string id) => Task.CompletedTask;
         public Task Leave() => Task.CompletedTask;
     }

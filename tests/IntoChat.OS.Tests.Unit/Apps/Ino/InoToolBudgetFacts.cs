@@ -40,7 +40,7 @@ public sealed class InoToolBudgetFacts(ITestOutputHelper output)
         var tools = InoTools();
         var bytes = tools.Sum(static t => t.Name.Length + t.Description.Length + t.ParametersJson.Length);
         output.WriteLine($"{tools.Length} tools, {bytes} bytes");
-        Assert.InRange(tools.Length, 90, 140);
+        Assert.InRange(tools.Length, 90, 150);
     }
 
     [Fact]

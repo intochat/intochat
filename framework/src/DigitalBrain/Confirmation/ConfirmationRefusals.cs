@@ -39,4 +39,11 @@ public static class ConfirmationRefusals
         /// <inheritdoc />
         public override string Message => "This question is no longer waiting for an answer.";
     }
+
+    /// <summary>The selected option index is not valid for this confirmation plan.</summary>
+    public sealed record InvalidOption(string PlanId, int OptionIndex) : Refusal("confirmation.invalid-option")
+    {
+        /// <inheritdoc />
+        public override string Message => $"Option index {OptionIndex} is not valid for this question.";
+    }
 }

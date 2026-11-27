@@ -100,6 +100,23 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
         }
     }
 
+    public async Task ResolveOption(string planId, int optionIndex)
+    {
+        var answerer = Answerer.Of(RequireOwnBrainCaller(), Id.Brain);
+        await Expire().ConfigureAwait(true);
+        switch (State.AnswerOption(planId, optionIndex, answerer, Clock.GetUtcNow()))
+        {
+            case Transition<ConfirmationState> answered:
+                await Commit(answered).ConfigureAwait(true);
+                break;
+            case ConfirmationRefusals.PersonOnly refusal:
+                throw new UnauthorizedAccessException(refusal.Message);
+            case Refusal refusal:
+                await PublishEphemeral(refusal.ToRejected("confirmation.answer")).ConfigureAwait(true);
+                break;
+        }
+    }
+
     protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         if (name != ExpiryReminder) { return; }

@@ -87,7 +87,7 @@ public sealed class ScriptedConversation : DigitalBrain.Neurons.Neuron<ScriptedC
 
     public Task Invite(AccountId friend) => Task.CompletedTask;
 
-    public Task Post(string text, string id) => Task.CompletedTask;
+    public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
 
     public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
 }

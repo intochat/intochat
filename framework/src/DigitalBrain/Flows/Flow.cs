@@ -228,10 +228,14 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         var outcome = await requests.Outcome(planId).ConfigureAwait(true);
         if (outcome is { } answer)
         {
+            await OnConfirmationAnswered(waiting.Step, answer).ConfigureAwait(true);
             var approver = answer.Approver?.Id ?? (answer.Outcome == resolved.Outcome ? resolved.Approver?.Id : null);
             await Resolve(waiting.Step, WaitOutcomeOf(answer.Outcome), approver).ConfigureAwait(true);
         }
     }
+
+    /// <summary>Called right before an approval wait resolves, allowing subclasses to inspect multi-option answers.</summary>
+    protected virtual Task OnConfirmationAnswered(string step, ConfirmationResult answer) => Task.CompletedTask;
 
     /// <summary>
     /// Checks a children wait when a child flow finishes; other signals are ignored.

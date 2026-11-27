@@ -61,6 +61,72 @@ public sealed record ConfirmationPlan(
 
     /// <summary>The <see cref="Kind"/> of the plan that asks a person to approve a synapse app's needs; <see cref="Subject"/> is the alias.</summary>
     public const string SynapseInstallKind = "synapse.install";
+
+    /// <summary>The <see cref="Kind"/> of a person-only multi-option question.</summary>
+    public const string AskKind = "confirmation.ask";
+
+    /// <summary>Optional multi-option choices for an interactive <see cref="Ask"/> prompt; empty for binary approve/deny confirmations.</summary>
+    public string[] Options { get; init; } = [];
+
+    /// <summary>Optional zero-based index into <see cref="Options"/> identifying the recommended choice.</summary>
+    public int? RecommendedOptionIndex { get; init; }
+
+    /// <summary>
+    /// Creates a person-only multi-option question (<see cref="RequiresPerson"/> is always <c>true</c>).
+    /// </summary>
+    public static ConfirmationPlan Ask(
+        string id,
+        string question,
+        string[] options,
+        int? recommended = null,
+        string? body = null,
+        string? targetLabel = null,
+        TimeSpan? expiry = null,
+        string? kind = null,
+        string? subject = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(question);
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.Length < 2)
+        {
+            throw new ArgumentException("A multi-option ask requires at least two options.", nameof(options));
+        }
+
+        var normalized = new string[options.Length];
+        for (var i = 0; i < options.Length; i++)
+        {
+            if (string.IsNullOrWhiteSpace(options[i]))
+            {
+                throw new ArgumentException("Every ask option must be non-empty.", nameof(options));
+            }
+            normalized[i] = options[i].Trim();
+        }
+
+        if (recommended is { } rec && (rec < 0 || rec >= normalized.Length))
+        {
+            throw new ArgumentOutOfRangeException(nameof(recommended), rec, "Recommended option index must reference an entry in options.");
+        }
+
+        var defaultApprove = normalized[recommended ?? 0];
+        return new ConfirmationPlan(
+            Id: id.Trim(),
+            Action: ConfirmationAction.Other,
+            Destructive: false,
+            Title: question.Trim(),
+            Body: body ?? string.Join("\n", normalized.Select((opt, idx) => idx == recommended ? $"{idx + 1}. {opt} (Recommended)" : $"{idx + 1}. {opt}")),
+            ApproveLabel: defaultApprove,
+            DenyLabel: "Cancel",
+            TargetLabel: string.IsNullOrWhiteSpace(targetLabel) ? "ask" : targetLabel.Trim())
+        {
+            Expiry = expiry ?? ConfirmationRules.DefaultExpiry,
+            RequiresPerson = true,
+            Kind = kind ?? AskKind,
+            Subject = subject,
+            Options = normalized,
+            RecommendedOptionIndex = recommended,
+        };
+    }
 }
 
 /// <summary>How <see cref="IConfirmations.Confirm"/> ended.</summary>
@@ -75,4 +141,10 @@ public sealed record ConfirmationResult(string PlanId, ConfirmationOutcome Outco
 
     /// <summary>Who answered; null when expired or skipped.</summary>
     public ConfirmationPrincipal? Approver { get; init; }
+
+    /// <summary>The zero-based option index chosen by the person for a multi-option ask; null for binary confirmations or non-approved outcomes.</summary>
+    public int? SelectedOptionIndex { get; init; }
+
+    /// <summary>The option text chosen by the person for a multi-option ask; null for binary confirmations or non-approved outcomes.</summary>
+    public string? SelectedOption { get; init; }
 }

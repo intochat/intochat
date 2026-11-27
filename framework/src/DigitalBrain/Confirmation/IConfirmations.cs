@@ -29,4 +29,15 @@ public interface IConfirmations
     /// answer wins; later answers to the same plan are ignored, and so are unknown ids.
     /// </summary>
     Task Resolve(string planId, bool approve, CancellationToken ct = default);
+
+    /// <summary>
+    /// Asks a person-only multi-option question (<see cref="ConfirmationPlan.RequiresPerson"/> is always <c>true</c>) and completes
+    /// with the chosen option.
+    /// </summary>
+    Task<ConfirmationResult> Ask(string question, string[] options, int? recommended = null, CancellationToken ct = default)
+        => Confirm(ConfirmationPlan.Ask(Guid.NewGuid().ToString("N"), question, options, recommended), ct);
+
+    /// <summary>Answers a pending multi-option plan <paramref name="planId"/> by selecting <paramref name="optionIndex"/>.</summary>
+    Task ResolveOption(string planId, int optionIndex, CancellationToken ct = default)
+        => throw new NotSupportedException("This confirmation gate does not support multi-option resolution.");
 }
