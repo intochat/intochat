@@ -253,14 +253,14 @@ public sealed class ArmAzure : IAzureArm
     private async Task<ResourceRef> EnsurePostgres(ResourceGroupResource rg, PostgresSpec spec, AzureLocation location, CancellationToken ct)
     {
         var servers = rg.GetPostgreSqlFlexibleServers();
-        var existing = await servers.GetIfExistsAsync(spec.Name, ct);
+        var existing = await FindPostgresServer(servers, spec.Name, ct);
         PostgreSqlFlexibleServerResource server;
-        if (existing.HasValue
-            && existing.Value!.Data.State == PostgreSqlFlexibleServerState.Ready
-            && string.Equals(existing.Value.Data.Sku?.Name, spec.Sku, StringComparison.OrdinalIgnoreCase)
-            && existing.Value.Data.Storage?.StorageSizeInGB == spec.StorageGb)
+        if (existing is not null
+            && existing.Data.State == PostgreSqlFlexibleServerState.Ready
+            && string.Equals(existing.Data.Sku?.Name, spec.Sku, StringComparison.OrdinalIgnoreCase)
+            && existing.Data.StorageSizeInGB == spec.StorageGb)
         {
-            server = existing.Value;
+            server = existing;
         }
         else
         {
@@ -272,8 +272,7 @@ public sealed class ArmAzure : IAzureArm
                 Version = new PostgreSqlFlexibleServerVersion(spec.Version),
                 AdministratorLogin = spec.AdminLogin,
                 AdministratorLoginPassword = password,
-                Storage = new PostgreSqlFlexibleServerStorage { StorageSizeInGB = spec.StorageGb },
-                Network = new PostgreSqlFlexibleServerNetwork { PublicNetworkAccess = PostgreSqlFlexibleServerPublicNetworkAccessState.Enabled },
+                StorageSizeInGB = spec.StorageGb,
             };
             Apply(spec, data.Tags);
             server = (await servers.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct)).Value;
@@ -294,17 +293,29 @@ public sealed class ArmAzure : IAzureArm
         return Ref(server.Id, spec, spec.Name) with { Endpoint = server.Data.FullyQualifiedDomainName ?? "" };
     }
 
+    private static async Task<PostgreSqlFlexibleServerResource?> FindPostgresServer(PostgreSqlFlexibleServerCollection servers, string name, CancellationToken ct)
+    {
+        try { return (await servers.GetAsync(name, ct)).Value; }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return null; }
+    }
+
     private static async Task<ResourceRef> EnsurePostgresDatabase(ResourceGroupResource rg, PostgresDatabaseSpec spec, CancellationToken ct)
     {
         var server = (await rg.GetPostgreSqlFlexibleServerAsync(spec.Server, ct)).Value;
         var databases = server.GetPostgreSqlFlexibleServerDatabases();
-        var existing = await databases.GetIfExistsAsync(spec.Name, ct);
-        if (existing.HasValue)
+        var existing = await FindPostgresDatabase(databases, spec.Name, ct);
+        if (existing is not null)
         {
-            return Ref(existing.Value!.Id, spec, spec.Name);
+            return Ref(existing.Id, spec, spec.Name);
         }
         var made = await databases.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, new PostgreSqlFlexibleServerDatabaseData(), ct);
         return Ref(made.Value.Id, spec, spec.Name);
+    }
+
+    private static async Task<PostgreSqlFlexibleServerDatabaseResource?> FindPostgresDatabase(PostgreSqlFlexibleServerDatabaseCollection databases, string name, CancellationToken ct)
+    {
+        try { return (await databases.GetAsync(name, ct)).Value; }
+        catch (RequestFailedException ex) when (ex.Status == 404) { return null; }
     }
 
     private static async Task<ResourceRef> EnsureEnvironment(ResourceGroupResource rg, ManagedEnvironmentSpec spec, AzureLocation location, CancellationToken ct)
