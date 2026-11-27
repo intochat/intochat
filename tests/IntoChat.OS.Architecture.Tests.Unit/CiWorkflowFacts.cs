@@ -33,8 +33,25 @@ public sealed partial class CiWorkflowFacts
             .Order()
             .ToArray();
 
-        string[] expected = ["artcraft-images.yml", "ci.yml", "codeql.yml", "release.yml"];
+        string[] expected = ["artcraft-images.yml", "ci.yml", "codeql.yml", "nightly-e2e.yml", "release.yml"];
         Assert.Equal(expected, workflows);
+    }
+
+    [Fact]
+    public void NightlyE2EWorkflowRunsItem350PlaywrightJourneysWithoutWritePermissionsOrPaidSecrets()
+    {
+        var nightly = Workflow("nightly-e2e.yml");
+
+        Assert.Contains("schedule:", nightly, StringComparison.Ordinal);
+        Assert.Contains("workflow_dispatch:", nightly, StringComparison.Ordinal);
+        Assert.DoesNotContain("packages: write", nightly, StringComparison.Ordinal);
+        Assert.DoesNotContain("secrets.", nightly, StringComparison.Ordinal);
+
+        var job = Job(nightly, "item-350-browser-e2e");
+        Assert.Contains("IntoChat.OS.Tests.Browser.csproj", job, StringComparison.Ordinal);
+        Assert.Contains("Item350UnifiedProductResetBrowserFacts", job, StringComparison.Ordinal);
+        Assert.Contains("flutter pub get --enforce-lockfile", job, StringComparison.Ordinal);
+        Assert.Contains("playwright.ps1 install --with-deps chromium", job, StringComparison.Ordinal);
     }
 
     [Fact]
