@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('workspace primary actions use the workspace font', () {
-    final style = UiTheme.workspace(Brightness.light)
+    final style = UiTheme.intochat(Brightness.light)
         .filledButtonTheme
         .style!
         .textStyle!

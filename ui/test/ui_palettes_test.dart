@@ -3,21 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('palettes list intochat first', () {
+  test('palettes list intochat first and only canonical presets', () {
     expect(UiTheme.palettes.first, 'intochat');
     expect(
       UiTheme.palettes,
       containsAll([
         'intochat',
-        'midnight',
-        'paper',
-        'lumen',
         'fluent-acrylic',
         'spatial-glass',
         'cyber-synaptic',
+        'warm-paper',
+        'fluent-warm-mica',
         'linear-carbon',
+        'nordic-tactical',
       ]),
     );
+    expect(UiTheme.palettes, isNot(contains('midnight')));
+    expect(UiTheme.palettes, isNot(contains('paper')));
+    expect(UiTheme.palettes, isNot(contains('lumen')));
   });
 
   test('stored theme values resolve to a palette and never throw', () {
@@ -25,8 +28,11 @@ void main() {
     expect(UiTheme.paletteName(''), 'intochat');
     expect(UiTheme.paletteName('system'), 'intochat');
     expect(UiTheme.paletteName('nonsense'), 'intochat');
-    expect(UiTheme.paletteName('dark'), 'midnight');
-    expect(UiTheme.paletteName('light'), 'paper');
+    expect(UiTheme.paletteName('dark'), 'warm-paper');
+    expect(UiTheme.paletteName('midnight'), 'warm-paper');
+    expect(UiTheme.paletteName('light'), 'warm-paper');
+    expect(UiTheme.paletteName('paper'), 'warm-paper');
+    expect(UiTheme.paletteName('lumen'), 'cyber-synaptic');
     for (final name in UiTheme.palettes) {
       expect(UiTheme.paletteName(name), name);
     }
@@ -36,6 +42,9 @@ void main() {
       'system',
       'dark',
       'light',
+      'midnight',
+      'paper',
+      'lumen',
       'x',
       ...UiTheme.palettes,
     ]) {
@@ -68,13 +77,16 @@ void main() {
     expect(light.textTheme.bodyMedium!.fontFamily, contains('Inter'));
   });
 
-  test('v1 palettes carry their UiColors', () {
-    expect(UiTheme.dark('midnight').extension<UiColors>(), UiColors.midnight);
-    expect(UiTheme.light('paper').extension<UiColors>(), UiColors.paper);
-    expect(UiTheme.dark('lumen').extension<UiColors>(), UiColors.lumen);
+  test('legacy stored theme names map to canonical presets at ingress', () {
+    expect(UiTheme.dark('midnight').extension<UiColors>(), UiColors.warmPaperDark);
+    expect(UiTheme.light('midnight').extension<UiColors>(), UiColors.warmPaperDark);
+    expect(UiTheme.light('paper').extension<UiColors>(), UiColors.warmPaperLight);
+    expect(UiTheme.dark('paper').extension<UiColors>(), UiColors.warmPaperLight);
+    expect(UiTheme.dark('lumen').extension<UiColors>(), UiColors.cyberSynapticDark);
+    expect(UiTheme.light('lumen').extension<UiColors>(), UiColors.cyberSynapticDark);
   });
 
-  test('v1 palettes build directly from their UiColors palette', () {
+  test('legacy stored themes build directly from their mapped canonical UiColors', () {
     void check(ThemeData t, UiColors palette) {
       expect(t.scaffoldBackgroundColor, palette.page);
       expect(t.colorScheme.primary, palette.accent);
@@ -82,9 +94,9 @@ void main() {
       expect(t.colorScheme.onSurface, palette.body);
     }
 
-    check(UiTheme.dark('midnight'), UiColors.midnight);
-    check(UiTheme.light('paper'), UiColors.paper);
-    check(UiTheme.dark('lumen'), UiColors.lumen);
+    check(UiTheme.dark('midnight'), UiColors.warmPaperDark);
+    check(UiTheme.light('paper'), UiColors.warmPaperLight);
+    check(UiTheme.dark('lumen'), UiColors.cyberSynapticDark);
   });
 
   testWidgets('UiType.of uses the ambient UiColors', (tester) async {
@@ -138,9 +150,9 @@ void main() {
     expect(type.body.color, mid.body);
   });
 
-  test('lumen is green on near-black and differs from midnight', () {
-    final lumen = UiTheme.workspaceDark('lumen');
-    final midnight = UiTheme.workspaceDark('midnight');
+  test('lumen maps to cyberSynaptic dark and differs from midnight (warmPaper dark)', () {
+    final lumen = UiTheme.dark('lumen');
+    final midnight = UiTheme.dark('midnight');
     expect(lumen.brightness, Brightness.dark);
     expect(lumen.scaffoldBackgroundColor.computeLuminance(), lessThan(0.02));
     final primary = lumen.colorScheme.primary;
@@ -148,7 +160,10 @@ void main() {
     expect(primary.g, greaterThan(primary.b));
     expect(
       midnight.scaffoldBackgroundColor,
-      UiTheme.workspace(Brightness.dark).scaffoldBackgroundColor,
+      UiTheme.forPreset(
+        IcStylePreset.warmPaper,
+        brightness: Brightness.dark,
+      ).scaffoldBackgroundColor,
     );
     expect(
       lumen.scaffoldBackgroundColor,

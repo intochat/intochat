@@ -47,7 +47,6 @@ export 'src/components/workspace/ui_workspace_components.dart';
 export 'src/theme/shell_icon.dart';
 
 export 'src/design/keys.dart';
-export 'src/design/controls.dart';
 
 export 'package:lucide_icons_flutter/lucide_icons.dart';
 

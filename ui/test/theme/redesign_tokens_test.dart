@@ -37,13 +37,14 @@ void main() {
     expect(c.menuHover, const Color(0x99423B31));
   });
 
-  test('v1 palettes keep key colours and derive new tokens', () {
-    expect(UiColors.midnight.page, const Color(0xFF141720));
-    expect(UiColors.midnight.surface, const Color(0xFF1B1F2A));
-    expect(UiColors.midnight.accent, const Color(0xFF7B9BE3));
-    expect(UiColors.lumen.accent, const Color(0xFF7CE0A8));
-    expect(UiColors.lumen.page, const Color(0xFF060A08));
-    for (final c in [UiColors.midnight, UiColors.paper, UiColors.lumen]) {
+  test('canonical preset palettes derive default semantic tokens', () {
+    for (final c in [
+      UiColors.fluentAcrylicDark,
+      UiColors.fluentAcrylicLight,
+      UiColors.cyberSynapticDark,
+      UiColors.linearCarbonDark,
+      UiColors.nordicTacticalDark,
+    ]) {
       expect(c.accentCopy, c.accent);
       expect(c.userBubble, c.strong);
       expect(c.userText, c.page);
@@ -51,11 +52,20 @@ void main() {
       expect(c.assistantText, c.body);
       expect(c.assistantBorder, c.hairline);
       expect(c.menuHover, c.recessed);
-      expect(c.focus.a, closeTo(0.35, 0.01));
       expect(c.focus.withValues(alpha: 1), c.accent);
     }
-    expect(UiColors.paper.page, const Color(0xFFF7F7F2));
-    expect(UiColors.paper.accent, const Color(0xFF397B63));
+    expect(
+      UiColors.forStoredTheme('midnight', brightness: Brightness.dark),
+      UiColors.warmPaperDark,
+    );
+    expect(
+      UiColors.forStoredTheme('paper', brightness: Brightness.light),
+      UiColors.warmPaperLight,
+    );
+    expect(
+      UiColors.forStoredTheme('lumen', brightness: Brightness.dark),
+      UiColors.cyberSynapticDark,
+    );
   });
 
   test('UiTokens radii and ease', () {

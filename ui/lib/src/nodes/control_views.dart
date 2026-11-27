@@ -119,12 +119,12 @@ Widget renderComboBoxView(ComboBoxViewNode node, NodeContext ctx) {
   return Semantics(
     label: controlNameOf(props.automationName, props.header, node.key),
     enabled: enabled,
-    child: UiKitSelect<String>(
+    child: UiMixSelect<String>(
       label: props.header.isEmpty ? null : props.header,
       value: selected,
       items: [
         for (final option in props.options)
-          UiKitSelectItem(option.id, option.label),
+          UiMixSelectItem(option.id, option.label),
       ],
       onChanged: enabled
           ? (id) {
@@ -432,7 +432,7 @@ class _FormViewState extends State<_FormView> {
           for (final field in props.fields)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: UiKitField(
+              child: UiMixField(
                 fieldKey: ValueKey('form_field_${field.key}'),
                 label: field.label,
                 controller: _controller(field),

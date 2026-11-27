@@ -11,12 +11,12 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: UiKitSelect<String>(
+            body: UiMixSelect<String>(
               value: null,
               hint: 'Open an app',
               items: [
-                for (var i = 0; i < 9; i++) UiKitSelectItem('app-$i', 'App $i'),
-                const UiKitSelectItem('customer', 'CustomerExample'),
+                for (var i = 0; i < 9; i++) UiMixSelectItem('app-$i', 'App $i'),
+                const UiMixSelectItem('customer', 'CustomerExample'),
               ],
               onChanged: (value) => selected = value,
             ),
@@ -50,12 +50,12 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: UiKitSelect<String>(
+          body: UiMixSelect<String>(
             value: null,
             hint: 'Choose',
             items: const [
-              UiKitSelectItem('a', 'Short'),
-              UiKitSelectItem('b', 'A much longer label', enabled: false),
+              UiMixSelectItem('a', 'Short'),
+              UiMixSelectItem('b', 'A much longer label', enabled: false),
             ],
             onChanged: (value) => selected = value,
           ),
@@ -87,10 +87,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: UiKitSelect<String>(
+            body: UiMixSelect<String>(
               value: null,
               hint: 'Choose',
-              items: [for (final name in names) UiKitSelectItem(name, name)],
+              items: [for (final name in names) UiMixSelectItem(name, name)],
               onChanged: (_) {},
             ),
           ),

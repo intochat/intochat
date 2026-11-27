@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../controls.dart';
+import '../../primitives/display_primitives.dart';
 import '../keys.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';

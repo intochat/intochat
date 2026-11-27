@@ -22,18 +22,18 @@ void main() {
     await tester.pump();
   }
 
-  UiKitSelect<String> select({
+  UiMixSelect<String> select({
     ValueChanged<String>? onChanged,
     String? value,
-  }) => UiKitSelect<String>(
+  }) => UiMixSelect<String>(
     value: value,
     label: 'Model',
     hint: 'Pick one',
     onChanged: onChanged,
     items: const [
-      UiKitSelectItem('a', 'Alpha'),
-      UiKitSelectItem('b', 'Beta', enabled: false, detail: 'Needs a key'),
-      UiKitSelectItem('c', 'Gamma'),
+      UiMixSelectItem('a', 'Alpha'),
+      UiMixSelectItem('b', 'Beta', enabled: false, detail: 'Needs a key'),
+      UiMixSelectItem('c', 'Gamma'),
     ],
   );
 

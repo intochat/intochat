@@ -223,7 +223,7 @@ class _WindowsStorageSetupState extends State<WindowsStorageSetup> {
                 ],
               ),
             const SizedBox(height: 16),
-            UiKitField(
+            UiMixField(
               fieldKey: const Key('windows_folder_path'),
               label: 'Full folder path on $_machineName',
               placeholder: r'C:\Folder',

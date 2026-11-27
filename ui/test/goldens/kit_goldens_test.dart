@@ -21,9 +21,6 @@ void main() {
   final cases = <String, ThemeData Function()>{
     'intochat_light': () => UiTheme.light('intochat'),
     'intochat_dark': () => UiTheme.dark('intochat'),
-    'midnight': () => UiTheme.dark('midnight'),
-    'paper': () => UiTheme.light('paper'),
-    'lumen': () => UiTheme.dark('lumen'),
   };
   for (final entry in cases.entries) {
     testWidgets('kit sheet ${entry.key}', (tester) async {

@@ -6,9 +6,15 @@ void main() {
 }
 
 void paletteTests() {
-  test('old theme values load as palette names and palettes round-trip', () {
-    expect(WorkspacePreferences.fromJson({'theme': 'dark'}).theme, 'midnight');
-    expect(WorkspacePreferences.fromJson({'theme': 'light'}).theme, 'paper');
+  test('legacy theme values normalize to canonical presets and round-trip', () {
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'dark'}).theme,
+      'warm-paper',
+    );
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'light'}).theme,
+      'warm-paper',
+    );
     expect(WorkspacePreferences.fromJson({}).theme, 'intochat');
     expect(
       WorkspacePreferences.fromJson({'theme': 'system'}).theme,
@@ -16,9 +22,20 @@ void paletteTests() {
     );
     expect(
       WorkspacePreferences.fromJson({'theme': 'midnight'}).theme,
-      'midnight',
+      'warm-paper',
     );
-    expect(WorkspacePreferences.fromJson({'theme': 'lumen'}).theme, 'lumen');
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'paper'}).theme,
+      'warm-paper',
+    );
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'lumen'}).theme,
+      'cyber-synaptic',
+    );
+    expect(
+      WorkspacePreferences.fromJson({'theme': 'fluent-acrylic'}).theme,
+      'fluent-acrylic',
+    );
     expect(WorkspacePreferences().toJson()['theme'], 'intochat');
   });
 }

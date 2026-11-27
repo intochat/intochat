@@ -101,7 +101,7 @@ void main() {
       tester,
       const SizedBox(
         width: 300,
-        child: UiKitField(label: 'Email', error: 'Required'),
+        child: UiMixField(label: 'Email', error: 'Required'),
       ),
     );
     final box = find.byKey(const ValueKey('ui_kit_field_box'));
@@ -114,7 +114,7 @@ void main() {
 
     await host(
       tester,
-      const SizedBox(width: 300, child: UiKitField(label: 'Name')),
+      const SizedBox(width: 300, child: UiMixField(label: 'Name')),
     );
     await tester.tap(find.byType(TextField));
     await tester.pumpAndSettle();
@@ -147,9 +147,9 @@ void main() {
   testWidgets('select trigger is 48 high with radius 12', (tester) async {
     await host(
       tester,
-      UiKitSelect<String>(
+      UiMixSelect<String>(
         hint: 'Pick',
-        items: const [UiKitSelectItem('a', 'Alpha')],
+        items: const [UiMixSelectItem('a', 'Alpha')],
         value: 'a',
         onChanged: (_) {},
       ),
@@ -166,7 +166,7 @@ void main() {
     final handle = tester.ensureSemantics();
     await host(
       tester,
-      const SizedBox(width: 300, child: UiKitField(label: 'Email')),
+      const SizedBox(width: 300, child: UiMixField(label: 'Email')),
     );
     expect(find.bySemanticsLabel(RegExp('Email')), findsOneWidget);
     expect(
@@ -177,7 +177,7 @@ void main() {
       tester,
       const SizedBox(
         width: 300,
-        child: UiKitField(label: '', placeholder: 'Message'),
+        child: UiMixField(label: '', placeholder: 'Message'),
       ),
     );
     expect(
