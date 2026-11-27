@@ -483,14 +483,8 @@ final class UiThemeSeeds {
           other.motion == motion;
 
   @override
-  int get hashCode => Object.hash(
-    preset,
-    accent,
-    brightness,
-    density,
-    radiusScale,
-    motion,
-  );
+  int get hashCode =>
+      Object.hash(preset, accent, brightness, density, radiusScale, motion);
 }
 
 /// Provides [Theme] (`UiColors` + `UiTokens`), `mix` [MixScope], and

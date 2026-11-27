@@ -1,4 +1,4 @@
-﻿import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -78,26 +78,47 @@ void main() {
   });
 
   test('legacy stored theme names map to canonical presets at ingress', () {
-    expect(UiTheme.dark('midnight').extension<UiColors>(), UiColors.warmPaperDark);
-    expect(UiTheme.light('midnight').extension<UiColors>(), UiColors.warmPaperDark);
-    expect(UiTheme.light('paper').extension<UiColors>(), UiColors.warmPaperLight);
-    expect(UiTheme.dark('paper').extension<UiColors>(), UiColors.warmPaperLight);
-    expect(UiTheme.dark('lumen').extension<UiColors>(), UiColors.cyberSynapticDark);
-    expect(UiTheme.light('lumen').extension<UiColors>(), UiColors.cyberSynapticDark);
+    expect(
+      UiTheme.dark('midnight').extension<UiColors>(),
+      UiColors.warmPaperDark,
+    );
+    expect(
+      UiTheme.light('midnight').extension<UiColors>(),
+      UiColors.warmPaperDark,
+    );
+    expect(
+      UiTheme.light('paper').extension<UiColors>(),
+      UiColors.warmPaperLight,
+    );
+    expect(
+      UiTheme.dark('paper').extension<UiColors>(),
+      UiColors.warmPaperLight,
+    );
+    expect(
+      UiTheme.dark('lumen').extension<UiColors>(),
+      UiColors.cyberSynapticDark,
+    );
+    expect(
+      UiTheme.light('lumen').extension<UiColors>(),
+      UiColors.cyberSynapticDark,
+    );
   });
 
-  test('legacy stored themes build directly from their mapped canonical UiColors', () {
-    void check(ThemeData t, UiColors palette) {
-      expect(t.scaffoldBackgroundColor, palette.page);
-      expect(t.colorScheme.primary, palette.accent);
-      expect(t.colorScheme.surface, palette.surface);
-      expect(t.colorScheme.onSurface, palette.body);
-    }
+  test(
+    'legacy stored themes build directly from their mapped canonical UiColors',
+    () {
+      void check(ThemeData t, UiColors palette) {
+        expect(t.scaffoldBackgroundColor, palette.page);
+        expect(t.colorScheme.primary, palette.accent);
+        expect(t.colorScheme.surface, palette.surface);
+        expect(t.colorScheme.onSurface, palette.body);
+      }
 
-    check(UiTheme.dark('midnight'), UiColors.warmPaperDark);
-    check(UiTheme.light('paper'), UiColors.warmPaperLight);
-    check(UiTheme.dark('lumen'), UiColors.cyberSynapticDark);
-  });
+      check(UiTheme.dark('midnight'), UiColors.warmPaperDark);
+      check(UiTheme.light('paper'), UiColors.warmPaperLight);
+      check(UiTheme.dark('lumen'), UiColors.cyberSynapticDark);
+    },
+  );
 
   testWidgets('UiType.of uses the ambient UiColors', (tester) async {
     late UiTypeSet type;
