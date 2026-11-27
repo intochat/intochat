@@ -1,5 +1,4 @@
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Host.Execution;
 
 namespace IntoChat.Aspire;
 
@@ -12,8 +11,8 @@ public sealed class AspireOptions : IModuleOptions
     // change stream; no deployment timer uses this former polling interval.
     public TimeSpan ClusterSampling { get; set; } = TimeSpan.FromSeconds(5);
 
-    // Selects whether candidate verification runs in Docker containers, local headless OS processes, leased devcontainer slots, or ACA Dynamic Sessions Kata MicroVMs.
-    public CandidateHostMode CandidateHostMode { get; set; } = CandidateHostMode.Docker;
+    // Selects whether candidate verification runs in leased devcontainer slots (default, with automatic Process fallback when Docker is unavailable) or local headless OS processes.
+    public CandidateHostMode CandidateHostMode { get; set; } = CandidateHostMode.AgentDevSlots;
 
     // Maximum concurrent leased devcontainer slots in Plane 2 (agent-dev-slots).
     public int MaxCandidateSlots { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultMaxSlots;
@@ -36,24 +35,6 @@ public sealed class AspireOptions : IModuleOptions
     // Unprivileged Linux GID for candidate container execution (must be > 0, never root).
     public int CandidateGroupId { get; set; } = Candidates.CandidateSlotPoolOptions.DefaultCandidateGroupId;
 
-    // Azure Container Apps Dynamic Sessions pool management endpoint for headless Plane 2 cloud fallback (dormant when unset).
-    public string? AcaPoolManagementEndpoint { get; set; }
-
-    // Azure Dynamic Sessions management plane API version for Plane 2 candidate sessions.
-    public string AcaApiVersion { get; set; } = AcaDynamicSessionsOptions.DefaultApiVersion;
-
-    // Entra ID / Managed Identity token scope for Plane 2 ACA Dynamic Sessions.
-    public string AcaTokenScope { get; set; } = AcaDynamicSessionsOptions.DefaultTokenScope;
-
-    // Optional user-assigned Managed Identity client ID for Plane 2 ACA Dynamic Sessions.
-    public string? AcaManagedIdentityClientId { get; set; }
-
-    // Strict per-execution timeout for Plane 2 ACA Dynamic Sessions calls (build gate, publish, run).
-    public TimeSpan AcaExecutionTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-    // Strict readiness timeout when waiting for a Plane 2 ACA Dynamic Sessions candidate microVM to become healthy.
-    public TimeSpan AcaSessionHealthTimeout { get; set; } = TimeSpan.FromMinutes(3);
-
     // How long a command asked by a caller who is not a person waits for the person's answer before it expires.
     public TimeSpan CommandConfirmationExpiry { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -74,16 +55,6 @@ public sealed class AspireOptions : IModuleOptions
         CandidateGroupId = CandidateGroupId,
     };
 
-    internal AcaDynamicSessionsOptions ToAcaDynamicSessionsOptions() => new()
-    {
-        PoolManagementEndpoint = AcaPoolManagementEndpoint,
-        ApiVersion = AcaApiVersion,
-        TokenScope = AcaTokenScope,
-        ManagedIdentityClientId = AcaManagedIdentityClientId,
-        ExecutionTimeout = AcaExecutionTimeout,
-        SessionHealthTimeout = AcaSessionHealthTimeout,
-    };
-
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(SiloStepBudget, TimeSpan.Zero);
@@ -98,6 +69,5 @@ public sealed class AspireOptions : IModuleOptions
         }
 
         ToSlotPoolOptions().Validate();
-        ToAcaDynamicSessionsOptions().Validate();
     }
 }

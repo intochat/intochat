@@ -19,11 +19,11 @@ namespace IntoChat.Aspire.Candidates;
 // (Azurite, Postgres, ClickHouse) with strict per-lease database/storage/worktree isolation.
 internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyncDisposable, IDisposable
 {
-    public const string CandidateMemoryLimit = DockerCandidateHost.CandidateMemoryLimit;
-    public const string CandidateCpuLimit = DockerCandidateHost.CandidateCpuLimit;
+    public const string CandidateMemoryLimit = "2g";
+    public const string CandidateCpuLimit = "2";
     public const string ContainerHomePath = "/home/agent";
     public const string ContainerIntoChatHomePath = "/home/agent/intochat-home";
-    public const string LiveRef = DockerCandidateHost.LiveRef;
+    public const string LiveRef = CandidateGitWorkspace.LiveRef;
     public const string DevSlotLabelKey = "intochat.devslot";
 
     private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0";
@@ -34,34 +34,6 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
     private const string OrleansIntegration = "orleans";
     private static readonly TimeSpan DependencyBudget = TimeSpan.FromSeconds(90);
 
-    private static readonly string[] CopiedSections =
-    [
-        ModuleConfiguration.ModulesSectionName + ":",
-        IdentityHostOptions.SectionName + ":",
-    ];
-
-    private static readonly string[] AmbientSecretExactNames =
-    [
-        "HOME",
-        "USERPROFILE",
-        "SSH_AUTH_SOCK",
-        "SSH_AGENT_PID",
-        "GIT_ASKPASS",
-        "GIT_CONFIG_GLOBAL",
-        "GH_TOKEN",
-        "GITHUB_TOKEN",
-        "NUGET_API_KEY",
-        "DOCKER_AUTH_CONFIG",
-    ];
-
-    private static readonly string[] AmbientSecretPrefixes =
-    [
-        "AWS_",
-        "AZURE_",
-        "GITHUB_",
-        "SSH_",
-    ];
-
     private static readonly ILogger Log = OsConsoleLog.For<AgentDevSlotsCandidateHost>();
 
     private readonly IProcessRunner _processes;
@@ -70,11 +42,15 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
     private readonly CandidateSlotPoolOptions _options;
     private readonly Func<CancellationToken, Task<string>> _workdir;
     private readonly Func<CancellationToken, Task<CandidateSecrets>> _secrets;
+    private readonly CandidateGitWorkspace _workspace;
+    private readonly ProcessCandidateHost _processFallback;
+    private readonly Func<CancellationToken, Task<bool>> _dockerAvailableProbe;
     private readonly HttpClient _http;
     private readonly bool _ownsHttpClient;
     private readonly Func<CandidateSlotLease, CancellationToken, Task> _dependenciesReady;
     private readonly Func<CandidateSlotWarmState, CancellationToken, Task<bool>> _warmHealthProbe;
     private readonly ConcurrentDictionary<string, string> _containerBySha = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _processFallbackShas = new(StringComparer.Ordinal);
     private int _disposed;
 
     public AgentDevSlotsCandidateHost(
@@ -82,7 +58,8 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         IConfiguration configuration,
         IProcessRunner processes,
         ICandidateSlotPool slotPool,
-        IOptions<AspireOptions> options)
+        IOptions<AspireOptions> options,
+        ProcessCandidateHost processFallback)
         : this(
             processes,
             configuration,
@@ -92,7 +69,9 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             http: null,
             options: options?.Value.ToSlotPoolOptions(),
             dependenciesReady: null,
-            warmHealthProbe: null)
+            warmHealthProbe: null,
+            processFallback: processFallback ?? throw new ArgumentNullException(nameof(processFallback)),
+            dockerAvailableProbe: null)
     {
     }
 
@@ -105,13 +84,16 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         HttpClient? http = null,
         CandidateSlotPoolOptions? options = null,
         Func<CandidateSlotLease, CancellationToken, Task>? dependenciesReady = null,
-        Func<CandidateSlotWarmState, CancellationToken, Task<bool>>? warmHealthProbe = null)
+        Func<CandidateSlotWarmState, CancellationToken, Task<bool>>? warmHealthProbe = null,
+        ProcessCandidateHost? processFallback = null,
+        Func<CancellationToken, Task<bool>>? dockerAvailableProbe = null)
     {
         _processes = processes ?? throw new ArgumentNullException(nameof(processes));
         _live = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _slotPool = slotPool ?? throw new ArgumentNullException(nameof(slotPool));
         _workdir = workdir ?? throw new ArgumentNullException(nameof(workdir));
         _secrets = secrets ?? (_ => Task.FromResult(new CandidateSecrets(new Dictionary<string, string>())));
+        _workspace = new CandidateGitWorkspace(_processes, _workdir);
         _options = options ?? new CandidateSlotPoolOptions();
         _options.Validate();
         if (http is null)
@@ -125,6 +107,10 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             _ownsHttpClient = false;
         }
 
+        _processFallback = processFallback is not null
+            ? processFallback
+            : CreateProcessFallback(_processes, _workdir, _secrets, _http, _live);
+        _dockerAvailableProbe = dockerAvailableProbe ?? ProbeDockerDaemonAsync;
         _dependenciesReady = dependenciesReady ?? WaitForDependenciesReadyAsync;
         _warmHealthProbe = warmHealthProbe ?? ProbeWarmSidecarsHealthyAsync;
     }
@@ -133,59 +119,19 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
     public IReadOnlyList<string> LastRunArguments { get; private set; } = [];
     public int WarmReuseHits => Volatile.Read(ref _warmReuseHits);
     public int ColdStarts => Volatile.Read(ref _coldStarts);
+    internal int ProcessFallbackCount => Volatile.Read(ref _processFallbackCount);
+    internal bool IsUsingProcessFallback(string sha) => _processFallbackShas.ContainsKey(sha);
 
     private int _warmReuseHits;
     private int _coldStarts;
+    private int _processFallbackCount;
 
-    public async Task<PreparedCandidate> Prepare(
+    public Task<PreparedCandidate> Prepare(
         string baseSha,
         string summary,
         IReadOnlyDictionary<string, string> files,
         CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(files);
-        var root = await _workdir(ct).ConfigureAwait(false);
-        var git = Git(root);
-        var staging = Path.Combine(root, "worktrees", $"staging-{Guid.NewGuid():N}");
-        var added = false;
-        try
-        {
-            await git.AddWorktree(staging, baseSha, ct).ConfigureAwait(false);
-            added = true;
-            foreach (var (path, content) in files)
-            {
-                var target = Path.GetFullPath(Path.Combine(staging, path));
-                if (!target.StartsWith(Path.GetFullPath(staging) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new CandidateHostException("prepare", $"{path} leaves the worktree");
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                await File.WriteAllTextAsync(target, content, ct).ConfigureAwait(false);
-            }
-
-            await git.Stage(staging, ct).ConfigureAwait(false);
-            await git.Commit(staging, summary, ct).ConfigureAwait(false);
-            var sha = await git.ShortSha(staging, ct).ConfigureAwait(false);
-            var worktree = WorktreeOf(root, sha);
-            await git.MoveWorktree(staging, worktree, ct).ConfigureAwait(false);
-            return new PreparedCandidate(sha, worktree);
-        }
-        catch (Exception error)
-        {
-            if (added)
-            {
-                await git.RemoveWorktree(staging, CancellationToken.None).ConfigureAwait(false);
-            }
-
-            if (error is CandidateHostException or OperationCanceledException)
-            {
-                throw;
-            }
-
-            throw new CandidateHostException("prepare", error.Message);
-        }
-    }
+        => _workspace.Prepare(baseSha, summary, files, ct);
 
     public async Task BuildGate(string sha, CancellationToken ct)
     {
@@ -195,7 +141,7 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         string[] changed;
         try
         {
-            changed = await Git(root).ChangedFiles(worktree, "HEAD~1", ct).ConfigureAwait(false);
+            changed = await _workspace.ChangedFiles(root, worktree, "HEAD~1", ct).ConfigureAwait(false);
         }
         catch (InvalidOperationException error)
         {
@@ -209,7 +155,7 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             .ToArray();
         foreach (var project in projects)
         {
-            await Dotnet("gate", worktree, ct, "build", project).ConfigureAwait(false);
+            await _workspace.Dotnet("gate", worktree, ct, "build", project).ConfigureAwait(false);
         }
 
         var tests = projects
@@ -220,20 +166,25 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             .ToArray();
         foreach (var test in tests)
         {
-            await Dotnet("gate", worktree, ct, "test", "--project", test).ConfigureAwait(false);
+            await _workspace.Dotnet("gate", worktree, ct, "test", "--project", test).ConfigureAwait(false);
         }
     }
 
     public async Task<string> Publish(string sha, CancellationToken ct)
     {
         Checked(sha);
+        if (await ShouldUseProcessFallbackAsync(sha, "publish", ct).ConfigureAwait(false))
+        {
+            return await _processFallback.Publish(sha, ct).ConfigureAwait(false);
+        }
+
         var root = await _workdir(ct).ConfigureAwait(false);
         var worktree = WorktreeOf(root, sha);
         var build = Path.Combine(root, "builds", sha);
         var output = Path.Combine(build, "os");
         var dockerfile = Path.Combine(root, "Candidate.devslot.Dockerfile");
-        await Dotnet("publish", worktree, ct, "publish", OsProject, "-c", "Release", "-o", output).ConfigureAwait(false);
-        var baseImage = (await Dotnet(
+        await _workspace.Dotnet("publish", worktree, ct, "publish", OsProject, "-c", "Release", "-o", output).ConfigureAwait(false);
+        var baseImage = (await _workspace.Dotnet(
             "publish",
             worktree,
             ct,
@@ -265,6 +216,11 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
     public async Task<RunningCandidate> Run(string sha, CancellationToken ct)
     {
         Checked(sha);
+        if (await ShouldUseProcessFallbackAsync(sha, "run", ct).ConfigureAwait(false))
+        {
+            return await _processFallback.Run(sha, ct).ConfigureAwait(false);
+        }
+
         var root = await _workdir(ct).ConfigureAwait(false);
         var given = await _secrets(ct).ConfigureAwait(false);
         var lease = await _slotPool.AcquireAsync(sha, root, ct: ct).ConfigureAwait(false);
@@ -299,6 +255,12 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
     public async Task WaitHealthy(string sha, TimeSpan budget, CancellationToken ct)
     {
         Checked(sha);
+        if (_processFallbackShas.ContainsKey(sha))
+        {
+            await _processFallback.WaitHealthy(sha, budget, ct).ConfigureAwait(false);
+            return;
+        }
+
         if (!_slotPool.TryGetActiveLease(sha, out var lease) || lease is null)
         {
             throw new CandidateHostException("healthy", $"{sha} is not running on this host");
@@ -342,35 +304,21 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         }
     }
 
-    public async Task<string?> Commit(string sha, CancellationToken ct)
-    {
-        Checked(sha);
-        try
-        {
-            return await Git(await _workdir(ct).ConfigureAwait(false)).Advance(LiveRef, sha, ct).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException error)
-        {
-            throw new CandidateHostException("commit", error.Message);
-        }
-    }
+    public Task<string?> Commit(string sha, CancellationToken ct)
+        => _workspace.Commit(sha, ct);
 
-    public async Task Uncommit(string sha, string? previous, CancellationToken ct)
-    {
-        Checked(sha);
-        try
-        {
-            await Git(await _workdir(ct).ConfigureAwait(false)).Retreat(LiveRef, sha, previous, ct).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException error)
-        {
-            throw new CandidateHostException("commit", error.Message);
-        }
-    }
+    public Task Uncommit(string sha, string? previous, CancellationToken ct)
+        => _workspace.Uncommit(sha, previous, ct);
 
     public async Task Remove(string sha, CancellationToken ct)
     {
         Checked(sha);
+        if (_processFallbackShas.TryRemove(sha, out _))
+        {
+            await _processFallback.Remove(sha, ct).ConfigureAwait(false);
+            return;
+        }
+
         _slotPool.TryGetActiveLease(sha, out var lease);
         var containerName = _containerBySha.TryRemove(sha, out var tracked)
             ? tracked
@@ -411,6 +359,11 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
     public async Task<string[]> Orphans(string[] known, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(known);
+        if (await ShouldUseProcessFallbackAsync(sha: null, "orphans", ct).ConfigureAwait(false))
+        {
+            return await _processFallback.Orphans(known, ct).ConfigureAwait(false);
+        }
+
         var listed = await _processes.RunAsync(
             "docker",
             ["ps", "-a", "--filter", $"label={DevSlotLabelKey}=true", "--format", "{{.Names}}"],
@@ -454,6 +407,12 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
         if (!_options.EnableWarmSlotReuse)
         {
+            return 0;
+        }
+
+        if (!await _dockerAvailableProbe(ct).ConfigureAwait(false))
+        {
+            Log.LogWarning("Docker daemon is unavailable; skipping pre-warming of {Count} dev slot(s).", count);
             return 0;
         }
 
@@ -531,8 +490,7 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         CandidateSlotWarmState warm,
         IReadOnlyDictionary<string, string> modelSecrets)
     {
-        var environment = CopySafeHostConfiguration();
-        ScrubAmbientHostSecrets(environment);
+        var environment = CandidateGitWorkspace.CopySafeHostConfiguration(_live, rewriteLoopbackForContainer: true);
 
         // Apply only explicit CandidateSecrets (AI model keys).
         foreach (var (key, value) in modelSecrets)
@@ -564,22 +522,22 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
             ["Orleans__ServiceId"] = orleansId,
             ["Orleans__ClusterId"] = orleansId,
             ["Orleans__EnableDistributedTracing"] = "true",
-            [DockerCandidateHost.IntegrationVariable(OrleansIntegration, "Clustering")] = azuriteConnection,
-            [DockerCandidateHost.IntegrationVariable(OrleansIntegration, "GrainState")] = azuriteConnection,
-            [DockerCandidateHost.IntegrationVariable(OrleansIntegration, "Reminders")] = azuriteConnection,
-            [DockerCandidateHost.IntegrationVariable(OrleansIntegration, "GrainStateContainer")] = lease.GrainStateContainerName,
+            [CandidateGitWorkspace.IntegrationVariable(OrleansIntegration, "Clustering")] = azuriteConnection,
+            [CandidateGitWorkspace.IntegrationVariable(OrleansIntegration, "GrainState")] = azuriteConnection,
+            [CandidateGitWorkspace.IntegrationVariable(OrleansIntegration, "Reminders")] = azuriteConnection,
+            [CandidateGitWorkspace.IntegrationVariable(OrleansIntegration, "GrainStateContainer")] = lease.GrainStateContainerName,
             [ModuleConfiguration.EnvironmentName(ModuleConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"devslot-{lease.SlotId}-{lease.OwnerSha}",
-            [DockerCandidateHost.Env(IntoChatOSNames.HomeKey)] = ContainerIntoChatHomePath,
-            [DockerCandidateHost.Env(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
+            [CandidateGitWorkspace.Env(IntoChatOSNames.HomeKey)] = ContainerIntoChatHomePath,
+            [CandidateGitWorkspace.Env(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
             [IntoChatOSNames.MasterKeyEnvironmentVariable] = Secret(),
-            [DockerCandidateHost.IntegrationVariable("postgres", "ConnectionString")] =
+            [CandidateGitWorkspace.IntegrationVariable("postgres", "ConnectionString")] =
                 $"Host={warm.PostgresContainer};Port=5432;Username=postgres;Password={warm.PostgresPassword};Database={lease.PostgresDatabaseName}",
-            [DockerCandidateHost.IntegrationVariable("postgres", "AdminConnection")] =
+            [CandidateGitWorkspace.IntegrationVariable("postgres", "AdminConnection")] =
                 $"Host={warm.PostgresContainer};Port=5432;Username=postgres;Password={warm.PostgresPassword}",
-            [DockerCandidateHost.IntegrationVariable("supabase", "ConnectionString")] =
+            [CandidateGitWorkspace.IntegrationVariable("supabase", "ConnectionString")] =
                 $"Host={warm.PostgresContainer};Port=5432;Username=postgres;Password={warm.PostgresPassword};Database={lease.PostgresDatabaseName}",
-            [DockerCandidateHost.IntegrationVariable("clickhouse", "ConnectionString")] =
+            [CandidateGitWorkspace.IntegrationVariable("clickhouse", "ConnectionString")] =
                 $"Host={warm.ClickHouseContainer};Port=8123;Protocol=http;Username=default;Password={warm.ClickHousePassword};Database={lease.ClickHouseDatabaseName}",
         };
 
@@ -914,57 +872,42 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         }
     }
 
-    private Dictionary<string, string> CopySafeHostConfiguration()
+    private async Task<bool> ShouldUseProcessFallbackAsync(string? sha, string stage, CancellationToken ct)
     {
-        var environment = _live.AsEnumerable()
-            .Where(pair => pair.Value is not null && Travels(pair.Key))
-            .ToDictionary(pair => ModuleConfiguration.EnvironmentName(pair.Key), pair => pair.Value!, StringComparer.Ordinal);
-        environment["ASPNETCORE_ENVIRONMENT"] = _live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
-        environment["DOTNET_ENVIRONMENT"] = _live["DOTNET_ENVIRONMENT"] ?? _live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
-        environment[DockerCandidateHost.Env(AuthKeys.Posture)] = "Open";
-        environment[DockerCandidateHost.Env(AuthKeys.AllowOpenOnNetwork)] = "true";
-
-        if (_live[DockerCandidateHost.OtlpHttpEndpoint] is { Length: > 0 } otlpHttp)
+        if (sha is not null && _processFallbackShas.ContainsKey(sha))
         {
-            environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = FromContainer(otlpHttp);
-            environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf";
-        }
-        else if (_live["OTEL_EXPORTER_OTLP_ENDPOINT"] is { Length: > 0 } otlp)
-        {
-            environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = FromContainer(otlp);
-            if (_live["OTEL_EXPORTER_OTLP_PROTOCOL"] is { Length: > 0 } protocol)
-            {
-                environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = protocol;
-            }
+            return true;
         }
 
-        if (_live["OTEL_EXPORTER_OTLP_HEADERS"] is { Length: > 0 } headers)
+        if (await _dockerAvailableProbe(ct).ConfigureAwait(false))
         {
-            environment["OTEL_EXPORTER_OTLP_HEADERS"] = headers;
+            return false;
         }
 
-        foreach (var cadence in DockerCandidateHost.ExportCadence)
+        Log.LogWarning(
+            "Docker daemon is unavailable during candidate stage '{Stage}' for '{Sha}'; falling back automatically to ProcessCandidateHost.",
+            stage,
+            sha ?? "<orphans>");
+        if (sha is not null)
         {
-            if (_live[cadence] is { Length: > 0 } value)
-            {
-                environment[cadence] = value;
-            }
+            _processFallbackShas[sha] = 0;
         }
 
-        return environment;
+        Interlocked.Increment(ref _processFallbackCount);
+        return true;
     }
 
-    private static void ScrubAmbientHostSecrets(Dictionary<string, string> environment)
+    private async Task<bool> ProbeDockerDaemonAsync(CancellationToken ct)
     {
-        ChildEnvironmentPolicy.ScrubCustodyAndSecretVariables(environment);
-        var toRemove = environment.Keys
-            .Where(key =>
-                AmbientSecretExactNames.Any(exact => string.Equals(key, exact, StringComparison.OrdinalIgnoreCase))
-                || AmbientSecretPrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
-        foreach (var key in toRemove)
+        try
         {
-            environment.Remove(key);
+            var result = await _processes.RunAsync("docker", ["info", "--format", "{{.ServerVersion}}"], ".", null, ct).ConfigureAwait(false);
+            return result.ExitCode == 0;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.LogDebug(ex, "Docker daemon availability probe failed with exception.");
+            return false;
         }
     }
 
@@ -980,13 +923,6 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         throw new CandidateHostException(stage, $"{container} stopped: {Tail(logs)}");
     }
 
-    private static bool Travels(string key)
-        => CopiedSections.Any(section => key.StartsWith(section, StringComparison.OrdinalIgnoreCase));
-
-    private static string FromContainer(string url)
-        => url.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase)
-            .Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal);
-
     private static string? ProjectOf(string worktree, string file)
     {
         var full = Path.GetFullPath(worktree);
@@ -999,17 +935,6 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         }
 
         return null;
-    }
-
-    private async Task<string> Dotnet(string stage, string worktree, CancellationToken ct, params string[] args)
-    {
-        var result = await _processes.RunAsync("dotnet", args, worktree, null, ct).ConfigureAwait(false);
-        if (result.ExitCode != 0)
-        {
-            throw new CandidateHostException(stage, $"dotnet {string.Join(' ', args)}:\n{Tail(result)}");
-        }
-
-        return result.Output;
     }
 
     private Task Docker(string stage, CancellationToken ct, params string[] args)
@@ -1034,11 +959,17 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         }
     }
 
-    private Git Git(string root) => new(_processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
-
     private static string SlotAzuriteConnectionString(string azuriteContainer)
         => $"DefaultEndpointsProtocol=http;AccountName={CandidateStorage.AccountName};AccountKey={CandidateStorage.AccountKey};"
             + $"BlobEndpoint=http://{azuriteContainer}:10000/{CandidateStorage.AccountName};TableEndpoint=http://{azuriteContainer}:10002/{CandidateStorage.AccountName};";
+
+    private static ProcessCandidateHost CreateProcessFallback(
+        IProcessRunner processes,
+        Func<CancellationToken, Task<string>> workdir,
+        Func<CancellationToken, Task<CandidateSecrets>> secrets,
+        HttpClient http,
+        IConfiguration live)
+        => new(processes, workdir, secrets, launcher: null, http: http, portAllocator: null, configuration: live);
 
     private static string ImageOf(string sha) => $"intochat-os-candidate:{sha}";
     internal static string CandidateContainerOf(string slotId, string sha) => $"devslot-{slotId}-candidate-{sha}";

@@ -185,7 +185,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireMo
     // Run mode only (candidates are local): reads the silo's own environment as composed so far, so this
     // projection must come after the AI module's and after the brain's grain-state reference (it does: hosting
     // projections apply in registration order, after the references), and hands the aspire Integration the
-    // model's values and the live grain-state connection. DockerCandidateHost reads them only from there.
+    // model's values and the live grain-state connection. Candidate hosts read them only from there.
     // Each role's front as the aspire Integration's Fronts ({role: url}), read when the silo starts: the fronts are
     // added after the brain is composed, and their fixed ports are the AppHost's.
     private sealed class Fronts(IDistributedApplicationBuilder app) : IntoChatOSModuleProjection

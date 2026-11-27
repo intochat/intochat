@@ -31,9 +31,7 @@ namespace IntoChat.OS.Kernel.Sandbox;
 /// 1. Owner's online consented <see cref="ICodeSandbox"/> connected client via <see cref="IConnectedComputeRouter"/>
 ///    (&lt;500 ms unavailability detection),
 /// 2. Dedicated cloud sandbox Container App (<see cref="SandboxOptions.Url"/>) or environment-scrubbed local
-///    <c>IntoChat.OS.Sandbox --unit-host</c> child process when <see cref="SandboxOptions.EnableLocalSandbox"/> is enabled,
-/// 3. Headless Azure Container Apps Dynamic Sessions (Kata MicroVMs) via <see cref="AcaDynamicSessionsSandbox"/>
-///    when configured and neither sovereign client device nor local sandbox is available/enabled.
+///    <c>IntoChat.OS.Sandbox --unit-host</c> child process when <see cref="SandboxOptions.EnableLocalSandbox"/> is enabled.
 /// </summary>
 internal sealed partial class HttpSandboxRuntimeBridge(
     IHttpClientFactory httpClientFactory,
@@ -42,7 +40,6 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     IServiceProvider services,
     ILogger<HttpSandboxRuntimeBridge> logger,
     IConnectedComputeRouter? connectedComputeRouter = null,
-    AcaDynamicSessionsSandbox? acaDynamicSessionsFallback = null,
     IConfinedProcessRunner? confinedProcessRunner = null) : ISandboxRuntimeBridge, ILocalSandboxExecutor, IAsyncDisposable
 {
     private const int MaxWorkerAttempts = 20;
@@ -170,74 +167,41 @@ internal sealed partial class HttpSandboxRuntimeBridge(
                 package.Key);
         }
 
-        var acaFallback = acaDynamicSessionsFallback ?? services.GetService<AcaDynamicSessionsSandbox>();
         var hasDedicatedWorkerUrl = !string.IsNullOrWhiteSpace(options.Value.Url);
 
         // Tier 2: Dedicated sandbox worker URL or local desktop sandbox (--unit-host) when enabled.
         if (hasDedicatedWorkerUrl || options.Value.EnableLocalSandbox)
         {
-            try
-            {
-                await DeployScopedPackageAsync(
-                    brainId,
-                    package,
-                    assemblyBytes,
-                    stateJson: null,
-                    settingsJson: null,
-                    allowedContracts: normalizedScope,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-                try
-                {
-                    var result = await DispatchCommandAsync(
-                        brainId.Value,
-                        package.Key,
-                        command,
-                        payloadJson,
-                        cancellationToken).ConfigureAwait(false);
-                    var fallbackTarget = hasDedicatedWorkerUrl
-                        ? "cloud-sandbox"
-                        : "local-unit-host";
-                    return result with { ExecutionTarget = fallbackTarget, ExecutedByMachineId = null };
-                }
-                finally
-                {
-                    await UnloadAsync(brainId.Value, package.Key, CancellationToken.None).ConfigureAwait(false);
-                }
-            }
-            catch (Exception error) when (!hasDedicatedWorkerUrl
-                && IsLocalSandboxUnavailable(error)
-                && acaFallback is { IsConfigured: true }
-                && !cancellationToken.IsCancellationRequested)
-            {
-                logger.LogWarning(
-                    error,
-                    "Local desktop sandbox (--unit-host) unavailable for '{BrainId}/{AppKey}'; falling back to ACA Dynamic Sessions.",
-                    brainId.Value,
-                    package.Key);
-            }
-        }
-
-        // Tier 3: Headless ACA Dynamic Sessions (Kata MicroVMs) fallback when configured; fail closed otherwise.
-        if (acaFallback is { IsConfigured: true })
-        {
-            return await acaFallback.ExecuteScopedCommandAsync(
+            await DeployScopedPackageAsync(
                 brainId,
                 package,
                 assemblyBytes,
-                command,
-                payloadJson,
-                normalizedScope,
-                cancellationToken).ConfigureAwait(false);
+                stateJson: null,
+                settingsJson: null,
+                allowedContracts: normalizedScope,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var result = await DispatchCommandAsync(
+                    brainId.Value,
+                    package.Key,
+                    command,
+                    payloadJson,
+                    cancellationToken).ConfigureAwait(false);
+                var fallbackTarget = hasDedicatedWorkerUrl
+                    ? "cloud-sandbox"
+                    : "local-unit-host";
+                return result with { ExecutionTarget = fallbackTarget, ExecutedByMachineId = null };
+            }
+            finally
+            {
+                await UnloadAsync(brainId.Value, package.Key, CancellationToken.None).ConfigureAwait(false);
+            }
         }
 
-        throw new AcaDynamicSessionsNotConfiguredException(
-            "Local desktop sandbox is disabled or unavailable and ACA Dynamic Sessions PoolManagementEndpoint is not configured.");
+        throw new InvalidOperationException(
+            "Local desktop sandbox is disabled and no dedicated Sandbox:Url worker is configured.");
     }
-
-    private static bool IsLocalSandboxUnavailable(Exception error)
-        => error is FileNotFoundException
-            or DirectoryNotFoundException
-            or System.ComponentModel.Win32Exception;
 
     async Task<ConnectedSandboxResponse> ILocalSandboxExecutor.ExecuteAsync(
         ConnectedSandboxRequest request,

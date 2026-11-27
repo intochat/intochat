@@ -13,7 +13,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
 {
     private const int LiveHttpPort = 5080;
     private const int LiveMcpPort = 5081;
-    private const int LegacyDockerFirstPort = DockerCandidateHost.FirstPort;
+    private const int LegacyDockerFirstPort = 5190;
     private const int LegacyDockerBlockSize = 6;
     private const int MaxPortSearchWindows = 512;
 

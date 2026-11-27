@@ -54,7 +54,7 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
             })
             .Build();
 
-        var modelKeyName = DockerCandidateHost.IntegrationVariable("openai", "ApiKey");
+        var modelKeyName = CandidateGitWorkspace.IntegrationVariable("openai", "ApiKey");
         var slotOptions = new CandidateSlotPoolOptions
         {
             MaxSlots = 2,
@@ -110,7 +110,7 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
         Assert.Equal(AgentDevSlotsCandidateHost.ContainerHomePath, env["HOME"]);
         Assert.Equal("/dev/null", env["GIT_CONFIG_GLOBAL"]);
         Assert.Equal("1", env["GIT_CONFIG_NOSYSTEM"]);
-        Assert.Equal(AgentDevSlotsCandidateHost.ContainerIntoChatHomePath, env[DockerCandidateHost.Env(IntoChatOSNames.HomeKey)]);
+        Assert.Equal(AgentDevSlotsCandidateHost.ContainerIntoChatHomePath, env[CandidateGitWorkspace.Env(IntoChatOSNames.HomeKey)]);
         Assert.Equal("explicit-candidate-openai-key", env[modelKeyName]);
 
         // Fresh master key (never host master key) and zero ambient secrets.
@@ -124,9 +124,9 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
         Assert.False(env.ContainsKey("AWS_SECRET_ACCESS_KEY"));
 
         // Aspire service connection strings point to slot-isolated databases.
-        Assert.Contains(lease.PostgresDatabaseName, env[DockerCandidateHost.IntegrationVariable("postgres", "ConnectionString")], StringComparison.Ordinal);
-        Assert.Contains(lease.ClickHouseDatabaseName, env[DockerCandidateHost.IntegrationVariable("clickhouse", "ConnectionString")], StringComparison.Ordinal);
-        Assert.Contains(AgentDevSlotsCandidateHost.AzuriteOf(lease.SlotId), env[DockerCandidateHost.IntegrationVariable("orleans", "GrainState")], StringComparison.Ordinal);
+        Assert.Contains(lease.PostgresDatabaseName, env[CandidateGitWorkspace.IntegrationVariable("postgres", "ConnectionString")], StringComparison.Ordinal);
+        Assert.Contains(lease.ClickHouseDatabaseName, env[CandidateGitWorkspace.IntegrationVariable("clickhouse", "ConnectionString")], StringComparison.Ordinal);
+        Assert.Contains(AgentDevSlotsCandidateHost.AzuriteOf(lease.SlotId), env[CandidateGitWorkspace.IntegrationVariable("orleans", "GrainState")], StringComparison.Ordinal);
 
         await host.WaitHealthy("a1b2c3d", TimeSpan.FromSeconds(5), Ct);
 
@@ -369,6 +369,65 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
         Assert.DoesNotContain(runner.Calls, c => c.Args.Contains("devslot-slot-00-postgres") && c.Args.Contains("rm"));
     }
 
+    [Fact]
+    public async Task DockerDaemonUnavailable_AutomaticallyFallsBackToProcessCandidateHost()
+    {
+        var runner = new RecordingDockerRunner { DockerDaemonUnavailable = true };
+        using var http = new HttpClient(new StaticOkHandler());
+        var config = new ConfigurationBuilder().Build();
+        var killed = false;
+        var exited = false;
+
+        var fallbackHost = new ProcessCandidateHost(
+            runner,
+            _ => Task.FromResult(_workdir),
+            launcher: _ => new CandidateProcessHandle(
+                pid: 4242,
+                hasExited: () => exited,
+                exitCode: () => 0,
+                stdout: () => "",
+                stderr: () => "",
+                kill: _ => { killed = true; exited = true; },
+                waitForExit: _ => Task.CompletedTask),
+            http: http,
+            portAllocator: () => 5789,
+            configuration: config);
+
+        await using var pool = new CandidateSlotLeasePool(
+            new CandidateSlotPoolOptions { MaxSlots = 2, BasePort = 6550 },
+            isPortInUse: _ => false);
+        await using var host = new AgentDevSlotsCandidateHost(
+            runner,
+            config,
+            pool,
+            _ => Task.FromResult(_workdir),
+            http: http,
+            processFallback: fallbackHost);
+
+        var buildPath = await host.Publish("f00ba12", Ct);
+        Assert.EndsWith(Path.Combine("builds", "f00ba12"), buildPath, StringComparison.Ordinal);
+        Assert.True(host.IsUsingProcessFallback("f00ba12"));
+        Assert.Equal(1, host.ProcessFallbackCount);
+
+        var running = await host.Run("f00ba12", Ct);
+        Assert.Equal("proc-f00ba12", running.Container);
+        Assert.Equal("http://127.0.0.1:5789", running.Endpoints.Ui);
+        Assert.Equal(0, pool.ActiveCount);
+
+        await host.WaitHealthy("f00ba12", TimeSpan.FromSeconds(5), Ct);
+
+        // PreWarmSlotsAsync gracefully returns 0 when Docker daemon is unavailable.
+        Assert.Equal(0, await host.PreWarmSlotsAsync(1, Ct));
+
+        // Orphans delegates cleanly to ProcessCandidateHost when Docker daemon is unavailable.
+        var orphans = await host.Orphans([], Ct);
+        Assert.Equal(["f00ba12"], orphans);
+        Assert.True(killed);
+
+        // No docker run or docker build calls were attempted.
+        Assert.DoesNotContain(runner.Calls, c => c.File == "docker" && (c.Args.Contains("run") || c.Args.Contains("build")));
+    }
+
     private static void AssertFlagPair(IReadOnlyList<string> args, string flag, string expectedValue)
     {
         for (var i = 0; i < args.Count - 1; i++)
@@ -390,6 +449,7 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
 
         public IReadOnlyList<RecordedCall> Calls => [.. _calls];
         public bool FailCandidateRun { get; set; }
+        public bool DockerDaemonUnavailable { get; set; }
         public string ListedContainers { get; set; } = "";
 
         public Task<ProcessResult> RunAsync(
@@ -400,6 +460,11 @@ public sealed class AgentDevSlotsCandidateHostFacts : IDisposable
             CancellationToken ct)
         {
             _calls.Enqueue(new RecordedCall(file, args, environment));
+            if (file == "docker" && DockerDaemonUnavailable && args is ["info", ..])
+            {
+                return Task.FromResult(new ProcessResult(1, "", "Cannot connect to the Docker daemon."));
+            }
+
             if (file == "docker" && FailCandidateRun && args.Contains("run") && args.Contains("--user"))
             {
                 return Task.FromResult(new ProcessResult(125, "", "simulated container launch error"));

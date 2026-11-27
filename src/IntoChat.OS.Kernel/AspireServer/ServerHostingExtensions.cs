@@ -161,13 +161,7 @@ public static class ServerHostingExtensions
             builder.Configuration.GetSection(
                 DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(
                     IntoChat.OS.Kernel.Sandbox.SandboxOptions.SectionName)));
-        builder.Services.Configure<IntoChat.OS.Host.Execution.AcaDynamicSessionsOptions>(
-            builder.Configuration.GetSection(
-                DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(
-                    IntoChat.OS.Kernel.Sandbox.SandboxOptions.SectionName)
-                + ":" + IntoChat.OS.Host.Execution.AcaDynamicSessionsOptions.SectionName));
         builder.Services.AddHttpClient("SandboxWorker");
-        builder.Services.AddHttpClient(IntoChat.OS.Host.Execution.AcaDynamicSessionsOptions.HttpClientName);
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Auth.WebViewTickets>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.AppTokenService>();
@@ -179,8 +173,6 @@ public static class ServerHostingExtensions
                     sp.GetService<ILogger<IntoChat.OS.Host.Execution.WindowsAppContainerRunner>>())
                 : new IntoChat.OS.Host.Execution.PosixConfinedProcessRunner(
                     sp.GetService<ILogger<IntoChat.OS.Host.Execution.PosixConfinedProcessRunner>>()));
-        builder.Services.TryAddSingleton<IntoChat.OS.Host.Execution.IAcaDynamicSessionsTokenProvider, IntoChat.OS.Host.Execution.ManagedIdentityAcaTokenProvider>();
-        builder.Services.TryAddSingleton<IntoChat.OS.Kernel.Sandbox.AcaDynamicSessionsSandbox>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>();
         builder.Services.Replace(ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.ISandboxRuntimeBridge>(
             static sp => sp.GetRequiredService<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>()));

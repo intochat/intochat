@@ -742,14 +742,14 @@
             <td>
               <code>src/Components/Aspire/Neurons/Candidates/ICandidateHost.cs</code><br/>
               <code>ProcessCandidateHost.cs</code>, <code>AgentDevSlotsCandidateHost.cs</code>,<br/>
-              <code>CandidateSlotLeasePool.cs</code>, <code>AcaDynamicSessionsCandidateHost.cs</code><br/>
+              <code>CandidateSlotLeasePool.cs</code>, <code>CandidateGitWorkspace.cs</code><br/>
               <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
               <em>Not used</em> (Plane 1 executes scripts, not whole OS instances).
             </td>
             <td>
-              <strong>Verification Spine:</strong> Ephemeral loopback ports &amp; temp homes, leased Docker Compose slots (<code>agent-dev-slots</code>), and ACA Dynamic Sessions candidate hosts.
+              <strong>Verification Spine:</strong> Ephemeral loopback ports &amp; temp homes and leased devcontainer slots (<code>agent-dev-slots</code>) with automatic Process fallback when Docker is unavailable.
             </td>
           </tr>
 
@@ -998,11 +998,11 @@
 
       <div class="card">
         <div class="card-header">
-          <span class="card-title" style="color:var(--purple);">&#9729; Where Cloud ACA Dynamic Sessions Fits In</span>
-          <span class="status-pill status-live">&#10003; Implemented on master</span>
+          <span class="card-title" style="color:var(--purple);">&#9729; Universal Devcontainer &amp; Future Cloud Execution</span>
+          <span class="status-pill status-live">&#10003; Wave 1 Slice A1</span>
         </div>
         <p>
-          When the user is away from their workstation and neither a paired sovereign client device nor a local desktop sandbox is available/enabled, Azure Container Apps (ACA) Dynamic Sessions provides an on-demand, scale-to-zero Kata microVM environment over <code>poolManagementEndpoint</code> with Entra/Managed Identity bearer tokens, per-execution/candidate session-ID isolation, strict timeouts, secret-scrubbed payloads, and fail-closed dormancy when unconfigured. It powers both the <strong>Plane 1 Tier-3 fallback</strong> (<code>AcaDynamicSessionsSandbox</code> in <code>Sovereign Client &rarr; Local Sandbox &rarr; ACA Dynamic Sessions</code>) and the <strong>Plane 2 headless candidate host</strong> (<code>AcaDynamicSessionsCandidateHost</code> via <code>CandidateHostMode.AcaDynamicSessions</code>).
+          Candidate verification defaults to unprivileged leased devcontainer slots (<code>AgentDevSlotsCandidateHost</code> + <code>.devcontainer/</code>) with automatic fallback to <code>ProcessCandidateHost</code> when the local Docker daemon is unavailable. <code>Microsoft.App/sessionPools</code> is permanently banned by Azure Policy Rule A; cloud execution uses standard Container Apps Consumption Jobs in Wave 2.
         </p>
       </div>
     </div>
@@ -1155,11 +1155,11 @@ await os.Notifications.NotifyAsync(
 
       <div class="card" style="border-color: rgba(74, 222, 128, 0.35);">
         <div class="card-header">
-          <span class="card-title">Slice RFC-4: ACA Dynamic Sessions (Kata MicroVMs) Fallback</span>
-          <span class="status-pill status-live">&#10003; Implemented on master</span>
+          <span class="card-title">Wave 1 Slice A1: Universal .devcontainer &amp; Unified AgentDevSlotsCandidateHost</span>
+          <span class="status-pill status-live">&#10003; Implemented</span>
         </div>
         <p>
-          Implemented the headless cloud fallback over Azure Container Apps Dynamic Sessions (<code>poolManagementEndpoint</code>) via shared <code>AcaDynamicSessionsClient</code> + <code>ManagedIdentityAcaTokenProvider</code> (<code>src/IntoChat.OS.Host/Execution/AcaDynamicSessions/</code>) with per-session Kata MicroVM <code>identifier</code> isolation, strict timeouts, secret-scrubbed payloads, and fail-closed dormancy when unconfigured: <code>AcaDynamicSessionsSandbox</code> (<code>src/IntoChat.OS.Kernel/Sandbox/</code>) and <code>AcaDynamicSessionsCandidateHost</code> (<code>src/Components/Aspire/Neurons/Candidates/</code>).
+          Removed policy-banned ACA Dynamic Sessions (<code>Microsoft.App/sessionPools</code>) and legacy root-user Docker candidate host; extracted shared <code>CandidateGitWorkspace</code>; shipped universal <code>.devcontainer/</code>; and switched default <code>CandidateHostMode</code> to <code>AgentDevSlots</code> with automatic <code>ProcessCandidateHost</code> fallback when Docker is unavailable.
         </p>
       </div>
     </div>
