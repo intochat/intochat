@@ -253,7 +253,7 @@ class _IntoChatWidgetbookAppState extends State<IntoChatWidgetbookApp> {
               name: 'Button',
               useCases: [
                 WidgetbookUseCase(
-                  name: 'UiMixActionButton (Tones & States)',
+                  name: 'UiMixButton (Presets & States)',
                   builder: (_) => const _MixActionButtonPlayground(),
                 ),
                 WidgetbookUseCase(
@@ -851,7 +851,7 @@ class _MixActionButtonPlaygroundState
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            UiMixActionButton(
+            UiMixButton.preset(
               label: label,
               style: style,
               icon: icon == 'none' ? null : icon,
@@ -877,7 +877,7 @@ class _MixActionButtonPlaygroundState
               runSpacing: 10,
               children: [
                 for (final s in UiMixButtonStyle.values)
-                  UiMixActionButton(
+                  UiMixButton.preset(
                     label: s.name[0].toUpperCase() + s.name.substring(1),
                     style: s,
                     compact: compact,
@@ -1272,13 +1272,13 @@ class _AdaptiveSheetPlaygroundState extends State<_AdaptiveSheetPlayground> {
         footer: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            UiMixActionButton(
+            UiMixButton.preset(
               label: 'Cancel',
               style: UiMixButtonStyle.ghost,
               onPressed: () => Navigator.of(ctx).pop('cancelled'),
             ),
             const SizedBox(width: 8),
-            UiMixActionButton(
+            UiMixButton.preset(
               label: 'Confirm',
               style: UiMixButtonStyle.primary,
               onPressed: () => Navigator.of(ctx).pop('confirmed'),
@@ -1331,7 +1331,7 @@ class _AdaptiveSheetPlaygroundState extends State<_AdaptiveSheetPlayground> {
             runSpacing: 10,
             alignment: WrapAlignment.center,
             children: [
-              UiMixActionButton(
+              UiMixButton.preset(
                 label: 'Present showUiSheet',
                 icon: 'panel-right',
                 onPressed: () => _openSheet(
@@ -1343,7 +1343,7 @@ class _AdaptiveSheetPlaygroundState extends State<_AdaptiveSheetPlayground> {
                   barrierDismissible: barrierDismissible,
                 ),
               ),
-              UiMixActionButton(
+              UiMixButton.preset(
                 label: 'Present Side Sheet',
                 style: UiMixButtonStyle.secondary,
                 onPressed: () => _openSheet(

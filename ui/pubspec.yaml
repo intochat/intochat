@@ -18,13 +18,11 @@ dependencies:
   gpt_markdown: ^1.2.1
   flutter_svg: ^2.3.0
   flutter_chat_core: ^2.9.0
-  flutter_chat_ui: ^2.11.1
   record: ^7.1.1
   web_socket_channel: ^3.0.3
   flutter_soloud: 5.2.3
   path_provider: ^2.1.6
   web: ^1.1.1
-  file_picker: ^8.3.7
   url_launcher: ^6.3.2
   webview_windows: ^0.4.0
   fl_chart: ^1.2.0

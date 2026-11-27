@@ -201,15 +201,15 @@ ApprovalState parseApprovalState(String status) =>
       _ => ApprovalState.pending,
     };
 
-UiKitButtonStyle parseButtonStyle(String style, String tone) => switch (style
+UiMixButtonStyle parseButtonStyle(String style, String tone) => switch (style
     .trim()
     .toLowerCase()) {
-  'primary' => UiKitButtonStyle.primary,
-  'ghost' => UiKitButtonStyle.ghost,
-  'danger' => UiKitButtonStyle.danger,
-  'link' => UiKitButtonStyle.link,
-  _ when parseUiNodeTone(tone) == UiNodeTone.accent => UiKitButtonStyle.primary,
-  _ => UiKitButtonStyle.secondary,
+  'primary' => UiMixButtonStyle.primary,
+  'ghost' => UiMixButtonStyle.ghost,
+  'danger' => UiMixButtonStyle.danger,
+  'link' => UiMixButtonStyle.link,
+  _ when parseUiNodeTone(tone) == UiNodeTone.accent => UiMixButtonStyle.primary,
+  _ => UiMixButtonStyle.secondary,
 };
 
 ChartKind parseChartKind(String kind) => switch (kind.trim().toLowerCase()) {
@@ -226,6 +226,18 @@ ChartKind parseChartKind(String kind) => switch (kind.trim().toLowerCase()) {
       'renamed' || 'rename' || 'r' => ('R', TagTone.accent),
       _ => ('M', TagTone.working),
     };
+
+/// Computes 1-2 letter uppercase initials from a human speaker display name.
+String speakerInitialsOf(String? name) {
+  final trimmed = name?.trim() ?? '';
+  if (trimmed.isEmpty) return '?';
+  final parts = trimmed.split(RegExp(r'\s+'));
+  if (parts.length == 1) {
+    final first = parts.first;
+    return first.substring(0, first.length >= 2 ? 2 : 1).toUpperCase();
+  }
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+}
 
 final RegExp _hunkHeaderNumbers = RegExp(
   r'@@\s*-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s*@@',

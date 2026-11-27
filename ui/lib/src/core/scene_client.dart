@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'models/scene_models.dart';
 import 'ui_client.dart';
 
 /// The brain's Flame routes under `/brains/{brain}/ui/`: scenes.

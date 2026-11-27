@@ -8,13 +8,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
 import '../design/keys.dart';
+import '../primitives/button.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_tokens.dart';
-import '../nodes/button.dart';
-import '../nodes/empty_state.dart';
-import '../nodes/error_line.dart';
+import '../nodes/action_nodes.dart';
+import '../nodes/feedback_nodes.dart';
+
 import '../nodes/node_common.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
@@ -836,6 +837,198 @@ class _ConversationViewState extends State<ConversationView> {
   }
 }
 
+/// Speaker role for reusable multi-human & room-agent chat bubbles
+/// (Wave 2A/3B surface prep; 100% additive with existing `MessageNode` JSON).
+enum SpeakerKind { self, human, agent }
+
+/// Reusable multi-human & agent speaker bubble:
+/// - [SpeakerKind.self]: right-aligned `bubbleMine` / `onBubbleMine`
+/// - [SpeakerKind.human]: left-aligned `surfaceCard` + `1px borderHairline`
+///   + `24px` initials avatar + `12px w600 textMuted` sender name
+/// - [SpeakerKind.agent]: left-aligned with optional `@Ino · Room only`
+///   [TagPill]
+class SpeakerBubble extends StatelessWidget {
+  const SpeakerBubble({
+    super.key,
+    required this.kind,
+    required this.child,
+    this.senderName,
+    this.senderInitials,
+    this.roomOnlyTag,
+    this.sending = false,
+  });
+
+  final SpeakerKind kind;
+  final Widget child;
+  final String? senderName;
+  final String? senderInitials;
+
+  /// Optional badge for room-scoped agent turns (e.g. `'@Ino · Room only'`).
+  final String? roomOnlyTag;
+  final bool sending;
+
+  static String initialsOf(String? name) => speakerInitialsOf(name);
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
+
+    if (kind == SpeakerKind.self) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Opacity(
+          opacity: sending ? 0.6 : 1.0,
+          child: LayoutBuilder(
+            builder: (context, box) => ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: box.maxWidth.isFinite ? box.maxWidth * 0.78 : 520,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 11,
+                ),
+                decoration: BoxDecoration(
+                  color: c.bubbleMine,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(tokens.bubble),
+                    topRight: Radius.circular(tokens.bubble),
+                    bottomLeft: Radius.circular(tokens.bubble),
+                    bottomRight: const Radius.circular(6),
+                  ),
+                ),
+                child: DefaultTextStyle.merge(
+                  style: UiType.textStyle(
+                    14,
+                    color: c.onBubbleMine,
+                    height: 1.5,
+                  ),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (kind == SpeakerKind.human) {
+      final name = senderName?.trim() ?? '';
+      final initials =
+          (senderInitials != null && senderInitials!.trim().isNotEmpty)
+          ? senderInitials!.trim().toUpperCase()
+          : initialsOf(name);
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: LayoutBuilder(
+          builder: (context, box) => ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: box.maxWidth.isFinite ? box.maxWidth * 0.78 : 520,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  key: const ValueKey('speaker_human_avatar'),
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: c.surfaceSunk,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: c.borderHairline),
+                  ),
+                  child: Text(
+                    initials,
+                    style: UiType.textStyle(
+                      10.5,
+                      weight: FontWeight.w600,
+                      color: c.textStrong,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (name.isNotEmpty) ...[
+                        Text(
+                          name,
+                          key: const ValueKey('speaker_human_name'),
+                          style: UiType.textStyle(
+                            12,
+                            weight: FontWeight.w600,
+                            color: c.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      Container(
+                        key: const ValueKey('speaker_human_bubble'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.surfaceCard,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(6),
+                            topRight: Radius.circular(tokens.bubble),
+                            bottomLeft: Radius.circular(tokens.bubble),
+                            bottomRight: Radius.circular(tokens.bubble),
+                          ),
+                          border: Border.all(color: c.borderHairline),
+                        ),
+                        child: DefaultTextStyle.merge(
+                          style: UiType.textStyle(
+                            14,
+                            color: c.textBody,
+                            height: 1.5,
+                          ),
+                          child: child,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // SpeakerKind.agent
+    final tag = roomOnlyTag?.trim();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (tag != null && tag.isNotEmpty) ...[
+            TagPill(
+              key: const ValueKey('speaker_agent_room_tag'),
+              label: tag,
+              tone: TagTone.accent,
+              icon: LucideIcons.sparkles,
+            ),
+            const SizedBox(height: 6),
+          ],
+          DefaultTextStyle.merge(
+            style: UiType.textStyle(14, color: c.textBody, height: 1.5),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _UserMessageItem extends StatelessWidget {
   const _UserMessageItem({required this.message, required this.ctx});
 
@@ -1049,13 +1242,14 @@ class _AssistantMessageItem extends StatelessWidget {
                     if (hasModelInfo) const SizedBox(width: 10),
                     keyedControl(
                       retry.key,
-                      Btn(
+                      UiMixButton.preset(
                         label: retry.label,
-                        icon: isRegenerateRetryKey(retry.key)
+                        style: UiMixButtonStyle.secondary,
+                        iconData: isRegenerateRetryKey(retry.key)
                             ? LucideIcons.refreshCw
                             : LucideIcons.rotateCcw,
-                        small: true,
-                        onTap: retry.enabled && ctx.interactive
+                        compact: true,
+                        onPressed: retry.enabled && ctx.interactive
                             ? () => pressCommand(
                                 retry.key,
                                 retry.command,

@@ -8,11 +8,11 @@ import '../components/workspace/ui_workspace_components.dart';
 import '../core/neuron_method_caller.dart';
 import '../focus_registry.dart';
 import '../nodes/brain_scene.dart';
-import '../nodes/error_line.dart';
+import '../nodes/feedback_nodes.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
-import '../runtime/models/window_state.dart';
+import '../runtime/models/models.dart';
 import 'brain_session_controller.dart';
 import 'child_route.dart';
 

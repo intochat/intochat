@@ -160,10 +160,10 @@ final class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 28),
                     if (widget.onGoogleSignIn != null) ...[
-                      UiKitButton(
+                      UiMixButton.preset(
                         key: const Key('login-google'),
                         label: 'Continue with Google',
-                        style: UiKitButtonStyle.secondary,
+                        style: UiMixButtonStyle.secondary,
                         onPressed: _busy ? null : widget.onGoogleSignIn,
                         fullWidth: true,
                       ),
@@ -310,7 +310,7 @@ final class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    UiKitButton(
+                    UiMixButton.preset(
                       key: const Key('login-submit'),
                       label: _busy
                           ? (_register ? 'Creating account…' : 'Signing in…')
@@ -331,9 +331,9 @@ final class _LoginScreenState extends State<LoginScreen> {
                                 : 'No account?',
                             style: type.bodyMuted,
                           ),
-                          UiKitButton(
+                          UiMixButton.preset(
                             label: _register ? 'Sign in' : 'Create account',
-                            style: UiKitButtonStyle.link,
+                            style: UiMixButtonStyle.link,
                             onPressed: _busy ? null : _switchMode,
                           ),
                         ],
