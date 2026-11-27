@@ -82,7 +82,7 @@ public sealed class InoAppFacts
         => new(Brain, IConversation.Type, InoModel.ConversationKeyOf(ino.State.ConversationId));
 
     private static NeuronId SessionsId()
-        => new(Brain, Sessions.Type, ISessionList.DefaultKey);
+        => new(Brain, Threads.Type, IThreadDirectory.DefaultKey);
 
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> InoOperations
         => ScreenBaseline.Cases(
@@ -149,7 +149,7 @@ public sealed class InoAppFacts
 
         await ino.Request("new", new InoNew());
 
-        var current = await os.Get<ISessionList>(SessionsId()).Current();
+        var current = await os.Get<IThreadDirectory>(SessionsId()).Current();
         Assert.Equal(ino.App.State.ConversationId, current);
     }
 
@@ -171,7 +171,7 @@ public sealed class InoAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
         await using var os = BackgroundOs();
-        var sessions = os.Get<ISessionList>(SessionsId());
+        var sessions = os.Get<IThreadDirectory>(SessionsId());
         await sessions.Create("main", "Main chat");
         await sessions.Create("c-6c8edd77", "Bergen trip");
         var ino = await os.Install<InoApp>();
@@ -510,7 +510,7 @@ public sealed class InoAppFacts
 
         await ino.Request("new", new InoNew());
 
-        var current = await os.Get<ISessionList>(SessionsId()).Current();
+        var current = await os.Get<IThreadDirectory>(SessionsId()).Current();
         Assert.Equal(ino.App.State.ConversationId, current);
         Assert.Equal(1, BackgroundConversation.Says);
     }
@@ -527,7 +527,7 @@ public sealed class InoAppFacts
         Assert.Equal(1, BackgroundConversation.Says);
         Assert.Equal("run-1", ino.App.State.ActiveRunId);
         Assert.Equal(InoModel.Working, ino.App.State.Status);
-        Assert.Equal("main", await os.Get<ISessionList>(SessionsId()).Current());
+        Assert.Equal("main", await os.Get<IThreadDirectory>(SessionsId()).Current());
     }
 
     [Fact]
@@ -657,7 +657,7 @@ public sealed class InoAppFacts
         {
             await using var os = TestOS.Local(o => o.Services = services);
             os.RegisterCatalog();
-            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
             os.Register<FakeDevice>();
@@ -708,7 +708,7 @@ public sealed class InoAppFacts
 
             await using var os = TestOS.Local(o => o.Services = services);
             os.RegisterCatalog();
-            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
             os.Register<FakeDevice>();
@@ -771,7 +771,7 @@ public sealed class InoAppFacts
         {
             await using var os = TestOS.Local(o => o.Services = services);
             os.RegisterCatalog();
-            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<ModelCatalogNeuron>();
             os.Register<DeviceNeuron>();
@@ -855,7 +855,7 @@ public sealed class InoAppFacts
         {
             await using var os = TestOS.Local(o => o.Services = services);
             os.RegisterCatalog();
-            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
             os.Register<FakeDevice>();
@@ -905,7 +905,7 @@ public sealed class InoAppFacts
         {
             await using var os = TestOS.Local(o => o.Services = services);
             os.RegisterCatalog();
-            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
             os.Register<FakeDevice>();
@@ -983,7 +983,7 @@ public sealed class InoAppFacts
         FakeCompute.Reset();
         var os = TestOS.Local();
         os.RegisterCatalog();
-        os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+        os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
         os.Register<BackgroundConversation>();
         os.Register<FakeCompute>();
         return os;
@@ -1510,8 +1510,9 @@ public sealed class InoAppFacts
             FailPosts = 0;
         }
 
+        public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
         public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
-        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) { Says++; throw new NotSupportedException(); }
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null) { Says++; throw new NotSupportedException(); }
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
 
@@ -1528,7 +1529,14 @@ public sealed class InoAppFacts
             return Task.FromResult(new ConversationView(ConversationId.Parse(rawId), 0, [], [], null, [], false, []));
         }
 
-        public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Invite(AccountId friend, BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => throw new NotSupportedException();
+        public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+        public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+        public Task Here() => Task.CompletedTask;
+        public Task Leave() => Task.CompletedTask;
+        public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+        public Task Edit(EntryId target, string text) => Task.CompletedTask;
+        public Task Delete(EntryId target) => Task.CompletedTask;
         public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     }
 
@@ -1620,7 +1628,9 @@ public sealed class InoAppFacts
             return Task.CompletedTask;
         }
 
-        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
+        public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
+
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null)
         {
             OnSay?.Invoke();
             Says++;
@@ -1666,7 +1676,14 @@ public sealed class InoAppFacts
         public Task<ConversationView> Read(long? sinceRevision = null)
             => Task.FromResult(GetOrEmpty(ConvIdValue));
 
-        public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Invite(AccountId friend, BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => throw new NotSupportedException();
+        public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+        public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+        public Task Here() => Task.CompletedTask;
+        public Task Leave() => Task.CompletedTask;
+        public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+        public Task Edit(EntryId target, string text) => Task.CompletedTask;
+        public Task Delete(EntryId target) => Task.CompletedTask;
         public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     }
 

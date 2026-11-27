@@ -19,6 +19,7 @@ using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -339,6 +340,96 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         }
     }
 
+    [Fact]
+    public async Task CandidateLiveVerifierRunsPlaywrightAgainstLiveUiBeforeTeardownAndCleansUpOnFailure()
+    {
+        const string uiFile = "ui/lib/src/nodes/app_shell.dart";
+        const string expectedUiUrl = "http://127.0.0.1:51999/";
+        using var okHttp = new HttpClient(new StubHttpHandler(HttpStatusCode.OK, "{\"status\":\"Healthy\"}"));
+
+        // 1. Passing TouchesUi=true run: Playwright navigates to live running.Endpoints.Ui BEFORE candidate Remove.
+        var passTimeline = new List<string>();
+        var passHost = new RecordingCandidateHost(healthy: true, timeline: passTimeline);
+        var passSession = new RecordingBrowserPageSession(passTimeline, throwOnNavigate: null);
+        var passBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(passHost, httpClient: okHttp, healthBudget: TimeSpan.FromSeconds(5));
+
+        await using (var sp = new ServiceCollection()
+            .AddSingleton<IEngineerCandidateHostVerifier>(passBridge)
+            .AddSingleton<IBrowserPageSession>(passSession)
+            .BuildServiceProvider())
+        {
+            using var verifier = new EngineerLiveVerifier(services: sp);
+            var report = await verifier.VerifyLiveAsync(
+                Path.GetTempPath(),
+                "Verify UI Playwright runs before candidate teardown",
+                [uiFile],
+                new EngineerLiveContext(CommitSha: "aa1122334455", BrainId: "owner"),
+                Ct);
+
+            Assert.True(report.Succeeded, report.Summary);
+            Assert.True(report.PlaywrightPassed);
+            Assert.Equal([expectedUiUrl], passSession.NavigatedUrls);
+            Assert.Contains(report.Probes, static p => p.Name == "playwright-page-session" && p.Passed);
+            Assert.Equal(
+                ["publish:aa1122334455", "run:aa1122334455", "healthy:aa1122334455", $"playwright.navigate:{expectedUiUrl}", "remove:aa1122334455"],
+                passTimeline);
+        }
+
+        // 2. Failing Playwright NavigateAsync: Playwright still ran before Remove, report fails, and Remove runs in finally.
+        var failTimeline = new List<string>();
+        var failHost = new RecordingCandidateHost(healthy: true, timeline: failTimeline);
+        var failSession = new RecordingBrowserPageSession(failTimeline, throwOnNavigate: new InvalidOperationException("Browser crashed during navigation"));
+        var failBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(failHost, httpClient: okHttp, healthBudget: TimeSpan.FromSeconds(5));
+
+        await using (var sp = new ServiceCollection()
+            .AddSingleton<IEngineerCandidateHostVerifier>(failBridge)
+            .AddSingleton<IBrowserPageSession>(failSession)
+            .BuildServiceProvider())
+        {
+            using var verifier = new EngineerLiveVerifier(services: sp);
+            var report = await verifier.VerifyLiveAsync(
+                Path.GetTempPath(),
+                "Verify candidate teardown runs when Playwright throws",
+                [uiFile],
+                new EngineerLiveContext(CommitSha: "bb1122334455", BrainId: "owner"),
+                Ct);
+
+            Assert.False(report.Succeeded);
+            Assert.False(report.PlaywrightPassed);
+            Assert.Equal([expectedUiUrl], failSession.NavigatedUrls);
+            Assert.Contains(report.Probes, static p => p.Name == "playwright-page-session" && !p.Passed);
+            Assert.Equal(
+                ["publish:bb1122334455", "run:bb1122334455", "healthy:bb1122334455", $"playwright.navigate:{expectedUiUrl}", "remove:bb1122334455"],
+                failTimeline);
+        }
+
+        // 3. Direct CandidateLiveVerifier VerifyUiAsync exception still cleans up in finally.
+        var hookTimeline = new List<string>();
+        var hookHost = new RecordingCandidateHost(healthy: true, timeline: hookTimeline);
+        var hookBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(hookHost, httpClient: okHttp, healthBudget: TimeSpan.FromSeconds(5));
+        var hookReport = await hookBridge.VerifyCandidateAsync(
+            new CandidateLiveVerificationRequest(
+                Path.GetTempPath(),
+                "Verify direct VerifyUiAsync exception cleans up",
+                [uiFile],
+                CommitSha: "cc1122334455",
+                TouchesUi: true,
+                BrainId: "owner",
+                VerifyUiAsync: (url, _) =>
+                {
+                    hookTimeline.Add($"verify-ui:{url}");
+                    throw new InvalidOperationException("Playwright hook exploded");
+                }),
+            Ct);
+
+        Assert.False(hookReport.Succeeded);
+        Assert.False(hookReport.PlaywrightPassed);
+        Assert.Contains(hookReport.Probes, static p => p.Name == "playwright-live-ui" && !p.Passed);
+        Assert.Equal(
+            ["publish:cc1122334455", "run:cc1122334455", "healthy:cc1122334455", $"verify-ui:{expectedUiUrl}", "remove:cc1122334455"],
+            hookTimeline);
+    }
+
     private sealed class RecordingSandboxBridge : ISandboxRuntimeBridge
     {
         public int ExecuteCalls { get; private set; }
@@ -402,9 +493,9 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
             => Task.FromResult<IReadOnlyList<DeployedSource>>([]);
     }
 
-    private sealed class RecordingCandidateHost(bool healthy) : ICandidateHost
+    private sealed class RecordingCandidateHost(bool healthy, List<string>? timeline = null) : ICandidateHost
     {
-        public List<string> Calls { get; } = [];
+        public List<string> Calls { get; } = timeline ?? [];
 
         public Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct)
             => Task.FromResult(new PreparedCandidate("abcdef1", Path.GetTempPath()));
@@ -469,6 +560,33 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });
         }
+    }
+
+    private sealed class RecordingBrowserPageSession(List<string> timeline, Exception? throwOnNavigate) : IBrowserPageSession
+    {
+        public List<string> NavigatedUrls { get; } = [];
+        public bool Connected => true;
+        public string? Url => NavigatedUrls.LastOrDefault();
+        public string? Title => "IntoChat Candidate";
+
+        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct)
+        {
+            NavigatedUrls.Add(url);
+            timeline.Add($"playwright.navigate:{url}");
+            if (throwOnNavigate is not null) { throw throwOnNavigate; }
+            return Task.FromResult(new BrowserObservation(url, "IntoChat Candidate", "Candidate UI ready", []));
+        }
+
+        public Task<BrowserObservation> SnapshotAsync(CancellationToken ct)
+        {
+            timeline.Add("playwright.snapshot");
+            return Task.FromResult(new BrowserObservation(Url ?? string.Empty, "IntoChat Candidate", "Candidate UI ready", []));
+        }
+
+        public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
+        public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
+        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult("{}");
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class NoOpProcessRunner : IProcessRunner

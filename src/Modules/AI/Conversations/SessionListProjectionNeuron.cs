@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.AI.Conversations;
 
 /// <summary>
-/// DigitalBrain reactive projection that keeps <see cref="ISessionList"/> synchronized
+/// DigitalBrain reactive projection that keeps <see cref="IThreadDirectory"/> synchronized
 /// with human activity published by <see cref="IConversation"/> via <see cref="ConversationChanged"/>.
 /// </summary>
 [Neuron(NeuronType)]
@@ -17,8 +17,8 @@ internal sealed partial class SessionListProjectionNeuron(ILogger<SessionListPro
 {
     internal const string NeuronType = "conversation.session-list";
 
-    [Slot(Key = ISessionList.DefaultKey, Required = false)]
-    private partial ISessionList? SessionList { get; }
+    [Slot(Key = IThreadDirectory.DefaultKey, Required = false)]
+    private partial IThreadDirectory? ThreadDirectory { get; }
 
     private ILogger Logger => (ILogger?)logger ?? OsConsoleLog.For<SessionListProjectionNeuron>();
 
@@ -26,21 +26,21 @@ internal sealed partial class SessionListProjectionNeuron(ILogger<SessionListPro
     public async Task On(ConversationChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        if (changed.ActivityText is null || !Sessions.IsId(changed.Id.Value))
+        if (changed.ActivityText is null || !Threads.IsLocalId(changed.Id.Value))
         {
             return;
         }
 
         try
         {
-            if (SessionList is { } sessionList)
+            if (ThreadDirectory is { } directory)
             {
-                await sessionList.Touch(changed.Id.Value, changed.ActivityText);
+                await directory.Touch(changed.Id.Value, changed.ActivityText);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            Logger.LogDebug(error, "Session list could not be touched for conversation {ConversationId}.", changed.Id);
+            Logger.LogDebug(error, "Thread directory could not be touched for conversation {ConversationId}.", changed.Id);
         }
     }
 }

@@ -43,9 +43,11 @@ public sealed class ScriptedConversation : DigitalBrain.Neurons.Neuron<ScriptedC
 
     private ConversationId ConvId => ConversationId.Parse(Id.Key.Replace('/', '-'));
 
+    public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
+
     public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
 
-    public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
+    public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         var flowKey = Id.Key.StartsWith("flow-conv/", StringComparison.Ordinal) ? Id.Key["flow-conv/".Length..] : Id.Key;
@@ -85,7 +87,21 @@ public sealed class ScriptedConversation : DigitalBrain.Neurons.Neuron<ScriptedC
         return Task.FromResult(new ConversationView(ConvId, State.Revision, [], [], State.Active, [.. runs], false, []));
     }
 
-    public Task Invite(AccountId friend) => Task.CompletedTask;
+    public Task Invite(AccountId friend, BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => Task.CompletedTask;
+
+    public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+
+    public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+
+    public Task Here() => Task.CompletedTask;
+
+    public Task Leave() => Task.CompletedTask;
+
+    public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+
+    public Task Edit(EntryId target, string text) => Task.CompletedTask;
+
+    public Task Delete(EntryId target) => Task.CompletedTask;
 
     public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
 

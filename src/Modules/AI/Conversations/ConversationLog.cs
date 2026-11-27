@@ -91,6 +91,38 @@ internal static class ConversationLog
         return false;
     }
 
+    public static bool HasMessageId(LoggedEntry[] log, string messageId, Participant sender)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        for (var i = log.Length - 1; i >= 0; i--)
+        {
+            if (log[i].Entry is Said said
+                && string.Equals(said.MessageId, messageId, StringComparison.Ordinal)
+                && said.By == sender)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static LoggedEntry[] Replace(LoggedEntry[] log, EntryId target, long revision, Func<Said, Said> transform)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(transform);
+        var index = Array.FindIndex(log, item => item.Entry.Id == target);
+        if (index < 0 || log[index].Entry is not Said existing)
+        {
+            throw new KeyNotFoundException($"Conversation entry '{target}' was not found.");
+        }
+
+        var updated = transform(existing);
+        var copy = new LoggedEntry[log.Length];
+        Array.Copy(log, copy, log.Length);
+        copy[index] = new LoggedEntry(revision, updated);
+        return copy;
+    }
+
     // Index of the last entry covered by the latest Summarized, or -1 if none.
     internal static int LastSummaryIndex(LoggedEntry[] log)
     {

@@ -94,6 +94,15 @@ public sealed record CandidateMcpCall(
     string Method,
     string Expected = "ok");
 
+/// <summary>Result of a live UI verification hook (e.g. headless Playwright) executed against a running candidate before teardown.</summary>
+public sealed record CandidateUiVerificationResult(
+    bool Passed,
+    int Http4xxCount,
+    int Http5xxCount,
+    int ErrorLogCount,
+    IReadOnlyList<EngineerLiveProbe> Probes,
+    IReadOnlyList<string> TraceSummaries);
+
 /// <summary>Request sent by <c>EngineerLiveVerifier</c> to verify a candidate worktree through <c>CandidateLiveVerifier</c>.</summary>
 public sealed record CandidateLiveVerificationRequest(
     string WorktreePath,
@@ -104,7 +113,8 @@ public sealed record CandidateLiveVerificationRequest(
     bool TouchesUi = false,
     string? TraceId = null,
     string? BrainId = null,
-    IReadOnlyList<CandidateMcpCall>? McpCalls = null);
+    IReadOnlyList<CandidateMcpCall>? McpCalls = null,
+    Func<string, CancellationToken, Task<CandidateUiVerificationResult>>? VerifyUiAsync = null);
 
 /// <summary>
 /// DI bridge implemented by the Aspire component (<c>CandidateLiveVerifier</c>) over <c>ICandidateHost</c>

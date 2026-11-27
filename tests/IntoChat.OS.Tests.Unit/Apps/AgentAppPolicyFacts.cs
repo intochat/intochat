@@ -13,7 +13,7 @@ public sealed class AgentAppPolicyFacts
     {
         var convId = AgentAppPolicy.ConversationOf("treg");
         Assert.Equal("agent-treg", convId.Value);
-        Assert.False(Sessions.IsId(convId.Value));
+        Assert.False(Threads.IsLocalId(convId.Value));
         Assert.Equal("agent-treg", AgentAppPolicy.AgentIdOf("treg"));
     }
 

@@ -391,8 +391,8 @@ public sealed class FileSharesDoorFacts
         public ISynapseStudio Studio(string brain) => SiloNeurons.Get<ISynapseStudio>(runtime.Services, ISynapseStudio.Key(brain));
         public IConversation Conversation(string brain, ConversationId id)
             => SiloNeurons.Get<IConversation>(runtime.Services, new NeuronId(new BrainId(brain), IConversation.Type, IConversation.KeyOf(id)));
-        public ISessionList Sessions(string brain)
-            => SiloNeurons.Get<ISessionList>(runtime.Services, new NeuronId(new BrainId(brain), IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, ISessionList.DefaultKey));
+        public IThreadDirectory Sessions(string brain)
+            => SiloNeurons.Get<IThreadDirectory>(runtime.Services, new NeuronId(new BrainId(brain), IntoChat.OS.Modules.Flutter.Conversations.Threads.Type, IThreadDirectory.DefaultKey));
 
         public async Task<ConversationId> NewConversation(string brain, string title, params ConversationEntry[] seedEntries)
         {

@@ -21,14 +21,14 @@ internal sealed class NeuronAgentChatClient : IChatClient
     private const string ChangedAlias = "conversation.changed";
 
     private readonly IServiceProvider _services;
-    private readonly Func<NeuronId, ISessionList> _getSessions;
+    private readonly Func<NeuronId, IThreadDirectory> _getSessions;
     private readonly Func<NeuronId, IConversation> _getConversation;
     private readonly Func<NeuronId, string[], Func<Task>, CancellationToken, IAsyncEnumerable<SessionSignal>> _live;
 
     public NeuronAgentChatClient(IServiceProvider services)
         : this(
             services,
-            id => SiloNeurons.Get<ISessionList>(services, id),
+            id => SiloNeurons.Get<IThreadDirectory>(services, id),
             id => SiloNeurons.Get<IConversation>(services, id),
             (source, aliases, onSubscribed, ct) => SignalLog.Live(
                 services,
@@ -42,7 +42,7 @@ internal sealed class NeuronAgentChatClient : IChatClient
 
     internal NeuronAgentChatClient(
         IServiceProvider services,
-        Func<NeuronId, ISessionList> getSessions,
+        Func<NeuronId, IThreadDirectory> getSessions,
         Func<NeuronId, IConversation> getConversation,
         Func<NeuronId, string[], Func<Task>, CancellationToken, IAsyncEnumerable<SessionSignal>> live)
     {
@@ -262,7 +262,7 @@ internal sealed class NeuronAgentChatClient : IChatClient
         var brain = ((_services.GetService(typeof(ICallerAmbient)) as ICallerAmbient)?.Current
             ?? throw new UnauthorizedAccessException("The request carries no caller.")).Brain.Value;
         var brainId = new BrainId(brain);
-        var current = await _getSessions(new NeuronId(brainId, Sessions.Type, ISessionList.DefaultKey)).Current();
+        var current = await _getSessions(new NeuronId(brainId, Threads.Type, IThreadDirectory.DefaultKey)).Current();
         var id = !string.IsNullOrWhiteSpace(current) && ConversationId.TryParse(current, out var parsed)
             ? parsed
             : ConversationId.Parse("main");

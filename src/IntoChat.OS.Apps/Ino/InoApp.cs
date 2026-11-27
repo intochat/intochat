@@ -50,7 +50,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot(Key = "memory", Required = false)] private partial IMemory? Memory { get; }
     [Slot(Key = "main", Required = false)] private partial IAppStudio? AppStudio { get; }
     [Slot(Key = ModelsKey)] private partial IModelCatalog ModelCatalog { get; }
-    [Slot(Key = ISessionList.DefaultKey)] private partial ISessionList SessionList { get; }
+    [Slot(Key = IThreadDirectory.DefaultKey)] private partial IThreadDirectory SessionList { get; }
     [Slot(Key = IGrantsNeuron.DefaultKey)] private partial IGrantsNeuron Grants { get; }
     [Slot(Key = ApprovalsKey)] private partial IApprovals Approvals { get; }
     [Slot(Key = "ino/profile-writer")] private partial IProfileContextWriter ProfileWriter { get; }
@@ -66,7 +66,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     private InoSetupHost? SetupHost { get; set; }
     private ConversationView? ConversationView { get; set; }
     private long SeenRevision { get; set; }
-    private SessionPage? SessionsPage { get; set; }
+    private ThreadPage? SessionsPage { get; set; }
     private IReadOnlyDictionary<string, AppManifest?> AppManifests { get; set; } = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
     private string? LinksJson { get; set; }
     private IReadOnlyList<ThreadMessage>? SyncedThread { get; set; }
@@ -100,7 +100,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     public View Render() => PreviewView(State);
 
     internal ConversationView? CurrentView => ConversationView;
-    internal SessionPage? CurrentSessions => SessionsPage;
+    internal ThreadPage? CurrentSessions => SessionsPage;
     internal IReadOnlyDictionary<string, AppManifest?> CurrentApps => AppManifests;
     internal string? CurrentLinks => LinksJson;
 
@@ -364,7 +364,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         var opening = !string.Equals(State.ActiveSection, "chats", StringComparison.Ordinal);
         if (opening)
         {
-            SessionsPage = await InoModelSetup.ReadSessionsAsync(Setup) ?? new SessionPage([], 0);
+            SessionsPage = await InoModelSetup.ReadSessionsAsync(Setup) ?? new ThreadPage([], 0);
         }
         await Commit(State with { ActiveSection = opening ? "chats" : "chat" });
     }

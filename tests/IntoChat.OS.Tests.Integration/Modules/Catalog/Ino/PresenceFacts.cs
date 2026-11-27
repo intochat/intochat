@@ -115,7 +115,7 @@ public sealed class PresenceFacts
     {
         var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, siloServices: siloServices);
         using var person = runtime.As(Who.Person);
-        await runtime.Get<ISessionList>(new NeuronId(runtime.Brain, Sessions.Type, ISessionList.DefaultKey)).Open("main");
+        await runtime.Get<IThreadDirectory>(new NeuronId(runtime.Brain, Threads.Type, IThreadDirectory.DefaultKey)).Open("main");
         await Presence(runtime).Read(Ct);
         return runtime;
     }

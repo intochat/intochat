@@ -58,7 +58,7 @@ internal sealed class FlowsNeuron(
         string[] contexts = ["context/security.posture"];
         try
         {
-            var current = await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current();
+            var current = await Context.Get<IThreadDirectory>(new NeuronId(Id.Brain, Threads.Type, IThreadDirectory.DefaultKey)).Current();
             if (!string.IsNullOrWhiteSpace(current) && ConversationId.TryParse(current, out var convId))
             {
                 var view = await Context.Get<IConversation>(new NeuronId(Id.Brain, IConversation.Type, IConversation.KeyOf(convId))).Read();

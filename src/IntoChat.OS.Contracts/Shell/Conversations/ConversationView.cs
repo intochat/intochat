@@ -14,4 +14,10 @@ public sealed record ConversationView(
 {
     public EntryId? Replacing { get; init; }
     public string? BlockedReason { get; init; }
+    public ThreadTrustPosture TrustPosture { get; init; } = ThreadTrustPosture.OwnerTrusted;
+    public ThreadKind Kind { get; init; } = ThreadKind.DirectAssistant;
+    public string? Title { get; init; }
+    public string? LeadAgentId { get; init; }
+    public PinnedScreen[] PinnedScreens { get; init; } = [];
+    public string[] PresentAccounts { get; init; } = [];
 }

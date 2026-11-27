@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../theme/brand_visuals.dart';
+
 /// Bespoke multi-layered vector and SVG brand glyphs for IntoChat OS apps.
 enum IcBrandGlyph {
   inoStar,
@@ -39,8 +41,6 @@ class IcAppIconSpec {
     this.brandGlyph,
     this.svgAsset,
     this.pngAsset,
-    this.isArtCraftBridge = false,
-    this.defaultWebPort,
   });
 
   final String appId;
@@ -54,8 +54,6 @@ class IcAppIconSpec {
   final IcBrandGlyph? brandGlyph;
   final String? svgAsset;
   final String? pngAsset;
-  final bool isArtCraftBridge;
-  final int? defaultWebPort;
 
   String get accentHex =>
       '#${gradientTop.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
@@ -84,8 +82,157 @@ class IcAppIcon extends StatelessWidget {
   final Color? gradientBottom;
   final Color? glyphColor;
 
-  static const Map<String, IcAppIconSpec> builtInSpecs = {
-    'ino': IcAppIconSpec(
+  static const List<
+    ({
+      String id,
+      String title,
+      Color top,
+      Color bottom,
+      IconData icon,
+      IcBrandGlyph? brandGlyph,
+    })
+  >
+  _artCraftVisuals = [
+    (
+      id: 'photocraft',
+      title: 'PhotoCraft',
+      top: Color(0xFF06B6D4),
+      bottom: Color(0xFF0369A1),
+      icon: LucideIcons.image,
+      brandGlyph: null,
+    ),
+    (
+      id: 'filmcraft',
+      title: 'FilmCraft',
+      top: Color(0xFFF43F5E),
+      bottom: Color(0xFF9F1239),
+      icon: LucideIcons.film,
+      brandGlyph: null,
+    ),
+    (
+      id: 'artcraft',
+      title: 'ArtCraft',
+      top: Color(0xFF6366F1),
+      bottom: Color(0xFF4338CA),
+      icon: LucideIcons.paintbrush,
+      brandGlyph: null,
+    ),
+    (
+      id: 'vectorcraft',
+      title: 'VectorCraft',
+      top: Color(0xFFF59E0B),
+      bottom: Color(0xFFB45309),
+      icon: LucideIcons.penTool,
+      brandGlyph: null,
+    ),
+    (
+      id: 'lightcraft',
+      title: 'LightCraft',
+      top: Color(0xFFEAB308),
+      bottom: Color(0xFFA16207),
+      icon: LucideIcons.sun,
+      brandGlyph: null,
+    ),
+    (
+      id: 'effectcraft',
+      title: 'EffectCraft',
+      top: Color(0xFFA855F7),
+      bottom: Color(0xFF6B21A8),
+      icon: LucideIcons.wandSparkles,
+      brandGlyph: null,
+    ),
+    (
+      id: 'designcraft',
+      title: 'DesignCraft',
+      top: Color(0xFFEC4899),
+      bottom: Color(0xFF9D174D),
+      icon: LucideIcons.layoutGrid,
+      brandGlyph: null,
+    ),
+    (
+      id: 'pdfcraft',
+      title: 'PDFCraft',
+      top: Color(0xFFEF4444),
+      bottom: Color(0xFF991B1B),
+      icon: LucideIcons.fileText,
+      brandGlyph: null,
+    ),
+    (
+      id: 'wordcraft',
+      title: 'WordCraft',
+      top: Color(0xFF2563EB),
+      bottom: Color(0xFF1E40AF),
+      icon: LucideIcons.fileText,
+      brandGlyph: null,
+    ),
+    (
+      id: 'soundcraft',
+      title: 'SoundCraft',
+      top: Color(0xFF10B981),
+      bottom: Color(0xFF065F46),
+      icon: LucideIcons.music,
+      brandGlyph: null,
+    ),
+    (
+      id: 'deckcraft',
+      title: 'DeckCraft',
+      top: Color(0xFFF97316),
+      bottom: Color(0xFF9A3412),
+      icon: LucideIcons.presentation,
+      brandGlyph: null,
+    ),
+    (
+      id: 'cadcraft',
+      title: 'CADCraft',
+      top: Color(0xFF0EA5E9),
+      bottom: Color(0xFF075985),
+      icon: LucideIcons.box,
+      brandGlyph: null,
+    ),
+    (
+      id: 'gridcraft',
+      title: 'GridCraft',
+      top: Color(0xFF16A34A),
+      bottom: Color(0xFF14532D),
+      icon: LucideIcons.table,
+      brandGlyph: null,
+    ),
+    (
+      id: 'figcraft',
+      title: 'FigCraft',
+      top: Color(0xFFD946EF),
+      bottom: Color(0xFF86198F),
+      icon: LucideIcons.penTool,
+      brandGlyph: null,
+    ),
+    (
+      id: 'texturecraft',
+      title: 'TextureCraft',
+      top: Color(0xFFD97706),
+      bottom: Color(0xFF78350F),
+      icon: LucideIcons.paintbrush,
+      brandGlyph: null,
+    ),
+    (
+      id: 'materialcraft',
+      title: 'MaterialCraft',
+      top: Color(0xFFEA580C),
+      bottom: Color(0xFF7C2D12),
+      icon: LucideIcons.layers,
+      brandGlyph: null,
+    ),
+    (
+      id: 'solidcraft',
+      title: 'SolidCraft',
+      top: Color(0xFF14B8A6),
+      bottom: Color(0xFF115E59),
+      icon: LucideIcons.boxes,
+      brandGlyph: IcBrandGlyph.solidcraftCube,
+    ),
+  ];
+
+  static final Map<String, IcAppIconSpec> builtInSpecs = Map.unmodifiable({
+    'ino': const IcAppIconSpec(
       appId: 'ino',
       title: 'Ino',
       category: 'Intelligence',
@@ -99,23 +246,23 @@ class IcAppIcon extends StatelessWidget {
       appId: 'aspire',
       title: '.NET Aspire',
       category: 'Developer',
-      gradientTop: Color(0xFF2D1674),
-      gradientBottom: Color(0xFF150A3A),
+      gradientTop: const Color(0xFF2D1674),
+      gradientBottom: const Color(0xFF150A3A),
       icon: LucideIcons.activity,
       brandGlyph: IcBrandGlyph.aspireLogo,
-      pngAsset: 'assets/brands/aspire.png',
-      svgAsset: 'assets/brands/aspire-icon-32.svg',
+      pngAsset: BrandVisuals.pngAssetForId('aspire'),
+      svgAsset: BrandVisuals.svgAssetForId('aspire'),
     ),
     'muncly': IcAppIconSpec(
       appId: 'muncly',
       title: 'Muncly CRM',
       category: 'Business',
-      gradientTop: Color(0xFF272A32),
-      gradientBottom: Color(0xFF0C0D10),
+      gradientTop: const Color(0xFF272A32),
+      gradientBottom: const Color(0xFF0C0D10),
       icon: LucideIcons.briefcase,
-      svgAsset: 'assets/brands/muncly.svg',
+      svgAsset: BrandVisuals.svgAssetForId('muncly'),
     ),
-    'brain': IcAppIconSpec(
+    'brain': const IcAppIconSpec(
       appId: 'brain',
       title: 'Brain',
       category: 'Intelligence',
@@ -124,7 +271,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.brainCircuit,
       brandGlyph: IcBrandGlyph.brainGraph,
     ),
-    'workspace': IcAppIconSpec(
+    'workspace': const IcAppIconSpec(
       appId: 'workspace',
       title: 'Workspace',
       category: 'Workspace',
@@ -133,7 +280,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.compass,
       brandGlyph: IcBrandGlyph.workspaceCanvas,
     ),
-    'desktop': IcAppIconSpec(
+    'desktop': const IcAppIconSpec(
       appId: 'desktop',
       title: 'Desktop',
       category: 'Workspace',
@@ -142,7 +289,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.layoutGrid,
       brandGlyph: IcBrandGlyph.workspaceCanvas,
     ),
-    'usage': IcAppIconSpec(
+    'usage': const IcAppIconSpec(
       appId: 'usage',
       title: 'Usage',
       category: 'Analytics',
@@ -151,7 +298,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.gauge,
       brandGlyph: IcBrandGlyph.dataStudio,
     ),
-    'files': IcAppIconSpec(
+    'files': const IcAppIconSpec(
       appId: 'files',
       title: 'Files',
       category: 'Workspace',
@@ -160,7 +307,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.folder,
       brandGlyph: IcBrandGlyph.filesVault,
     ),
-    'creator': IcAppIconSpec(
+    'creator': const IcAppIconSpec(
       appId: 'creator',
       title: 'Creator',
       category: 'Studio',
@@ -169,7 +316,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.wandSparkles,
       brandGlyph: IcBrandGlyph.creatorLoop,
     ),
-    'gallery': IcAppIconSpec(
+    'gallery': const IcAppIconSpec(
       appId: 'gallery',
       title: 'UI Gallery',
       category: 'Studio',
@@ -178,7 +325,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.palette,
       brandGlyph: IcBrandGlyph.uiGallery,
     ),
-    'tasks': IcAppIconSpec(
+    'tasks': const IcAppIconSpec(
       appId: 'tasks',
       title: 'Tasks',
       category: 'Workspace',
@@ -187,7 +334,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.listTodo,
       brandGlyph: IcBrandGlyph.tasksBoard,
     ),
-    'trace': IcAppIconSpec(
+    'trace': const IcAppIconSpec(
       appId: 'trace',
       title: 'Trace',
       category: 'Developer',
@@ -196,7 +343,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.activity,
       brandGlyph: IcBrandGlyph.traceTelemetry,
     ),
-    'friends': IcAppIconSpec(
+    'friends': const IcAppIconSpec(
       appId: 'friends',
       title: 'Friends',
       category: 'Social',
@@ -205,7 +352,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.users,
       brandGlyph: IcBrandGlyph.circlesSocial,
     ),
-    'post': IcAppIconSpec(
+    'post': const IcAppIconSpec(
       appId: 'post',
       title: 'Post',
       category: 'Reach',
@@ -214,7 +361,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.megaphone,
       brandGlyph: IcBrandGlyph.postReach,
     ),
-    'settings': IcAppIconSpec(
+    'settings': const IcAppIconSpec(
       appId: 'settings',
       title: 'Settings',
       category: 'System',
@@ -223,7 +370,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.slidersHorizontal,
       brandGlyph: IcBrandGlyph.settingsGear,
     ),
-    'calculator': IcAppIconSpec(
+    'calculator': const IcAppIconSpec(
       appId: 'calculator',
       title: 'Calculator',
       category: 'Utilities',
@@ -232,7 +379,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.calculator,
       brandGlyph: IcBrandGlyph.calculatorGrid,
     ),
-    'data': IcAppIconSpec(
+    'data': const IcAppIconSpec(
       appId: 'data',
       title: 'Data Studio',
       category: 'Analytics',
@@ -241,7 +388,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.chartSpline,
       brandGlyph: IcBrandGlyph.dataStudio,
     ),
-    'datavisualizer': IcAppIconSpec(
+    'datavisualizer': const IcAppIconSpec(
       appId: 'datavisualizer',
       title: 'Data Visualizer',
       category: 'Analytics',
@@ -250,7 +397,7 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.chartSpline,
       brandGlyph: IcBrandGlyph.dataStudio,
     ),
-    'markdraw': IcAppIconSpec(
+    'markdraw': const IcAppIconSpec(
       appId: 'markdraw',
       title: 'Markdraw',
       category: 'Studio',
@@ -259,259 +406,21 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.penTool,
       brandGlyph: IcBrandGlyph.markdrawCanvas,
     ),
-    'photocraft': IcAppIconSpec(
-      appId: 'photocraft',
-      title: 'PhotoCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF06B6D4),
-      gradientBottom: Color(0xFF0369A1),
-      icon: LucideIcons.image,
-      pngAsset: 'assets/brands/artcraft/photocraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18082,
-    ),
-    'filmcraft': IcAppIconSpec(
-      appId: 'filmcraft',
-      title: 'FilmCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFF43F5E),
-      gradientBottom: Color(0xFF9F1239),
-      icon: LucideIcons.film,
-      pngAsset: 'assets/brands/artcraft/filmcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18083,
-    ),
-    'artcraft': IcAppIconSpec(
-      appId: 'artcraft',
-      title: 'ArtCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF6366F1),
-      gradientBottom: Color(0xFF4338CA),
-      icon: LucideIcons.paintbrush,
-      pngAsset: 'assets/brands/artcraft/artcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18080,
-    ),
-    'vectorcraft': IcAppIconSpec(
-      appId: 'vectorcraft',
-      title: 'VectorCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFF59E0B),
-      gradientBottom: Color(0xFFB45309),
-      icon: LucideIcons.penTool,
-      pngAsset: 'assets/brands/artcraft/vectorcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18084,
-    ),
-    'lightcraft': IcAppIconSpec(
-      appId: 'lightcraft',
-      title: 'LightCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFEAB308),
-      gradientBottom: Color(0xFFA16207),
-      icon: LucideIcons.sun,
-      pngAsset: 'assets/brands/artcraft/lightcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18085,
-    ),
-    'effectcraft': IcAppIconSpec(
-      appId: 'effectcraft',
-      title: 'EffectCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFA855F7),
-      gradientBottom: Color(0xFF6B21A8),
-      icon: LucideIcons.wandSparkles,
-      pngAsset: 'assets/brands/artcraft/effectcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18086,
-    ),
-    'designcraft': IcAppIconSpec(
-      appId: 'designcraft',
-      title: 'DesignCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFEC4899),
-      gradientBottom: Color(0xFF9D174D),
-      icon: LucideIcons.layoutGrid,
-      pngAsset: 'assets/brands/artcraft/designcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18087,
-    ),
-    'pdfcraft': IcAppIconSpec(
-      appId: 'pdfcraft',
-      title: 'PDFCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFEF4444),
-      gradientBottom: Color(0xFF991B1B),
-      icon: LucideIcons.fileText,
-      pngAsset: 'assets/brands/artcraft/pdfcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18088,
-    ),
-    'wordcraft': IcAppIconSpec(
-      appId: 'wordcraft',
-      title: 'WordCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF2563EB),
-      gradientBottom: Color(0xFF1E40AF),
-      icon: LucideIcons.fileText,
-      pngAsset: 'assets/brands/artcraft/wordcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18089,
-    ),
-    'soundcraft': IcAppIconSpec(
-      appId: 'soundcraft',
-      title: 'SoundCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF10B981),
-      gradientBottom: Color(0xFF065F46),
-      icon: LucideIcons.music,
-      pngAsset: 'assets/brands/artcraft/soundcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18090,
-    ),
-    'deckcraft': IcAppIconSpec(
-      appId: 'deckcraft',
-      title: 'DeckCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFF97316),
-      gradientBottom: Color(0xFF9A3412),
-      icon: LucideIcons.presentation,
-      pngAsset: 'assets/brands/artcraft/deckcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18091,
-    ),
-    'cadcraft': IcAppIconSpec(
-      appId: 'cadcraft',
-      title: 'CADCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF0EA5E9),
-      gradientBottom: Color(0xFF075985),
-      icon: LucideIcons.box,
-      pngAsset: 'assets/brands/artcraft/cadcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18092,
-    ),
-    'gridcraft': IcAppIconSpec(
-      appId: 'gridcraft',
-      title: 'GridCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF16A34A),
-      gradientBottom: Color(0xFF14532D),
-      icon: LucideIcons.table,
-      pngAsset: 'assets/brands/artcraft/gridcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18093,
-    ),
-    'figcraft': IcAppIconSpec(
-      appId: 'figcraft',
-      title: 'FigCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFD946EF),
-      gradientBottom: Color(0xFF86198F),
-      icon: LucideIcons.penTool,
-      pngAsset: 'assets/brands/artcraft/figcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18094,
-    ),
-    'texturecraft': IcAppIconSpec(
-      appId: 'texturecraft',
-      title: 'TextureCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFD97706),
-      gradientBottom: Color(0xFF78350F),
-      icon: LucideIcons.paintbrush,
-      pngAsset: 'assets/brands/artcraft/texturecraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18095,
-    ),
-    'materialcraft': IcAppIconSpec(
-      appId: 'materialcraft',
-      title: 'MaterialCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFFEA580C),
-      gradientBottom: Color(0xFF7C2D12),
-      icon: LucideIcons.layers,
-      pngAsset: 'assets/brands/artcraft/materialcraft.png',
-      isArtCraftBridge: true,
-      defaultWebPort: 18096,
-    ),
-    'solidcraft': IcAppIconSpec(
-      appId: 'solidcraft',
-      title: 'SolidCraft',
-      category: 'ArtCraft Studio',
-      gradientTop: Color(0xFF14B8A6),
-      gradientBottom: Color(0xFF115E59),
-      icon: LucideIcons.boxes,
-      pngAsset: 'assets/brands/artcraft/solidcraft.png',
-      brandGlyph: IcBrandGlyph.solidcraftCube,
-      isArtCraftBridge: true,
-      defaultWebPort: 18097,
-    ),
-  };
+    for (final entry in _artCraftVisuals)
+      entry.id: IcAppIconSpec(
+        appId: entry.id,
+        title: entry.title,
+        category: 'ArtCraft Studio',
+        gradientTop: entry.top,
+        gradientBottom: entry.bottom,
+        icon: entry.icon,
+        pngAsset: BrandVisuals.pngAssetForId(entry.id),
+        brandGlyph: entry.brandGlyph,
+      ),
+  });
 
-  static bool isArtCraftApp(String? rawAppId) {
-    if (rawAppId == null || rawAppId.trim().isEmpty) return false;
-    final norm = normalizeAppId(rawAppId);
-    return builtInSpecs[norm]?.isArtCraftBridge == true;
-  }
-
-  static IcAppIconSpec? findArtCraftByUrlOrName(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return null;
-    final lower = raw.toLowerCase();
-    if (lower.contains('18110')) return builtInSpecs['photocraft'];
-    if (lower.contains('18111') || lower.contains('videocraft')) {
-      return builtInSpecs['filmcraft'];
-    }
-    for (final spec in builtInSpecs.values) {
-      if (!spec.isArtCraftBridge) continue;
-      if (lower.contains(spec.appId) ||
-          (spec.defaultWebPort != null &&
-              lower.contains('${spec.defaultWebPort}'))) {
-        return spec;
-      }
-    }
-    return null;
-  }
-
-  /// Resolves a studio WebBrowser URL to the same-origin Kernel `/artcraft/<id>/index.html`
-  /// endpoint when running on Web (`isWeb == true`) and the raw URL points to localhost or
-  /// a relative `/artcraft/` path.
-  static String resolveArtCraftWebUrl(
-    String rawUrl, {
-    String? hint,
-    required bool isWeb,
-    Uri? baseUri,
-    String? uiBaseOrigin,
-  }) {
-    final trimmed = rawUrl.trim();
-    if (!isWeb) return trimmed;
-    final base = baseUri ?? Uri.base;
-    if (base.scheme != 'http' && base.scheme != 'https') return trimmed;
-
-    final craftSpec = findArtCraftByUrlOrName('${hint ?? ''} $trimmed');
-    if (craftSpec == null) return trimmed;
-
-    final isLocalOrEmpty =
-        trimmed.isEmpty ||
-        trimmed.startsWith('/artcraft/') ||
-        trimmed.contains('localhost') ||
-        trimmed.contains('127.0.0.1');
-    if (!isLocalOrEmpty) return trimmed;
-
-    String origin = base.origin;
-    if (uiBaseOrigin != null && uiBaseOrigin.isNotEmpty) {
-      final parsed = Uri.tryParse(uiBaseOrigin);
-      if (parsed != null && parsed.hasAuthority) {
-        origin = parsed.origin;
-      }
-    }
-    final parsedRaw = Uri.tryParse(trimmed);
-    final docQuery = parsedRaw?.queryParameters['doc'];
-    if (docQuery != null && docQuery.isNotEmpty) {
-      return '$origin/artcraft/${craftSpec.appId}/index.html?doc=${Uri.encodeQueryComponent(docQuery)}';
-    }
-    return '$origin/artcraft/${craftSpec.appId}/index.html';
-  }
+  static bool isKnownAppId(String rawAppId) =>
+      builtInSpecs.containsKey(normalizeAppId(rawAppId));
 
   static const Map<String, String> _appIdAliases = {
     'assistant': 'ino',
@@ -657,10 +566,9 @@ class IcAppIcon extends StatelessWidget {
           (iconOverride == null || iconOverride == base?.icon),
       brandGlyph: base?.brandGlyph,
       svgAsset:
-          base?.svgAsset ?? (isBitcoinApp ? 'assets/brands/bitcoin.svg' : null),
+          base?.svgAsset ??
+          (isBitcoinApp ? BrandVisuals.svgAssetForId('bitcoin') : null),
       pngAsset: base?.pngAsset,
-      isArtCraftBridge: base?.isArtCraftBridge == true,
-      defaultWebPort: base?.defaultWebPort,
     );
   }
 

@@ -17,7 +17,7 @@ namespace IntoChat.OS.Tests.Unit.Modules.AI.Conversations;
 public sealed class ConversationDecouplingFacts
 {
     private static readonly BrainId Brain = new("owner");
-    private static readonly NeuronId SessionListId = new(Brain, Sessions.Type, ISessionList.DefaultKey);
+    private static readonly NeuronId SessionListId = new(Brain, Threads.Type, IThreadDirectory.DefaultKey);
 
     private static AgentState EmptyAgentState() => new(0, new AgentDefinition(), null, null, []);
 
@@ -152,7 +152,7 @@ public sealed class ConversationDecouplingFacts
         await os.Get<IStubConversationEmitter>(emitterId).Emit(convId, 1, "Plan a trip to Bergen");
         await os.Idle();
 
-        var entry = await os.Get<ISessionList>(SessionListId).Get(convId.Value);
+        var entry = await os.Get<IThreadDirectory>(SessionListId).Get(convId.Value);
         Assert.NotNull(entry);
         Assert.Equal("Plan a trip to Bergen", entry!.Title);
     }
@@ -173,7 +173,7 @@ public sealed class ConversationDecouplingFacts
         await os.Get<IStubConversationEmitter>(emitterId).Emit(ConversationId.Parse("not-a-session-id"), 2, "Should be ignored");
         await os.Idle();
 
-        var sessions = os.Get<ISessionList>(SessionListId);
+        var sessions = os.Get<IThreadDirectory>(SessionListId);
         Assert.Null(await sessions.Get(convId.Value));
         Assert.Empty((await sessions.List(archived: false)).Entries);
     }
@@ -232,11 +232,19 @@ public sealed class ConversationDecouplingFacts
         public Task Emit(ConversationId id, long revision, string? activityText)
             => Publish(new ConversationChanged(id, revision) { ActivityText = activityText });
 
-        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) => Task.CompletedTask;
+        public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null) => Task.CompletedTask;
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => Task.CompletedTask;
         public Task<ConversationView> Read(long? sinceRevision = null) => throw new NotSupportedException();
-        public Task Invite(AccountId friend) => Task.CompletedTask;
+        public Task Invite(AccountId friend, BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => Task.CompletedTask;
+        public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+        public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+        public Task Here() => Task.CompletedTask;
+        public Task Leave() => Task.CompletedTask;
+        public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+        public Task Edit(EntryId target, string text) => Task.CompletedTask;
+        public Task Delete(EntryId target) => Task.CompletedTask;
         public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
         public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
         public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;

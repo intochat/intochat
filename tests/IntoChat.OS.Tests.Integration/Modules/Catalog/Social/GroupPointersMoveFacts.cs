@@ -28,8 +28,8 @@ public sealed class GroupPointersMoveFacts
         new(new BrainId(Ada), Work, "Work", new AccountId(Ada)),
     ];
 
-    private static IRooms Rooms(World world, string brain)
-        => SiloNeurons.Get<IRooms>(world.Runtime.Services, new NeuronId(new BrainId(brain), "social.rooms", IRooms.DefaultKey));
+    private static IThreadDirectory Rooms(World world, string brain)
+        => SiloNeurons.Get<IThreadDirectory>(world.Runtime.Services, new NeuronId(new BrainId(brain), Threads.Type, IThreadDirectory.DefaultKey));
 
     private static string Line(GroupInvite group) => $"{group.Brain.Value}|{group.Conversation.Value}|{group.Title}|{group.By.Value}";
 
@@ -44,7 +44,7 @@ public sealed class GroupPointersMoveFacts
         await world.Befriend(Ada, Ben);
         await Rewrite(world, Ben, roster => roster.Groups = Earlier());
         Assert.Contains("\"title\":\"Trip\"", await Stored(world, Ben, FriendsDefaults.TypeName, FriendsDefaults.KeyPart), StringComparison.Ordinal);
-        Assert.Equal("", await Stored(world, Ben, "social.rooms", IRooms.DefaultKey));
+        Assert.Equal("", await Stored(world, Ben, Threads.Type, IThreadDirectory.DefaultKey));
 
         // Any use of the roster by its owner: here, listing friends.
         using (As(Ben)) { Assert.Single(await world.Friends(Ben).List()); }
@@ -56,7 +56,7 @@ public sealed class GroupPointersMoveFacts
         Assert.DoesNotContain("Trip", roster, StringComparison.Ordinal);
 
         // The rooms index holds them in the order the roster kept them, the conversation by its id text.
-        var index = await Stored(world, Ben, "social.rooms", IRooms.DefaultKey);
+        var index = await Stored(world, Ben, Threads.Type, IThreadDirectory.DefaultKey);
         Assert.Contains(
             $$"""
             "conversations":[{"brain":"ada","conversation":"{{Trip.Value}}","title":"Trip","by":"ada"},{"brain":"ada","conversation":"{{Work.Value}}","title":"Work","by":"ada"}]
@@ -66,7 +66,7 @@ public sealed class GroupPointersMoveFacts
 
         using (As(Ben))
         {
-            Assert.Equal(Both, (await Rooms(world, Ben).Conversations(Ct)).Select(Line));
+            Assert.Equal(Both, (await Rooms(world, Ben).Conversations()).Select(Line));
             // The roster still answers, from the rooms index.
             Assert.Equal(Both, (await world.Friends(Ben).Groups()).Select(Line));
         }
@@ -81,7 +81,7 @@ public sealed class GroupPointersMoveFacts
         await world.Befriend(Ada, Ben);
         await Rewrite(world, Ben, roster => roster.Groups = Earlier());
         using (As(Ben)) { await world.Friends(Ben).List(); }
-        var kept = await Stored(world, Ben, "social.rooms", IRooms.DefaultKey);
+        var kept = await Stored(world, Ben, Threads.Type, IThreadDirectory.DefaultKey);
 
         // The state a stop between the two steps leaves: the roster record holds the list again while it sleeps.
         await Rewrite(world, Ben, roster => roster.Groups = Earlier());
@@ -90,8 +90,8 @@ public sealed class GroupPointersMoveFacts
         using (As(Ben)) { Assert.Equal(Both, (await world.Friends(Ben).Groups()).Select(Line)); }
 
         Assert.Contains("\"groups\":[]", await Stored(world, Ben, FriendsDefaults.TypeName, FriendsDefaults.KeyPart), StringComparison.Ordinal);
-        Assert.Equal(kept, await Stored(world, Ben, "social.rooms", IRooms.DefaultKey));
-        using (As(Ben)) { Assert.Equal(Both, (await Rooms(world, Ben).Conversations(Ct)).Select(Line)); }
+        Assert.Equal(kept, await Stored(world, Ben, Threads.Type, IThreadDirectory.DefaultKey));
+        using (As(Ben)) { Assert.Equal(Both, (await Rooms(world, Ben).Conversations()).Select(Line)); }
     }
 
     // An invitation forwarded through the roster is kept by the rooms index and not by the roster.
@@ -112,7 +112,7 @@ public sealed class GroupPointersMoveFacts
         Assert.DoesNotContain("Dinner", roster, StringComparison.Ordinal);
         using (As(Ben))
         {
-            Assert.Equal([.. Both, $"ada|{invited.Conversation.Value}|Dinner|ada"], (await Rooms(world, Ben).Conversations(Ct)).Select(Line));
+            Assert.Equal([.. Both, $"ada|{invited.Conversation.Value}|Dinner|ada"], (await Rooms(world, Ben).Conversations()).Select(Line));
         }
     }
 
@@ -132,8 +132,8 @@ public sealed class GroupPointersMoveFacts
         {
             using (As(Ben, kind: who))
             {
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.AdoptConversations([invite], Ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite, Ct));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.AdoptConversations([invite]));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite));
             }
         }
 
@@ -142,9 +142,9 @@ public sealed class GroupPointersMoveFacts
         {
             using (As(person))
             {
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite, Ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.AdoptConversations([invite], Ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.Conversations(Ct));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.AdoptConversations([invite]));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(index.Conversations);
             }
         }
 
@@ -152,22 +152,22 @@ public sealed class GroupPointersMoveFacts
         var fromEve = new NeuronId(new BrainId(Eve), IConversation.Type, IConversation.KeyOf(Trip));
         using (Relayed(Eve, fromEve))
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { Brain = new BrainId(Eve), By = new AccountId(Eve) }, Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite, Ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { Brain = new BrainId(Eve), By = new AccountId(Eve) }));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite));
         }
         using (Relayed(Ada, fromAda))
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { Conversation = Work }, Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { Brain = new BrainId(Eve) }, Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { By = new AccountId(Eve) }, Ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { Conversation = Work }));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { Brain = new BrainId(Eve) }));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => index.InvitedToConversation(invite with { By = new AccountId(Eve) }));
         }
-        using (As(Ben)) { Assert.Empty(await index.Conversations(Ct)); }
-        Assert.DoesNotContain("Trip", await Stored(world, Ben, "social.rooms", IRooms.DefaultKey), StringComparison.Ordinal);
+        using (As(Ben)) { Assert.Empty(await index.Conversations()); }
+        Assert.DoesNotContain("Trip", await Stored(world, Ben, Threads.Type, IThreadDirectory.DefaultKey), StringComparison.Ordinal);
 
         // The friend's own conversation, naming itself: taken. This is the call a later release sends in place of the
         // roster's; no conversation sends it yet.
-        using (Relayed(Ada, fromAda)) { await index.InvitedToConversation(invite, Ct); }
-        using (As(Ben)) { Assert.Equal([Both[0]], (await index.Conversations(Ct)).Select(Line)); }
+        using (Relayed(Ada, fromAda)) { await index.InvitedToConversation(invite); }
+        using (As(Ben)) { Assert.Equal([Both[0]], (await index.Conversations()).Select(Line)); }
     }
 
     // A person's call carried by a neuron of their own brain, as the kernel stamps a call one brain's neuron makes into another.

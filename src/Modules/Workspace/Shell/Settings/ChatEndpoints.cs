@@ -29,13 +29,13 @@ internal static class ChatEndpoints
     internal static string IndexKey(string brain)
         => new DigitalBrain.NeuronId(
             brain is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brain),
-            Sessions.Type,
-            ISessionList.DefaultKey).FullKey();
+            Threads.Type,
+            IThreadDirectory.DefaultKey).FullKey();
 
-    internal static async Task<IResult> List(HttpContext http, INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = Sessions.MaxPage)
+    internal static async Task<IResult> List(HttpContext http, INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = Threads.MaxPage)
     {
         if (Refused(http)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-        if (skip < 0 || take is < 1 or > Sessions.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
+        if (skip < 0 || take is < 1 or > Threads.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
         var page = await Index(brain).List(archived, skip, take).WaitAsync(ct);
         return Results.Ok(new ChatPage([.. page.Entries.Select(entry => new Chat(entry.Id, entry.Title, entry.UpdatedAt))], page.Total));
     }
@@ -44,7 +44,7 @@ internal static class ChatEndpoints
     {
         if (Refused(http)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var index = Index(brain);
-        if (!Sessions.IsId(id) || await index.Get(id).WaitAsync(ct) is null)
+        if (!Threads.IsLocalId(id) || await index.Get(id).WaitAsync(ct) is null)
         { return Results.NotFound(new { error = "That chat no longer exists." }); }
         await index.Unarchive(id).WaitAsync(ct);
         return Results.NoContent();
@@ -54,6 +54,6 @@ internal static class ChatEndpoints
     private static bool Refused(HttpContext http)
         => DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(http) is not { } caller || DigitalBrain.Access.CallerRules.IsApp(caller, out _);
 
-    private static ISessionList Index(INeuronProxies brain)
-        => brain.Get<ISessionList>(IndexKey(BrainScope.CurrentId()));
+    private static IThreadDirectory Index(INeuronProxies brain)
+        => brain.Get<IThreadDirectory>(IndexKey(BrainScope.CurrentId()));
 }

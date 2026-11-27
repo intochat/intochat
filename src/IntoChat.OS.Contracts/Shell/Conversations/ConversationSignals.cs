@@ -7,7 +7,7 @@ public sealed record ConversationChanged(ConversationId Id, long Revision) : Sig
 {
     /// <summary>
     /// Optional redacted summary of the human activity that triggered this change,
-    /// consumed by read-model projections such as <see cref="ISessionList"/>.
+    /// consumed by read-model projections such as <see cref="IThreadDirectory"/>.
     /// </summary>
     public string? ActivityText { get; init; }
 }
