@@ -347,10 +347,16 @@ internal sealed partial class EngineerRunsNeuron(
                 request.Harness);
         }
 
-        if (remote.ChangeSet is null
+        if (!remote.PausedAtApprovalGate
+            || !string.Equals(remote.RunId?.Trim(), runKey, StringComparison.Ordinal)
+            || remote.ChangeSet is null
             || remote.Receipt is null
-            || string.IsNullOrWhiteSpace(remote.ChangeSet.CommitSha)
-            || !string.Equals(remote.ChangeSet.CommitSha, remote.Receipt.CommitSha, StringComparison.Ordinal))
+            || !IsValidFullHexCommitSha(remote.ChangeSet.CommitSha)
+            || !string.Equals(remote.ChangeSet.CommitSha, remote.Receipt.CommitSha, StringComparison.Ordinal)
+            || !remote.Receipt.BuildVerified
+            || !remote.Receipt.LiveVerified
+            || !string.IsNullOrWhiteSpace(remote.Receipt.PushedRef)
+            || !string.IsNullOrWhiteSpace(remote.Receipt.PullRequestUrl))
         {
             return EngineerDelegationSummaries.Failure(
                 Id.Brain,
@@ -358,7 +364,7 @@ internal sealed partial class EngineerRunsNeuron(
                 goal,
                 instances,
                 "ConnectedPC",
-                $"Connected PC '{pairedPc.DeviceName}' returned an unverified or mismatched SHA receipt for run '{runKey}'; fail-closed refusal.",
+                $"Connected PC '{pairedPc.DeviceName}' returned an unverified, mismatched, or policy-violating receipt for run '{runKey}'; fail-closed refusal.",
                 flowId,
                 request.Harness);
         }
@@ -436,5 +442,28 @@ internal sealed partial class EngineerRunsNeuron(
             SelectedCandidateIndex: 0,
             Harness: request.Harness,
             Receipt: receipt);
+    }
+
+    private static bool IsValidFullHexCommitSha(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length != 40)
+        {
+            return false;
+        }
+
+        if (!CommitSha.TryParse(value, out _))
+        {
+            return false;
+        }
+
+        foreach (var ch in value)
+        {
+            if (!Uri.IsHexDigit(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -103,7 +103,8 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
             sp.GetRequiredService<CloudClient>(),
             sp.GetRequiredService<DeviceCredentials>(),
-            sp.GetService<IServiceAssertionSigner>()));
+            sp.GetService<IServiceAssertionSigner>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IDeviceEnrollmentRedeemer, DeviceEnrollmentRedeemer>();
         services.TryAddSingleton<IPendingDeviceEnrollmentStore>(static sp => new PendingDeviceEnrollmentStore(
             sp.GetRequiredService<TimeProvider>()));

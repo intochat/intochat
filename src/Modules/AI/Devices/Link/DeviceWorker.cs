@@ -52,6 +52,7 @@ internal sealed class DeviceWorker : BackgroundService
     private readonly ILocalRuntime[] _runtimes;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly SemaphoreSlim _heartbeatWake = new(0, 1);
+    private readonly SemaphoreSlim _engineeringConsentWake = new(0, 1);
     private readonly SemaphoreSlim _syncGate = new(1, 1);
 
     private volatile IReadOnlyDictionary<string, (ILocalRuntime Runtime, ModelCard Card)> _advertised =
@@ -116,6 +117,7 @@ internal sealed class DeviceWorker : BackgroundService
         _computeReportedOnce = false;
         ReleaseSignal(_wakeSignal);
         ReleaseSignal(_heartbeatWake);
+        ReleaseSignal(_engineeringConsentWake);
     }
 
     internal void NotifyInstallChanged(InstallChanged signal)
@@ -325,7 +327,7 @@ internal sealed class DeviceWorker : BackgroundService
 
         if (_localEngineeringExecutor is not null)
         {
-            supervisedTasks.Add(RunLaneLoopAsync("engineering", PollAndExecuteEngineeringOnceAsync, sessionCt, SignalRevoked));
+            supervisedTasks.Add(RunLaneLoopAsync("engineering", PollAndExecuteEngineeringWhenConsentedOnceAsync, sessionCt, SignalRevoked));
         }
 
         await Task.WhenAll(supervisedTasks).ConfigureAwait(false);
@@ -472,6 +474,17 @@ internal sealed class DeviceWorker : BackgroundService
         {
             await ExecuteResourceJobAsync(resourceJob, ct).ConfigureAwait(false);
         }
+    }
+
+    private async Task PollAndExecuteEngineeringWhenConsentedOnceAsync(CancellationToken ct)
+    {
+        if (!EffectiveAllowConnectedEngineering())
+        {
+            await _engineeringConsentWake.WaitAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        await PollAndExecuteEngineeringOnceAsync(ct).ConfigureAwait(false);
     }
 
     private async Task PollAndExecuteEngineeringOnceAsync(CancellationToken ct)
@@ -670,16 +683,21 @@ internal sealed class DeviceWorker : BackgroundService
             return;
         }
 
+        var executionTimeout = TimeSpan.FromSeconds(Math.Clamp(job.TimeoutSeconds, 15, 900));
+        using var timeoutCts = new CancellationTokenSource(executionTimeout, _clock);
+        using var jobCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        var jobCt = jobCts.Token;
+
         if (_localEngineeringExecutor is IStreamingLocalEngineeringExecutor streamingExecutor)
         {
-            await ExecuteStreamingEngineeringJobAsync(job, streamingExecutor, ct).ConfigureAwait(false);
+            await ExecuteStreamingEngineeringJobAsync(job, streamingExecutor, jobCt, ct).ConfigureAwait(false);
             return;
         }
 
         ConnectedEngineeringResponse response;
         try
         {
-            response = await _localEngineeringExecutor!.ExecuteAsync(job, ct).ConfigureAwait(false);
+            response = await _localEngineeringExecutor!.ExecuteAsync(job, jobCt).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(response.ExecutedByMachineId))
             {
                 response = response with { ExecutedByMachineId = _thisMachine.Value };
@@ -688,6 +706,15 @@ internal sealed class DeviceWorker : BackgroundService
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Local Plane 2 engineering job {JobId} (run={RunId}) timed out after {TimeoutSeconds}s.", job.JobId, job.RunId, (int)executionTimeout.TotalSeconds);
+            response = new ConnectedEngineeringResponse(
+                Ok: false,
+                RunId: job.RunId,
+                Error: $"timeout: Local Plane 2 engineering job exceeded {(int)executionTimeout.TotalSeconds}s execution cap.",
+                ExecutedByMachineId: _thisMachine.Value);
         }
         catch (Exception error)
         {
@@ -705,7 +732,8 @@ internal sealed class DeviceWorker : BackgroundService
     private async Task ExecuteStreamingEngineeringJobAsync(
         ConnectedEngineeringRequest job,
         IStreamingLocalEngineeringExecutor streamingExecutor,
-        CancellationToken ct)
+        CancellationToken jobCt,
+        CancellationToken outerCt)
     {
         ConnectedEngineeringResponse? capturedResult = null;
         string? capturedError = null;
@@ -719,15 +747,21 @@ internal sealed class DeviceWorker : BackgroundService
                 var emittedDone = false;
                 Exception? execError = null;
                 IAsyncEnumerator<EngineeringStreamChunk>? enumerator = null;
+                using var streamExecCts = CancellationTokenSource.CreateLinkedTokenSource(token, jobCt);
+                var execToken = streamExecCts.Token;
                 try
                 {
                     try
                     {
-                        enumerator = streamingExecutor.ExecuteStreamingAsync(job, token).GetAsyncEnumerator(token);
+                        enumerator = streamingExecutor.ExecuteStreamingAsync(job, execToken).GetAsyncEnumerator(execToken);
                     }
-                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    catch (OperationCanceledException) when (token.IsCancellationRequested || outerCt.IsCancellationRequested)
                     {
                         throw;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        execError = new TimeoutException($"Local Plane 2 engineering job exceeded {Math.Clamp(job.TimeoutSeconds, 15, 900)}s execution cap.");
                     }
                     catch (Exception error)
                     {
@@ -747,9 +781,14 @@ internal sealed class DeviceWorker : BackgroundService
 
                             rawChunk = enumerator.Current;
                         }
-                        catch (OperationCanceledException) when (token.IsCancellationRequested)
+                        catch (OperationCanceledException) when (token.IsCancellationRequested || outerCt.IsCancellationRequested)
                         {
                             throw;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            execError = new TimeoutException($"Local Plane 2 engineering job exceeded {Math.Clamp(job.TimeoutSeconds, 15, 900)}s execution cap.");
+                            break;
                         }
                         catch (Exception error)
                         {
@@ -806,7 +845,7 @@ internal sealed class DeviceWorker : BackgroundService
                 }
             });
 
-        var streamed = await _cloud.StreamEngineeringAsync(job.JobId, content, ct).ConfigureAwait(false);
+        var streamed = await _cloud.StreamEngineeringAsync(job.JobId, content, outerCt).ConfigureAwait(false);
         if (streamed)
         {
             return;
@@ -819,15 +858,23 @@ internal sealed class DeviceWorker : BackgroundService
         {
             try
             {
-                fallback = await streamingExecutor.ExecuteAsync(job, ct).ConfigureAwait(false);
+                fallback = await streamingExecutor.ExecuteAsync(job, jobCt).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(fallback.ExecutedByMachineId))
                 {
                     fallback = fallback with { ExecutedByMachineId = _thisMachine.Value };
                 }
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            catch (OperationCanceledException) when (outerCt.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (OperationCanceledException)
+            {
+                fallback = new ConnectedEngineeringResponse(
+                    Ok: false,
+                    RunId: job.RunId,
+                    Error: $"timeout: Local Plane 2 engineering job exceeded {Math.Clamp(job.TimeoutSeconds, 15, 900)}s execution cap.",
+                    ExecutedByMachineId: _thisMachine.Value);
             }
             catch (Exception error)
             {
@@ -848,7 +895,7 @@ internal sealed class DeviceWorker : BackgroundService
                 ExecutedByMachineId: _thisMachine.Value);
         }
 
-        await _cloud.ReportEngineeringResultAsync(job.JobId, fallback, ct).ConfigureAwait(false);
+        await _cloud.ReportEngineeringResultAsync(job.JobId, fallback, outerCt).ConfigureAwait(false);
     }
 
     private EngineeringStreamChunk StampEngineeringMachineId(EngineeringStreamChunk chunk)
@@ -1301,7 +1348,11 @@ internal sealed class DeviceWorker : BackgroundService
 
     private void OnResourceConsentChanged() => ReleaseSignal(_heartbeatWake);
 
-    private void OnEngineeringConsentChanged(bool _) => ReleaseSignal(_heartbeatWake);
+    private void OnEngineeringConsentChanged(bool _)
+    {
+        ReleaseSignal(_heartbeatWake);
+        ReleaseSignal(_engineeringConsentWake);
+    }
 
     private void ReleaseSignal(SemaphoreSlim signal)
     {

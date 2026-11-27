@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -322,7 +323,7 @@ public sealed class ConnectedEngineeringPlane2Facts
         Assert.Equal(1, candidateHost.Tier1HitCount);
 
         // 3. Cloud EngineerRunsNeuron routes StartEngineerRun to Tier 1 Paired PC with PauseAtApprovalGate == true.
-        var services = new ServiceCollection()
+        await using var services = new ServiceCollection()
             .AddSingleton<IConnectedComputeRouter>(router)
             .BuildServiceProvider();
 
@@ -356,6 +357,280 @@ public sealed class ConnectedEngineeringPlane2Facts
         // CandidateHost lifecycle cleanly delegates to fallback host when Tier 1 is offline.
         _ = await candidateHost.Publish("abcdef012345", Ct);
         Assert.Contains("publish:abcdef012345", fallbackHost.Calls);
+    }
+
+    [Fact]
+    public async Task CloudBrainRelayClientEnforces16MiBStreamCapAndIdleAndTotalTimeouts()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "intochat-plane2-relay-b1-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+            var credentials = new DeviceCredentials(new TestXorProtector(), Path.Combine(tempDir, "link.bin"));
+            using (var key = ECDsa.Create(ECCurve.NamedCurves.nistP256))
+            {
+                await credentials.Write(new LinkSecrets(
+                    new Uri("https://cloud.test"),
+                    "cred-b1",
+                    "cred-b1.access",
+                    clock.GetUtcNow().AddHours(1),
+                    "cred-b1.refresh",
+                    clock.GetUtcNow().AddDays(30),
+                    key.ExportPkcs8PrivateKey()), Ct);
+            }
+
+            // 1. NDJSON stream exceeding 16 MiB fails closed cleanly.
+            var oversizedLine = JsonSerializer.Serialize(
+                new EngineeringStreamChunk(Progress: new string('x', 60_000)),
+                DeviceWireJson.Default.EngineeringStreamChunk) + "\n";
+            var oversizedLineBytes = Encoding.UTF8.GetBytes(oversizedLine);
+            using var oversizedHandler = new CustomStreamHttpHandler(_ => new RepeatingChunkStream(oversizedLineBytes, repeatCount: 300));
+            using var oversizedHttp = new HttpClient(oversizedHandler);
+            var oversizedCloud = new CloudClient(oversizedHttp, credentials, clock);
+            var oversizedRelay = new CloudBrainRelayClient(oversizedHttp, oversizedCloud, credentials, clock: clock);
+
+            var oversizedResult = await oversizedRelay.DispatchBrainEngineeringAsync(
+                new BrainEngineeringDispatchRequest(OwnerBrain.Value, "pc-1", NewEngineeringRequest("eng-big", "run-big")),
+                TimeSpan.FromSeconds(60),
+                ct: Ct);
+
+            Assert.NotNull(oversizedResult);
+            Assert.False(oversizedResult!.Ok);
+            Assert.StartsWith("stream-size-limit-exceeded", oversizedResult.Error, StringComparison.Ordinal);
+
+            // 2. Idle timeout aborts hung NDJSON stream and returns null for Tier 2/3 fallback.
+            var readStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var idleHandler = new CustomStreamHttpHandler(_ => new HangingReadStream(readStarted));
+            using var idleHttp = new HttpClient(idleHandler);
+            var idleCloud = new CloudClient(idleHttp, credentials, clock);
+            var idleRelay = new CloudBrainRelayClient(
+                idleHttp,
+                idleCloud,
+                credentials,
+                clock: clock,
+                engineeringIdleTimeout: TimeSpan.FromSeconds(5));
+
+            var idleTask = idleRelay.DispatchBrainEngineeringAsync(
+                new BrainEngineeringDispatchRequest(OwnerBrain.Value, "pc-1", NewEngineeringRequest("eng-idle", "run-idle")),
+                TimeSpan.FromSeconds(60),
+                ct: Ct);
+
+            await readStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+            clock.Advance(TimeSpan.FromSeconds(6));
+            var idleResult = await idleTask.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+            Assert.Null(idleResult);
+
+            // 3. Total hard-cap timeout aborts stream even when idle timeout is longer.
+            var totalStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var totalHandler = new CustomStreamHttpHandler(_ => new HangingReadStream(totalStarted));
+            using var totalHttp = new HttpClient(totalHandler);
+            var totalCloud = new CloudClient(totalHttp, credentials, clock);
+            var totalRelay = new CloudBrainRelayClient(
+                totalHttp,
+                totalCloud,
+                credentials,
+                clock: clock,
+                engineeringIdleTimeout: TimeSpan.FromSeconds(120));
+
+            var totalTask = totalRelay.DispatchBrainEngineeringAsync(
+                new BrainEngineeringDispatchRequest(
+                    OwnerBrain.Value,
+                    "pc-1",
+                    NewEngineeringRequest("eng-total", "run-total") with { TimeoutSeconds = 15 }),
+                TimeSpan.FromSeconds(900),
+                ct: Ct);
+
+            await totalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+            clock.Advance(TimeSpan.FromSeconds(16));
+            var totalResult = await totalTask.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+            Assert.Null(totalResult);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task LocalConnectedEngineeringExecutorEnforcesCleanupTimeoutHardcodedGateAndFailClosedLiveVerify()
+    {
+        const string validSha = "0123456789abcdef0123456789abcdef01234567";
+
+        // 1. Fails closed when neither CandidateLiveVerifier nor ILiveVerifier is configured, and cleans up worktree.
+        var unconfiguredWorkTree = new FakeWorkTree(validSha);
+        var unconfiguredExecutor = new LocalConnectedEngineeringExecutor(
+            unconfiguredWorkTree,
+            new FakeEngineerPlanner(),
+            new FakeBuildVerifier(succeeded: true),
+            new FakeEngineeringHarness(),
+            coder: null,
+            candidateHostVerifier: null,
+            liveVerifier: null);
+
+        var unconfiguredResponse = await unconfiguredExecutor.ExecuteAsync(
+            NewEngineeringRequest("eng-nolive", "run-nolive"),
+            Ct);
+
+        Assert.False(unconfiguredResponse.Ok);
+        Assert.StartsWith("live-verify-unconfigured", unconfiguredResponse.Error, StringComparison.Ordinal);
+        Assert.Equal(1, unconfiguredWorkTree.CleanupCalls);
+
+        // 2. Hardcodes PausedAtApprovalGate == true even when request sets PauseAtApprovalGate == false.
+        var okWorkTree = new FakeWorkTree(validSha);
+        var fakeCandidateHost = new FakeCandidateHost();
+        using var okHttp = new HttpClient(new StubLiveHttpHandler());
+        var liveVerifier = new CandidateLiveVerifier(fakeCandidateHost, okHttp, healthBudget: TimeSpan.FromSeconds(5));
+        var okExecutor = new LocalConnectedEngineeringExecutor(
+            okWorkTree,
+            new FakeEngineerPlanner(),
+            new FakeBuildVerifier(succeeded: true),
+            new FakeEngineeringHarness(),
+            coder: null,
+            candidateHostVerifier: liveVerifier,
+            liveVerifier: null);
+
+        var okResponse = await okExecutor.ExecuteAsync(
+            NewEngineeringRequest("eng-gate", "run-gate") with { PauseAtApprovalGate = false },
+            Ct);
+
+        Assert.True(okResponse.Ok, okResponse.Error);
+        Assert.True(okResponse.PausedAtApprovalGate);
+        Assert.Equal(0, okWorkTree.CleanupCalls);
+
+        // 3. Cleans up WorkTreeLease in finally when caller cancels mid-execution.
+        var cancelWorkTree = new FakeWorkTree(validSha);
+        var cancelHarnessEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blockingHarness = new BlockingEngineeringHarness(cancelHarnessEntered);
+        var cancelExecutor = new LocalConnectedEngineeringExecutor(
+            cancelWorkTree,
+            new FakeEngineerPlanner(),
+            new FakeBuildVerifier(succeeded: true),
+            blockingHarness,
+            coder: null,
+            candidateHostVerifier: liveVerifier,
+            liveVerifier: null);
+
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var cancelTask = cancelExecutor.ExecuteAsync(NewEngineeringRequest("eng-cancel", "run-cancel"), callerCts.Token);
+        await cancelHarnessEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        await callerCts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelTask);
+        Assert.Equal(1, cancelWorkTree.CleanupCalls);
+
+        // 4. Enforces TimeoutSeconds execution cap via TimeProvider and cleans up WorkTreeLease on timeout.
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+        var timeoutWorkTree = new FakeWorkTree(validSha);
+        var timeoutHarnessEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var timeoutExecutor = new LocalConnectedEngineeringExecutor(
+            timeoutWorkTree,
+            new FakeEngineerPlanner(),
+            new FakeBuildVerifier(succeeded: true),
+            new BlockingEngineeringHarness(timeoutHarnessEntered),
+            coder: null,
+            candidateHostVerifier: liveVerifier,
+            liveVerifier: null,
+            clock: clock);
+
+        var timeoutTask = timeoutExecutor.ExecuteAsync(
+            NewEngineeringRequest("eng-timeout", "run-timeout") with { TimeoutSeconds = 15 },
+            Ct);
+
+        await timeoutHarnessEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        clock.Advance(TimeSpan.FromSeconds(16));
+        var timeoutResponse = await timeoutTask.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        Assert.False(timeoutResponse.Ok);
+        Assert.StartsWith("timeout:", timeoutResponse.Error, StringComparison.Ordinal);
+        Assert.Equal(1, timeoutWorkTree.CleanupCalls);
+    }
+
+    [Theory]
+    [InlineData("not-a-hex-sha", true, true, true, null, null, "run-b3")]
+    [InlineData("0123456789abcdef", true, true, true, null, null, "run-b3")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef01", false, true, true, null, null, "run-b3")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef01", true, false, true, null, null, "run-b3")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef01", true, true, false, null, null, "run-b3")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef01", true, true, true, "refs/heads/ino/rogue", null, "run-b3")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef01", true, true, true, null, "https://github.com/org/repo/pull/1", "run-b3")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef01", true, true, true, null, null, "wrong-run-id")]
+    public async Task EngineerRunsNeuronFailsClosedOnInvalidOrPolicyViolatingConnectedPcReceipt(
+        string commitSha,
+        bool buildVerified,
+        bool liveVerified,
+        bool pausedAtApprovalGate,
+        string? pushedRef,
+        string? pullRequestUrl,
+        string responseRunId)
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+        var transport = new ScriptedEngineeringTransport(
+            probe: static (_, _, _) => Task.FromResult(true),
+            executeEngineering: (_, node, req, _, _) => Task.FromResult<ConnectedEngineeringResponse?>(new ConnectedEngineeringResponse(
+                Ok: true,
+                RunId: responseRunId,
+                FlowId: $"owner/flow.engineer/{req.RunId}",
+                Stage: "approval-gate",
+                PausedAtApprovalGate: pausedAtApprovalGate,
+                ChangeSet: new ConnectedEngineeringChangeSet(
+                    CommitSha: commitSha,
+                    BaseSha: "1111111111111111111111111111111111111111",
+                    BranchName: "ino/engineer-b3",
+                    Repository: req.RepoSlug,
+                    ChangedFiles: ["Flows/Demo.cs"],
+                    Additions: 1,
+                    Deletions: 0,
+                    UnifiedDiff: "+// b3"),
+                Receipt: new EngineerVerificationReceipt(
+                    CommitSha: commitSha,
+                    PullRequestUrl: pullRequestUrl,
+                    PushedRef: pushedRef,
+                    BuildVerified: buildVerified,
+                    LiveVerified: liveVerified,
+                    CandidateHostKind: "ConnectedPC/AgentDevSlotsCandidateHost",
+                    VerificationSummary: "LiveVerify"),
+                ExecutedByMachineId: node.MachineId)));
+
+        var router = new ConnectedComputeRouter(
+            clock: clock,
+            transport: transport,
+            engineeringTransport: transport);
+
+        await router.RecordHeartbeatAsync(
+            OwnerBrain,
+            new ComputeCapabilityAdvertisement(
+                MachineId: "pc-b3",
+                DeviceName: "Test PC",
+                ConsentMode: ComputeConsentMode.ExplicitToggle,
+                SandboxReady: false,
+                SandboxRuntime: "unit-host",
+                OsDescription: "Windows",
+                MaxConcurrency: 2,
+                HeartbeatAt: clock.GetUtcNow(),
+                AllowClientCodeSandbox: false,
+                AdvertisedCapabilities: [ClientComputeConsentPolicy.ConnectedEngineeringCapability],
+                AllowConnectedEngineering: true),
+            Ct);
+
+        await using var services = new ServiceCollection()
+            .AddSingleton<IConnectedComputeRouter>(router)
+            .BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = services).Register<EngineerRunsNeuron>();
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", OwnerBrain));
+
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(OwnerBrain.Value));
+        var summary = await runs.StartEngineerRun(
+            new EngineerDelegationRequest(RepoSlug: "os", Goal: "Validate receipt fail-closed", RunId: "run-b3"),
+            Ct);
+
+        Assert.False(summary.Ok);
+        Assert.Equal(FlowStatus.Failed, summary.Status);
+        Assert.Contains("fail-closed refusal", summary.SummaryText, StringComparison.OrdinalIgnoreCase);
     }
 
     private static ConnectedEngineeringRequest NewEngineeringRequest(string jobId, string runId) => new(
@@ -588,6 +863,7 @@ public sealed class ConnectedEngineeringPlane2Facts
     {
         public int PushCalls { get; private set; }
         public int PrCalls { get; private set; }
+        public int CleanupCalls { get; private set; }
 
         public IReadOnlyList<RegisteredRepository> ListRepositories() => [new RegisteredRepository("os", Path.GetTempPath())];
         public void RegisterRepository(RegisteredRepository repository) { }
@@ -628,7 +904,112 @@ public sealed class ConnectedEngineeringPlane2Facts
         public Task<PublishedPrResult> PublishAsync(WorkTreeLease lease, CommitSha approvedSha, string prTitle, string prBody, CancellationToken ct = default)
             => throw new InvalidOperationException("Paired PC relay must pause at approval-gate.");
 
-        public Task CleanupAsync(WorkTreeLease lease, CancellationToken ct = default) => Task.CompletedTask;
+        public Task CleanupAsync(WorkTreeLease lease, CancellationToken ct = default)
+        {
+            CleanupCalls++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingEngineeringHarness(TaskCompletionSource entered) : IEngineeringHarness
+    {
+        public EngineeringHarnessKind Kind => EngineeringHarnessKind.InoNative;
+        public Task<bool> IsAvailableAsync(CancellationToken ct = default) => Task.FromResult(true);
+
+        public async Task<EngineeringHarnessResult> ExecuteAsync(EngineeringHarnessRequest request, Func<OperationProgressed, Task>? onProgress = null, CancellationToken ct = default)
+        {
+            entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new UnreachableException();
+        }
+    }
+
+    private sealed class CustomStreamHttpHandler(Func<HttpRequestMessage, Stream> streamFactory) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var content = new StreamContent(streamFactory(request));
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-ndjson") { CharSet = "utf-8" };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
+    }
+
+    private sealed class RepeatingChunkStream(byte[] chunk, int repeatCount) : Stream
+    {
+        private int _emitted;
+        private int _offset;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_emitted >= repeatCount)
+            {
+                return 0;
+            }
+
+            var remaining = chunk.Length - _offset;
+            var toCopy = Math.Min(count, remaining);
+            Buffer.BlockCopy(chunk, _offset, buffer, offset, toCopy);
+            _offset += toCopy;
+            if (_offset >= chunk.Length)
+            {
+                _offset = 0;
+                _emitted++;
+            }
+
+            return toCopy;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_emitted >= repeatCount)
+            {
+                return ValueTask.FromResult(0);
+            }
+
+            var remaining = chunk.Length - _offset;
+            var toCopy = Math.Min(buffer.Length, remaining);
+            chunk.AsMemory(_offset, toCopy).CopyTo(buffer);
+            _offset += toCopy;
+            if (_offset >= chunk.Length)
+            {
+                _offset = 0;
+                _emitted++;
+            }
+
+            return ValueTask.FromResult(toCopy);
+        }
+    }
+
+    private sealed class HangingReadStream(TaskCompletionSource readStarted) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            readStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
     }
 
     private sealed class FakeEngineerPlanner : IEngineerPlanner

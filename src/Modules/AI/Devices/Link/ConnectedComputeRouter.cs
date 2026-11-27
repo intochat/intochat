@@ -98,7 +98,7 @@ internal sealed class RelayConnectedComputeTransport(
             return null;
         }
 
-        var executionTimeout = TimeSpan.FromSeconds(Math.Clamp(request.TimeoutSeconds, 15, 900) + 15);
+        var executionTimeout = TimeSpan.FromSeconds(Math.Clamp(request.TimeoutSeconds, 15, 900));
         var dispatch = new BrainEngineeringDispatchRequest(brainId.Value, node.MachineId, request);
         return await relay.DispatchBrainEngineeringAsync(dispatch, executionTimeout, onProgress, ct).ConfigureAwait(false);
     }
