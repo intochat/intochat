@@ -34,9 +34,26 @@ class VoiceClipCard extends StatefulWidget {
 
 class _VoiceClipCardState extends State<VoiceClipCard> {
   static const List<double> _waveformHeights = [
-    0.35, 0.72, 0.50, 0.92, 0.64, 0.40, 0.85, 0.58,
-    0.78, 0.44, 0.96, 0.62, 0.48, 0.80, 0.54, 0.68,
-    0.38, 0.74, 0.52, 0.42,
+    0.35,
+    0.72,
+    0.50,
+    0.92,
+    0.64,
+    0.40,
+    0.85,
+    0.58,
+    0.78,
+    0.44,
+    0.96,
+    0.62,
+    0.48,
+    0.80,
+    0.54,
+    0.68,
+    0.38,
+    0.74,
+    0.52,
+    0.42,
   ];
 
   AudioOut? _audioOut;
@@ -209,7 +226,10 @@ class _VoiceClipCardState extends State<VoiceClipCard> {
                                 width: 3,
                                 height: 22 * _waveformHeights[i],
                                 decoration: BoxDecoration(
-                                  color: (i / _waveformHeights.length) <= _progress && _playing
+                                  color:
+                                      (i / _waveformHeights.length) <=
+                                              _progress &&
+                                          _playing
                                       ? accentColor
                                       : c.textSubtle.withValues(alpha: 0.45),
                                   borderRadius: BorderRadius.circular(2),
@@ -236,7 +256,8 @@ class _VoiceClipCardState extends State<VoiceClipCard> {
                                 'voice-clip-transcript-toggle:${widget.attachment.id}',
                               ),
                               onTap: () => setState(
-                                () => _transcriptExpanded = !_transcriptExpanded,
+                                () =>
+                                    _transcriptExpanded = !_transcriptExpanded,
                               ),
                               child: Text(
                                 _transcriptExpanded
@@ -258,10 +279,7 @@ class _VoiceClipCardState extends State<VoiceClipCard> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 6),
-              Text(
-                _error!,
-                style: UiType.textStyle(12, color: c.error),
-              ),
+              Text(_error!, style: UiType.textStyle(12, color: c.error)),
             ],
             if (hasTranscript && _transcriptExpanded) ...[
               const SizedBox(height: 8),

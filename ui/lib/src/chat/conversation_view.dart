@@ -365,7 +365,10 @@ class _ConversationViewState extends State<ConversationView> {
     try {
       // Estimate WAV duration from 16 kHz 16-bit mono PCM payload when available.
       final pcmBytes = audio.length > 44 ? audio.length - 44 : audio.length;
-      final durationMs = ((pcmBytes / 32000.0) * 1000).round().clamp(500, 300000);
+      final durationMs = ((pcmBytes / 32000.0) * 1000).round().clamp(
+        500,
+        300000,
+      );
       final uploaded = await uploader(
         audio,
         'voice-note-${DateTime.now().millisecondsSinceEpoch}.wav',

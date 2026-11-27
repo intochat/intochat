@@ -104,7 +104,10 @@ extension IntoChatOSUiClientVoice on IntoChatOSUiClient {
         'conversation': conversation.trim(),
       if (isVoiceNote && !transcribe) 'transcribe': 'false',
     };
-    final path = Uri(path: '/ai/attachments', queryParameters: query).toString();
+    final path = Uri(
+      path: '/ai/attachments',
+      queryParameters: query,
+    ).toString();
     final response = await _request(
       'POST',
       path,

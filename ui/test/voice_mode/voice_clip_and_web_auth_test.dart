@@ -185,7 +185,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: UiTheme.light('intochat'),
-          home: Scaffold(body: ConversationView(node: node, ctx: ctx)),
+          home: Scaffold(
+            body: ConversationView(node: node, ctx: ctx),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -211,36 +213,33 @@ void main() {
     },
   );
 
-  test(
-    'IntoChatOSUiClient.mintTalkTicket mints opaque ticket via POST /ai/talk/ticket with zero query bearer tokens',
-    () async {
-      http.Request? captured;
-      final mockHttp = MockClient((request) async {
-        captured = request;
-        return http.Response(
-          jsonEncode({'ticket': 'opaque-ticket-abc123', 'expiresInSeconds': 30}),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      final client = IntoChatOSUiClient(
-        baseUri: Uri.parse('https://os.example.com'),
-        httpClient: mockHttp,
-        credentials: const BasicCredentials(
-          username: 'alice',
-          password: 'secret',
-        ),
+  test('IntoChatOSUiClient.mintTalkTicket mints opaque ticket via POST /ai/talk/ticket with zero query bearer tokens', () async {
+    http.Request? captured;
+    final mockHttp = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({'ticket': 'opaque-ticket-abc123', 'expiresInSeconds': 30}),
+        200,
+        headers: {'content-type': 'application/json'},
       );
+    });
 
-      final ticket = await client.mintTalkTicket('main');
-      expect(ticket, 'opaque-ticket-abc123');
-      expect(captured, isNotNull);
-      expect(captured!.method, 'POST');
-      expect(captured!.url.path, '/ai/talk/ticket');
-      expect(captured!.url.query, isEmpty);
-      expect(jsonDecode(captured!.body), {'conversation': 'main'});
-      expect(captured!.headers['authorization'], isNotEmpty);
-    },
-  );
+    final client = IntoChatOSUiClient(
+      baseUri: Uri.parse('https://os.example.com'),
+      httpClient: mockHttp,
+      credentials: const BasicCredentials(
+        username: 'alice',
+        password: 'secret',
+      ),
+    );
+
+    final ticket = await client.mintTalkTicket('main');
+    expect(ticket, 'opaque-ticket-abc123');
+    expect(captured, isNotNull);
+    expect(captured!.method, 'POST');
+    expect(captured!.url.path, '/ai/talk/ticket');
+    expect(captured!.url.query, isEmpty);
+    expect(jsonDecode(captured!.body), {'conversation': 'main'});
+    expect(captured!.headers['authorization'], isNotEmpty);
+  });
 }
