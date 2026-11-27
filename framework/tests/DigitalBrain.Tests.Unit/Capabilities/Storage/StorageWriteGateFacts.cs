@@ -1,5 +1,6 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Capabilities.Storage.Gating;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;

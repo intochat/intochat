@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Capabilities.Storage.Gating;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Modules;
 using DigitalBrain.Neurons;

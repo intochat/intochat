@@ -118,8 +118,8 @@ public sealed class ConnectionStorageCallerFacts
         public Task<DigitalBrain.Capabilities.Storage.Content> Read(DigitalBrain.Capabilities.Storage.ItemId id, DigitalBrain.Capabilities.Storage.ByteRange? range, CancellationToken ct = default) => inner.Read(id, range, ct);
         public async Task<DigitalBrain.Operations.OperationId> Write(DigitalBrain.Capabilities.Storage.WritePlan plan, CancellationToken ct = default)
         {
-            await DigitalBrain.Capabilities.Storage.StorageWriteGate.AuthorizeAsync(
-                neuronId, inner, plan, caller(), authorizer: null, confirmations, DigitalBrain.Capabilities.Storage.StorageWritePolicy.WorkspaceDirect, ct);
+            await DigitalBrain.Capabilities.Storage.Gating.StorageWriteGate.AuthorizeAsync(
+                neuronId, inner, plan, caller(), authorizer: null, confirmations, DigitalBrain.Capabilities.Storage.Gating.StorageWritePolicy.WorkspaceDirect, ct);
             return await inner.Write(plan, ct);
         }
         public Task<DigitalBrain.Capabilities.Storage.Page<DigitalBrain.Capabilities.Storage.Item>> Search(DigitalBrain.Capabilities.Storage.SearchQuery query, CancellationToken ct = default) => inner.Search(query, ct);

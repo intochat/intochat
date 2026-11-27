@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Capabilities.Storage.Gating;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Operations;

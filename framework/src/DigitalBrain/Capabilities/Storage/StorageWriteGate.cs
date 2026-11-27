@@ -1,10 +1,10 @@
 using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
 
-namespace DigitalBrain.Capabilities.Storage;
+namespace DigitalBrain.Capabilities.Storage.Gating;
 
 /// <summary>
-/// Policy controlling whether same-brain privileged callers bypass confirmation on a storage provider.
+/// Policy controlling whether same-brain privileged callers bypass confirmation on a storage neuron.
 /// </summary>
 public enum StorageWritePolicy
 {
@@ -20,12 +20,12 @@ public enum StorageWritePolicy
 }
 
 /// <summary>
-/// Unified fail-closed write authorization gate for storage providers.
+/// Unified fail-closed write authorization gate for storage neurons.
 /// </summary>
 public static class StorageWriteGate
 {
     /// <summary>
-    /// Authorizes a storage write <paramref name="plan"/> before the provider executes it.
+    /// Authorizes a storage write <paramref name="plan"/> before the storage neuron executes it.
     /// Evaluates optional same-brain workspace bypass policy, single-use approved runner permits,
     /// dry-run plans, and fail-closed confirmation.
     /// </summary>
