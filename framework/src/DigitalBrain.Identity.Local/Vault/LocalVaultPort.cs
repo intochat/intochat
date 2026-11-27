@@ -48,6 +48,11 @@ public sealed class LocalVaultPort(
         var owner = VaultPolicy.VaultOwner(caller)
             ?? throw new UnauthorizedAccessException("secrets@1: caller does not own a vault.");
 
+        if (!VaultPolicy.CanStore(caller, owner))
+        {
+            return SecretVaultResult.Denied;
+        }
+
         if (!await IsDurableSecretsAllowedAsync(caller, name, cancellationToken).ConfigureAwait(false))
         {
             return SecretVaultResult.Denied;
@@ -76,6 +81,11 @@ public sealed class LocalVaultPort(
 
         var owner = VaultPolicy.VaultOwner(caller)
             ?? throw new UnauthorizedAccessException("secrets@1: caller does not own a vault.");
+
+        if (!VaultPolicy.CanRemove(caller, owner))
+        {
+            return SecretVaultStatus.Denied;
+        }
 
         try
         {

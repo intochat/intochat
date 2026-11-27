@@ -52,7 +52,7 @@ public static class SecretCoordinate
         ArgumentException.ThrowIfNullOrWhiteSpace(deploymentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return $"vault-secret|v1|{deploymentId}|{ownerId}|{name}";
+        return $"vault-secret|v1|{deploymentId.Length}:{deploymentId}|{ownerId.Length}:{ownerId}|{name.Length}:{name}";
     }
 
     private static string NormalizeKind(string? ownerKind)

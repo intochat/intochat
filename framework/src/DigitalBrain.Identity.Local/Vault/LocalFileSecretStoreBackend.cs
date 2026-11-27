@@ -139,6 +139,11 @@ public sealed class LocalFileSecretStoreBackend : ISecretStoreBackend
             stream.Flush(flushToDisk: true);
         }
 
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+
         File.Move(tmp, path, overwrite: true);
     }
 

@@ -194,6 +194,79 @@ public sealed class VaultDualOpenAndCacheFacts
         var aad1 = SecretCoordinate.FormatAad("prod-east", "alice", "openai:api-key");
         var aad2 = SecretCoordinate.FormatAad("prod-east", "bob", "openai:api-key");
         Assert.NotEqual(aad1, aad2);
+
+        // Length-prefixed AAD prevents delimiter ambiguity when '|' appears inside components.
+        Assert.NotEqual(
+            SecretCoordinate.FormatAad("a|b", "c", "d"),
+            SecretCoordinate.FormatAad("a", "b|c", "d"));
+    }
+
+    [Fact]
+    public async Task LocalVaultPort_enforces_CanStore_and_CanRemove_before_elevating_to_kernel()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var custody = new ConfiguredMasterKeyCustody(TestMasterBytes);
+        var services = new ServiceCollection();
+        services.AddSingleton<IMasterKeyCustody>(custody);
+        var provider = services.BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = provider);
+        os.Register<VaultNeuron>();
+
+        var port = new LocalVaultPort(
+            (_, fullKey) =>
+            {
+                var sep = fullKey.IndexOf('/', StringComparison.Ordinal);
+                return os.Get<IVault>(new NeuronId(new BrainId(fullKey[..sep]), IVault.Type, fullKey[(sep + 1)..]));
+            },
+            custody,
+            edge: os.Edge,
+            callers: os.Callers);
+
+        var brain = new BrainId("brain-1");
+        var alice = new Actor.Person("alice", "acc-1");
+
+        // Direct owner can store a secret.
+        using (os.Edge.Enter(os.Edge.Person("alice", "acc-1", brain)))
+        {
+            var stored = await port.Set("item", "Item", "dummy-val-aaa", ct); // gitleaks:allow
+            Assert.Equal(SecretVaultStatus.Ok, stored.Status);
+        }
+
+        // Actor.App and relayed Actor.Person (Direct: false) are denied on Set.
+        using (os.Edge.Enter(os.Edge.App("sandbox", alice, brain)))
+        {
+            var deniedApp = await port.Set("item", "Item", "dummy-val-bbb", ct); // gitleaks:allow
+            Assert.Equal(SecretVaultStatus.Denied, deniedApp.Status);
+        }
+
+        using (os.Edge.Enter(os.Edge.RelayedPerson("alice", "acc-1", brain)))
+        {
+            var deniedRelayed = await port.Set("item", "Item", "dummy-val-ccc", ct); // gitleaks:allow
+            Assert.Equal(SecretVaultStatus.Denied, deniedRelayed.Status);
+        }
+
+        // Actor.App, Actor.Agent, and relayed Actor.Person (Direct: false) are denied on Remove.
+        using (os.Edge.Enter(os.Edge.App("sandbox", alice, brain)))
+        {
+            Assert.Equal(SecretVaultStatus.Denied, await port.Remove("item", ct));
+        }
+
+        using (os.Edge.Enter(os.Edge.Agent(alice, brain)))
+        {
+            Assert.Equal(SecretVaultStatus.Denied, await port.Remove("item", ct));
+        }
+
+        using (os.Edge.Enter(os.Edge.RelayedPerson("alice", "acc-1", brain)))
+        {
+            Assert.Equal(SecretVaultStatus.Denied, await port.Remove("item", ct));
+        }
+
+        // Direct owner can still remove.
+        using (os.Edge.Enter(os.Edge.Person("alice", "acc-1", brain)))
+        {
+            Assert.Equal(SecretVaultStatus.Ok, await port.Remove("item", ct));
+        }
     }
 
     [Fact]
