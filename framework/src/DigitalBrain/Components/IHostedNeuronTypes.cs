@@ -8,4 +8,11 @@ public interface IHostedNeuronTypes
 
     /// <summary>Returns whether any hosted neuron class implements <paramref name="contract"/>.</summary>
     bool IsContractHosted(Type contract) => false;
+
+    /// <summary>Returns the hosted neuron class for <paramref name="neuronType"/>, if known.</summary>
+    bool TryGetNeuronClass(string neuronType, out Type? neuronClass)
+    {
+        neuronClass = null;
+        return false;
+    }
 }

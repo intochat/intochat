@@ -44,11 +44,12 @@ public sealed class AppHostChainFacts
                                           .Embed(KnownModels.TextEmbedding3Small)
                                           .Image(KnownModels.GptImage1)))
                 .Web(w => w.MicrosoftLearn().Brave()))
+            // Switch any backing to ResourceBacking.LocalContainer to provision local Docker containers on demand.
             .WithInfrastructure(infra => infra
-                .Postgres(ResourceBacking.LocalContainer)
-                .ClickHouse(ResourceBacking.LocalContainer)
-                .Playwright(ResourceBacking.LocalContainer)
-                .ArtCraft(ResourceBacking.LocalContainer)
+                .Postgres(ResourceBacking.Off)
+                .ClickHouse(ResourceBacking.Off)
+                .Playwright(ResourceBacking.Off)
+                .ArtCraft(ResourceBacking.Off)
                 .Sandbox(ResourceBacking.LocalContainer))
             .AddKernel(KernelPath);
 

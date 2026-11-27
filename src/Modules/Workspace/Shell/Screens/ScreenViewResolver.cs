@@ -1,10 +1,12 @@
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.Logging;
 using HostAppRef = IntoChat.OS.Host.Primitives.AppRef;
@@ -44,7 +46,8 @@ internal static class ScreenViewResolver
         string address,
         IScreenTargetResolver? resolver,
         IHostedAppTypes? hosted,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IHostedNeuronTypes? hostedNeurons = null)
     {
         if (string.IsNullOrWhiteSpace(address))
         {
@@ -56,6 +59,11 @@ internal static class ScreenViewResolver
             var resolved = await resolver.ResolveAsync(brainId, address, ct);
             if (resolved is not null)
             {
+                if (resolved.Kind == IScreenTargetResolver.CompiledScreenKind
+                    && !AreRequiredSlotsHosted(resolved.ScreenId, hostedNeurons))
+                {
+                    return new ResolvedScreen(ScreenResolutionKind.NotLoaded, resolved.ScreenId);
+                }
                 return resolved.Kind switch
                 {
                     IScreenTargetResolver.ConfirmationsKind => new ResolvedScreen(ScreenResolutionKind.Confirmation, resolved.ScreenId),
@@ -86,7 +94,12 @@ internal static class ScreenViewResolver
             {
                 return new ResolvedScreen(ScreenResolutionKind.NotLoaded);
             }
-            return new ResolvedScreen(ScreenResolutionKind.Screen, new NeuronId(brainId, screenAlias, "default"));
+            var screenId = new NeuronId(brainId, screenAlias, "default");
+            if (!AreRequiredSlotsHosted(screenId, hostedNeurons))
+            {
+                return new ResolvedScreen(ScreenResolutionKind.NotLoaded, screenId);
+            }
+            return new ResolvedScreen(ScreenResolutionKind.Screen, screenId);
         }
 
         if (!address.Contains('/', StringComparison.Ordinal)
@@ -103,10 +116,31 @@ internal static class ScreenViewResolver
                 : HostUnitAlias.TryParse(bareName, out var screenUnit)
                     ? screenUnit.ScreenNeuron(brainId)
                     : new NeuronId(brainId, "app." + bareName, "default");
+            if (!AreRequiredSlotsHosted(screenId, hostedNeurons))
+            {
+                return new ResolvedScreen(ScreenResolutionKind.NotLoaded, screenId);
+            }
             return new ResolvedScreen(ScreenResolutionKind.Screen, screenId);
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Pre-checks whether all required <c>[Slot]</c> neuron types declared on the compiled screen class
+    /// are hosted in the current runtime so Orleans never attempts an activation doomed to throw <see cref="ActivationRefusedException"/>.
+    /// </summary>
+    internal static bool AreRequiredSlotsHosted(NeuronId screenId, IHostedNeuronTypes? hostedNeurons)
+    {
+        if (hostedNeurons is null)
+        {
+            return true;
+        }
+        if (!hostedNeurons.TryGetNeuronClass(screenId.Type, out var screenClass) || screenClass is null)
+        {
+            return true;
+        }
+        return AppAvailability.Evaluate(screenClass, hostedNeurons.IsHosted, hostedNeurons.IsContractHosted) is AppAvailability.Ready;
     }
 
     /// <summary>
@@ -143,8 +177,13 @@ internal static class ScreenViewResolver
         NeuronId screenId,
         ILogger log,
         string logMessage,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IHostedNeuronTypes? hostedNeurons = null)
     {
+        if (!AreRequiredSlotsHosted(screenId, hostedNeurons))
+        {
+            return null;
+        }
         try
         {
             return await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);

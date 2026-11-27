@@ -94,7 +94,7 @@ internal static class FlutterClientTargets
 
         if (!HasTarget(WebResourceName))
         {
-            AddSimpleFlutterTarget(appHost, WebResourceName, "chrome", uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
+            AddSimpleFlutterTarget(appHost, WebResourceName, ShellNames.DefaultWebDeviceTarget, uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
         }
 
         string? resolvedDevice = null;
@@ -208,7 +208,7 @@ internal static class FlutterClientTargets
                 context.Args.Add("run");
                 context.Args.Add("-d");
                 context.Args.Add(deviceTarget);
-                if (options.ReleaseBuild)
+                if (options.ReleaseBuild || string.Equals(deviceTarget, ShellNames.DefaultWebDeviceTarget, StringComparison.OrdinalIgnoreCase))
                 {
                     context.Args.Add("--release");
                 }

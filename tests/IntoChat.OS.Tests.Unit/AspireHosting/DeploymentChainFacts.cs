@@ -72,14 +72,54 @@ public sealed class DeploymentChainFacts
     }
 
     [Fact]
-    public void LocalDefaultsLeaveContainerModulesOut()
+    public void LocalBackingOffLeavesContainerModulesOut()
         => Assert.Empty(Os("local")
+            .WithInfrastructure(infra => infra
+                .Postgres(ResourceBacking.Off)
+                .ClickHouse(ResourceBacking.Off)
+                .ArtCraft(ResourceBacking.Off)
+                .Playwright(ResourceBacking.Off))
+            .ApplicationBuilder.Resources.OfType<ContainerResource>());
+
+    [Theory]
+    [InlineData("postgres")]
+    [InlineData("clickhouse")]
+    [InlineData("playwright")]
+    [InlineData("artcraft")]
+    public void ExplicitLocalContainerEnablesModuleUnderLocalTopology(string id)
+    {
+        var os = Os("local").WithInfrastructure(infra =>
+        {
+            switch (id)
+            {
+                case "postgres": infra.Postgres(ResourceBacking.LocalContainer); break;
+                case "clickhouse": infra.ClickHouse(ResourceBacking.LocalContainer); break;
+                case "playwright": infra.Playwright(ResourceBacking.LocalContainer); break;
+                case "artcraft": infra.ArtCraft(ResourceBacking.LocalContainer); break;
+            }
+        });
+
+        Assert.Contains(id, os.Modules);
+        Assert.Equal("true", os.Settings[$"IntoChatOS:Modules:{id}:Enabled"]);
+    }
+
+    [Theory]
+    [InlineData("postgres")]
+    [InlineData("clickhouse")]
+    [InlineData("playwright")]
+    [InlineData("artcraft")]
+    public void ExplicitConfigFalseDisablesLocalContainerUnderLocalTopology(string id)
+    {
+        var os = Os("local", ($"IntoChatOS:Modules:{id}:Enabled", "false"))
             .WithInfrastructure(infra => infra
                 .Postgres(ResourceBacking.LocalContainer)
                 .ClickHouse(ResourceBacking.LocalContainer)
-                .ArtCraft(ResourceBacking.LocalContainer)
-                .Playwright(ResourceBacking.LocalContainer))
-            .ApplicationBuilder.Resources.OfType<ContainerResource>());
+                .Playwright(ResourceBacking.LocalContainer)
+                .ArtCraft(ResourceBacking.LocalContainer));
+
+        Assert.DoesNotContain(id, os.Modules);
+        Assert.DoesNotContain(os.ApplicationBuilder.Resources, r => r.Name.Contains(id, StringComparison.OrdinalIgnoreCase) && r is ContainerResource);
+    }
 
     [Fact]
     public void PostgresDerivesDeterministicBrainDatabaseNameByDefault()

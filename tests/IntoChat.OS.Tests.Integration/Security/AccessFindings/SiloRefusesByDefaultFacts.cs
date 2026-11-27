@@ -216,8 +216,8 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
         await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
         {
             builder.Services.Configure<Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
-            // Registered last, so it runs inside SiloAccessCallFilter: it sees only what the rule admitted.
-            builder.Services.AddSingleton<IIncomingGrainCallFilter>(arrived);
+            // Registered inside UseOrleans after AddIntoChatOSServer so it runs inside SiloAccessCallFilter.
+            builder.UseOrleans(silo => silo.AddIncomingGrainCallFilter(arrived));
         });
         var edge = host.Services.GetRequiredService<EdgeAuthority>();
         var reminder = SiloNeurons.Get<IntoChat.OS.Modules.Time.Reminders.IReminder>(
@@ -236,6 +236,95 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
 
         Assert.True(tick.SentByThisSilo, "The reminder service's own call carries the silo's mark.");
         Assert.False(tick.HadCaller, "A reminder tick carries no caller; the host grain enters the scheduler itself.");
+    }
+
+    // Real Orleans GrainTimer ticks dispatch directly via InsideRuntimeClient without running
+    // IOutgoingGrainCallFilter. SiloAccessCallFilter must admit genuine self-targeted
+    // IGrainTimerInvoker.InvokeCallbackAsync ticks and enter SiloOrigin so outbound grain/neuron
+    // calls from inside the timer callback succeed with zero UnauthorizedAccessException.
+    [Fact]
+    public async Task ARealGrainTimerTick_IsAdmitted_AndOutboundNeuronCallsSucceed()
+    {
+        var arrived = new GrainTimerArrivals();
+        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+        {
+            builder.Services.Configure<DigitalBrain.Runtime.Orleans.Signalling.SessionSynapseOptions>(options =>
+            {
+                options.SessionSweepEvery = TimeSpan.FromMilliseconds(100);
+                options.SessionTtl = TimeSpan.FromMilliseconds(250);
+            });
+            // Registered inside UseOrleans after AddIntoChatOSServer so it runs inside SiloAccessCallFilter.
+            builder.UseOrleans(silo => silo.AddIncomingGrainCallFilter(arrived));
+        });
+
+        var edge = host.Services.GetRequiredService<EdgeAuthority>();
+        var sessionId = new NeuronId(new BrainId(host.Scope), "runtime.session", "watch/timer-test");
+        var session = SiloNeurons.Get<DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses>(host.Services, sessionId);
+
+        using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(host.Scope))))
+        {
+            // Activating SessionSynapseNeuron starts its real Orleans GrainTimer ("session.ttl").
+            _ = await session.Next(0, Ct);
+        }
+
+        var tick = await arrived.First.Task.WaitAsync(TimeSpan.FromSeconds(15), Ct);
+
+        Assert.True(tick.SelfTargeted, "A real Orleans GrainTimer tick must be self-targeted (SourceId == TargetId).");
+        Assert.Equal("Orleans.Runtime.GrainTimer+TimerTickInvoker", tick.RequestTypeName);
+        Assert.True(tick.SentByThisSilo, "SiloAccessCallFilter must enter SiloOrigin for admitted GrainTimer ticks.");
+        Assert.Null(tick.Error);
+
+        // Verify an outbound neuron call made from inside the admitted GrainTimer context succeeds.
+        Assert.True(tick.OutboundSucceeded, $"Outbound neuron call inside GrainTimer failed: {tick.OutboundError}");
+    }
+
+    private sealed class GrainTimerArrivals : IIncomingGrainCallFilter
+    {
+        public TaskCompletionSource<(bool SelfTargeted, string? RequestTypeName, bool SentByThisSilo, Exception? Error, bool OutboundSucceeded, string? OutboundError)> First { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task Invoke(IIncomingGrainCallContext context)
+        {
+            if (context.InterfaceMethod.DeclaringType?.FullName == "Orleans.Runtime.IGrainTimerInvoker"
+                && context.InterfaceMethod.Name == "InvokeCallbackAsync"
+                && (context.TargetId.Key.ToString()?.Contains("watch/timer-test", StringComparison.Ordinal) ?? false))
+            {
+                var selfTargeted = context.SourceId is { } src && src == context.TargetId;
+                var requestTypeName = context.Request?.GetType().FullName;
+                var sentByThisSilo = SiloOrigin.IsCurrent;
+                Exception? invokeError = null;
+                var outboundSucceeded = false;
+                string? outboundError = null;
+
+                try
+                {
+                    await context.Invoke();
+                    // Exercise an outbound grain call from inside the admitted timer turn (carrying SiloOrigin).
+                    if (context.TargetContext?.ActivationServices is { } sp
+                        && sp.GetService<IGrainFactory>() is { } grains)
+                    {
+                        _ = await grains.GetGrain<INeuronHostCatalog>(TypeTableKey.NoBrain).HostType(FriendsDefaults.TypeName);
+                        outboundSucceeded = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (invokeError is null && !outboundSucceeded)
+                    {
+                        outboundError = ex.ToString();
+                    }
+                    invokeError = ex;
+                    throw;
+                }
+                finally
+                {
+                    First.TrySetResult((selfTargeted, requestTypeName, sentByThisSilo, invokeError, outboundSucceeded, outboundError));
+                }
+                return;
+            }
+
+            await context.Invoke();
+        }
     }
 
     private sealed class ReminderArrivals : IIncomingGrainCallFilter

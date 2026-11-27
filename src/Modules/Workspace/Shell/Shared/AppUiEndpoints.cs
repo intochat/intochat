@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http;
@@ -49,12 +50,12 @@ internal static class AppUiEndpoints
         });
         apps.MapGet("/desktop/projection", (HttpContext http, INeuronProxies brain, CancellationToken ct)
             => ReadDesktopProjection(brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http)));
-        apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
-            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault()));
-        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
-            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
-        BrainRouteGroups.Brain(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
-            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
+        apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
+            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
+        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
+            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
+        BrainRouteGroups.Brain(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
+            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
     }
 
     internal static async Task<IResult> ReadDesktopProjection(
@@ -86,7 +87,7 @@ internal static class AppUiEndpoints
     // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded, NoChildren);
     // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
     internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
-        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null)
+        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
     {
         ArgumentNullException.ThrowIfNull(input);
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person acts on a screen."); }
@@ -111,7 +112,7 @@ internal static class AppUiEndpoints
             return ErrorJson(StatusCodes.Status400BadRequest, error.Message);
         }
 
-        var resolved = await ScreenViewResolver.ResolveAsync(new BrainId(scope), input.Neuron, resolver, hosted, ct);
+        var resolved = await ScreenViewResolver.ResolveAsync(new BrainId(scope), input.Neuron, resolver, hosted, ct, hostedNeurons);
         if (resolved is { Kind: ScreenResolutionKind.Confirmation })
         {
             throw new UnauthorizedAccessException("A confirmation is answered on its own route, not by a command.");
@@ -148,7 +149,7 @@ internal static class AppUiEndpoints
     // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed
     // (an ArgumentException from the handler included: 400 is only for the path checked before it runs).
     internal static async Task<IResult> ReadChild(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
-        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null)
+        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
     {
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
         // The brain route admitted the caller to this brain; a caller acting in another brain never reads its screens.
@@ -168,7 +169,7 @@ internal static class AppUiEndpoints
             return ErrorJson(StatusCodes.Status400BadRequest, "A child path is one or more keys separated by '/'.");
         }
 
-        var resolved = await ScreenViewResolver.ResolveAsync(brainId, neuron, resolver, hosted, ct);
+        var resolved = await ScreenViewResolver.ResolveAsync(brainId, neuron, resolver, hosted, ct, hostedNeurons);
         NeuronId screenId;
         if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } resolvedId })
         {
@@ -208,7 +209,7 @@ internal static class AppUiEndpoints
     internal sealed record ActRequest(string? Neuron, string? Target, string? Signal, JsonElement? Args = null, string? Value = null);
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
-    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null, IScreenTargetResolver? resolver = null)
+    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
     {
         var log = logger ?? ConsoleLog;
         if (kind == UIVocabulary.ConfirmationType)
@@ -224,11 +225,11 @@ internal static class AppUiEndpoints
 
         if (kind == "viewport")
         {
-            return await ReadViewportNodeAsync(name, unit, brain, brainId, scope, log, hosted, resolver, ct);
+            return await ReadViewportNodeAsync(name, unit, brain, brainId, scope, log, hosted, resolver, hostedNeurons, ct);
         }
         if (kind == UIVocabulary.ViewType)
         {
-            return await ReadViewNodeAsync(name, unit, brain, brainId, scope, log, hosted, resolver, ct);
+            return await ReadViewNodeAsync(name, unit, brain, brainId, scope, log, hosted, resolver, hostedNeurons, ct);
         }
         return kind switch
         {
@@ -246,6 +247,7 @@ internal static class AppUiEndpoints
         ILogger log,
         IHostedAppTypes? hosted,
         IScreenTargetResolver? resolver,
+        IHostedNeuronTypes? hostedNeurons,
         CancellationToken ct)
     {
         if (unit is not null)
@@ -269,9 +271,13 @@ internal static class AppUiEndpoints
             {
                 if (ScreenViewResolver.ScreenAlias(scope, directViewName) is not null)
                 {
-                    var directResolved = await ScreenViewResolver.ResolveAsync(brainId, directViewName, resolver, hosted, ct);
+                    var directResolved = await ScreenViewResolver.ResolveAsync(brainId, directViewName, resolver, hosted, ct, hostedNeurons);
+                    if (directResolved is { Kind: ScreenResolutionKind.NotLoaded })
+                    {
+                        return OkJson(new EmptyViewportResponse(viewport.Revision, Root: null, Error: null), ShellUiJsonContext.Default.EmptyViewportResponse);
+                    }
                     if (directResolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } directScreenId }
-                        && await ScreenViewResolver.TryReadScreenAsync(brain, directScreenId, log, "Published screen view could not be read.", ct) is { } published)
+                        && await ScreenViewResolver.TryReadScreenAsync(brain, directScreenId, log, "Published screen view could not be read.", ct, hostedNeurons) is { } published)
                     {
                         return OkJson(
                             new UnitViewportResponse(published.Generation, Target: null, Root: new ViewRef(UIVocabulary.ViewType, directViewName), Error: null),
@@ -295,9 +301,15 @@ internal static class AppUiEndpoints
             : target.App;
         if (!appName.Contains('/'))
         {
-            var viewportResolved = await ScreenViewResolver.ResolveAsync(brainId, appName, resolver, hosted, ct);
+            var viewportResolved = await ScreenViewResolver.ResolveAsync(brainId, appName, resolver, hosted, ct, hostedNeurons);
+            if (viewportResolved is { Kind: ScreenResolutionKind.NotLoaded })
+            {
+                return OkJson(
+                    new TargetedViewportResponse(viewport.Revision, viewport.Target, Root: null, Error: "This app is not available in this runtime."),
+                    ShellUiJsonContext.Default.TargetedViewportResponse);
+            }
             if (viewportResolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } viewportScreenId }
-                && await ScreenViewResolver.TryReadScreenAsync(brain, viewportScreenId, log, "Screen view could not be read.", ct) is not null)
+                && await ScreenViewResolver.TryReadScreenAsync(brain, viewportScreenId, log, "Screen view could not be read.", ct, hostedNeurons) is not null)
             {
                 return OkJson(
                     new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, HostAppRef.Of(brainId, appName).ViewKey), Error: null),
@@ -309,7 +321,8 @@ internal static class AppUiEndpoints
                     new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, appRef.ViewKey), Error: null),
                     ShellUiJsonContext.Default.TargetedViewportResponse);
             }
-            if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, appName, log, "Unit view could not be read for viewport.", ct) is not null)
+            if (viewportResolved is not { Kind: ScreenResolutionKind.Screen, IsAgentApp: false }
+                && await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, appName, log, "Unit view could not be read for viewport.", ct) is not null)
             {
                 return OkJson(
                     new TargetedViewportResponse(viewport.Revision, viewport.Target, new ViewRef(UIVocabulary.ViewType, new NeuronId(brainId, "unit", appName).FullKey()), Error: null),
@@ -331,6 +344,7 @@ internal static class AppUiEndpoints
         ILogger log,
         IHostedAppTypes? hosted,
         IScreenTargetResolver? resolver,
+        IHostedNeuronTypes? hostedNeurons,
         CancellationToken ct)
     {
         if (unit is not null)
@@ -341,10 +355,14 @@ internal static class AppUiEndpoints
 
         if (ScreenViewResolver.ScreenAlias(scope, name) is { } screenAlias)
         {
-            var resolved = await ScreenViewResolver.ResolveAsync(brainId, name, resolver, hosted, ct);
+            var resolved = await ScreenViewResolver.ResolveAsync(brainId, name, resolver, hosted, ct, hostedNeurons);
+            if (resolved is { Kind: ScreenResolutionKind.NotLoaded })
+            {
+                return OkJson(null, ShellUiJsonContext.Default.PublishedView);
+            }
             if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } viewScreenId })
             {
-                if (await ScreenViewResolver.TryReadScreenAsync(brain, viewScreenId, log, "Screen view could not be read.", ct) is { } published)
+                if (await ScreenViewResolver.TryReadScreenAsync(brain, viewScreenId, log, "Screen view could not be read.", ct, hostedNeurons) is { } published)
                 {
                     return OkJson(ChildKeys.Screen(published), ShellUiJsonContext.Default.PublishedView);
                 }
@@ -354,10 +372,13 @@ internal static class AppUiEndpoints
                 return OkJson(ChildKeys.Hide(directAppView), ShellUiJsonContext.Default.PublishedView);
             }
 
-            var candidateUnit = screenAlias["app.".Length..];
-            if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, candidateUnit, log, "Unit view fallback could not be read.", ct) is { } unitFallback)
+            if (resolved is not { Kind: ScreenResolutionKind.Screen, IsAgentApp: false })
             {
-                return OkJson(ChildKeys.Hide(unitFallback), ShellUiJsonContext.Default.PublishedView);
+                var candidateUnit = screenAlias["app.".Length..];
+                if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, candidateUnit, log, "Unit view fallback could not be read.", ct) is { } unitFallback)
+                {
+                    return OkJson(ChildKeys.Hide(unitFallback), ShellUiJsonContext.Default.PublishedView);
+                }
             }
         }
 

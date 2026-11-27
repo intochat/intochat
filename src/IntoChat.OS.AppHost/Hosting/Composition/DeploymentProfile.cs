@@ -28,8 +28,11 @@ public sealed record DeploymentProfile
     public required IReadOnlyList<string> ModuleOverrides { get; init; }
     public required OrleansOptions Orleans { get; init; }
     private IConfiguration Configuration { get; init; } = null!;
+    private IReadOnlySet<string> ExplicitlyDisabledModules { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     public bool IsEnabled(string moduleId) => LocalRunDefaults.IsEnabled(Configuration, moduleId);
+
+    public bool IsExplicitlyDisabled(string moduleId) => ExplicitlyDisabledModules.Contains(moduleId);
 
     // Loads IntoChatOS:ConfigFile and the topology's module defaults into the builder's configuration, then resolves the profile.
     public static DeploymentProfile From(IDistributedApplicationBuilder builder)
@@ -41,6 +44,7 @@ public sealed record DeploymentProfile
             ?? throw new InvalidOperationException(
                 $"{IntoChatOSNames.TopologyKey} must be one of {IntoChatOSNames.TopologyLocal}, {IntoChatOSNames.TopologyLocalCloud} or {IntoChatOSNames.TopologyCloud}.");
         var overrides = ExplicitModuleSettings(configuration, topology);
+        var explicitlyDisabled = ExplicitDisabledModules(configuration);
         LocalRunDefaults.Apply(configuration);
 
         var cloud = topology == IntoChatOSNames.TopologyCloud;
@@ -59,7 +63,21 @@ public sealed record DeploymentProfile
             ModuleOverrides = overrides,
             Orleans = orleans,
             Configuration = configuration,
+            ExplicitlyDisabledModules = explicitlyDisabled,
         };
+    }
+
+    private static HashSet<string> ExplicitDisabledModules(IConfiguration configuration)
+    {
+        var disabled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var module in configuration.GetSection(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModulesSectionName).GetChildren())
+        {
+            if (string.Equals(configuration[LocalRunDefaults.EnabledKey(module.Key)], "false", StringComparison.OrdinalIgnoreCase))
+            {
+                disabled.Add(module.Key);
+            }
+        }
+        return disabled;
     }
 
     private static bool HasLocalFlutterPackage(string appHostDirectory)
