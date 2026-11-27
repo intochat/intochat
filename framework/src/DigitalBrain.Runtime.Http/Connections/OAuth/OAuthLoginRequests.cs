@@ -1,18 +1,16 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
-using IntoChat.OS.Host.Configuration;
 
-namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
+namespace DigitalBrain.Runtime.Http.Connections.OAuth;
 
 // OwnerPrincipal and OwnerBrain are captured from the stamped caller at Begin and checked again at the callback; they are data,
 // never a caller: the callback re-establishes the person through EdgeAuthority after that check.
-internal sealed record PendingLogin(string ConnectionKey, string AuthMethodId, string CodeVerifier, string? Target, string OwnerPrincipal, string OwnerBrain, DateTimeOffset ExpiresAt);
+public sealed record PendingLogin(string ConnectionKey, string AuthMethodId, string CodeVerifier, string? Target, string OwnerPrincipal, string OwnerBrain, DateTimeOffset ExpiresAt);
 
 // A ten-minute capability for an in-flight browser redirect. Process memory on purpose: losing
 // it on restart costs the user one more click and can never connect the wrong brain.
-// Pending logins are per process; the OS host is single-replica (IntoChatOSDeployment
-// MinReplicas = MaxReplicas = 1), so a callback reaching another replica would fail closed.
-internal sealed class OAuthLoginRequests(IOptions<ConnectionsOptions> options, TimeProvider clock)
+// Pending logins are per process; a callback reaching another replica fails closed.
+public sealed class OAuthLoginRequests(IOptions<OAuthConnectionsOptions> options, TimeProvider clock)
 {
     private readonly Dictionary<string, PendingLogin> _pending = new(StringComparer.Ordinal);
 
