@@ -201,15 +201,15 @@ ApprovalState parseApprovalState(String status) =>
       _ => ApprovalState.pending,
     };
 
-UiKitButtonStyle parseButtonStyle(String style, String tone) => switch (style
+UiMixButtonStyle parseButtonStyle(String style, String tone) => switch (style
     .trim()
     .toLowerCase()) {
-  'primary' => UiKitButtonStyle.primary,
-  'ghost' => UiKitButtonStyle.ghost,
-  'danger' => UiKitButtonStyle.danger,
-  'link' => UiKitButtonStyle.link,
-  _ when parseUiNodeTone(tone) == UiNodeTone.accent => UiKitButtonStyle.primary,
-  _ => UiKitButtonStyle.secondary,
+  'primary' => UiMixButtonStyle.primary,
+  'ghost' => UiMixButtonStyle.ghost,
+  'danger' => UiMixButtonStyle.danger,
+  'link' => UiMixButtonStyle.link,
+  _ when parseUiNodeTone(tone) == UiNodeTone.accent => UiMixButtonStyle.primary,
+  _ => UiMixButtonStyle.secondary,
 };
 
 ChartKind parseChartKind(String kind) => switch (kind.trim().toLowerCase()) {

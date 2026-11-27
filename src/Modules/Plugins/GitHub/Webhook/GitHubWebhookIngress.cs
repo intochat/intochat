@@ -36,14 +36,20 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             var installation = RoutingHint(payload, "installation", "id");
             var repository = RoutingHint(payload, "repository", "id");
             var app = RoutingHint(payload, "hook", "app_id");
-            var webhookSecret = await registration.ReadOptionalSecretAsync("WebhookSecret", cancellationToken);
-            if (webhookSecret is not { Length: >= 16 }
-                || !ValidateSignature(body.Span, Header(headers, "X-Hub-Signature-256"), webhookSecret))
+            var signature = Header(headers, "X-Hub-Signature-256");
+            if (string.IsNullOrWhiteSpace(signature))
             {
                 return GitHubWebhookAcceptance.Unauthorized;
             }
+            var webhookSecret = await registration.ReadOptionalSecretAsync("WebhookSecret", cancellationToken);
+            var hostVerified = webhookSecret is { Length: >= 16 }
+                && ValidateSignature(body.Span, signature, webhookSecret);
             if (installation is null && repository is not > 0)
             {
+                if (!hostVerified)
+                {
+                    return GitHubWebhookAcceptance.Unauthorized;
+                }
                 // An App-level ping proves the signed delivery path; no connection is addressed.
                 if (eventName != "ping") { return GitHubWebhookAcceptance.Ignored; }
                 return app is null || app == await registration.ReadAppIdAsync(cancellationToken)
@@ -56,7 +62,7 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             }
             var hash = Convert.ToHexStringLower(SHA256.HashData(body.Span));
             var results = new List<GitHubWebhookAcceptance>();
-            // Every connection of every brain on this installation (or repository index in PAT mode); one target's failure never stops the rest.
+            // Every connection of every brain on this installation (or repository index in PAT/user-oauth mode); one target's failure never stops the rest.
             // A signed delivery has no person behind it: the GitHub module reads its index and delivers to each brain as itself.
             var edge = plain.GetRequiredService<EdgeAuthority>();
             HashSet<string> installationKeys;
@@ -72,11 +78,16 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                 installationKeys = [.. byInstallation];
                 keys = [.. byInstallation.Concat(byRepository).Distinct(StringComparer.Ordinal)];
             }
+            if (!hostVerified && keys.Length == 0)
+            {
+                return GitHubWebhookAcceptance.Unauthorized;
+            }
             if (installation is null && keys.Length == 0 && eventName == "ping")
             {
                 return app is null || app == await registration.ReadAppIdAsync(cancellationToken)
                     ? GitHubWebhookAcceptance.Accepted : GitHubWebhookAcceptance.Unauthorized;
             }
+            var anyTargetVerified = hostVerified;
             foreach (var key in keys)
             {
                 using var asModule = edge.Enter(edge.Module(GitHubModule.ManifestName, new BrainId(key.Split('/')[0])));
@@ -89,9 +100,20 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                     {
                         continue;
                     }
-                    if (!installationKeys.Contains(key) && !coordinates.IsPersonalAccessToken)
+                    if (!installationKeys.Contains(key) && !coordinates.IsDirectToken)
                     {
                         continue;
+                    }
+                    if (!hostVerified)
+                    {
+                        var targetVerified = await target.VerifyWebhookSignature(body, signature).ConfigureAwait(false);
+                        if (!targetVerified)
+                        {
+                            results.Add(GitHubWebhookAcceptance.Unauthorized);
+                            continue;
+                        }
+
+                        anyTargetVerified = true;
                     }
                     var classification = GitHubWebhookHandler.Classify(coordinates, payload, eventName);
                     if (classification.Failure is { } failure)
@@ -125,6 +147,10 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                     return failure;
                 }
             }
+            if (!anyTargetVerified)
+            {
+                return GitHubWebhookAcceptance.Unauthorized;
+            }
             return results.Contains(GitHubWebhookAcceptance.Accepted) ? GitHubWebhookAcceptance.Accepted
                 : results.Contains(GitHubWebhookAcceptance.Duplicate) ? GitHubWebhookAcceptance.Duplicate : GitHubWebhookAcceptance.Ignored;
         }
@@ -151,7 +177,7 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
     private static long? RoutingHint(JsonElement payload, string parent, string name)
         => payload.TryGetProperty(parent, out var value) && value.TryGetProperty(name, out var number) ? number.GetInt64() : null;
 
-    private static bool ValidateSignature(ReadOnlySpan<byte> body, string? signature, string secret)
+    internal static bool ValidateSignature(ReadOnlySpan<byte> body, string? signature, string secret)
     {
         if (signature is not { Length: 71 } || !signature.StartsWith("sha256=", StringComparison.Ordinal))
         {

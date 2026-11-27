@@ -6,7 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'controls.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
-import '../primitives/surface.dart';
+import '../primitives/layout_primitives.dart';
 import '../theme/ui_tokens.dart';
 
 enum BrainNodeStatus {

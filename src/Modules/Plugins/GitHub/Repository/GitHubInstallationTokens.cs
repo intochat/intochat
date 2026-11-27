@@ -237,7 +237,7 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
     public async Task VerifyAsync(GitHubRepository repository, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(repository.ApiHost, repository.RepositoryPath));
-        var bearer = repository.IsPersonalAccessToken
+        var bearer = repository.IsDirectToken
             ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
             : await GetTokenAsync(repository, false, ct).ConfigureAwait(false);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);

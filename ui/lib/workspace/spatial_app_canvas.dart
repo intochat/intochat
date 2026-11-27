@@ -505,12 +505,13 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
         mainAxisSize: MainAxisSize.min,
         children: [
           // Smart Sort Button
-          Btn(
+          UiMixButton.preset(
             key: const ValueKey('canvas-smart-sort-btn'),
             label: 'Smart-Sort',
-            icon: LucideIcons.layoutGrid,
-            small: true,
-            onTap: () => smartSort(viewportSize),
+            style: UiMixButtonStyle.secondary,
+            iconData: LucideIcons.layoutGrid,
+            compact: true,
+            onPressed: () => smartSort(viewportSize),
           ),
           const SizedBox(width: 8),
 

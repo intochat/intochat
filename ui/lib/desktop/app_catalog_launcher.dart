@@ -146,12 +146,13 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Btn(
+                      UiMixButton.preset(
                         key: const ValueKey('all-apps-close-btn'),
                         label: 'Close',
-                        small: true,
-                        icon: LucideIcons.x,
-                        onTap: widget.onClose,
+                        style: UiMixButtonStyle.secondary,
+                        compact: true,
+                        iconData: LucideIcons.x,
+                        onPressed: widget.onClose,
                       ),
                     ],
                   ),
@@ -164,12 +165,14 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                         for (final cat in _availableCategories())
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
-                            child: Btn(
+                            child: UiMixButton.preset(
                               key: ValueKey('all-apps-cat-$cat'),
                               label: cat,
-                              small: true,
-                              primary: _selectedCategory == cat,
-                              onTap: () =>
+                              compact: true,
+                              style: _selectedCategory == cat
+                                  ? UiMixButtonStyle.primary
+                                  : UiMixButtonStyle.secondary,
+                              onPressed: () =>
                                   setState(() => _selectedCategory = cat),
                             ),
                           ),

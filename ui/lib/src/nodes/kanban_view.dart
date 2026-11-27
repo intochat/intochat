@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../primitives/icon_button.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
 import '../generated/node_commands.dart';
@@ -373,11 +374,12 @@ class _Arrow extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => IconButton(
+  Widget build(BuildContext context) => UiMixIconButton(
     tooltip: tooltip,
-    padding: EdgeInsets.zero,
-    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-    icon: Icon(icon, size: 12, color: colors.textMuted),
+    size: 20,
+    icon: icon,
+    iconSize: 12,
+    iconColor: colors.textMuted,
     onPressed: onPressed,
   );
 }

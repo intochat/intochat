@@ -99,36 +99,6 @@ public static partial class CreatorStateSpaceInspector
             commands.Add(m.Groups["method"].Value.Trim());
         }
 
-        var capabilities = new List<string>();
-        var candidates = new List<string>();
-
-        if (csText.Contains("ReadIssue", StringComparison.Ordinal))
-        {
-            capabilities.Add("ReadIssue");
-        }
-
-        if (csText.Contains("CommentOnIssue", StringComparison.Ordinal))
-        {
-            capabilities.Add("CommentOnIssue");
-        }
-
-        if (csText.Contains("PreviewIssueComment", StringComparison.Ordinal))
-        {
-            if (csText.Contains("CommentOnIssue", StringComparison.Ordinal))
-            {
-                candidates.Add("PreviewIssueComment (DraftForApproval)");
-            }
-            else
-            {
-                capabilities.Add("PreviewIssueComment");
-            }
-        }
-        else if (csText.Contains("CommentOnIssue", StringComparison.Ordinal)
-            && csText.Contains("IssueChanged", StringComparison.Ordinal))
-        {
-            candidates.Add("PreviewIssueComment (DraftForApproval)");
-        }
-
         var rules = new List<string>();
         foreach (Match m in RuleNameRegex().Matches(csText))
         {
@@ -142,25 +112,6 @@ public static partial class CreatorStateSpaceInspector
             if (!string.IsNullOrEmpty(policy))
             {
                 rules.Add($"policy:{policy}");
-            }
-        }
-
-        var isGitHubIssueTriage = csText.Contains("IssueChanged", StringComparison.Ordinal)
-            || csText.Contains("github.issue-changed", StringComparison.Ordinal)
-            || csText.Contains("ReadIssue", StringComparison.Ordinal)
-            || csText.Contains("CommentOnIssue", StringComparison.Ordinal)
-            || csText.Contains("PreviewIssueComment", StringComparison.Ordinal);
-
-        if (isGitHubIssueTriage)
-        {
-            if (!rules.Contains("policy_guard", StringComparer.Ordinal))
-            {
-                rules.Add("policy_guard");
-            }
-
-            if (!rules.Contains("untrusted_evidence", StringComparer.Ordinal))
-            {
-                rules.Add("untrusted_evidence");
             }
         }
 
@@ -178,8 +129,6 @@ public static partial class CreatorStateSpaceInspector
             events)
         {
             Triggers = [.. triggers.Distinct(StringComparer.Ordinal)],
-            Capabilities = [.. capabilities.Distinct(StringComparer.Ordinal)],
-            Candidates = [.. candidates.Distinct(StringComparer.Ordinal)],
         };
     }
 
@@ -505,16 +454,13 @@ public static partial class CreatorStateSpaceInspector
             .ToList();
 
         var totalRightNodes = operations.Count + summary.Candidates.Count;
-        string? readIssueNodeId = null;
-        string? commentNodeId = null;
 
         for (var i = 0; i < operations.Count; i++)
         {
             var op = operations[i];
             var nextId = $"next:{i}:{op}";
             var centeredY = (i - ((Math.Max(1, totalRightNodes) - 1) / 2.0)) * 108.0;
-            var isVerifyLike = op.Contains("Verify", StringComparison.OrdinalIgnoreCase)
-                || op.Contains("ReadIssue", StringComparison.Ordinal);
+            var isVerifyLike = op.Contains("Verify", StringComparison.OrdinalIgnoreCase);
             nodes.Add(new BrainGraphNode(
                 Id: nextId,
                 Label: op,
@@ -526,16 +472,6 @@ public static partial class CreatorStateSpaceInspector
                 Status: string.Create(CultureInfo.InvariantCulture, $"{coreStatus} · {clampedPct}%"),
                 Subtitle: summary.Events.Count > 0 ? string.Join(", ", summary.Events) : "Accepted path"));
             synapses.Add(new BrainGraphSynapse(stateNodeId, nextId, op, Active: true));
-
-            if (op.Contains("ReadIssue", StringComparison.Ordinal))
-            {
-                readIssueNodeId = nextId;
-            }
-
-            if (op.Contains("CommentOnIssue", StringComparison.Ordinal))
-            {
-                commentNodeId = nextId;
-            }
         }
 
         for (var c = 0; c < summary.Candidates.Count; c++)
@@ -560,12 +496,7 @@ public static partial class CreatorStateSpaceInspector
         // 4. Policy & Domain Rule Guard Edges (`refused` `✕ <rule>`)
         foreach (var rule in summary.Rules)
         {
-            var guardHostId = string.Equals(rule, "untrusted_evidence", StringComparison.Ordinal) && readIssueNodeId is not null
-                ? readIssueNodeId
-                : (rule.StartsWith("policy", StringComparison.Ordinal) && commentNodeId is not null
-                    ? commentNodeId
-                    : stateNodeId);
-            synapses.Add(new BrainGraphSynapse(guardHostId, guardHostId, $"Guard [refused: {rule}]", Active: false));
+            synapses.Add(new BrainGraphSynapse(stateNodeId, stateNodeId, $"Guard [refused: {rule}]", Active: false));
         }
 
         return new BrainSceneNode(nodes, synapses, stateNodeId)

@@ -8,6 +8,7 @@ internal interface IGitHubInbound
 {
     // The coordinates of a connected repository, or null when it is not connected.
     [DigitalBrain.Contracts.ReadOnlyCall] Task<GitHubRepository?> Coordinates();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<bool> VerifyWebhookSignature(ReadOnlyMemory<byte> body, string signature);
     Task<bool> AcceptRepositoryEvent(RepositoryEvent receipt, CancellationToken cancellationToken = default);
     Task Revoke(string reason);
 }

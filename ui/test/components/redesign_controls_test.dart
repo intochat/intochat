@@ -25,9 +25,9 @@ void main() {
   testWidgets('primary button: 36 high, radius 10, accent, 13/600', (
     tester,
   ) async {
-    await host(tester, UiKitButton(label: 'Save', onPressed: () {}));
-    expect(tester.getSize(find.byType(UiKitButton)).height, 36);
-    final d = decorationIn(tester, find.byType(UiKitButton));
+    await host(tester, UiMixButton.preset(label: 'Save', onPressed: () {}));
+    expect(tester.getSize(find.byType(UiMixButton)).height, 36);
+    final d = decorationIn(tester, find.byType(UiMixButton));
     expect(d.borderRadius, BorderRadius.circular(10));
     expect(d.color, c.accent);
     final text = tester.widget<Text>(find.text('Save'));
@@ -41,15 +41,15 @@ void main() {
   ) async {
     await host(
       tester,
-      UiKitButton(
+      UiMixButton.preset(
         label: 'More',
         onPressed: () {},
-        style: UiKitButtonStyle.secondary,
+        style: UiMixButtonStyle.secondary,
         compact: true,
       ),
     );
-    expect(tester.getSize(find.byType(UiKitButton)).height, 30);
-    final d = decorationIn(tester, find.byType(UiKitButton));
+    expect(tester.getSize(find.byType(UiMixButton)).height, 30);
+    final d = decorationIn(tester, find.byType(UiMixButton));
     expect(d.borderRadius, BorderRadius.circular(10));
     expect((d.border as Border).top.color, c.inputBorder);
     expect(d.color, c.surface);
@@ -61,23 +61,23 @@ void main() {
   ) async {
     await host(
       tester,
-      UiKitButton(
+      UiMixButton.preset(
         label: 'Delete',
         onPressed: () {},
-        style: UiKitButtonStyle.danger,
+        style: UiMixButtonStyle.danger,
       ),
     );
-    final d = decorationIn(tester, find.byType(UiKitButton));
+    final d = decorationIn(tester, find.byType(UiMixButton));
     expect(d.color, Colors.transparent);
     expect((d.border as Border).top.color, c.error);
     expect(tester.widget<Text>(find.text('Delete')).style?.color, c.strong);
   });
 
   testWidgets('disabled button has opacity 0.45', (tester) async {
-    await host(tester, const UiKitButton(label: 'Off'));
+    await host(tester, const UiMixButton.preset(label: 'Off'));
     final opacity = tester.widget<Opacity>(
       find.descendant(
-        of: find.byType(UiKitButton),
+        of: find.byType(UiMixButton),
         matching: find.byType(Opacity),
       ),
     );
@@ -85,7 +85,7 @@ void main() {
   });
 
   testWidgets('button style order mirrors the C# enum', (tester) async {
-    expect(UiKitButtonStyle.values.map((s) => s.name), [
+    expect(UiMixButtonStyle.values.map((s) => s.name), [
       'primary',
       'secondary',
       'ghost',

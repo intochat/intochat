@@ -303,14 +303,14 @@ class SmartDesktopState extends State<SmartDesktop> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (widget.onOpenAllApps != null) ...[
-                          Btn(
+                          UiMixButton.preset(
                             key: const ValueKey('whiteboard-all-apps-btn'),
                             label:
                                 'All Apps (${widget.totalAppsCount ?? widget.apps.length})',
-                            small: true,
-                            primary: true,
-                            icon: LucideIcons.layoutGrid,
-                            onTap: widget.onOpenAllApps,
+                            compact: true,
+                            style: UiMixButtonStyle.primary,
+                            iconData: LucideIcons.layoutGrid,
+                            onPressed: widget.onOpenAllApps,
                           ),
                           const SizedBox(width: 8),
                         ],
@@ -325,22 +325,24 @@ class SmartDesktopState extends State<SmartDesktop> {
                               : LucideIcons.pinOff,
                         ),
                         const SizedBox(width: 8),
-                        Btn(
+                        UiMixButton.preset(
                           key: const ValueKey('whiteboard-widgets-btn'),
                           label: 'Widgets (${visibleCardIds.length})',
-                          small: true,
-                          icon: LucideIcons.stickyNote,
-                          onTap: () => setState(
+                          style: UiMixButtonStyle.secondary,
+                          compact: true,
+                          iconData: LucideIcons.stickyNote,
+                          onPressed: () => setState(
                             () => _widgetsMenuOpen = !_widgetsMenuOpen,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Btn(
+                        UiMixButton.preset(
                           key: const ValueKey('whiteboard-auto-arrange-btn'),
                           label: 'Auto-Arrange',
-                          small: true,
-                          icon: LucideIcons.layoutGrid,
-                          onTap: () => autoArrangeWhiteboard(canvas),
+                          style: UiMixButtonStyle.secondary,
+                          compact: true,
+                          iconData: LucideIcons.layoutGrid,
+                          onPressed: () => autoArrangeWhiteboard(canvas),
                         ),
                       ],
                     ),
@@ -361,15 +363,17 @@ class SmartDesktopState extends State<SmartDesktop> {
                           for (final id in cardOrder)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Btn(
+                              child: UiMixButton.preset(
                                 key: ValueKey('whiteboard-widget-toggle-$id'),
                                 label: cardLabels[id] ?? id,
-                                small: true,
-                                primary: visibleCardIds.contains(id),
-                                icon: visibleCardIds.contains(id)
+                                compact: true,
+                                style: visibleCardIds.contains(id)
+                                    ? UiMixButtonStyle.primary
+                                    : UiMixButtonStyle.secondary,
+                                iconData: visibleCardIds.contains(id)
                                     ? LucideIcons.check
                                     : LucideIcons.plus,
-                                onTap: () => toggleCard(id),
+                                onPressed: () => toggleCard(id),
                               ),
                             ),
                         ],
@@ -486,30 +490,33 @@ class SmartDesktopState extends State<SmartDesktop> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            Btn(
+            UiMixButton.preset(
               label: 'UI Gallery',
-              small: true,
-              primary: true,
-              icon: LucideIcons.layoutTemplate,
-              onTap: () => _launch('gallery'),
+              compact: true,
+              style: UiMixButtonStyle.primary,
+              iconData: LucideIcons.layoutTemplate,
+              onPressed: () => _launch('gallery'),
             ),
-            Btn(
+            UiMixButton.preset(
               label: '3D Creator',
-              small: true,
-              icon: LucideIcons.brainCircuit,
-              onTap: () => _launch('creator'),
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              iconData: LucideIcons.brainCircuit,
+              onPressed: () => _launch('creator'),
             ),
-            Btn(
+            UiMixButton.preset(
               label: 'Open Ino',
-              small: true,
-              icon: LucideIcons.messagesSquare,
-              onTap: () => _launch('ino'),
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              iconData: LucideIcons.messagesSquare,
+              onPressed: () => _launch('ino'),
             ),
-            Btn(
+            UiMixButton.preset(
               label: 'Files',
-              small: true,
-              icon: LucideIcons.folder,
-              onTap: () => _launch('files'),
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              iconData: LucideIcons.folder,
+              onPressed: () => _launch('files'),
             ),
           ],
         ),
@@ -565,12 +572,14 @@ class SmartDesktopState extends State<SmartDesktop> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            Btn(
+            UiMixButton.preset(
               label: _briefApproved ? 'Updated in CRM' : 'Approve & Sync',
-              small: true,
-              primary: !_briefApproved,
-              icon: LucideIcons.check,
-              onTap: _briefApproved
+              compact: true,
+              style: !_briefApproved
+                  ? UiMixButtonStyle.primary
+                  : UiMixButtonStyle.secondary,
+              iconData: LucideIcons.check,
+              onPressed: _briefApproved
                   ? null
                   : () {
                       setState(() => _briefApproved = true);
@@ -580,7 +589,12 @@ class SmartDesktopState extends State<SmartDesktop> {
                       );
                     },
             ),
-            Btn(label: 'Open in Ino', small: true, onTap: () => _launch('ino')),
+            UiMixButton.preset(
+              label: 'Open in Ino',
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              onPressed: () => _launch('ino'),
+            ),
           ],
         ),
       ],
@@ -712,14 +726,14 @@ class SmartDesktopState extends State<SmartDesktop> {
         ),
         if (widget.onOpenAllApps != null) ...[
           const SizedBox(height: 12),
-          Btn(
+          UiMixButton.preset(
             key: const ValueKey('smart-apps-open-all-btn'),
             label:
                 'Browse All ${widget.totalAppsCount ?? widget.apps.length} Apps',
-            small: true,
-            primary: true,
-            icon: LucideIcons.layoutGrid,
-            onTap: widget.onOpenAllApps,
+            compact: true,
+            style: UiMixButtonStyle.primary,
+            iconData: LucideIcons.layoutGrid,
+            onPressed: widget.onOpenAllApps,
           ),
         ],
       ],

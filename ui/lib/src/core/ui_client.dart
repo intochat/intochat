@@ -10,13 +10,8 @@ import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
 import 'host_environment.dart';
 import 'journal_tail_client.dart';
-import 'models/cluster.dart';
-import 'models/compute_usage.dart';
-import 'models/desktop_projection.dart';
-import 'models/installed_app.dart';
-import 'models/journal_models.dart';
-import 'models/notification_models.dart';
-import 'models/table_models.dart';
+import 'models/domain_models.dart';
+
 import 'models/ui_wire_models.dart';
 import 'models/workspace_models.dart';
 import 'neuron_channel.dart';
@@ -27,7 +22,7 @@ import 'session_http_client_io.dart'
     if (dart.library.js_interop) 'session_http_client_web.dart'
     as transport;
 
-export 'models/notification_models.dart';
+export 'models/domain_models.dart';
 
 part 'ui_client_auth.dart';
 part 'ui_client_notifications.dart';

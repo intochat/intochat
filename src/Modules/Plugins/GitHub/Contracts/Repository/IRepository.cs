@@ -44,6 +44,8 @@ public interface IRepository
 
     Task<IssueCommentResult> CommentOnIssue(CommentOnIssueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+    Task<IssueCreated> CreateIssue(CreateIssueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<IssueCommentPreview[]> ReadPendingIssueDrafts() => throw new NotSupportedException();
 

@@ -1,65 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import 'app_shell.dart';
-import 'app_tile.dart';
-import 'approval_card.dart';
-import 'badge.dart';
+import 'surface_nodes.dart';
+
+import 'card_nodes.dart';
+import 'text_nodes.dart';
 import 'node_common.dart' show keyedControl;
 import 'brain_scene.dart';
-import 'button.dart';
-import 'icon_button.dart';
-import 'image.dart';
-import 'markdown.dart';
-import 'card.dart';
-import 'chart.dart';
-import 'check_box_view.dart';
-import 'expander_view.dart';
-import 'choice_card.dart';
-import 'collection.dart';
-import 'column.dart';
-import 'conversation.dart';
-import 'data_table.dart';
-import 'diff_card.dart';
-import 'divider.dart';
-import 'draft_card.dart';
-import 'empty_state.dart';
-import 'error_line.dart';
-import 'field.dart';
-import 'grid.dart';
-import 'heading.dart';
-import 'info_bar.dart';
-import 'intent.dart';
-import 'job_card.dart';
-import 'json_tree.dart';
+import 'action_nodes.dart';
+
+import 'data_nodes.dart';
+import 'control_views.dart';
+
+import 'layout_nodes.dart';
+
+import 'chat_nodes.dart';
+
+import 'feedback_nodes.dart';
+
 import 'kanban_view.dart';
-import 'metric_tile.dart';
-import 'nav_item.dart';
+
 import 'neuron_ref.dart';
 import 'node_context.dart';
-import 'progress.dart';
-import 'record_card.dart';
-import 'row.dart';
-import 'secret_card.dart';
-import 'slider_view.dart';
-import 'spacer.dart';
-import 'split_pane.dart';
-import 'stat_card.dart';
+
 import 'stepper_view.dart';
-import 'surface.dart';
-import 'chat_thread_view.dart';
-import 'combo_box_view.dart';
-import 'form_view.dart';
-import 'list_box_view.dart';
-import 'live_chart_view.dart';
-import 'query_table_view.dart';
-import 'tab_strip_view.dart';
-import 'tag_pill.dart';
-import 'text.dart';
-import 'toggle_switch_view.dart';
-import 'toast.dart';
+
 import 'tree_view.dart';
-import 'web_browser.dart';
+
 import '../theme/wire_node_values.dart';
 
 /// The one renderer: a published `DigitalBrain.UI.View` node tree to widgets.

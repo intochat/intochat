@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'models/journal_models.dart';
+import 'models/domain_models.dart';
 
 /// Thrown into the tail stream when the server refuses it for good (no session, not a member, no such route). Other
 /// failures are retried.

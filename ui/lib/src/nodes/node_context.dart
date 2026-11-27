@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../primitives/toast.dart';
+import '../primitives/display_primitives.dart';
 import '../theme/wire_node_values.dart';
 import '../widgets/voice/audio_out.dart';
 import '../widgets/voice/mic_stream.dart';
