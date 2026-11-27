@@ -201,7 +201,7 @@ public sealed class GalleryAppFacts
         var neuron = typeof(GalleryApp).GetCustomAttributes(typeof(DigitalBrain.Neurons.NeuronAttribute), false).Cast<DigitalBrain.Neurons.NeuronAttribute>().Single();
         var screen = typeof(GalleryApp).GetCustomAttributes(typeof(IntoChat.OS.UI.ScreenAttribute), false).Cast<IntoChat.OS.UI.ScreenAttribute>().Single();
         Assert.Equal("app.gallery", neuron.Type);
-        Assert.Equal(("app.gallery", "UI Gallery", "layout-grid", "Studio", 8), (screen.Alias, screen.Title, screen.Icon, screen.Category, screen.Dock));
+        Assert.Equal(("app.gallery", "UI Gallery", "layout-grid", "Studio", -1), (screen.Alias, screen.Title, screen.Icon, screen.Category, screen.Dock));
         Assert.Equal("gallery", GalleryApp.Bundle.Name);
         Assert.Null(typeof(GalleryApp).Assembly.GetType("IntoChat.OS.Apps.UiKit.UiKitApp"));
     }

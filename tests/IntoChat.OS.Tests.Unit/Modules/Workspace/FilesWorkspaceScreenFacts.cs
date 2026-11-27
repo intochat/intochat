@@ -26,7 +26,7 @@ public sealed class FilesWorkspaceScreenFacts
         Assert.Equal(typeof(FilesWorkspaceScreen), compiled.AppType);
         Assert.Equal("app.files", typeof(FilesWorkspaceScreen).GetCustomAttributes(typeof(NeuronAttribute), false).Cast<NeuronAttribute>().Single().Type);
         Assert.Equal(typeof(FilesWorkspaceScreen).AssemblyQualifiedName, compiled.Bundle.CompiledType);
-        Assert.Equal(("Files", "folder", 2, "Workspace"), (compiled.Bundle.Manifest.Title, compiled.Bundle.Manifest.Icon, compiled.Bundle.Manifest.Dock, compiled.Bundle.Manifest.Category));
+        Assert.Equal(("Files", "folder", 3, "Workspace"), (compiled.Bundle.Manifest.Title, compiled.Bundle.Manifest.Icon, compiled.Bundle.Manifest.Dock, compiled.Bundle.Manifest.Category));
         Assert.Contains("storage@1", compiled.Bundle.Manifest.Requires!.Capabilities ?? []);
         // The views the old host published as ui.view neurons, and the workspace neuron itself, are gone.
         Assert.DoesNotContain(typeof(AppsModule).Assembly.GetTypes(), type => type.GetCustomAttributes(typeof(NeuronAttribute), false).Cast<NeuronAttribute>().Any(n => n.Type == "apps.files"));

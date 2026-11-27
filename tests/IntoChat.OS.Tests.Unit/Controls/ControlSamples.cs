@@ -34,6 +34,6 @@ internal static class ControlSamples
         [typeof(SliderNeuron)] = new(new SliderProps("Depth", 0, 10), new SliderControlState(), [new SetValue(3), new SetValue(4)]),
         [typeof(ChatThreadNeuron)] = new(new ChatThreadProps("Ask anything."), new ChatThreadState(),
             [new AppendMessage(new ThreadMessage("m1", "assistant", "", "failed")), new UpdateMessage("m1", new ThreadMessagePatch(Failure: "timed-out")),
-             new ImportMessages([new ThreadMessage("m2", "user", "hi")]), new Retry("m1"), new SubmitText("hello"), new Stop(), new SelectModel("gpt-5.4")]),
+             new ImportMessages([new ThreadMessage("m2", "user", "hi")]), new Retry("m1"), new SubmitText("hello"), new Stop(), new SelectModel("gpt-5.4"), new ClearContext()]),
     };
 }

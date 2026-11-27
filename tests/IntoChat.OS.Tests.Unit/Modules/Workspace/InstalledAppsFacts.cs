@@ -166,14 +166,14 @@ public sealed class InstalledAppsFacts
         var files = Assert.Single(tiles, t => t.Id == "files");
         Assert.Equal("Files", files.Title);
         Assert.Equal("Workspace", files.Category);
-        Assert.Equal(2, files.Dock);
+        Assert.Equal(3, files.Dock);
         Assert.Equal("compiled", files.Kind);
 
         var photo = Assert.Single(tiles, t => t.Id == "photocraft");
         Assert.Equal("PhotoCraft", photo.Title);
         Assert.Equal("artcraft:photocraft", photo.Icon);
         Assert.Equal("Studio", photo.Category);
-        Assert.Equal(5, photo.Dock);
+        Assert.Null(photo.Dock);
         Assert.Equal(AppLaunch.Maximized, photo.Launch);
         Assert.Equal("compiled", photo.Kind);
 

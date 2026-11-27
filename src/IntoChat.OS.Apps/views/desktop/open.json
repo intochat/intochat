@@ -219,133 +219,13 @@
                 },
                 {
                   "kind": "appTile",
-                  "key": "dock-files",
-                  "appId": "files",
-                  "title": "Files",
-                  "icon": "folder",
-                  "category": "Workspace",
-                  "launch": 0,
-                  "dock": 2,
-                  "appKind": "compiled",
-                  "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "files"
-                    }
-                  },
-                  "automationName": "Files"
-                },
-                {
-                  "kind": "appTile",
-                  "key": "dock-data",
-                  "appId": "data",
-                  "title": "Data Studio",
-                  "icon": "bar-chart-2",
-                  "category": "Studio",
-                  "launch": 0,
-                  "dock": 3,
-                  "appKind": "compiled",
-                  "description": "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "data"
-                    }
-                  },
-                  "automationName": "Data Studio"
-                },
-                {
-                  "kind": "appTile",
-                  "key": "dock-markdraw",
-                  "appId": "markdraw",
-                  "title": "Markdraw",
-                  "icon": "pen-tool",
-                  "category": "Studio",
-                  "launch": 0,
-                  "dock": 4,
-                  "appKind": "compiled",
-                  "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "markdraw"
-                    }
-                  },
-                  "automationName": "Markdraw"
-                },
-                {
-                  "kind": "appTile",
-                  "key": "dock-photocraft",
-                  "appId": "photocraft",
-                  "title": "PhotoCraft",
-                  "icon": "artcraft:photocraft",
-                  "category": "Studio",
-                  "launch": 1,
-                  "dock": 5,
-                  "appKind": "compiled",
-                  "description": "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "photocraft"
-                    }
-                  },
-                  "automationName": "PhotoCraft"
-                },
-                {
-                  "kind": "appTile",
-                  "key": "dock-filmcraft",
-                  "appId": "filmcraft",
-                  "title": "FilmCraft",
-                  "icon": "artcraft:filmcraft",
-                  "category": "Studio",
-                  "launch": 1,
-                  "dock": 6,
-                  "appKind": "compiled",
-                  "description": "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "filmcraft"
-                    }
-                  },
-                  "automationName": "FilmCraft"
-                },
-                {
-                  "kind": "appTile",
-                  "key": "dock-gallery",
-                  "appId": "gallery",
-                  "title": "UI Gallery",
-                  "icon": "layout-grid",
-                  "category": "Studio",
-                  "launch": 0,
-                  "dock": 8,
-                  "appKind": "compiled",
-                  "description": "Working prototypes of every control and data node, with a log of the facts they publish.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "gallery"
-                    }
-                  },
-                  "automationName": "UI Gallery"
-                },
-                {
-                  "kind": "appTile",
                   "key": "dock-friends",
                   "appId": "friends",
                   "title": "Friends",
                   "icon": "users",
                   "category": "Social",
                   "launch": 0,
-                  "dock": 9,
+                  "dock": 2,
                   "appKind": "compiled",
                   "description": "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
                   "command": {
@@ -359,13 +239,53 @@
                 },
                 {
                   "kind": "appTile",
+                  "key": "dock-files",
+                  "appId": "files",
+                  "title": "Files",
+                  "icon": "folder",
+                  "category": "Workspace",
+                  "launch": 0,
+                  "dock": 3,
+                  "appKind": "compiled",
+                  "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "files"
+                    }
+                  },
+                  "automationName": "Files"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-gridcraft",
+                  "appId": "gridcraft",
+                  "title": "GridCraft",
+                  "icon": "artcraft:gridcraft",
+                  "category": "Workspace",
+                  "launch": 1,
+                  "dock": 4,
+                  "appKind": "compiled",
+                  "description": "Excel-compatible reactive spreadsheet engine for formula evaluation, pivot tables, financial modeling, and CSV/XLSX/Parquet workflows.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "gridcraft"
+                    }
+                  },
+                  "automationName": "GridCraft"
+                },
+                {
+                  "kind": "appTile",
                   "key": "dock-settings",
                   "appId": "settings",
                   "title": "Settings",
                   "icon": "settings",
                   "category": "System",
                   "launch": 0,
-                  "dock": 10,
+                  "dock": 5,
                   "appKind": "compiled",
                   "description": "Your preferences, models, keys, connections and archived chats.",
                   "command": {
@@ -536,133 +456,13 @@
             },
             {
               "kind": "appTile",
-              "key": "catalog-files",
-              "appId": "files",
-              "title": "Files",
-              "icon": "folder",
-              "category": "Workspace",
-              "launch": 0,
-              "dock": 2,
-              "appKind": "compiled",
-              "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "files"
-                }
-              },
-              "automationName": "Files"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-data",
-              "appId": "data",
-              "title": "Data Studio",
-              "icon": "bar-chart-2",
-              "category": "Studio",
-              "launch": 0,
-              "dock": 3,
-              "appKind": "compiled",
-              "description": "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "data"
-                }
-              },
-              "automationName": "Data Studio"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-markdraw",
-              "appId": "markdraw",
-              "title": "Markdraw",
-              "icon": "pen-tool",
-              "category": "Studio",
-              "launch": 0,
-              "dock": 4,
-              "appKind": "compiled",
-              "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "markdraw"
-                }
-              },
-              "automationName": "Markdraw"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-photocraft",
-              "appId": "photocraft",
-              "title": "PhotoCraft",
-              "icon": "artcraft:photocraft",
-              "category": "Studio",
-              "launch": 1,
-              "dock": 5,
-              "appKind": "compiled",
-              "description": "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "photocraft"
-                }
-              },
-              "automationName": "PhotoCraft"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-filmcraft",
-              "appId": "filmcraft",
-              "title": "FilmCraft",
-              "icon": "artcraft:filmcraft",
-              "category": "Studio",
-              "launch": 1,
-              "dock": 6,
-              "appKind": "compiled",
-              "description": "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "filmcraft"
-                }
-              },
-              "automationName": "FilmCraft"
-            },
-            {
-              "kind": "appTile",
-              "key": "catalog-gallery",
-              "appId": "gallery",
-              "title": "UI Gallery",
-              "icon": "layout-grid",
-              "category": "Studio",
-              "launch": 0,
-              "dock": 8,
-              "appKind": "compiled",
-              "description": "Working prototypes of every control and data node, with a log of the facts they publish.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "gallery"
-                }
-              },
-              "automationName": "UI Gallery"
-            },
-            {
-              "kind": "appTile",
               "key": "catalog-friends",
               "appId": "friends",
               "title": "Friends",
               "icon": "users",
               "category": "Social",
               "launch": 0,
-              "dock": 9,
+              "dock": 2,
               "appKind": "compiled",
               "description": "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
               "command": {
@@ -676,13 +476,53 @@
             },
             {
               "kind": "appTile",
+              "key": "catalog-files",
+              "appId": "files",
+              "title": "Files",
+              "icon": "folder",
+              "category": "Workspace",
+              "launch": 0,
+              "dock": 3,
+              "appKind": "compiled",
+              "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "files"
+                }
+              },
+              "automationName": "Files"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-gridcraft",
+              "appId": "gridcraft",
+              "title": "GridCraft",
+              "icon": "artcraft:gridcraft",
+              "category": "Workspace",
+              "launch": 1,
+              "dock": 4,
+              "appKind": "compiled",
+              "description": "Excel-compatible reactive spreadsheet engine for formula evaluation, pivot tables, financial modeling, and CSV/XLSX/Parquet workflows.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "gridcraft"
+                }
+              },
+              "automationName": "GridCraft"
+            },
+            {
+              "kind": "appTile",
               "key": "catalog-settings",
               "appId": "settings",
               "title": "Settings",
               "icon": "settings",
               "category": "System",
               "launch": 0,
-              "dock": 10,
+              "dock": 5,
               "appKind": "compiled",
               "description": "Your preferences, models, keys, connections and archived chats.",
               "command": {
@@ -794,6 +634,26 @@
             },
             {
               "kind": "appTile",
+              "key": "catalog-data",
+              "appId": "data",
+              "title": "Data Studio",
+              "icon": "bar-chart-2",
+              "category": "Studio",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "data"
+                }
+              },
+              "automationName": "Data Studio"
+            },
+            {
+              "kind": "appTile",
               "key": "catalog-deckcraft",
               "appId": "deckcraft",
               "title": "DeckCraft",
@@ -894,23 +754,23 @@
             },
             {
               "kind": "appTile",
-              "key": "catalog-gridcraft",
-              "appId": "gridcraft",
-              "title": "GridCraft",
-              "icon": "artcraft:gridcraft",
-              "category": "Workspace",
+              "key": "catalog-filmcraft",
+              "appId": "filmcraft",
+              "title": "FilmCraft",
+              "icon": "artcraft:filmcraft",
+              "category": "Studio",
               "launch": 1,
               "dock": null,
               "appKind": "compiled",
-              "description": "Excel-compatible reactive spreadsheet engine for formula evaluation, pivot tables, financial modeling, and CSV/XLSX/Parquet workflows.",
+              "description": "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
               "command": {
                 "target": ".",
                 "signal": "desktop.open",
                 "args": {
-                  "app": "gridcraft"
+                  "app": "filmcraft"
                 }
               },
-              "automationName": "GridCraft"
+              "automationName": "FilmCraft"
             },
             {
               "kind": "appTile",
@@ -931,6 +791,26 @@
                 }
               },
               "automationName": "LightCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-markdraw",
+              "appId": "markdraw",
+              "title": "Markdraw",
+              "icon": "pen-tool",
+              "category": "Studio",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "markdraw"
+                }
+              },
+              "automationName": "Markdraw"
             },
             {
               "kind": "appTile",
@@ -1014,6 +894,26 @@
             },
             {
               "kind": "appTile",
+              "key": "catalog-photocraft",
+              "appId": "photocraft",
+              "title": "PhotoCraft",
+              "icon": "artcraft:photocraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "photocraft"
+                }
+              },
+              "automationName": "PhotoCraft"
+            },
+            {
+              "kind": "appTile",
               "key": "catalog-solidcraft",
               "appId": "solidcraft",
               "title": "SolidCraft",
@@ -1091,6 +991,26 @@
                 }
               },
               "automationName": "TextureCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-gallery",
+              "appId": "gallery",
+              "title": "UI Gallery",
+              "icon": "layout-grid",
+              "category": "Studio",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Working prototypes of every control and data node, with a log of the facts they publish.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "gallery"
+                }
+              },
+              "automationName": "UI Gallery"
             },
             {
               "kind": "appTile",
