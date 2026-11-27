@@ -97,46 +97,39 @@ final class _FakeSoLoudBackend implements SoLoudBackend {
 
 void main() {
   group('SoLoudAudioOut (flutter_soloud 5.4.0)', () {
-    test(
-      'flush performs click-free fadeVolume(25ms) + scheduleStop(30ms) and resets buffer stream in place without recreating source',
-      () async {
-        final backend = _FakeSoLoudBackend();
-        final out = SoLoudAudioOut(backend: backend);
+    test('flush performs click-free fadeVolume(25ms) + scheduleStop(30ms) and resets buffer stream in place without recreating source', () async {
+      final backend = _FakeSoLoudBackend();
+      final out = SoLoudAudioOut(backend: backend);
 
-        await out.start(24000);
-        out.push(Uint8List.fromList([1, 2, 3, 4]));
+      await out.start(24000);
+      out.push(Uint8List.fromList([1, 2, 3, 4]));
 
-        backend.calls.clear();
-        out.flush();
+      backend.calls.clear();
+      out.flush();
 
-        // Click-free fade & scheduled stop on old handle — never hard-cut stop().
-        expect(backend.fades, [
-          (
-            handle: 'handle-1',
-            to: 0.0,
-            time: const Duration(milliseconds: 25),
-          ),
-        ]);
-        expect(backend.scheduledStops, [
-          (handle: 'handle-1', time: const Duration(milliseconds: 30)),
-        ]);
-        expect(backend.stoppedHandles, isEmpty);
+      // Click-free fade & scheduled stop on old handle — never hard-cut stop().
+      expect(backend.fades, [
+        (handle: 'handle-1', to: 0.0, time: const Duration(milliseconds: 25)),
+      ]);
+      expect(backend.scheduledStops, [
+        (handle: 'handle-1', time: const Duration(milliseconds: 30)),
+      ]);
+      expect(backend.stoppedHandles, isEmpty);
 
-        // Buffer stream source is reset in place and reused without dispose or setBufferStream.
-        expect(backend.resetSources, ['stream-source-1']);
-        expect(backend.disposedSources, isEmpty);
-        expect(backend.calls, [
-          'fadeVolume(handle-1,0.0,25ms)',
-          'scheduleStop(handle-1,30ms)',
-          'resetBufferStream(stream-source-1)',
-          'play(stream-source-1)->handle-2',
-        ]);
+      // Buffer stream source is reset in place and reused without dispose or setBufferStream.
+      expect(backend.resetSources, ['stream-source-1']);
+      expect(backend.disposedSources, isEmpty);
+      expect(backend.calls, [
+        'fadeVolume(handle-1,0.0,25ms)',
+        'scheduleStop(handle-1,30ms)',
+        'resetBufferStream(stream-source-1)',
+        'play(stream-source-1)->handle-2',
+      ]);
 
-        // Subsequent pushes continue targeting the same reset source.
-        out.push(Uint8List.fromList([5, 6]));
-        expect(backend.calls.last, 'addAudioDataStream(stream-source-1,2)');
-      },
-    );
+      // Subsequent pushes continue targeting the same reset source.
+      out.push(Uint8List.fromList([5, 6]));
+      expect(backend.calls.last, 'addAudioDataStream(stream-source-1,2)');
+    });
 
     test(
       'flush falls back to reopening buffer stream if resetBufferStream throws',
