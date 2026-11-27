@@ -166,10 +166,6 @@ public static class Kit
     public static Surface CodeBlock(string title, string code, string language = "csharp", double maxHeight = 360)
         => new([], $"code:{language}", title, code, maxHeight);
 
-    /// <summary>Collapsible WinUI-style disclosure panel (<c>Surface("expander:...")</c>).</summary>
-    public static Surface Expander(string title, string? subtitle = null, bool expanded = false, params Node?[] children)
-        => new(StackBuilder.FilterNulls(children), expanded ? "expander:open" : "expander:closed", title, subtitle, 12);
-
     /// <summary>Bounded scrollable container (<c>Surface("scroll")</c>).</summary>
     public static Surface ScrollBox(Node child, double maxHeight = 360)
     {

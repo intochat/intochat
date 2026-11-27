@@ -887,16 +887,6 @@ void main() {
               'padding': 180,
               'children': <Map<String, dynamic>>[],
             },
-            {
-              'kind': 'surface',
-              'surfaceKind': 'expander:closed',
-              'title': 'Quick Write & Clipboard',
-              'subtitle': 'Create a text file',
-              'padding': 12,
-              'children': [
-                {'kind': 'text', 'value': 'Hidden until expanded'},
-              ],
-            },
           ],
         });
 
@@ -919,12 +909,6 @@ void main() {
 
         // 4. Code viewer renders title + line 1 + source
         expect(find.text('UnitApp.cs'), findsOneWidget);
-
-        // 5. Closed expander hides body until tapped, then reveals it
-        expect(find.text('Hidden until expanded'), findsNothing);
-        await tester.tap(find.text('Quick Write & Clipboard'));
-        await tester.pump();
-        expect(find.text('Hidden until expanded'), findsOneWidget);
       },
     );
   });

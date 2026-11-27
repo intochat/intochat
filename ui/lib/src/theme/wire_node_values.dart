@@ -39,7 +39,6 @@ enum SurfaceVariantKind {
   toolbar,
   breadcrumb,
   code,
-  expander,
   scroll,
   studioFrame,
   recessed,
@@ -52,13 +51,11 @@ final class ParsedSurfaceVariant {
   const ParsedSurfaceVariant(
     this.kind, {
     this.language = 'code',
-    this.initiallyOpen = false,
     this.targetWidth,
   });
 
   final SurfaceVariantKind kind;
   final String language;
-  final bool initiallyOpen;
   final double? targetWidth;
 }
 
@@ -316,12 +313,6 @@ ParsedSurfaceVariant parseSurfaceVariant(String surfaceKind) {
     return ParsedSurfaceVariant(
       SurfaceVariantKind.code,
       language: lang.isEmpty ? 'code' : lang,
-    );
-  }
-  if (kind == 'expander' || kind.startsWith('expander:')) {
-    return ParsedSurfaceVariant(
-      SurfaceVariantKind.expander,
-      initiallyOpen: kind.endsWith(':open'),
     );
   }
   if (kind == 'studio-frame' || kind.startsWith('studio-frame:')) {
