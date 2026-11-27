@@ -125,6 +125,81 @@ internal sealed class CloudBrainRelayClient(
         return await ReadJsonAsync(response, DeviceWireJson.Default.PcResourceResponse, ct).ConfigureAwait(false);
     }
 
+    public async Task<ConnectedEngineeringResponse?> DispatchBrainEngineeringAsync(
+        BrainEngineeringDispatchRequest dispatch,
+        TimeSpan availabilityTimeout,
+        Func<EngineeringStreamChunk, Task>? onProgress = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(dispatch);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dispatch.Brain);
+
+        using var availabilityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        availabilityCts.CancelAfter(availabilityTimeout);
+
+        var bodyBytes = SerializeJson(dispatch, DeviceWireJson.Default.BrainEngineeringDispatchRequest);
+        using var response = await SendRelayAsync(
+            dispatch.Brain,
+            HttpMethod.Post,
+            DeviceRoutes.EngineeringDispatch,
+            bodyBytes,
+            availabilityCts.Token,
+            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.Forbidden || IsUnavailableStatus(response.StatusCode))
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        var mediaType = response.Content.Headers.ContentType?.MediaType;
+        if (string.Equals(mediaType, "application/x-ndjson", StringComparison.OrdinalIgnoreCase))
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            ConnectedEngineeringResponse? terminal = null;
+            string? lastError = null;
+
+            while (await reader.ReadLineAsync(ct).ConfigureAwait(false) is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var chunk = JsonSerializer.Deserialize(line, DeviceWireJson.Default.EngineeringStreamChunk);
+                if (chunk is null)
+                {
+                    continue;
+                }
+
+                if (onProgress is not null)
+                {
+                    await onProgress(chunk).ConfigureAwait(false);
+                }
+
+                if (!string.IsNullOrWhiteSpace(chunk.Error))
+                {
+                    lastError = chunk.Error;
+                }
+
+                if (chunk.Result is not null)
+                {
+                    terminal = chunk.Result;
+                }
+            }
+
+            return terminal ?? new ConnectedEngineeringResponse(
+                Ok: false,
+                RunId: dispatch.Request.RunId,
+                Error: lastError ?? "Connected PC engineering stream ended without a terminal result.",
+                ExecutedByMachineId: dispatch.MachineId);
+        }
+
+        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedEngineeringResponse, ct).ConfigureAwait(false);
+    }
+
     private async Task<HttpResponseMessage> SendRelayAsync(
         string brainId,
         HttpMethod method,

@@ -35,6 +35,12 @@ public sealed class ComputeCapabilityOptions
 
     public bool AllowClientCodeSandbox { get; set; } = ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
 
+    /// <summary>
+    /// Fail-closed consent for Plane 2 Connected PC self-improving engineering (strictly separate from
+    /// <see cref="AllowClientCodeSandbox"/>). Defaults to <see langword="false"/> everywhere unless explicitly enabled.
+    /// </summary>
+    public bool AllowConnectedEngineering { get; set; }
+
     public bool SandboxEnabled { get; set; } = true;
 
     public int MaxConcurrency { get; set; } = 2;

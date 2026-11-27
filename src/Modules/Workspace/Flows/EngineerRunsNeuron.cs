@@ -1,10 +1,13 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Components;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
-using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -42,6 +45,19 @@ internal sealed partial class EngineerRunsNeuron(
             return EngineerDelegationSummaries.Failure(Id.Brain, repoSlug, goal, instances, backend, "Engineer delegation requires a non-empty goal.");
         }
 
+        var runKey = string.IsNullOrWhiteSpace(request.RunId)
+            ? Guid.NewGuid().ToString("N")[..12]
+            : request.RunId.Trim();
+
+        // Tier 1 ($0 Azure compute): route to an eligible online Paired PC advertising AllowConnectedEngineering == true
+        // with pauseAtApprovalGate: true so Cloud Ino receives a SHA-locked ChangeSet + EngineerVerificationReceipt
+        // for human Draft PR approval. Cleanly falls back to local AgentDevSlots (Tier 2) or Cloud ACA Job (Tier 3)
+        // when no eligible Paired PC is online or consent is disabled.
+        if (await TryRunOnConnectedPcAsync(request, runKey, repoSlug, goal, instances, ct).ConfigureAwait(true) is { } connectedSummary)
+        {
+            return connectedSummary;
+        }
+
         RepositoryId parsedRepo;
         BranchName? parsedBase;
         try
@@ -67,9 +83,6 @@ internal sealed partial class EngineerRunsNeuron(
                 $"Could not start IntoChat-Engineer on repository '{repoSlug}': {ex.Message}");
         }
 
-        var runKey = string.IsNullOrWhiteSpace(request.RunId)
-            ? Guid.NewGuid().ToString("N")[..12]
-            : request.RunId.Trim();
         var title = goal.Length <= 56 ? goal : goal[..56];
         var startPayload = new EngineerStartRequest(
             RunId: runKey,
@@ -242,4 +255,186 @@ internal sealed partial class EngineerRunsNeuron(
     }
 
     private ILogger Logger() => (ILogger?)logger ?? OsConsoleLog.For<EngineerRunsNeuron>();
+
+    private async Task<EngineerRunSummary?> TryRunOnConnectedPcAsync(
+        EngineerDelegationRequest request,
+        string runKey,
+        string repoSlug,
+        string goal,
+        int instances,
+        CancellationToken ct)
+    {
+        if (services?.GetService<IConnectedComputeRouter>() is not { } computeRouter)
+        {
+            return null;
+        }
+
+        ComputeRouteDecision route;
+        try
+        {
+            route = await computeRouter.ResolveEngineeringRouteAsync(Id.Brain, ct).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger().LogSwallowed(ex, $"resolving Tier 1 Connected PC engineering route for brain '{Id.Brain.Value}'");
+            return null;
+        }
+
+        if (route.Target != ComputeExecutionTarget.ConnectedClient
+            || route.Node is not { IsEligibleForConnectedEngineering: true } pairedPc)
+        {
+            return null;
+        }
+
+        var slicesJson = request.Slices is { Length: > 0 }
+            ? JsonSerializer.Serialize(request.Slices, JsonSerializerOptions.Web)
+            : null;
+        var engineeringRequest = new ConnectedEngineeringRequest(
+            JobId: $"eng-{runKey}",
+            BrainId: Id.Brain.Value,
+            RunId: runKey,
+            RepoSlug: repoSlug,
+            Goal: goal,
+            ParallelInstances: instances,
+            RequestedBaseBranch: request.RequestedBaseBranch,
+            RequirePlanRatification: request.RequirePlanRatification,
+            Harness: request.Harness,
+            CleanupTargets: request.CleanupTargets,
+            SlicesJson: slicesJson,
+            PauseAtApprovalGate: true,
+            TraceParent: Activity.Current?.Id);
+
+        ConnectedEngineeringResponse? remote;
+        try
+        {
+            remote = await computeRouter
+                .TryExecuteEngineeringOnConnectedClientAsync(Id.Brain, engineeringRequest, ct: ct)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger().LogSwallowed(ex, $"dispatching Plane 2 engineering run '{runKey}' to Paired PC '{pairedPc.MachineId}'; falling back");
+            return null;
+        }
+
+        if (remote is null)
+        {
+            return null;
+        }
+
+        // If the Paired PC revoked consent right before execution, fall back cleanly to Tier 2 / Tier 3.
+        if (!remote.Ok
+            && !string.IsNullOrWhiteSpace(remote.Error)
+            && remote.Error.StartsWith("consent-disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var flowId = !string.IsNullOrWhiteSpace(remote.FlowId)
+            ? remote.FlowId
+            : new NeuronId(Id.Brain, IEngineerRuns.EngineerFlow, runKey).ToString();
+
+        if (!remote.Ok)
+        {
+            return EngineerDelegationSummaries.Failure(
+                Id.Brain,
+                repoSlug,
+                goal,
+                instances,
+                "ConnectedPC",
+                remote.Error ?? $"Connected PC '{pairedPc.DeviceName}' failed engineering run '{runKey}'.",
+                flowId,
+                request.Harness);
+        }
+
+        if (remote.ChangeSet is null
+            || remote.Receipt is null
+            || string.IsNullOrWhiteSpace(remote.ChangeSet.CommitSha)
+            || !string.Equals(remote.ChangeSet.CommitSha, remote.Receipt.CommitSha, StringComparison.Ordinal))
+        {
+            return EngineerDelegationSummaries.Failure(
+                Id.Brain,
+                repoSlug,
+                goal,
+                instances,
+                "ConnectedPC",
+                $"Connected PC '{pairedPc.DeviceName}' returned an unverified or mismatched SHA receipt for run '{runKey}'; fail-closed refusal.",
+                flowId,
+                request.Harness);
+        }
+
+        var changeSet = remote.ChangeSet;
+        var receipt = remote.Receipt;
+        var executedBy = string.IsNullOrWhiteSpace(remote.ExecutedByMachineId)
+            ? pairedPc.MachineId
+            : remote.ExecutedByMachineId;
+        var tasksKey = IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "tasks").Key;
+        var tasksUri = $"neuron://{tasksKey}#{flowId}";
+        var confirmationPlanId = $"app:engineer:{runKey}:{changeSet.CommitSha}";
+        var shortSha = changeSet.CommitSha.Length >= 8 ? changeSet.CommitSha[..8] : changeSet.CommitSha;
+
+        var instanceSummary = new EngineerInstanceSummary(
+            InstanceIndex: 0,
+            LeaseId: $"pc-{executedBy}-{runKey}",
+            Backend: "ConnectedPC",
+            BranchName: changeSet.BranchName,
+            Status: "verified",
+            CompletedTaskIds: [],
+            ChangedFiles: changeSet.ChangedFiles ?? [],
+            CommitSha: changeSet.CommitSha,
+            BuildSucceeded: receipt.BuildVerified,
+            LiveSucceeded: receipt.LiveVerified,
+            FailureDetail: null,
+            Strategy: "connected-pc",
+            TotalScore: receipt.BuildVerified && receipt.LiveVerified ? 100 : 80,
+            ChangedLines: changeSet.Additions + changeSet.Deletions,
+            UnifiedDiff: changeSet.UnifiedDiff ?? string.Empty,
+            Rank: 1,
+            IsSelected: true,
+            Harness: request.Harness);
+
+        var summaryText = !string.IsNullOrWhiteSpace(remote.SummaryText)
+            ? remote.SummaryText
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"IntoChat-Engineer run `{flowId}` executed on Paired PC `{pairedPc.DeviceName}` (`{executedBy}`, $0 Azure compute), verified commit `{changeSet.CommitSha}` ({(changeSet.ChangedFiles ?? []).Length} file(s)), and paused at `approval-gate` for human Draft PR approval.");
+
+        var approvalCard = new InoCard(
+            Id: confirmationPlanId,
+            Kind: "approval",
+            Title: $"Engineer ready for approval (Paired PC): {goal} ({shortSha})",
+            Summary: string.Create(
+                CultureInfo.InvariantCulture,
+                $"Verified on Paired PC {pairedPc.DeviceName} ($0 Azure compute) · {(changeSet.ChangedFiles ?? []).Length} file(s) on {changeSet.BranchName}."),
+            SourceNeuronUri: tasksUri,
+            Status: "pending",
+            SurfaceScopeUri: tasksUri);
+
+        return new EngineerRunSummary(
+            Ok: true,
+            FlowId: flowId,
+            RunId: runKey,
+            RepoSlug: repoSlug,
+            Goal: goal,
+            Backend: "ConnectedPC",
+            ParallelInstances: instances,
+            Status: FlowStatus.Waiting,
+            CurrentStage: "approval-gate",
+            CompletedStages: ["brainstorm-and-plan", "prepare-worktree", "implement-tasks", "build-and-test", "live-verify"],
+            ConfirmationPlanId: confirmationPlanId,
+            TraceId: Activity.Current?.TraceId.ToString(),
+            WinningCommitSha: changeSet.CommitSha,
+            PushedRef: null,
+            PullRequestUrl: null,
+            EngineerAppUri: tasksUri,
+            TasksBoardUri: tasksUri,
+            Plan: null,
+            Instances: [instanceSummary],
+            DiagnosticsAndTraces: remote.DiagnosticsAndTraces ?? [route.Reason],
+            SummaryText: summaryText,
+            Card: approvalCard,
+            SelectedCandidateIndex: 0,
+            Harness: request.Harness,
+            Receipt: receipt);
+    }
 }

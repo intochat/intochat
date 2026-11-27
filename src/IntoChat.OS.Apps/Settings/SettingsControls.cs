@@ -24,6 +24,7 @@ internal static class SettingsControls
     public const string AllowClientCodeSandbox = ClientComputeConsentPolicy.SettingsToggleKey;
     public const string AllowWindowsFolderGateway = ClientComputeConsentPolicy.AllowWindowsFolderGatewayToggleKey;
     public const string AllowConsole = ClientComputeConsentPolicy.AllowConsoleToggleKey;
+    public const string AllowConnectedEngineering = ClientComputeConsentPolicy.AllowConnectedEngineeringToggleKey;
 
     internal sealed record SettingSwitch(string Key, string Section, string Label, Func<SettingsAppState, bool> Get, Func<SettingsAppState, bool, SettingsAppState> Set);
 
@@ -39,6 +40,7 @@ internal static class SettingsControls
         new(AllowClientCodeSandbox, "models", "Run code on this PC", s => s.AllowClientCodeSandbox, (s, on) => s with { AllowClientCodeSandbox = on }),
         new(AllowWindowsFolderGateway, "devices", "Shared folders", s => s.AllowWindowsFolderGateway, (s, on) => s with { AllowWindowsFolderGateway = on }),
         new(AllowConsole, "devices", "Interactive shell", s => s.AllowConsole, (s, on) => s with { AllowConsole = on }),
+        new(AllowConnectedEngineering, "devices", "Self-improving engineering on this PC", s => s.AllowConnectedEngineering, (s, on) => s with { AllowConnectedEngineering = on }),
     ];
 
     public const string ThemeMode = "theme-mode";

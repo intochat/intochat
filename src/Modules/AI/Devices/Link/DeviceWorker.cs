@@ -45,6 +45,8 @@ internal sealed class DeviceWorker : BackgroundService
     private readonly IClientCodeSandboxConsent? _consentStore;
     private readonly IClientResourceConsent? _resourceConsent;
     private readonly ILocalPcResourceExecutor? _localResourceExecutor;
+    private readonly IClientEngineeringConsent? _engineeringConsent;
+    private readonly ILocalEngineeringExecutor? _localEngineeringExecutor;
     private readonly Func<double> _jitterProvider;
 
     private readonly ILocalRuntime[] _runtimes;
@@ -62,6 +64,7 @@ internal sealed class DeviceWorker : BackgroundService
     private bool _lastAdvertisedAllowClientCodeSandbox;
     private bool _lastAdvertisedAllowFolders;
     private bool _lastAdvertisedAllowConsole;
+    private bool _lastAdvertisedAllowConnectedEngineering;
     private ComputeConsentMode _lastAdvertisedConsentMode = ComputeConsentMode.ExplicitToggle;
     private DateTimeOffset _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
 
@@ -80,7 +83,9 @@ internal sealed class DeviceWorker : BackgroundService
         IClientCodeSandboxConsent? consentStore = null,
         IClientResourceConsent? resourceConsent = null,
         ILocalPcResourceExecutor? localResourceExecutor = null,
-        Func<double>? jitterProvider = null)
+        Func<double>? jitterProvider = null,
+        IClientEngineeringConsent? engineeringConsent = null,
+        ILocalEngineeringExecutor? localEngineeringExecutor = null)
     {
         _cloud = cloud;
         _credentials = credentials;
@@ -97,9 +102,12 @@ internal sealed class DeviceWorker : BackgroundService
         _resourceConsent = resourceConsent;
         _localResourceExecutor = localResourceExecutor;
         _jitterProvider = jitterProvider ?? DefaultJitter;
+        _engineeringConsent = engineeringConsent;
+        _localEngineeringExecutor = localEngineeringExecutor;
 
         _consentStore?.Changed += OnSandboxConsentChanged;
         _resourceConsent?.Changed += OnResourceConsentChanged;
+        _engineeringConsent?.Changed += OnEngineeringConsentChanged;
     }
 
     internal void NotifyLinkChanged()
@@ -130,6 +138,7 @@ internal sealed class DeviceWorker : BackgroundService
     {
         _consentStore?.Changed -= OnSandboxConsentChanged;
         _resourceConsent?.Changed -= OnResourceConsentChanged;
+        _engineeringConsent?.Changed -= OnEngineeringConsentChanged;
 
         base.Dispose();
     }
@@ -214,7 +223,7 @@ internal sealed class DeviceWorker : BackgroundService
 
         await SyncMetadataAsync(secrets, ct).ConfigureAwait(false);
 
-        var laneTasks = new List<Task>(3)
+        var laneTasks = new List<Task>(4)
         {
             PollAndExecuteChatOnceAsync(ct),
         };
@@ -227,6 +236,11 @@ internal sealed class DeviceWorker : BackgroundService
         if (_localResourceExecutor is not null)
         {
             laneTasks.Add(PollAndExecuteResourceOnceAsync(ct));
+        }
+
+        if (_localEngineeringExecutor is not null)
+        {
+            laneTasks.Add(PollAndExecuteEngineeringOnceAsync(ct));
         }
 
         await Task.WhenAll(laneTasks).ConfigureAwait(false);
@@ -252,6 +266,7 @@ internal sealed class DeviceWorker : BackgroundService
         var sandboxReady = compute.IsClientCodeSandboxConsentedWith(allowClientCodeSandbox);
         var allowFolders = EffectiveAllowWindowsFolderGateway();
         var allowConsole = EffectiveAllowConsole();
+        var allowEngineering = EffectiveAllowConnectedEngineering();
         var safeFolderLabels = allowFolders ? consentedFolderLabels : null;
         return new ComputeCapabilityAdvertisement(
             MachineId: _thisMachine.Value,
@@ -264,11 +279,12 @@ internal sealed class DeviceWorker : BackgroundService
             HeartbeatAt: _clock.GetUtcNow(),
             KeyThumbprint: ComputeKeyThumbprint(secrets.PrivateKeyPkcs8),
             AllowClientCodeSandbox: allowClientCodeSandbox,
-            AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(sandboxReady, allowFolders, allowConsole),
+            AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(sandboxReady, allowFolders, allowConsole, allowEngineering),
             AllowWindowsFolderGateway: allowFolders,
             AllowConsole: allowConsole,
             ConsentedFolderLabels: safeFolderLabels,
-            ConsoleRequiresPersonApproval: true);
+            ConsoleRequiresPersonApproval: true,
+            AllowConnectedEngineering: allowEngineering);
     }
 
     private async Task<bool> RunLinkedSessionAsync(CancellationToken stoppingToken)
@@ -305,6 +321,11 @@ internal sealed class DeviceWorker : BackgroundService
         if (_localResourceExecutor is not null)
         {
             supervisedTasks.Add(RunLaneLoopAsync("resource", PollAndExecuteResourceOnceAsync, sessionCt, SignalRevoked));
+        }
+
+        if (_localEngineeringExecutor is not null)
+        {
+            supervisedTasks.Add(RunLaneLoopAsync("engineering", PollAndExecuteEngineeringOnceAsync, sessionCt, SignalRevoked));
         }
 
         await Task.WhenAll(supervisedTasks).ConfigureAwait(false);
@@ -453,6 +474,15 @@ internal sealed class DeviceWorker : BackgroundService
         }
     }
 
+    private async Task PollAndExecuteEngineeringOnceAsync(CancellationToken ct)
+    {
+        var engineeringJob = await _cloud.PollNextEngineeringAsync(ct).ConfigureAwait(false);
+        if (engineeringJob is not null)
+        {
+            await ExecuteEngineeringJobAsync(engineeringJob, ct).ConfigureAwait(false);
+        }
+    }
+
     private async Task SyncMetadataAsync(LinkSecrets secrets, CancellationToken ct)
     {
         await _syncGate.WaitAsync(ct).ConfigureAwait(false);
@@ -476,14 +506,16 @@ internal sealed class DeviceWorker : BackgroundService
         var sandboxReady = compute.IsClientCodeSandboxConsentedWith(allowClientCodeSandbox);
         var allowFolders = EffectiveAllowWindowsFolderGateway();
         var allowConsole = EffectiveAllowConsole();
-        var anyConsented = sandboxReady || allowFolders || allowConsole;
+        var allowEngineering = EffectiveAllowConnectedEngineering();
+        var anyConsented = sandboxReady || allowFolders || allowConsole || allowEngineering;
 
         var stateChanged = !_computeReportedOnce
             || _lastAdvertisedSandboxReady != sandboxReady
             || _lastAdvertisedConsentMode != compute.ConsentMode
             || _lastAdvertisedAllowClientCodeSandbox != allowClientCodeSandbox
             || _lastAdvertisedAllowFolders != allowFolders
-            || _lastAdvertisedAllowConsole != allowConsole;
+            || _lastAdvertisedAllowConsole != allowConsole
+            || _lastAdvertisedAllowConnectedEngineering != allowEngineering;
         var heartbeatDue = now - _lastComputeHeartbeatAt >= interval;
 
         if (!stateChanged && !heartbeatDue)
@@ -529,6 +561,7 @@ internal sealed class DeviceWorker : BackgroundService
         _lastAdvertisedAllowClientCodeSandbox = allowClientCodeSandbox;
         _lastAdvertisedAllowFolders = allowFolders;
         _lastAdvertisedAllowConsole = allowConsole;
+        _lastAdvertisedAllowConnectedEngineering = allowEngineering;
         _lastAdvertisedConsentMode = compute.ConsentMode;
         _lastComputeHeartbeatAt = now;
     }
@@ -615,6 +648,220 @@ internal sealed class DeviceWorker : BackgroundService
         }
 
         await _cloud.ReportResourceResultAsync(job.JobId, response, ct).ConfigureAwait(false);
+    }
+
+    private async Task ExecuteEngineeringJobAsync(ConnectedEngineeringRequest job, CancellationToken ct)
+    {
+        // Fail-closed: strictly requires local AllowConnectedEngineering == true; NEVER falls back to AllowClientCodeSandbox.
+        if (!EffectiveAllowConnectedEngineering())
+        {
+            _logger.LogInformation(
+                "Refused Plane 2 connected engineering job {JobId} (run={RunId}): AllowConnectedEngineering is disabled on this PC.",
+                job.JobId,
+                job.RunId);
+            await _cloud.ReportEngineeringResultAsync(
+                job.JobId,
+                new ConnectedEngineeringResponse(
+                    Ok: false,
+                    RunId: job.RunId,
+                    Error: "consent-disabled: AllowConnectedEngineering is disabled on this PC.",
+                    ExecutedByMachineId: _thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (_localEngineeringExecutor is IStreamingLocalEngineeringExecutor streamingExecutor)
+        {
+            await ExecuteStreamingEngineeringJobAsync(job, streamingExecutor, ct).ConfigureAwait(false);
+            return;
+        }
+
+        ConnectedEngineeringResponse response;
+        try
+        {
+            response = await _localEngineeringExecutor!.ExecuteAsync(job, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(response.ExecutedByMachineId))
+            {
+                response = response with { ExecutedByMachineId = _thisMachine.Value };
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            _logger.LogWarning(error, "Local Plane 2 engineering job {JobId} (run={RunId}) failed with {ErrorType}.", job.JobId, job.RunId, error.GetType().Name);
+            response = new ConnectedEngineeringResponse(
+                Ok: false,
+                RunId: job.RunId,
+                Error: error.Message,
+                ExecutedByMachineId: _thisMachine.Value);
+        }
+
+        await _cloud.ReportEngineeringResultAsync(job.JobId, response, ct).ConfigureAwait(false);
+    }
+
+    private async Task ExecuteStreamingEngineeringJobAsync(
+        ConnectedEngineeringRequest job,
+        IStreamingLocalEngineeringExecutor streamingExecutor,
+        CancellationToken ct)
+    {
+        ConnectedEngineeringResponse? capturedResult = null;
+        string? capturedError = null;
+        var producerRan = false;
+
+        using var content = new NdjsonPushContent<EngineeringStreamChunk>(
+            DeviceWireJson.Default.EngineeringStreamChunk,
+            async (write, token) =>
+            {
+                producerRan = true;
+                var emittedDone = false;
+                Exception? execError = null;
+                IAsyncEnumerator<EngineeringStreamChunk>? enumerator = null;
+                try
+                {
+                    try
+                    {
+                        enumerator = streamingExecutor.ExecuteStreamingAsync(job, token).GetAsyncEnumerator(token);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception error)
+                    {
+                        _logger.LogWarning(error, "Streaming Plane 2 engineering job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
+                        execError = error;
+                    }
+
+                    while (execError is null && enumerator is not null)
+                    {
+                        EngineeringStreamChunk rawChunk;
+                        try
+                        {
+                            if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                            {
+                                break;
+                            }
+
+                            rawChunk = enumerator.Current;
+                        }
+                        catch (OperationCanceledException) when (token.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception error)
+                        {
+                            _logger.LogWarning(error, "Streaming Plane 2 engineering job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
+                            execError = error;
+                            break;
+                        }
+
+                        var chunk = StampEngineeringMachineId(rawChunk);
+                        if (chunk.Result is not null)
+                        {
+                            capturedResult = chunk.Result;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(chunk.Error))
+                        {
+                            capturedError = chunk.Error;
+                        }
+
+                        if (chunk.Done)
+                        {
+                            emittedDone = true;
+                        }
+
+                        // Isolated from executor catch so transport write() failures propagate directly.
+                        await write(chunk, token).ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    if (enumerator is not null)
+                    {
+                        await enumerator.DisposeAsync().ConfigureAwait(false);
+                    }
+                }
+
+                if (execError is not null)
+                {
+                    capturedResult = new ConnectedEngineeringResponse(
+                        Ok: false,
+                        RunId: job.RunId,
+                        Error: execError.Message,
+                        ExecutedByMachineId: _thisMachine.Value);
+                    await write(new EngineeringStreamChunk(Done: true, Error: execError.Message, Result: capturedResult), token).ConfigureAwait(false);
+                }
+                else if (!emittedDone)
+                {
+                    capturedResult ??= new ConnectedEngineeringResponse(
+                        Ok: false,
+                        RunId: job.RunId,
+                        Error: capturedError ?? "Streaming engineering execution completed without a terminal result.",
+                        ExecutedByMachineId: _thisMachine.Value);
+                    await write(new EngineeringStreamChunk(Done: true, Result: capturedResult), token).ConfigureAwait(false);
+                }
+            });
+
+        var streamed = await _cloud.StreamEngineeringAsync(job.JobId, content, ct).ConfigureAwait(false);
+        if (streamed)
+        {
+            return;
+        }
+
+        // Backward compatibility: older relays return 404/501 for /engineering/{jobId}/stream.
+        // Only execute via the unary path if the streaming producer never ran; never double-execute.
+        ConnectedEngineeringResponse fallback;
+        if (!producerRan)
+        {
+            try
+            {
+                fallback = await streamingExecutor.ExecuteAsync(job, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(fallback.ExecutedByMachineId))
+                {
+                    fallback = fallback with { ExecutedByMachineId = _thisMachine.Value };
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error)
+            {
+                _logger.LogWarning(error, "Local Plane 2 engineering job {JobId} fallback failed with {ErrorType}.", job.JobId, error.GetType().Name);
+                fallback = new ConnectedEngineeringResponse(
+                    Ok: false,
+                    RunId: job.RunId,
+                    Error: error.Message,
+                    ExecutedByMachineId: _thisMachine.Value);
+            }
+        }
+        else
+        {
+            fallback = capturedResult ?? new ConnectedEngineeringResponse(
+                Ok: false,
+                RunId: job.RunId,
+                Error: capturedError ?? "Streaming engineering execution completed without a terminal result.",
+                ExecutedByMachineId: _thisMachine.Value);
+        }
+
+        await _cloud.ReportEngineeringResultAsync(job.JobId, fallback, ct).ConfigureAwait(false);
+    }
+
+    private EngineeringStreamChunk StampEngineeringMachineId(EngineeringStreamChunk chunk)
+    {
+        if (chunk.Result is null || !string.IsNullOrWhiteSpace(chunk.Result.ExecutedByMachineId))
+        {
+            return chunk;
+        }
+
+        return chunk with
+        {
+            Result = chunk.Result with { ExecutedByMachineId = _thisMachine.Value },
+        };
     }
 
     private async Task ExecuteSandboxJobAsync(ConnectedSandboxRequest job, CancellationToken ct)
@@ -1041,6 +1288,7 @@ internal sealed class DeviceWorker : BackgroundService
             _lastAdvertisedAllowClientCodeSandbox = false;
             _lastAdvertisedAllowFolders = false;
             _lastAdvertisedAllowConsole = false;
+            _lastAdvertisedAllowConnectedEngineering = false;
             _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
         }
         finally
@@ -1052,6 +1300,8 @@ internal sealed class DeviceWorker : BackgroundService
     private void OnSandboxConsentChanged(bool _) => ReleaseSignal(_heartbeatWake);
 
     private void OnResourceConsentChanged() => ReleaseSignal(_heartbeatWake);
+
+    private void OnEngineeringConsentChanged(bool _) => ReleaseSignal(_heartbeatWake);
 
     private void ReleaseSignal(SemaphoreSlim signal)
     {
@@ -1078,6 +1328,9 @@ internal sealed class DeviceWorker : BackgroundService
 
     private bool EffectiveAllowConsole()
         => _resourceConsent?.AllowConsole ?? false;
+
+    private bool EffectiveAllowConnectedEngineering()
+        => _engineeringConsent?.AllowConnectedEngineering ?? false;
 
     private async Task DelayOrWakeAsync(SemaphoreSlim signal, TimeSpan delay, CancellationToken ct)
     {

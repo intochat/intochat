@@ -21,7 +21,8 @@ public sealed record LinkStatus(
     string? CircleId = null,
     bool AllowWindowsFolderGateway = false,
     bool AllowConsole = false,
-    string[]? ConsentedFolderRoots = null);
+    string[]? ConsentedFolderRoots = null,
+    bool AllowConnectedEngineering = false);
 
 // One device-link neuron per brain on the PC at "{brain}/device-link".
 [NeuronAlias("devices.link"), DefaultNeuronType("devices.link")]
@@ -36,6 +37,8 @@ public interface IDeviceLink
     Task<LinkStatus> SetAllowWindowsFolderGateway(bool allow) => Status();
 
     Task<LinkStatus> SetAllowConsole(bool allow) => Status();
+
+    Task<LinkStatus> SetAllowConnectedEngineering(bool allow) => Status();
 
     Task Leave();
 

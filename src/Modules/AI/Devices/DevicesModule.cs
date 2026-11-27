@@ -116,6 +116,7 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetService<IOptionsMonitor<DevicesOptions>>()));
         services.TryAddSingleton<IConnectedComputeTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
         services.TryAddSingleton<IConnectedResourceTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
+        services.TryAddSingleton<IConnectedEngineeringTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
         services.TryAddSingleton<IConnectedComputeRouter>(static sp => new ConnectedComputeRouter(
             sp.GetRequiredService<ICloudBrainRelayClient>(),
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
@@ -123,15 +124,21 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<IConnectedComputeTransport>(),
             sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>(),
-            sp.GetService<IConnectedResourceTransport>()));
+            sp.GetService<IConnectedResourceTransport>(),
+            sp.GetService<IConnectedEngineeringTransport>()));
+        services.TryAddSingleton<IntoChat.OS.Modules.Apps.Flows.IConnectedCandidateRelay, ConnectedCandidateRelayBridge>();
         services.TryAddSingleton<ClientCodeSandboxConsentStore>(static sp =>
         {
-            var initialAllow = sp.GetService<IOptionsMonitor<DevicesOptions>>()?.CurrentValue.Compute.AllowClientCodeSandbox
+            var compute = sp.GetService<IOptionsMonitor<DevicesOptions>>()?.CurrentValue.Compute;
+            var initialAllow = compute?.AllowClientCodeSandbox
                 ?? ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
-            return new ClientCodeSandboxConsentStore(initialAllow);
+            var initialEngineering = compute?.AllowConnectedEngineering
+                ?? ClientComputeConsentPolicy.DefaultAllowConnectedEngineeringForCurrentPlatform();
+            return new ClientCodeSandboxConsentStore(initialAllow, initialEngineering);
         });
         services.TryAddSingleton<IClientCodeSandboxConsent>(static sp => sp.GetRequiredService<ClientCodeSandboxConsentStore>());
         services.TryAddSingleton<IClientResourceConsent>(static sp => sp.GetRequiredService<ClientCodeSandboxConsentStore>());
+        services.TryAddSingleton<IClientEngineeringConsent>(static sp => sp.GetRequiredService<ClientCodeSandboxConsentStore>());
         services.TryAddSingleton<ILocalPcResourceExecutor>(static sp => new LocalPcResourceExecutor(
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
             sp.GetRequiredService<IClientResourceConsent>(),

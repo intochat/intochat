@@ -24,4 +24,8 @@ namespace IntoChat.OS.Modules.Devices;
 [JsonSerializable(typeof(ComputeRouteDecision))]
 [JsonSerializable(typeof(ConnectedSandboxRequest))]
 [JsonSerializable(typeof(ConnectedSandboxResponse))]
+[JsonSerializable(typeof(ConnectedEngineeringRequest))]
+[JsonSerializable(typeof(ConnectedEngineeringChangeSet))]
+[JsonSerializable(typeof(ConnectedEngineeringResponse))]
+[JsonSerializable(typeof(EngineeringStreamChunk))]
 public sealed partial class DevicesJson : JsonSerializerContext;

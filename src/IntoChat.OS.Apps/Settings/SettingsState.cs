@@ -209,6 +209,9 @@ public sealed record SettingsAppState(
     [Id(73)]
     public string WebhookBaseUrl { get; init; } = SettingsApp.DefaultWebhookBaseUrl;
 
+    [Id(74)]
+    public bool AllowConnectedEngineering { get; init; }
+
     [JsonIgnore]
     public string? DeviceFlowId { get; init; }
 
@@ -696,6 +699,10 @@ public sealed record SettingsAppState(
             storedVariables,
             ClientComputeConsentPolicy.AllowConsoleVariableKey,
             AllowConsole);
+        var allowConnectedEngineering = ResolveStoredBool(
+            storedVariables,
+            ClientComputeConsentPolicy.AllowConnectedEngineeringVariableKey,
+            AllowConnectedEngineering);
         var reasoningEffort = SettingsControls.TryNormalizeReasoningEffort(
             storedVariables.FirstOrDefault(v => string.Equals(v.Key, SettingsControls.ReasoningEffortVariable, StringComparison.Ordinal))?.Value)
             ?? ReasoningEffort;
@@ -725,6 +732,7 @@ public sealed record SettingsAppState(
             AllowClientCodeSandbox = allowClientCodeSandbox,
             AllowWindowsFolderGateway = allowWindowsFolderGateway,
             AllowConsole = allowConsole,
+            AllowConnectedEngineering = allowConnectedEngineering,
             ReasoningEffort = reasoningEffort,
             VoicePersona = voicePersona,
             HasUnsavedChanges = false,

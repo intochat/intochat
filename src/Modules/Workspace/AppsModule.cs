@@ -73,6 +73,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IEngineerPlanner, EngineerPlanner>();
         services.TryAddSingleton<IEngineerBuildVerifier, EngineerBuildVerifier>();
         services.TryAddSingleton<ILiveVerifier, EngineerLiveVerifier>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Devices.ILocalEngineeringExecutor, LocalConnectedEngineeringExecutor>();
         services.TryAddSingleton<AppOperationCatalog>();
         services.AddHostedService<AppMenuHost>();
         services.AddNeuronProxies();

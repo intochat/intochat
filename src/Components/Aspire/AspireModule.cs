@@ -58,6 +58,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
         });
 
         services.TryAddSingleton<Candidates.ProcessCandidateHost>();
+        services.TryAddSingleton<Candidates.AgentDevSlotsCandidateHost>();
 
         var modeValue = configuration.GetSection(ModuleConfiguration.ModuleOptionsSection(ManifestName))[nameof(AspireOptions.CandidateHostMode)];
         var parsedMode = Enum.TryParse<CandidateHostMode>(modeValue, ignoreCase: true, out var hostMode)
@@ -68,8 +69,12 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
             case CandidateHostMode.Process:
                 services.TryAddSingleton<Candidates.ICandidateHost>(static sp => sp.GetRequiredService<Candidates.ProcessCandidateHost>());
                 break;
+            case CandidateHostMode.ConnectedDevice:
+                services.TryAddSingleton<Candidates.ConnectedDeviceCandidateHost>();
+                services.TryAddSingleton<Candidates.ICandidateHost>(static sp => sp.GetRequiredService<Candidates.ConnectedDeviceCandidateHost>());
+                break;
             default:
-                services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AgentDevSlotsCandidateHost>();
+                services.TryAddSingleton<Candidates.ICandidateHost>(static sp => sp.GetRequiredService<Candidates.AgentDevSlotsCandidateHost>());
                 break;
         }
 
