@@ -133,7 +133,7 @@ void main() {
                         'label': 'Withdraw €100',
                         'style': 'primary',
                         'enabled': false,
-                        'disabledReason': 'Insufficient funds (balance €30).',
+                        'tooltip': 'Insufficient funds (balance €30).',
                       },
                       {
                         'kind': 'button',
@@ -160,7 +160,7 @@ void main() {
 
         expect(find.byType(Tooltip), findsNWidgets(2));
 
-        // Hover over disabled Withdraw button -> Tooltip reveals Rule.Message.
+        // Hover over disabled Withdraw button -> Tooltip reveals ButtonNode.tooltip.
         final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
         await mouse.addPointer(location: Offset.zero);
         addTearDown(mouse.removePointer);
@@ -171,6 +171,7 @@ void main() {
 
         expect(find.text('Insufficient funds (balance €30).'), findsOneWidget);
 
+        // Hover over guarded Close button -> Tooltip reveals command.args['guardReason'].
         await mouse.moveTo(tester.getCenter(find.text('Close account')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));

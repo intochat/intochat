@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:collection/collection.dart';
@@ -40,7 +40,6 @@ void _roundTrips(
 void main() {
   _roundTrips('presence.json', (j) => Presence.fromJson(j).toJson());
   _roundTrips('focus.json', (j) => Focus.fromJson(j).toJson());
-  _roundTrips('flow-view.json', (j) => FlowView.fromJson(j).toJson());
   _roundTrips('approval.json', (j) => Approval.fromJson(j).toJson());
   _roundTrips(
     'journaled-signal.json',
@@ -51,18 +50,10 @@ void main() {
     'PresenceState': PresenceState.fromWire,
     'FocusTone': FocusTone.fromWire,
     'ApprovalKind': ApprovalKind.fromWire,
-    'FlowStatus': FlowStatus.fromWire,
-    'WaitReason': WaitReason.fromWire,
-    'RelationKind': RelationKind.fromWire,
   };
   fromWires.forEach((name, fromWire) {
     test('$name.fromWire throws on an unknown value', () {
       expect(() => fromWire('Nope'), throwsFormatException);
     });
-  });
-
-  test('a malformed relation entry throws', () {
-    final json = _sample('flow-view.json')..['relations'] = ['x'];
-    expect(() => FlowView.fromJson(json), throwsFormatException);
   });
 }

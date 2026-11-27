@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Kernel;
-using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Authority;
 
@@ -13,7 +13,7 @@ public sealed class ScreenWatchPlainIdFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var compiled = new CompiledTypes([typeof(IScreen).Assembly]);
-        var surface = new OsNeuronSurface(null!, new StubBrainObserver(compiled.Entries), null!);
+        var surface = new NeuronSurface(observer: new StubBrainObserver(compiled.Entries));
 
         var engineerId = await surface.PlainId(typeof(IScreen).FullName!, "owner/app.engineer/default", ct);
         Assert.Equal(new NeuronId(new BrainId("owner"), "app.engineer", "default"), engineerId);

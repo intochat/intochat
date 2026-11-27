@@ -1,18 +1,20 @@
 using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Tests.Unit.Apps.Ino;
 
 public sealed class InoToolBudgetFacts(ITestOutputHelper output)
 {
-    private static readonly string[] ContractPrefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
+    private static readonly IContractAssemblySource ContractAssemblies = new ModuleInventory(OperatingSystemModules.Modules);
 
     internal static ToolSchema[] InoTools() =>
     [
         .. InoAgentDefinition.For(new UserSettingsState()).Contracts
-            .Select(static name => LoadedContracts.Find(name, ContractPrefixes))
+            .Select(static name => LoadedContracts.Find(name, ContractAssemblies))
             .SelectMany(ToolSchemas.Of),
     ];
 
@@ -20,7 +22,7 @@ public sealed class InoToolBudgetFacts(ITestOutputHelper output)
     public void EveryInoContractHasTools() =>
         Assert.All(
             InoAgentDefinition.For(new()).Contracts,
-            c => Assert.NotEmpty(ToolSchemas.Of(LoadedContracts.Find(c, ContractPrefixes))));
+            c => Assert.NotEmpty(ToolSchemas.Of(LoadedContracts.Find(c, ContractAssemblies))));
 
     [Fact]
     public void InoToolNamesAreUniqueAndShort() =>

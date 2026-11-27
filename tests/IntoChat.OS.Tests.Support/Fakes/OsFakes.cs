@@ -8,9 +8,9 @@ using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Testing;
 using IntoChat.OS.Host.Kernel;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
@@ -163,17 +163,20 @@ public static class OsFakes
                 services.RemoveAll<IBrainObserver>();
                 services.AddSingleton<IBrainObserver, CompiledBrainObserver>();
                 services.RemoveAll<NeuronTypeSearch>();
+                services.RemoveAll<INeuronContractSearch>();
                 services.AddSingleton(sp => new NeuronTypeSearch(
                     sp.GetRequiredService<IBrainObserver>(),
                     [],
                     embeddings: null,
                     callers: sp.GetService<ICallerAmbient>()));
-                services.RemoveAll<OsNeuronSurface>();
-                services.AddSingleton(sp => new OsNeuronSurface(
+                services.AddSingleton<INeuronContractSearch>(sp => sp.GetRequiredService<NeuronTypeSearch>());
+                services.RemoveAll<NeuronSurface>();
+                services.AddSingleton(sp => new NeuronSurface(
                     sp.GetRequiredService<INeuronProxies>(),
                     sp.GetRequiredService<IBrainObserver>(),
-                    sp.GetRequiredService<NeuronTypeSearch>(),
-                    plain: sp));
+                    sp.GetRequiredService<INeuronContractSearch>(),
+                    sp.GetService<IContractAssemblySource>(),
+                    sp.GetService<ICallerAmbient>()));
             })
             .Add<LlmScript, LlmScript>(script)
             .Add<IChatClient, ScriptedChatClient>(client)

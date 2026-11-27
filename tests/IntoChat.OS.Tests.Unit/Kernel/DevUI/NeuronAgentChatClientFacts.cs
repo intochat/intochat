@@ -119,7 +119,7 @@ public sealed class NeuronAgentChatClientFacts
         var sc = new ServiceCollection();
         sc.AddSingleton<ISecretRedactor, NoSecrets>();
         sc.AddSingleton<IAiCredentials, NoProviders>();
-        sc.AddSingleton(new IntoChat.OS.Host.Surface.OsNeuronSurface(null!, null!, null!));
+        sc.AddSingleton(new DigitalBrain.Runtime.Http.Surface.NeuronSurface());
         sc.AddSingleton<IChatClient>(new StubChatClient("Hello from conversation."));
         sc.AddOptions<AIOptions>();
         sc.AddSingleton<ModelCatalog>();
@@ -175,7 +175,7 @@ public sealed class NeuronAgentChatClientFacts
         var sc = new ServiceCollection();
         sc.AddSingleton<ISecretRedactor, NoSecrets>();
         sc.AddSingleton<IAiCredentials, NoProviders>();
-        sc.AddSingleton(new IntoChat.OS.Host.Surface.OsNeuronSurface(null!, null!, null!));
+        sc.AddSingleton(new DigitalBrain.Runtime.Http.Surface.NeuronSurface());
         sc.AddSingleton<IChatClient>(new StubChatClient("one ", "two ", "three"));
         sc.AddOptions<AIOptions>();
         sc.AddSingleton<ModelCatalog>();

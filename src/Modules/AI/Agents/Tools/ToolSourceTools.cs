@@ -20,10 +20,9 @@ internal static class ToolSourceTools
     public const string ToolSourceContract = "IntoChat.OS.Modules.Tools.IToolSource";
     private const int MaxToolNameLength = 64;
     private const int MaxDescriptionLength = 1_000;
-    private static readonly string[] ContractAssemblyPrefixes = ContractAssemblies.PrefixArray();
 
     public static Task<IReadOnlyList<AIFunction>> For(
-        OsNeuronSurface surface,
+        NeuronSurface surface,
         IReadOnlyList<Type> contracts,
         EdgeAuthority? edge,
         string conversation,
@@ -45,7 +44,7 @@ internal static class ToolSourceTools
     /// without exposing any contract methods or discovery meta-tools.
     /// </summary>
     public static async Task<IReadOnlyList<AIFunction>> ForKeys(
-        OsNeuronSurface surface,
+        NeuronSurface surface,
         IReadOnlyList<string> sourceKeys,
         EdgeAuthority? edge,
         string conversation,
@@ -67,7 +66,7 @@ internal static class ToolSourceTools
             Type type;
             try
             {
-                type = LoadedContracts.Find(name, ContractAssemblyPrefixes);
+                type = surface.FindContract(name);
             }
             catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
             {
@@ -204,7 +203,7 @@ internal static class ToolSourceTools
     }
 
     private static async Task<Dictionary<string, string>> IndexToolSourceKeysAsync(
-        OsNeuronSurface surface,
+        NeuronSurface surface,
         List<Type> toolSourceTypes,
         CancellationToken ct)
     {

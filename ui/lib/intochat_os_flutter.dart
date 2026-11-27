@@ -1,14 +1,11 @@
 export 'src/core/basic_credentials.dart';
 export 'src/core/host_environment.dart';
-export 'src/core/models/app_manifest.dart';
 export 'src/core/models/installed_app.dart';
 export 'src/core/models/cluster.dart';
-export 'src/core/models/marketplace.dart';
-export 'src/core/models/brain_models.dart';
 export 'src/core/models/compute_usage.dart';
 export 'src/core/models/approval_models.dart';
-export 'src/core/models/flow_models.dart';
 export 'src/core/models/journal_models.dart';
+export 'src/core/models/notification_models.dart';
 export 'src/core/models/presence_models.dart';
 export 'src/core/models/scene_models.dart';
 export 'src/core/models/table_models.dart';

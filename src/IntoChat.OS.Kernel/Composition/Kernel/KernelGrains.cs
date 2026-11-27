@@ -103,7 +103,7 @@ internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, IC
     // never forwards an invocation or turns an external caller into a trusted call from a kernel grain.
     public Task<string?> HostType(string type)
         => Task.FromResult(compiled.Entries.Any(entry =>
-            (entry.Kind == TypeKind.Neuron && DigitalBrain.Contracts.PlainNeuronContracts.TypeOf(compiled.Contract(entry.Name)) == type)
+            (entry.Kind == TypeKind.Neuron && (entry.Alias == type || DigitalBrain.Contracts.PlainNeuronContracts.TypeOf(compiled.Contract(entry.Name)) == type))
             || (entry.Kind == TypeKind.Connector && entry.Alias == type))
             ? KernelInvocationSink.HostTypeOfLoaded(type) : null);
 }

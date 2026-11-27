@@ -14,7 +14,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Http;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Integrations;
 
@@ -173,7 +172,7 @@ internal static class BrainCall
         string brainId,
         string? contract,
         string? key,
-        OsNeuronSurface? surface,
+        NeuronSurface? surface,
         CancellationToken ct)
     {
         var isGuest = GuestSurface.Is(caller);

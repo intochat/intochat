@@ -54,9 +54,9 @@ void main() {
           seenHeaders['${request.method} ${request.url.path}'] = Map.of(
             request.headers,
           );
-          if (request.url.path.endsWith('/brain/events')) {
+          if (request.url.path.endsWith('/journal/tail')) {
             final bytes = utf8.encode(
-              'event: brain-snapshot\ndata: {"rootId":"local","observedAt":"2026-11-14T12:00:00Z","nodes":[],"synapses":[]}\n\n',
+              'event: journaled-signal\ndata: {"signals":[{"seq":1,"publisher":"local/ctr/default","alias":"ctr.bump","at":"2026-11-14T12:00:00Z"}]}\n\n',
             );
             return http.StreamedResponse(Stream.value(bytes), 200);
           }
@@ -80,15 +80,15 @@ void main() {
         addTearDown(client.close);
 
         await client.readSession();
-        final snapshot = await client.watchBrain(brainId: 'local').first;
-        expect(snapshot.nodes, isEmpty);
+        final batch = await client.watchJournal('local').first;
+        expect(batch.single.seq, 1);
 
         expect(
           seenHeaders['GET /identity/session']?['X-IntoChat-Presence'],
           'secret-presence-proof',
         );
         expect(
-          seenHeaders['GET /brains/local/brain/events']?['X-IntoChat-Presence'],
+          seenHeaders['GET /brains/local/journal/tail']?['X-IntoChat-Presence'],
           'secret-presence-proof',
         );
       },

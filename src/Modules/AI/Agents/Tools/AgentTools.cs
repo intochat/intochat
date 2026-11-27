@@ -3,7 +3,7 @@ using DigitalBrain.Access;
 using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Host.Surface;
+using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Agents.Tools;
@@ -14,7 +14,7 @@ internal static class AgentTools
 {
     public const string SearchName = NeuronSurfaceTools.SearchName;
 
-    public static IReadOnlyList<AIFunction> Meta(EdgeAuthority? edge, OsNeuronSurface surface, string conversation) =>
+    public static IReadOnlyList<AIFunction> Meta(EdgeAuthority? edge, NeuronSurface surface, string conversation) =>
     [
         AIFunctionFactory.Create(
             ([Description("What you want to do.")] string query, CancellationToken ct) =>
@@ -32,7 +32,7 @@ internal static class AgentTools
             NeuronSurfaceTools.ContextDescription),
     ];
 
-    public static IReadOnlyList<ContractTool> For(EdgeAuthority? edge, OsNeuronSurface surface, IReadOnlyList<Type> contracts, string conversation)
+    public static IReadOnlyList<ContractTool> For(EdgeAuthority? edge, NeuronSurface surface, IReadOnlyList<Type> contracts, string conversation)
     {
         var tools = new List<ContractTool>();
         foreach (var contract in contracts)

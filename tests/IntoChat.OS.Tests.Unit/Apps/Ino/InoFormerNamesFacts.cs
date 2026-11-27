@@ -1,7 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
@@ -13,9 +15,11 @@ namespace IntoChat.OS.Tests.Unit.Apps.Ino;
 
 public sealed class InoFormerNamesFacts
 {
+    private static readonly IContractAssemblySource Assemblies = new ModuleInventory(OperatingSystemModules.Modules);
+
     [Fact]
     public void AFormerFullNameFindsTheRenamedContract() =>
-        Assert.Equal(typeof(IFiles), LoadedContracts.Find("IntoChat.OS.Modules.Apps.IInoFiles", ["IntoChat.OS"]));
+        Assert.Equal(typeof(IFiles), LoadedContracts.Find("IntoChat.OS.Modules.Apps.IInoFiles", Assemblies));
 
     [Fact]
     public void AFormerWireAliasFindsTheRenamedContract() =>

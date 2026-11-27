@@ -1,10 +1,11 @@
 using System.Reflection;
 using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.OS.Host.Modules;
 
 // The modules selected for this host, available to modules without coupling hosting to their consumers.
-public sealed class ModuleInventory
+public sealed class ModuleInventory : IContractAssemblySource
 {
     public ModuleInventory(IEnumerable<OsModule> modules, IReadOnlyList<ModuleStatus>? statuses = null)
     {

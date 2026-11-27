@@ -20,6 +20,7 @@ public static class ConnectionsHosting
         services.TryAddSingleton<ISecretRedactor, SecretRedactor>();
         services.TryAddSingleton<IConnectionBindings, NoConnectionBindings>();
         services.TryAddSingleton(NeuronTypeSearch.Create);
+        services.TryAddSingleton<DigitalBrain.Runtime.Http.Surface.INeuronContractSearch>(sp => sp.GetRequiredService<NeuronTypeSearch>());
         return services;
     }
 

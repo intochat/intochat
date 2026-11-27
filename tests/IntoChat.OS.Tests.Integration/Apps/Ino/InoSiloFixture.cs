@@ -50,8 +50,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans;
 using IntoChat.OS.Host.Configuration;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Kernel;
-using IntoChat.OS.Host.Surface;
+using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Kernel.Platform;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Ports;
@@ -345,12 +346,15 @@ public sealed class InoSiloFixture : IAsyncLifetime
                 services.AddNeuronProxies();
                 services.RemoveAll<IBrainObserver>();
                 services.AddSingleton<IBrainObserver>(_observer);
-                services.RemoveAll<OsNeuronSurface>();
-                services.AddSingleton(sp => new OsNeuronSurface(
+                services.RemoveAll<IContractAssemblySource>();
+                services.AddSingleton<IContractAssemblySource>(_observer);
+                services.RemoveAll<NeuronSurface>();
+                services.AddSingleton(sp => new NeuronSurface(
                     sp.GetRequiredService<INeuronProxies>(),
                     sp.GetRequiredService<IBrainObserver>(),
                     sp.GetRequiredService<NeuronTypeSearch>(),
-                    plain: sp));
+                    sp.GetService<IContractAssemblySource>(),
+                    sp.GetService<ICallerAmbient>()));
                 services.AddOperatingSystemApps();
 
                 foreach (var d in services.Where(d => d.ImplementationType?.Name is "FeatureBootLifecycle").ToList())
@@ -427,16 +431,21 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public void ObserveInstance(string type, string key) => _observer.Record(type, key);
 
-    private sealed class CompiledBrainObserver : IBrainObserver
+    private sealed class CompiledBrainObserver : IBrainObserver, IContractAssemblySource
     {
         private readonly ConcurrentQueue<BrainInstance> _recorded = new();
-        private static readonly BrainType[] HostedTypes = new CompiledTypes(
+        private static readonly System.Reflection.Assembly[] HostedAssemblies =
         [
             typeof(IMemory).Assembly,
             typeof(IUserSettings).Assembly,
             typeof(IAspire).Assembly,
             typeof(InoWiringTestModule).Assembly,
-        ]).Entries;
+        ];
+        private static readonly System.Reflection.Assembly[] AllowedAssemblies =
+            [.. new ModuleInventory(OperatingSystemModules.Modules).ContractAssemblies().Concat(HostedAssemblies).Distinct()];
+        private static readonly BrainType[] HostedTypes = new CompiledTypes(HostedAssemblies).Entries;
+
+        public IReadOnlyList<System.Reflection.Assembly> ContractAssemblies() => AllowedAssemblies;
 
         public void Record(string type, string key)
             => _recorded.Enqueue(new BrainInstance(type, key, DateTimeOffset.UtcNow, "test"));

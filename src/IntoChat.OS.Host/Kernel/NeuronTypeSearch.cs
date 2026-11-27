@@ -2,6 +2,7 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Kernel;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Host.Logging;
@@ -19,7 +20,7 @@ public sealed class NeuronTypeSearch(
     IEnumerable<IRuntimeCapabilitySource> live,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings,
     ILogger<NeuronTypeSearch>? logger = null,
-    DigitalBrain.Access.ICallerAmbient? callers = null) : IDisposable
+    DigitalBrain.Access.ICallerAmbient? callers = null) : INeuronContractSearch, IDisposable
 {
     private const int MaxTake = 100;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -47,6 +48,9 @@ public sealed class NeuronTypeSearch(
 
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken ct = default)
         => await Search(query, await Capabilities(ct).ConfigureAwait(false), take, ct).ConfigureAwait(false);
+
+    Task<IReadOnlyList<NeuronTypeHit>> INeuronContractSearch.Search(string query, IReadOnlyList<NeuronType> entries, int take, CancellationToken ct)
+        => Search(query, entries, take, ct, queryVector: null);
 
     // queryVector is the query already embedded by the same generator, for a caller that ranks more than one corpus by it.
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, IReadOnlyList<NeuronType> entries, int take = 10, CancellationToken ct = default,

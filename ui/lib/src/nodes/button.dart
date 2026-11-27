@@ -6,22 +6,9 @@ import '../primitives/style.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
-const _guardArgKeys = [
-  'tooltip',
-  'disabledReason',
-  'guardReason',
-  '__guard',
-  '_guard',
-  'reason',
-  'hint',
-  'subtitle',
-];
+const _guardArgKeys = ['guardReason', 'tooltip'];
 
-String? _resolveButtonHint(ButtonNode node, NodeContext ctx) {
-  final fromView = ctx.buttonHints[node.key];
-  if (fromView != null && fromView.trim().isNotEmpty) {
-    return fromView.trim();
-  }
+String? _resolveButtonHint(ButtonNode node) {
   final tooltip = node.tooltip;
   if (tooltip != null && tooltip.trim().isNotEmpty) {
     return tooltip.trim();
@@ -40,8 +27,7 @@ String? _resolveButtonHint(ButtonNode node, NodeContext ctx) {
 
 /// A button sends its command through [pressCommand], or performs its
 /// client-local intent. A refusal is shown by the host. When guarded
-/// (`.Guard(rule)`) or carrying a tooltip, hint or reason, renders a
-/// `DESIGN.md` §10.8 [Tooltip].
+/// (`.Guard(rule)`) or carrying a tooltip, renders a `DESIGN.md` §10.8 [Tooltip].
 ///
 /// Supports both legacy string presets (`"primary"`, `"secondary"`, `"ghost"`,
 /// `"danger"`, `"link"`) via [UiKitButton] and structured C# `Mix.Style()` JSON
@@ -60,7 +46,7 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
                   intent: node.intent,
                 )
               : null;
-          final tooltip = _resolveButtonHint(node, ctx);
+          final tooltip = _resolveButtonHint(node);
           final rawStyle = node.style;
           final structuredStyle = rawStyle is Map
               ? UiStyleData.fromWire(rawStyle)

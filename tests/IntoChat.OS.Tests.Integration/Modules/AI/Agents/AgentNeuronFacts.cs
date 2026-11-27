@@ -14,7 +14,7 @@ using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Capabilities.Secrets;
-using IntoChat.OS.Host.Surface;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -118,7 +118,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(StubChatClient.Replying("Here is a joke and token sk_live_topsecret999!"));
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(new NeuronSurface());
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretValueSource>(sp => new ZeroTokenGuardedSecretSource(sp.GetRequiredService<ICallerAmbient>(), "sk_live_topsecret999"));
             services.AddSingleton<ISecretRedactor, SecretRedactor>();
@@ -166,7 +166,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(StubChatClient.StreamingOnly(Stream));
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(new NeuronSurface());
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretValueSource>(sp => new ZeroTokenGuardedSecretSource(sp.GetRequiredService<ICallerAmbient>(), "sk_live_topsecret999"));
             services.AddSingleton<ISecretRedactor, SecretRedactor>();
@@ -197,7 +197,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         {
             services.AddSingleton<IChatClient>(client);
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(new NeuronSurface());
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

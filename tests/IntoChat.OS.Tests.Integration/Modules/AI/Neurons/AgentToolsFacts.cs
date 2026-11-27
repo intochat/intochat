@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Apps.Tests.Integration.Ino;
-using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.Apps.Runs;
@@ -91,7 +91,7 @@ public sealed class AgentToolsFacts(InoSiloFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         var brain = fixture.NewBrain("namedargs");
         using var _ = fixture.AsPerson(brain);
-        var surface = fixture.Services.GetRequiredService<OsNeuronSurface>();
+        var surface = fixture.Services.GetRequiredService<NeuronSurface>();
         var contract = typeof(IRuns).FullName!;
         var key = $"{brain}/runs/index";
 
