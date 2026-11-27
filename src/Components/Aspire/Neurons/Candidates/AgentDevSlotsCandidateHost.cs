@@ -537,9 +537,8 @@ internal sealed partial class AgentDevSlotsCandidateHost : ICandidateHost, IAsyn
         // Apply only explicit CandidateSecrets (AI model keys).
         foreach (var (key, value) in modelSecrets)
         {
-            if (string.Equals(key, IntoChatOSNames.MasterKeyEnvironmentVariable, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, PresenceProof.TokenHashEnvironmentVariable, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, "INTOCHAT_PRESENCE_TOKEN", StringComparison.OrdinalIgnoreCase))
+            if (ChildEnvironmentPolicy.IsHostCustodySecret(key)
+                || string.Equals(key, PresenceProof.TokenHashEnvironmentVariable, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

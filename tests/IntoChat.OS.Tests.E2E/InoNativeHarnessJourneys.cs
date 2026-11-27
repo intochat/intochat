@@ -4,7 +4,7 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
-using IntoChat.OS.Apps.Engineer;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -143,7 +143,7 @@ public sealed class InoNativeHarnessJourneys
         os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
-        os.Register(typeof(EngineerApp).Assembly);
+        os.Register(typeof(CreatorApp).Assembly);
 
         // 1. Seed IWorkingMemory with SOUL, USER, and a lazy-loaded PROJECT brief for 'os'.
         var workingMemory = os.Get<IWorkingMemory>(IWorkingMemory.NeuronIdOf(brain));
@@ -374,7 +374,7 @@ public sealed class InoNativeHarnessJourneys
         os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
-        os.Register(typeof(EngineerApp).Assembly);
+        os.Register(typeof(CreatorApp).Assembly);
 
         // Seed repo:os brief in IWorkingMemory so EngineerPlanner hydrates both CodeGraph + WorkingMemory before planning!
         var workingMemory = os.Get<IWorkingMemory>(IWorkingMemory.NeuronIdOf(brain));

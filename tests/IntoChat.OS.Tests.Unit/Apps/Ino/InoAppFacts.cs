@@ -317,7 +317,7 @@ public sealed class InoAppFacts
         var desktopInstalled = await os.Install<DesktopApp>();
         await desktopInstalled.Request("start");
         Assert.Contains("ino", desktopInstalled.App.State.PinnedApps);
-        Assert.Contains("creator", desktopInstalled.App.State.PinnedApps);
+        Assert.DoesNotContain("creator", desktopInstalled.App.State.PinnedApps);
         await desktopInstalled.Request("pin", new DesktopPinApp("photocraft", true));
         Assert.Contains("photocraft", desktopInstalled.App.State.PinnedApps);
         await desktopInstalled.Request("auto-arrange", new DesktopAutoArrange());

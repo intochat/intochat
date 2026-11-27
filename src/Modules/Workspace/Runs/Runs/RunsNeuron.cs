@@ -2,7 +2,6 @@ using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Workflows;
 using IntoChat.OS.Modules.Apps.AppRuns;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Runs;
@@ -15,7 +14,7 @@ internal sealed class RunsNeuron : DigitalBrain.Neurons.Neuron<RunsState>, IRuns
     protected override async Task OnActivate(CancellationToken cancellationToken)
         => await Context.Wires.EnsureBrainWide(typeof(TurnStarted), typeof(TurnCompleted), typeof(TurnFailed),
             typeof(OperationStarted), typeof(OperationAwaitingApproval), typeof(OperationDone),
-            typeof(WorkflowRunStarted), typeof(WorkflowRunWaiting), typeof(WorkflowRunDone), typeof(CodeBlockRunStarted), typeof(CodeBlockRunWaiting), typeof(CodeBlockRunDone),
+            typeof(WorkflowRunStarted), typeof(WorkflowRunWaiting), typeof(WorkflowRunDone),
             typeof(AppRunStarted), typeof(AppRunDone));
 
     public async Task<RunView[]> List(int limit = 50)
@@ -33,9 +32,6 @@ internal sealed class RunsNeuron : DigitalBrain.Neurons.Neuron<RunsState>, IRuns
     [DigitalBrain.Neurons.On] public Task On(WorkflowRunStarted signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(WorkflowRunWaiting signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(WorkflowRunDone signal) => Fold(signal);
-    [DigitalBrain.Neurons.On] public Task On(CodeBlockRunStarted signal) => Fold(signal);
-    [DigitalBrain.Neurons.On] public Task On(CodeBlockRunWaiting signal) => Fold(signal);
-    [DigitalBrain.Neurons.On] public Task On(CodeBlockRunDone signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(AppRunStarted signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(AppRunDone signal) => Fold(signal);
 

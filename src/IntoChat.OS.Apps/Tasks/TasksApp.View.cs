@@ -48,7 +48,7 @@ public sealed partial class TasksApp
             ? string.Create(CultureInfo.InvariantCulture, $"{repo}#{issueNumber}")
             : repo;
         return AppSignals.OpenApp(
-            "engineer",
+            "tasks",
             new StudioNavArgs(
                 TargetId: targetId,
                 Lens: "plan",
@@ -222,11 +222,11 @@ public sealed partial class TasksApp
                 .Small()
                 .Style(s => s.Elevation(UiElevation.Raised).Motion(UiMotion.Spring))
                 .Sends(new TasksAddTask()),
-            new Button("tasks:open-engineer", "Engineer ↗", Intent: AppSignals.OpenApp("engineer", state.SelectedFlowId))
+            new Button("tasks:open-ino", "Ino ↗", Intent: AppSignals.OpenApp("ino", state.SelectedFlowId))
             {
                 Small = true,
                 Icon = Icons.Sparkles,
-                AutomationName = "Open Engineer",
+                AutomationName = "Open Ino",
                 Style = OsMixStyles.LinkAction(),
             },
             new Button("tasks:open-creator", "Creator ↗", Intent: AppSignals.OpenApp("creator", state.SelectedFlowId))

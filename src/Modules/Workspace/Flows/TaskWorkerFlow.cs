@@ -5,7 +5,6 @@ using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Tasks;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Web;
@@ -68,7 +67,7 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
         typeof(IRepository).FullName!,
         typeof(IWebSearch).FullName!,
         typeof(IWebRead).FullName!,
-        typeof(ICodeBlockRun).FullName!,
+        typeof(ICodeOrchestration).FullName!,
     ];
 
     private static readonly HashSet<string> AllowedContracts = new(DefaultContracts, StringComparer.Ordinal);

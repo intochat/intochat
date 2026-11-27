@@ -3,7 +3,7 @@ using DigitalBrain;
 using Grpc.Core;
 using IntoChat.OS.Modules.AI.Workflows;
 using IntoChat.OS.Modules.Apps.AppRuns;
-using IntoChat.OS.Modules.Apps.CodeBlocks;
+using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Runs;
 
 namespace IntoChat.OS.Cli;
@@ -79,10 +79,10 @@ public static class CliCommands
                 var reason = new { reason = options.Arguments.ElementAtOrDefault(1) ?? "Cancelled from the command line." };
                 string? outcome = runId.StartsWith("workflows/", StringComparison.Ordinal)
                     ? (await edge.Call<WorkflowRunView>(typeof(IWorkflowRun), new NeuronId(new BrainId(brain), "workflow.run", runId).FullKey(), nameof(IWorkflowRun.Cancel), reason))?.Status.ToString()
-                    : runId.StartsWith("codeblocks/", StringComparison.Ordinal)
-                        ? (await edge.Call<CodeBlockRunView>(typeof(ICodeBlockRun), new NeuronId(new BrainId(brain), "codeblock.run", runId).FullKey(), nameof(ICodeBlockRun.Cancel), reason))?.Status.ToString()
+                    : runId.StartsWith("code-orchestration/", StringComparison.Ordinal)
+                        ? (await edge.Call<CodeOrchestrationView>(typeof(ICodeOrchestration), new NeuronId(new BrainId(brain), "flow.code-orchestration", runId).FullKey(), nameof(ICodeOrchestration.CancelAsync), reason))?.Status.ToString()
                         : null;
-                await output.WriteLineAsync(outcome is null ? $"No cancellable run {runId}: workflows/ and codeblocks/ runs can be cancelled." : $"{outcome} {runId}");
+                await output.WriteLineAsync(outcome is null ? $"No cancellable run {runId}: workflows/ and code-orchestration/ runs can be cancelled." : $"{outcome} {runId}");
                 return outcome is null ? 1 : 0;
             default:
                 return await Fail(error, $"{options.Verb}: missing arguments.", 2);

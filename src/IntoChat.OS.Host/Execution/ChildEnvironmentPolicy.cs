@@ -14,10 +14,33 @@ public static class ChildEnvironmentPolicy
         "IntoChatOS__MasterKey",
         "INTOCHATOS_MASTER_KEY",
         "INTOCHAT_PRESENCE_TOKEN",
+        "INTOCHAT_PRESENCE_TOKEN_HASH",
         "IntoChatOS__Security__PresenceTokenHash",
         "IntoChatOS__Security__PresenceTokenFile",
         "IntoChatOS__Authority__PresenceToken",
     ];
+
+    /// <summary>
+    /// Returns true when an environment variable name is a host custody master key or presence proof secret
+    /// that must never be forwarded from host secrets into isolated candidate processes or containers.
+    /// </summary>
+    public static bool IsHostCustodySecret(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return true;
+        }
+
+        foreach (var exact in ExactBlockedNames)
+        {
+            if (string.Equals(name, exact, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static readonly string[] BlockedPrefixes =
     [
