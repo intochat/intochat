@@ -14,8 +14,13 @@ internal sealed class DeviceLinkCredentialsProvider(
     public async ValueTask<bool> TryAuthorizeRequestAsync(HttpRequestMessage request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.RequestUri is null || !HasMatchingOrigin(request.RequestUri, credentials.TryReadServerUri()))
+        {
+            return false;
+        }
+
         var secrets = await cloud.TryGetFreshSecretsAsync(forceRefresh: false, ct).ConfigureAwait(false);
-        if (secrets is null)
+        if (secrets is null || !HasMatchingOrigin(request.RequestUri, secrets.Server))
         {
             return false;
         }
@@ -30,8 +35,13 @@ internal sealed class DeviceLinkCredentialsProvider(
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(httpStreamUri);
+        if (!HasMatchingOrigin(httpStreamUri, credentials.TryReadServerUri()))
+        {
+            return null;
+        }
+
         var secrets = await cloud.TryGetFreshSecretsAsync(forceRefresh, ct).ConfigureAwait(false);
-        if (secrets is null)
+        if (secrets is null || !HasMatchingOrigin(httpStreamUri, secrets.Server))
         {
             return null;
         }
@@ -40,5 +50,18 @@ internal sealed class DeviceLinkCredentialsProvider(
         key.ImportPkcs8PrivateKey(secrets.PrivateKeyPkcs8, out _);
         var proof = MachineProof.Sign(key, "GET", httpStreamUri, secrets.AccessToken, clock.GetUtcNow());
         return new DeviceStreamCredentials(secrets.AccessToken, proof, secrets.AccessExpiresAt);
+    }
+
+    internal static bool HasMatchingOrigin(Uri? targetUri, Uri? serverUri)
+    {
+        if (targetUri is null || serverUri is null || !targetUri.IsAbsoluteUri || !serverUri.IsAbsoluteUri)
+        {
+            return false;
+        }
+
+        return targetUri.Port > 0
+            && string.Equals(targetUri.Scheme, serverUri.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(targetUri.IdnHost, serverUri.IdnHost, StringComparison.OrdinalIgnoreCase)
+            && targetUri.Port == serverUri.Port;
     }
 }

@@ -8,6 +8,7 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Kernel.Platform;
 using IntoChat.OS.Modules.Devices.Link;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -247,6 +248,239 @@ public sealed class BrainRelayAutoBindFacts
             Assert.False(opts.EnablePollLoop);
             Assert.False(relayProvider.IsConfigured);
             Assert.Null(relayProvider.TryGetClient());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    private sealed class StubServiceAssertionSigner(bool isConfigured, Uri? serviceUri) : IServiceAssertionSigner
+    {
+        public bool IsConfigured => isConfigured;
+        public Uri? ServiceUri => serviceUri;
+
+        public string Sign(string brainId, string purpose, string method, string pathAndQuery, ReadOnlySpan<byte> body)
+            => $"signed-{brainId}-{purpose}";
+    }
+
+    [Fact]
+    public async Task ServiceAssertionSignerPreventsLinkBinPostConfigureFromOverwritingRelayBaseUri()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 15, 0, 0, TimeSpan.Zero));
+        var linkBinUri = new Uri("https://linkbin.intochat.test");
+        var serviceUri = new Uri("https://service.intochat.test");
+        var (creds, _, tempDir) = await CreateLinkedCredentialsAsync(
+            linkBinUri,
+            "linkbin-secret-token",
+            clock.GetUtcNow().AddHours(1),
+            ct);
+
+        try
+        {
+            Uri? capturedUri = null;
+            string? capturedAuth = null;
+            var handler = new CapturingHttpHandler((req, _) =>
+            {
+                capturedUri = req.RequestUri;
+                capturedAuth = req.Headers.Authorization?.ToString();
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            });
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["IntoChatOS:BrainRelay:LocalBrainId"] = "brain-cloud-1",
+                })
+                .Build();
+
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSingleton<IConfiguration>(config);
+            services.AddSingleton<TimeProvider>(clock);
+            services.AddSingleton<IServiceAssertionSigner>(new StubServiceAssertionSigner(true, serviceUri));
+            services.AddSingleton(creds);
+            services.AddSingleton(new CloudClient(new HttpClient(handler), creds, clock));
+            services.AddSingleton<IDeviceLinkCredentialsProvider>(sp =>
+                new DeviceLinkCredentialsProvider(creds, sp.GetRequiredService<CloudClient>(), clock));
+            services.AddKernelBrainRelayTransport();
+            services.AddHttpClient(BrainRelayTransportHosting.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => handler);
+
+            await using var provider = services.BuildServiceProvider();
+            var opts = provider.GetRequiredService<IOptions<BrainRelayOptions>>().Value;
+
+            // B3: PostConfigure MUST NOT overwrite RelayBaseUri with link.bin when IServiceAssertionSigner is configured.
+            Assert.Null(opts.RelayBaseUri);
+            Assert.False(opts.EnablePollLoop);
+
+            var relayProvider = provider.GetRequiredService<KernelBrainRelayClientProvider>();
+            Assert.True(relayProvider.IsConfigured);
+            var client = relayProvider.TryGetClient();
+            Assert.NotNull(client);
+
+            using var aliceKeys = BrainKeyPair.Generate();
+            await using var os = DigitalBrain.Testing.TestOS.Local();
+            var receiver = new BrainEnvelopeReceiver(
+                new BrainId("brain-cloud-1"),
+                aliceKeys,
+                _ => null,
+                os.Edge,
+                os.InvokeLocalAsync,
+                os.PostLocalAsync,
+                clock: clock);
+
+            await client!.PollOnceAsync(receiver, ct);
+
+            Assert.NotNull(capturedUri);
+            Assert.Equal("service.intochat.test", capturedUri!.Host);
+            Assert.Equal("Service signed-brain-cloud-1-circle-brain-relay", capturedAuth);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("https://evil.intochat.test")]
+    [InlineData("https://cloud.intochat.test:8443")]
+    [InlineData("http://cloud.intochat.test")]
+    public async Task LinkBinCredentialsAreNotAttachedToForeignOriginOnHttpOrWebSocket(string foreignBase)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 15, 0, 0, TimeSpan.Zero));
+        var linkBinUri = new Uri("https://cloud.intochat.test");
+        var foreignUri = new Uri(foreignBase);
+        const string accessToken = "desktop-secret-must-not-leak";
+        var (creds, _, tempDir) = await CreateLinkedCredentialsAsync(
+            linkBinUri,
+            accessToken,
+            clock.GetUtcNow().AddHours(1),
+            ct);
+
+        try
+        {
+            var cloudClient = new CloudClient(new HttpClient(), creds, clock);
+            var deviceProvider = new DeviceLinkCredentialsProvider(creds, cloudClient, clock);
+
+            // 1. Direct DeviceLinkCredentialsProvider HTTP & stream origin checks fail closed.
+            using var foreignReq = new HttpRequestMessage(HttpMethod.Get, new Uri(foreignUri, "/circle/v1/brains/next"));
+            Assert.False(await deviceProvider.TryAuthorizeRequestAsync(foreignReq, ct));
+            Assert.Null(foreignReq.Headers.Authorization);
+            Assert.False(foreignReq.Headers.Contains(CircleRoutes.MachineProofHeader));
+
+            var foreignStreamCreds = await deviceProvider.TryCreateStreamCredentialsAsync(
+                new Uri(foreignUri, "/circle/v1/brains/stream"),
+                forceRefresh: false,
+                ct);
+            Assert.Null(foreignStreamCreds);
+
+            // 2. End-to-end KernelBrainRelayClientProvider with explicit foreign RelayBaseUri must not leak credentials.
+            string? capturedHttpAuth = null;
+            bool capturedHttpProof = false;
+            var handler = new CapturingHttpHandler((req, _) =>
+            {
+                capturedHttpAuth = req.Headers.Authorization?.ToString();
+                capturedHttpProof = req.Headers.Contains(CircleRoutes.MachineProofHeader);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            });
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["IntoChatOS:BrainRelay:RelayBaseUri"] = foreignBase,
+                    ["IntoChatOS:BrainRelay:AutoBindDeviceCredentials"] = "true",
+                })
+                .Build();
+
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSingleton<IConfiguration>(config);
+            services.AddSingleton<TimeProvider>(clock);
+            services.AddSingleton(creds);
+            services.AddSingleton(cloudClient);
+            services.AddSingleton<IDeviceLinkCredentialsProvider>(deviceProvider);
+            services.AddKernelBrainRelayTransport();
+            services.AddHttpClient(BrainRelayTransportHosting.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => handler);
+
+            await using var provider = services.BuildServiceProvider();
+            var relayProvider = provider.GetRequiredService<KernelBrainRelayClientProvider>();
+            var client = relayProvider.TryGetClient();
+            Assert.NotNull(client);
+
+            using var aliceKeys = BrainKeyPair.Generate();
+            await using var os = DigitalBrain.Testing.TestOS.Local();
+            var receiver = new BrainEnvelopeReceiver(
+                new BrainId("alice"),
+                aliceKeys,
+                _ => null,
+                os.Edge,
+                os.InvokeLocalAsync,
+                os.PostLocalAsync,
+                clock: clock);
+
+            // HTTP path: no Bearer or MachineProof attached.
+            await client!.PollOnceAsync(receiver, ct);
+            Assert.Null(capturedHttpAuth);
+            Assert.False(capturedHttpProof);
+
+            // WebSocket upgrade + auth-refresh paths: no Bearer or MachineProof attached.
+            var wsHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            await relayProvider.AuthorizeWebSocketAsync(new Uri(foreignUri, "/circle/v1/brains/stream"), wsHeaders, ct);
+            Assert.False(wsHeaders.ContainsKey("Authorization"));
+            Assert.False(wsHeaders.ContainsKey(CircleRoutes.MachineProofHeader));
+
+            var refreshFrame = await relayProvider.CreateAuthRefreshFrameAsync(new Uri(foreignUri, "/circle/v1/brains/stream"), ct);
+            Assert.Null(refreshFrame);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LinkBinCredentialsAreAttachedWhenOriginMatchesCaseInsensitivelyWithDefaultPort()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 15, 0, 0, TimeSpan.Zero));
+        var linkBinUri = new Uri("https://cloud.intochat.test");
+        const string accessToken = "desktop-matching-origin-token";
+        var (creds, spki, tempDir) = await CreateLinkedCredentialsAsync(
+            linkBinUri,
+            accessToken,
+            clock.GetUtcNow().AddHours(1),
+            ct);
+
+        try
+        {
+            var cloudClient = new CloudClient(new HttpClient(), creds, clock);
+            var deviceProvider = new DeviceLinkCredentialsProvider(creds, cloudClient, clock);
+
+            // Case-insensitive host + explicit default port 443 matches https://cloud.intochat.test.
+            var matchingHttpUri = new Uri("https://CLOUD.INTOCHAT.TEST:443/circle/v1/brains/next");
+            using var req = new HttpRequestMessage(HttpMethod.Get, matchingHttpUri);
+            Assert.True(await deviceProvider.TryAuthorizeRequestAsync(req, ct));
+            Assert.Equal($"Bearer {accessToken}", req.Headers.Authorization?.ToString());
+            Assert.True(req.Headers.TryGetValues(CircleRoutes.MachineProofHeader, out var proofVals));
+            var verify = MachineProof.Verify(
+                spki,
+                proofVals.Single(),
+                "GET",
+                matchingHttpUri,
+                accessToken,
+                clock.GetUtcNow(),
+                new MemoryNonceCache());
+            Assert.True(verify.IsValid, $"Expected valid machine proof, got {verify.Error}.");
+
+            var matchingStreamUri = new Uri("https://CLOUD.INTOCHAT.TEST:443/circle/v1/brains/stream");
+            var streamCreds = await deviceProvider.TryCreateStreamCredentialsAsync(matchingStreamUri, forceRefresh: false, ct);
+            Assert.NotNull(streamCreds);
+            Assert.Equal(accessToken, streamCreds!.AccessToken);
+            Assert.False(string.IsNullOrWhiteSpace(streamCreds.MachineProof));
         }
         finally
         {
