@@ -225,6 +225,61 @@
       "aliases": ["IDeepSeekV41Flash", "DeepSeekV41Flash", "deepseekv41flash"]
     },
     {
+      "id": "qwen/qwen3.8-27b",
+      "member": "Qwen3827B",
+      "provider": "OpenRouter",
+      "family": "Qwen 3.8",
+      "name": "Qwen 3.8 27B",
+      "where": "Cloud",
+      "can": ["Text", "Tools", "Reasoning"],
+      "tier": "Balanced",
+      "aliases": ["IQwen3827B", "Qwen3827B", "qwen3.8-27b"]
+    },
+    {
+      "id": "z-ai/glm-5.3",
+      "member": "Glm53",
+      "provider": "OpenRouter",
+      "family": "GLM 5.3",
+      "name": "GLM 5.3",
+      "where": "Cloud",
+      "can": ["Text", "Tools", "Reasoning"],
+      "tier": "Deep",
+      "aliases": ["IGlm53", "Glm53", "glm-5.3"]
+    },
+    {
+      "id": "z-ai/glm-5.3-flash",
+      "member": "Glm53Flash",
+      "provider": "OpenRouter",
+      "family": "GLM 5.3",
+      "name": "GLM 5.3 Flash",
+      "where": "Cloud",
+      "can": ["Text", "Tools"],
+      "tier": "Fast",
+      "aliases": ["IGlm53Flash", "Glm53Flash", "glm-5.3-flash"]
+    },
+    {
+      "id": "moonshotai/kimi-k3.1-pro",
+      "member": "KimiK31Pro",
+      "provider": "OpenRouter",
+      "family": "Kimi K3.1",
+      "name": "Kimi K3.1 Pro",
+      "where": "Cloud",
+      "can": ["Text", "Tools", "Vision", "Reasoning"],
+      "tier": "Deep",
+      "aliases": ["IKimiK31Pro", "KimiK31Pro", "kimi-k3.1-pro"]
+    },
+    {
+      "id": "minimax/minimax-m3.1-flash",
+      "member": "MiniMaxM31Flash",
+      "provider": "OpenRouter",
+      "family": "MiniMax M3.1",
+      "name": "MiniMax M3.1 Flash",
+      "where": "Cloud",
+      "can": ["Text", "Tools"],
+      "tier": "Fast",
+      "aliases": ["IMiniMaxM31Flash", "MiniMaxM31Flash", "minimax-m3.1-flash"]
+    },
+    {
       "id": "gemma4:12b",
       "member": "Gemma412B",
       "provider": "Ollama",
@@ -429,6 +484,50 @@
       "tier": "Balanced",
       "aliases": ["IGptRealtime", "GptRealtime"],
       "price": { "input": 32.00, "output": 64.00, "cached": 32.00, "reasoning": 0 }
+    },
+    {
+      "id": "gemini-3.8-flash-tts",
+      "member": "Gemini38FlashTts",
+      "provider": "Google",
+      "family": "Gemini 3.8 TTS",
+      "name": "Gemini 3.8 Flash TTS",
+      "where": "Cloud",
+      "can": ["Speak"],
+      "tier": "Balanced",
+      "aliases": ["IGemini38FlashTts", "Gemini38FlashTts"]
+    },
+    {
+      "id": "gemini-3.8-flash-lite-tts",
+      "member": "Gemini38FlashLiteTts",
+      "provider": "Google",
+      "family": "Gemini 3.8 TTS",
+      "name": "Gemini 3.8 Flash Lite TTS",
+      "where": "Cloud",
+      "can": ["Speak"],
+      "tier": "Fast",
+      "aliases": ["IGemini38FlashLiteTts", "Gemini38FlashLiteTts"]
+    },
+    {
+      "id": "gemini-3.5-transcribe",
+      "member": "Gemini35Transcribe",
+      "provider": "Google",
+      "family": "Gemini 3.5 Transcribe",
+      "name": "Gemini 3.5 Transcribe",
+      "where": "Cloud",
+      "can": ["Hear"],
+      "tier": "Fast",
+      "aliases": ["IGemini35Transcribe", "Gemini35Transcribe"]
+    },
+    {
+      "id": "gemini-3.8-live",
+      "member": "Gemini38Live",
+      "provider": "Google",
+      "family": "Gemini 3.8 Live",
+      "name": "Gemini 3.8 Live",
+      "where": "Cloud",
+      "can": ["Talk"],
+      "tier": "Balanced",
+      "aliases": ["IGemini38Live", "Gemini38Live"]
     },
     {
       "id": "gpt-image-1",

@@ -375,6 +375,70 @@
                 "progress": null
               },
               {
+                "id": "qwen/qwen3.8-27b",
+                "label": "Qwen 3.8 27B",
+                "section": "cloud",
+                "icon": "provider:openrouter",
+                "abilities": [
+                  "tools",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "z-ai/glm-5.3",
+                "label": "GLM 5.3",
+                "section": "cloud",
+                "icon": "provider:openrouter",
+                "abilities": [
+                  "tools",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "z-ai/glm-5.3-flash",
+                "label": "GLM 5.3 Flash",
+                "section": "cloud",
+                "icon": "provider:openrouter",
+                "abilities": [
+                  "tools"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "moonshotai/kimi-k3.1-pro",
+                "label": "Kimi K3.1 Pro",
+                "section": "cloud",
+                "icon": "provider:openrouter",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "minimax/minimax-m3.1-flash",
+                "label": "MiniMax M3.1 Flash",
+                "section": "cloud",
+                "icon": "provider:openrouter",
+                "abilities": [
+                  "tools"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
                 "id": "gemma4:12b",
                 "label": "Gemma 4 12B",
                 "section": "local",

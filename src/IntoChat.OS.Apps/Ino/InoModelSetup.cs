@@ -70,9 +70,7 @@ internal static class InoModelSetup
             var hear = await IsRoleReadyAsync(host, catalog, ModelRole.Hear, ready);
             var speak = await IsRoleReadyAsync(host, catalog, ModelRole.Speak, ready);
             var talkBoundReady = await IsRoleReadyAsync(host, catalog, ModelRole.Talk, ready);
-            // LocalTalk requires Silero VAD, which is bundled with Kokoro82M in SherpaOnnxRuntime.
-            var localVadReady = ready.Contains(KnownModels.Kokoro82M.Id.Value);
-            return new VoiceAbilities(hear, speak, talkBoundReady || (hear && speak && localVadReady));
+            return new VoiceAbilities(hear, speak, talkBoundReady || (hear && speak));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

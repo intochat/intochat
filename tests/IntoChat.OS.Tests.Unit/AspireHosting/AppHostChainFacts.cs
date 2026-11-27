@@ -35,14 +35,14 @@ public sealed class AppHostChainFacts
                 //               .Roles(r => r.Chat(KnownModels.Gemma412B).Think(KnownModels.Gemma412B).Hear(KnownModels.WhisperLargeV3Turbo).Speak(KnownModels.Kokoro82M).Embed(KnownModels.EmbeddingGemma))
                 //               .Prefetch(KnownModels.Gemma412B, KnownModels.WhisperLargeV3Turbo, KnownModels.Kokoro82M, KnownModels.EmbeddingGemma))
                 .Cloud(c => c.AzureFoundry()
-                             .Roles(r => r.Chat(KnownModels.FoundryDeepSeekV32)
-                                          .Fast(KnownModels.FoundryDeepSeekV32)
-                                          .Think(KnownModels.FoundryDeepSeekR1)
-                                          .Hear(KnownModels.FoundryGpt4oTranscribe)
-                                          .Speak(KnownModels.FoundryGpt4oMiniTts)
-                                          .Talk(KnownModels.FoundryGptRealtime)
-                                          .Embed(KnownModels.FoundryTextEmbedding3Small)
-                                          .Image(KnownModels.FoundryGptImage1)))
+                             .Roles(r => r.Chat(KnownModels.DeepSeekV41Flash)
+                                          .Fast(KnownModels.Gpt54Nano)
+                                          .Think(KnownModels.Gpt56Sol)
+                                          .Hear(KnownModels.Gpt4oTranscribe)
+                                          .Speak(KnownModels.Gpt4oMiniTts)
+                                          .Talk(KnownModels.GptRealtime)
+                                          .Embed(KnownModels.TextEmbedding3Small)
+                                          .Image(KnownModels.GptImage1)))
                 .Web(w => w.MicrosoftLearn().Brave()))
             .WithInfrastructure(infra => infra
                 .Postgres(ResourceBacking.LocalContainer)
@@ -109,14 +109,14 @@ public sealed class AppHostChainFacts
     public async Task TheLocalKernelHearsTheCloudFoundryRolesWithoutDevice()
     {
         var env = await KernelEnvironment(Compose("local"));
-        Assert.Equal("DeepSeek-V3.2", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Chat"]);
-        Assert.Equal("DeepSeek-V3.2", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Fast"]);
-        Assert.Equal("DeepSeek-R1", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Think"]);
-        Assert.Equal("foundry/gpt-4o-transcribe", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Hear"]);
-        Assert.Equal("foundry/gpt-4o-mini-tts", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Speak"]);
-        Assert.Equal("foundry/gpt-realtime", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Talk"]);
-        Assert.Equal("foundry/text-embedding-3-small", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Embed"]);
-        Assert.Equal("foundry/gpt-image-1", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Image"]);
+        Assert.Equal("deepseek/deepseek-v4.1-flash", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Chat"]);
+        Assert.Equal("gpt-5.4-nano", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Fast"]);
+        Assert.Equal("gpt-5.6-sol", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Think"]);
+        Assert.Equal("gpt-4o-transcribe", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Hear"]);
+        Assert.Equal("gpt-4o-mini-tts", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Speak"]);
+        Assert.Equal("gpt-realtime", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Talk"]);
+        Assert.Equal("text-embedding-3-small", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Embed"]);
+        Assert.Equal("gpt-image-1", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Image"]);
         Assert.DoesNotContain(env.Keys, static k => k.StartsWith("IntoChatOS__Modules__ai__Options__Roles__Device__", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -124,8 +124,8 @@ public sealed class AppHostChainFacts
     public async Task TheCloudKernelHearsTheCloudVoiceRoles()
     {
         var env = await KernelEnvironment(Compose("cloud"));
-        Assert.Equal("foundry/gpt-4o-mini-tts", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Speak"]);
-        Assert.Equal("foundry/gpt-realtime", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Talk"]);
+        Assert.Equal("gpt-4o-mini-tts", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Speak"]);
+        Assert.Equal("gpt-realtime", env["IntoChatOS__Modules__ai__Options__Roles__Cloud__Talk"]);
         Assert.DoesNotContain(env.Keys, static k => k.StartsWith("IntoChatOS__Modules__ai__Options__Roles__Device__", StringComparison.OrdinalIgnoreCase));
     }
 

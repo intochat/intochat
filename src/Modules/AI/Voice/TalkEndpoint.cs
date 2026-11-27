@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -35,10 +36,11 @@ internal static class TalkEndpoint
     internal const int MaxBrainTurnCallsPerSession = 24;
     private const int MaxHandledToolCallsPerSession = 64;
 
-    private const string DefaultPersona =
+    internal const string DefaultPersona =
         "You are a helpful voice assistant. Keep spoken answers clear, natural, and concise. "
         + "When the user asks you to run OS tools, inspect memory, search the web, check files, or open/build apps, "
-        + "call the 'run_brain_turn' tool with their request and then speak a concise summary of the result.";
+        + "briefly acknowledge in 3 to 5 natural words (for example, \"On it, checking now...\") while calling the 'run_brain_turn' tool "
+        + "with their request, and then speak a concise summary of the result.";
 
     public static async Task Run(
         HttpContext http,
@@ -111,9 +113,12 @@ internal static class TalkEndpoint
             toolMode = ChatToolMode.Auto;
         }
 
+        var voicePersona = await VoiceSettings.ReadVoicePersonaAsync(brain, caller.Brain, ct).ConfigureAwait(false);
+
         var sessionOptions = new RealtimeSessionOptions
         {
             Model = talk.Model?.Value,
+            Voice = voicePersona,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", talk.InputRate),
             OutputAudioFormat = new RealtimeAudioFormat("audio/pcm", ClientOutputRate),
             VoiceActivityDetection = new VoiceActivityDetectionOptions
@@ -150,6 +155,7 @@ internal static class TalkEndpoint
             using var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(sessionLimitCts.Token);
             var lastAudioTimestamp = clock.GetTimestamp();
             var turnState = new TurnAccumulator();
+            var activeTools = new ActiveToolExecution();
 
             var inbound = PumpClientToSessionAsync(
                 ws,
@@ -159,6 +165,7 @@ internal static class TalkEndpoint
                 () => Volatile.Write(ref lastAudioTimestamp, clock.GetTimestamp()),
                 () => Volatile.Read(ref lastAudioTimestamp),
                 turnState,
+                activeTools,
                 logger,
                 pumpCts);
 
@@ -171,10 +178,19 @@ internal static class TalkEndpoint
                 caller.Brain.Value,
                 talk,
                 turnState,
+                activeTools,
                 logger,
                 pumpCts);
 
-            await Task.WhenAll(inbound, outbound).ConfigureAwait(false);
+            try
+            {
+                await Task.WhenAll(inbound, outbound).ConfigureAwait(false);
+            }
+            finally
+            {
+                await activeTools.CancelAndDrainAsync().ConfigureAwait(false);
+            }
+
             await CloseSafelyAsync(ws, WebSocketCloseStatus.NormalClosure, "Session ended.").ConfigureAwait(false);
         }
     }
@@ -286,6 +302,7 @@ internal static class TalkEndpoint
         Action markAudio,
         Func<long> readLastAudio,
         TurnAccumulator turnState,
+        ActiveToolExecution activeTools,
         ILogger logger,
         CancellationTokenSource pumpCts)
     {
@@ -347,6 +364,7 @@ internal static class TalkEndpoint
                             return;
 
                         case TalkInterrupt:
+                            activeTools.CancelActive();
                             turnState.Reset();
 #pragma warning disable OPENAI002 // OpenAI.Realtime cancel command forwarded to session.
                             await session.SendAsync(
@@ -385,14 +403,15 @@ internal static class TalkEndpoint
         IIntoChatOSBrains brains,
         string brainId,
         string request,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<TalkTool, CancellationToken, Task>? onToolEvent = null)
     {
         ArgumentNullException.ThrowIfNull(conversation);
         ArgumentNullException.ThrowIfNull(brains);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
 
         var watch = brains.Open(brainId);
-        using var chat = new ConversationChatClient(conversation, watch);
+        using var chat = new ConversationChatClient(conversation, watch, onToolEvent);
         var response = await chat.GetResponseAsync([new ChatMessage(ChatRole.User, request)], options: null, ct).ConfigureAwait(false);
         var text = response.Text?.Trim();
         return string.IsNullOrWhiteSpace(text) ? "Done." : text;
@@ -407,12 +426,13 @@ internal static class TalkEndpoint
         string brainId,
         TalkVoice talk,
         TurnAccumulator turnState,
+        ActiveToolExecution activeTools,
         ILogger logger,
         CancellationTokenSource pumpCts)
     {
         var turnCounter = 0;
-        var brainTurnCalls = 0;
-        var handledToolCalls = new HashSet<string>(StringComparer.Ordinal);
+        var brainTurnCalls = new BrainTurnCounter();
+        var handledToolCalls = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
         var pendingToolCalls = new List<FunctionCallContent>();
         try
         {
@@ -420,6 +440,7 @@ internal static class TalkEndpoint
             {
                 if (IsBargeInSignal(message))
                 {
+                    activeTools.CancelActive();
                     turnState.Reset();
                     pendingToolCalls.Clear();
                     await SendEventAsync(ws, sendLock, new TalkCancel(), pumpCts.Token).ConfigureAwait(false);
@@ -518,26 +539,29 @@ internal static class TalkEndpoint
 
                     if (allCalls.Count > 0)
                     {
-                        var (executedAny, updatedBrainCalls) = await HandleFunctionCallsAsync(
-                            allCalls,
-                            handledToolCalls,
-                            brainTurnCalls,
-                            ws,
-                            sendLock,
-                            session,
-                            conversation,
-                            brains,
-                            brainId,
-                            turnState,
-                            logger,
-                            pumpCts.Token).ConfigureAwait(false);
-                        brainTurnCalls = updatedBrainCalls;
-
-                        if (executedAny)
+                        var callsSnapshot = allCalls.ToArray();
+                        activeTools.Start(pumpCts.Token, async turnCt =>
                         {
-                            await session.SendAsync(new CreateResponseRealtimeClientMessage(), pumpCts.Token).ConfigureAwait(false);
-                            continue;
-                        }
+                            var executedAny = await HandleFunctionCallsAsync(
+                                callsSnapshot,
+                                handledToolCalls,
+                                brainTurnCalls,
+                                ws,
+                                sendLock,
+                                session,
+                                conversation,
+                                brains,
+                                brainId,
+                                turnState,
+                                logger,
+                                turnCt).ConfigureAwait(false);
+
+                            if (executedAny && !turnCt.IsCancellationRequested)
+                            {
+                                await session.SendAsync(new CreateResponseRealtimeClientMessage(), turnCt).ConfigureAwait(false);
+                            }
+                        }, logger);
+                        continue;
                     }
 
                     var (heard, reply, delegated) = turnState.Complete();
@@ -582,10 +606,10 @@ internal static class TalkEndpoint
         }
     }
 
-    private static async Task<(bool ExecutedAny, int BrainTurnCalls)> HandleFunctionCallsAsync(
+    private static async Task<bool> HandleFunctionCallsAsync(
         IEnumerable<FunctionCallContent> calls,
-        HashSet<string> handledCallIds,
-        int brainTurnCalls,
+        ConcurrentDictionary<string, byte> handledCallIds,
+        BrainTurnCounter brainTurnCalls,
         WebSocket ws,
         SemaphoreSlim sendLock,
         IRealtimeClientSession session,
@@ -599,15 +623,16 @@ internal static class TalkEndpoint
         var executedAny = false;
         foreach (var call in calls)
         {
+            ct.ThrowIfCancellationRequested();
             var callId = string.IsNullOrWhiteSpace(call.CallId) ? Guid.NewGuid().ToString("N") : call.CallId;
-            if (handledCallIds.Contains(callId))
+            if (handledCallIds.ContainsKey(callId))
             {
                 continue;
             }
 
-            if (handledCallIds.Count < MaxHandledToolCallsPerSession)
+            if (handledCallIds.Count < MaxHandledToolCallsPerSession && !handledCallIds.TryAdd(callId, 0))
             {
-                handledCallIds.Add(callId);
+                continue;
             }
 
             executedAny = true;
@@ -616,13 +641,12 @@ internal static class TalkEndpoint
             string resultText;
             if (string.Equals(call.Name, BrainTurnToolName, StringComparison.OrdinalIgnoreCase))
             {
-                if (brainTurnCalls >= MaxBrainTurnCallsPerSession)
+                if (!brainTurnCalls.TryReserve(MaxBrainTurnCallsPerSession))
                 {
                     resultText = "Voice session tool call limit reached. Ask the user to start a new voice session or continue in text chat.";
                 }
                 else
                 {
-                    brainTurnCalls++;
                     var request = ExtractToolRequest(call, turnState.PeekHeard());
                     if (string.IsNullOrWhiteSpace(request))
                     {
@@ -633,9 +657,19 @@ internal static class TalkEndpoint
                         try
                         {
                             turnState.MarkDelegatedToBrain();
-                            resultText = await ExecuteBrainTurnAsync(conversation, brains, brainId, request, ct).ConfigureAwait(false);
+                            resultText = await ExecuteBrainTurnAsync(
+                                conversation,
+                                brains,
+                                brainId,
+                                request,
+                                ct,
+                                onToolEvent: (tool, token) => SendEventAsync(ws, sendLock, tool, token)).ConfigureAwait(false);
                         }
-                        catch (Exception error) when (error is not OperationCanceledException)
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception error)
                         {
                             logger.LogSwallowed(error, "executing run_brain_turn from realtime voice session");
                             resultText = "I could not complete that action right now.";
@@ -648,13 +682,14 @@ internal static class TalkEndpoint
                 resultText = $"Tool '{call.Name}' is not available in voice mode. Use '{BrainTurnToolName}' to delegate OS actions.";
             }
 
+            ct.ThrowIfCancellationRequested();
             await session.SendAsync(
                 new CreateConversationItemRealtimeClientMessage(
                     new RealtimeConversationItem([new FunctionResultContent(callId, resultText)])),
                 ct).ConfigureAwait(false);
         }
 
-        return (executedAny, brainTurnCalls);
+        return executedAny;
     }
 
     private static string? ExtractToolRequest(FunctionCallContent call, string? fallbackHeard)
@@ -906,6 +941,128 @@ internal static class TalkEndpoint
                 _transcriptReply.Clear();
                 _speaking = false;
                 _delegatedToBrain = false;
+            }
+        }
+    }
+
+    private sealed class BrainTurnCounter
+    {
+        private int _count;
+
+        public bool TryReserve(int max)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref _count);
+                if (current >= max)
+                {
+                    return false;
+                }
+
+                if (Interlocked.CompareExchange(ref _count, current + 1, current) == current)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    private sealed class ActiveToolExecution
+    {
+        private readonly Lock _gate = new();
+        private CancellationTokenSource? _currentCts;
+        private Task? _currentTask;
+
+        public void Start(CancellationToken sessionCt, Func<CancellationToken, Task> work, ILogger logger)
+        {
+            CancellationTokenSource? priorCts;
+            var nextCts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
+            lock (_gate)
+            {
+                priorCts = _currentCts;
+                _currentCts = nextCts;
+                _currentTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await work(nextCts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    catch (Exception error)
+                    {
+                        logger.LogSwallowed(error, "running background voice tool execution");
+                    }
+                    finally
+                    {
+                        lock (_gate)
+                        {
+                            if (ReferenceEquals(_currentCts, nextCts))
+                            {
+                                _currentCts = null;
+                            }
+                        }
+
+                        nextCts.Dispose();
+                    }
+                });
+            }
+
+            CancelSafe(priorCts);
+        }
+
+        public void CancelActive()
+        {
+            CancellationTokenSource? toCancel;
+            lock (_gate)
+            {
+                toCancel = _currentCts;
+                _currentCts = null;
+            }
+
+            CancelSafe(toCancel);
+        }
+
+        public async Task CancelAndDrainAsync()
+        {
+            CancellationTokenSource? toCancel;
+            Task? toAwait;
+            lock (_gate)
+            {
+                toCancel = _currentCts;
+                _currentCts = null;
+                toAwait = _currentTask;
+                _currentTask = null;
+            }
+
+            CancelSafe(toCancel);
+            if (toAwait is not null)
+            {
+                try
+                {
+                    await toAwait.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+        }
+
+        private static void CancelSafe(CancellationTokenSource? cts)
+        {
+            if (cts is null)
+            {
+                return;
+            }
+
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException error)
+            {
+                OsConsoleLog.For<TalkEvent>().LogSwallowed(error, "cancelling already-disposed voice tool token");
             }
         }
     }

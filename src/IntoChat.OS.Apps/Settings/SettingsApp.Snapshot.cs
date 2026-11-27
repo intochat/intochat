@@ -451,7 +451,16 @@ public sealed partial class SettingsApp
     {
         var dict = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         var vault = SecretVault ?? Vault;
-        string[] secretKeys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "BRAVE_API_KEY", "TAVILY_API_KEY"];
+        string[] secretKeys =
+        [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GOOGLE_API_KEY",
+            "OPENROUTER_API_KEY",
+            "XAI_API_KEY",
+            "BRAVE_API_KEY",
+            "TAVILY_API_KEY",
+        ];
         foreach (var key in secretKeys)
         {
             if (vault != null)
@@ -866,6 +875,62 @@ public sealed partial class SettingsApp
             Variables = [.. variables.Where(static v => !string.IsNullOrWhiteSpace(v.Key))],
             WebSearxngUrl = trimmed,
             Status = string.IsNullOrEmpty(trimmed) ? "Cleared SearXNG URL override." : $"Saved SearXNG URL ({trimmed}).",
+        });
+    }
+
+    private async Task SetReasoningEffortAsync(string? rawEffort)
+    {
+        var normalized = SettingsControls.TryNormalizeReasoningEffort(rawEffort);
+        if (normalized is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<UserVariableEntry> variables = State.Variables ?? [];
+        try
+        {
+            var updated = await UserSettings.SetVariable(SettingsControls.ReasoningEffortVariable, normalized);
+            variables = updated.Variables ?? [];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "Skipping ai.reasoning.effort persistence in minimal test host.");
+            variables = UpsertVariableEntry(variables, SettingsControls.ReasoningEffortVariable, normalized);
+        }
+
+        await UpdateAsync(State with
+        {
+            Variables = [.. variables.Where(static v => !string.IsNullOrWhiteSpace(v.Key))],
+            ReasoningEffort = normalized,
+            Status = $"Reasoning effort set to {normalized}.",
+        });
+    }
+
+    private async Task SetVoicePersonaAsync(string? rawPersona)
+    {
+        var normalized = SettingsControls.TryNormalizeVoicePersona(rawPersona);
+        if (normalized is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<UserVariableEntry> variables = State.Variables ?? [];
+        try
+        {
+            var updated = await UserSettings.SetVariable(SettingsControls.VoicePersonaVariable, normalized);
+            variables = updated.Variables ?? [];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "Skipping ai.voice.persona persistence in minimal test host.");
+            variables = UpsertVariableEntry(variables, SettingsControls.VoicePersonaVariable, normalized);
+        }
+
+        await UpdateAsync(State with
+        {
+            Variables = [.. variables.Where(static v => !string.IsNullOrWhiteSpace(v.Key))],
+            VoicePersona = normalized,
+            Status = $"Voice persona set to {normalized}.",
         });
     }
 

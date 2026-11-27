@@ -583,7 +583,9 @@ internal sealed class ConversationNeuron(
 
             await Runner.Hydrate(definition.Contexts, turnState.Run.UserText);
             var bounded = BoundPreTurnHistory(window.Messages, definition, input, window.Summary);
-            var turnModel = !string.IsNullOrWhiteSpace(model) ? new ModelSelection(model) : definition.Model;
+            var turnModel = !string.IsNullOrWhiteSpace(model)
+                ? (definition.Model is not null ? definition.Model with { Model = model } : new ModelSelection(model))
+                : definition.Model;
             var plan = new TurnPlan(
                 Scope,
                 FullKey,

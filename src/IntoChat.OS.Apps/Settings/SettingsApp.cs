@@ -294,6 +294,16 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             return SetWebSearchProviderAsync(changed.Id);
         }
 
+        if (string.Equals(key, SettingsControls.ReasoningEffort, StringComparison.Ordinal))
+        {
+            return SetReasoningEffortAsync(changed.Id);
+        }
+
+        if (string.Equals(key, SettingsControls.VoicePersona, StringComparison.Ordinal))
+        {
+            return SetVoicePersonaAsync(changed.Id);
+        }
+
         SettingsSavePreferences? save = key switch
         {
             SettingsControls.ThemeMode when changed.Id != State.ThemeMode
@@ -357,8 +367,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         new("apps", "Apps", "installed apps store link install permissions capabilities memory ino", "os://sheet/install", "layout-grid", "Capabilities & Data"),
         new("connections", "Connections", "postgres salesforce google drive github slack integrations webhook oauth reconnect", "os://window/settings?section=connections", "plug", "Capabilities & Data"),
         new("files", "Files", "storage drive local computer root desktop mode synced folders conflict naming", "os://sheet/conflict", "folder", "Capabilities & Data"),
-        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort default model web search searxng brave tavily mcp servers microsoft learn tools connected client compute code sandbox icodesandbox device toggle", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
-        new("keys", "API keys", "personal api key secrets token encryption vault anthropic openai groq mistral google", "os://window/secure", "key-round", "Capabilities & Data"),
+        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort voice persona default model web search searxng brave tavily mcp servers microsoft learn tools connected client compute code sandbox icodesandbox device toggle", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
+        new("keys", "API keys", "personal api key secrets token encryption vault anthropic openai openrouter xai grok groq mistral google brave tavily", "os://window/secure", "key-round", "Capabilities & Data"),
         new("variables", "Variables and secrets", "environment variables key value table sealed secret vault scope local brain system", "os://window/settings?section=variables", "braces", "Capabilities & Data"),
         new("billing", "Billing", "tokens consumption credits balance auto top-up monthly spend limit payment invoices compute", "os://window/settings?section=billing", "credit-card", "Organization & System"),
         new("team", "Team and permissions", "teammates roster owner member guest invite person capability grants lfp circles", "os://window/settings?section=team", "users", "Organization & System"),

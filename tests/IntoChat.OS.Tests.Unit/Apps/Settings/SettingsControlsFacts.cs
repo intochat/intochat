@@ -207,7 +207,98 @@ public sealed class SettingsControlsFacts
             })
             .ToArray();
 
-        Assert.Equal(Enum.GetValues<ModelRole>().Select(SettingsControls.RoleKey), comboSlotKeys);
+        string[] expected =
+        [
+            .. Enum.GetValues<ModelRole>().Select(SettingsControls.RoleKey),
+            SettingsControls.ReasoningEffort,
+            SettingsControls.VoicePersona,
+        ];
+        Assert.Equal(expected, comboSlotKeys);
+    }
+
+    [Fact]
+    public async Task SealingApiKeysUnsealsSecretRefAndPersistsToModelCatalogWithoutLeakingRawKey()
+    {
+        RecordingSettingsModelCatalog.Reset();
+        var vault = new MemorySecretVault(["OPENAI_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY"]);
+        const string openAiRef = "secret://local/app.settings/default/api-keys/OPENAI_API_KEY";
+        const string openRouterRef = "secret://local/app.settings/default/api-keys/OPENROUTER_API_KEY";
+        const string xaiRef = "secret://local/app.settings/default/api-keys/XAI_API_KEY";
+        const string rawOpenAi = "sk-live-openai-secret-never-in-state";
+        const string rawOpenRouter = "sk-or-live-openrouter-secret-never-in-state";
+        const string rawXai = "xai-live-grok-secret-never-in-state";
+        vault.SetSecret(openAiRef, rawOpenAi);
+        vault.SetSecret(openRouterRef, rawOpenRouter);
+        vault.SetSecret(xaiRef, rawXai);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<ISecretVault>(vault);
+        await using var provider = services.BuildServiceProvider();
+
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = provider)
+                .RegisterCatalog()
+                .Register<RecordingSettingsModelCatalog>();
+            var settings = await Settings(os, "keys");
+
+            using (os.Edge.Enter(os.Edge.Person("local", "local", Brain)))
+            {
+                var view = await settings.Screen.Read();
+                var form = Slots(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith("/" + SettingsControls.ApiKeys, StringComparison.Ordinal));
+                var fieldNames = form.GetProperty("props").GetProperty("fields").EnumerateArray()
+                    .Select(static f => f.GetProperty("key").GetString()!)
+                    .ToArray();
+                Assert.Contains("OPENROUTER_API_KEY", fieldNames);
+                Assert.Contains("XAI_API_KEY", fieldNames);
+            }
+
+            await Send(settings, SettingsControls.ApiKeys, new Submit(
+                new Dictionary<string, string>(),
+                new Dictionary<string, string>
+                {
+                    ["OPENAI_API_KEY"] = openAiRef,
+                    ["OPENROUTER_API_KEY"] = openRouterRef,
+                    ["XAI_API_KEY"] = xaiRef,
+                }));
+
+            Assert.Contains(("openai", rawOpenAi), RecordingSettingsModelCatalog.SavedCredentials);
+            Assert.Contains(("openrouter", rawOpenRouter), RecordingSettingsModelCatalog.SavedCredentials);
+            Assert.Contains(("xai", rawXai), RecordingSettingsModelCatalog.SavedCredentials);
+            Assert.DoesNotContain(RecordingSettingsModelCatalog.SavedCredentials, static c => c.Provider == "anthropic");
+            Assert.NotNull(settings.App.State.SecretStatuses);
+            Assert.True(settings.App.State.SecretStatuses!["OPENROUTER_API_KEY"]);
+            Assert.True(settings.App.State.SecretStatuses!["XAI_API_KEY"]);
+
+            var serializedState = JsonSerializer.Serialize(settings.App.State);
+            Assert.DoesNotContain(rawOpenAi, serializedState, StringComparison.Ordinal);
+            Assert.DoesNotContain(rawOpenRouter, serializedState, StringComparison.Ordinal);
+            Assert.DoesNotContain(rawXai, serializedState, StringComparison.Ordinal);
+        }
+        finally
+        {
+            RecordingSettingsModelCatalog.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task ReasoningEffortAndVoicePersonaCombosPersistToUserSettings()
+    {
+        await using var os = TestOS.Local().RegisterCatalog();
+        var settings = await Settings(os, "models");
+
+        await Send(settings, SettingsControls.ReasoningEffort, new DigitalBrain.UI.Commands.Select("low"));
+        await Send(settings, SettingsControls.VoicePersona, new DigitalBrain.UI.Commands.Select("Kore"));
+
+        Assert.Equal("low", settings.App.State.ReasoningEffort);
+        Assert.Equal("Kore", settings.App.State.VoicePersona);
+
+        await settings.Request("reload-preferences", new SettingsReloadPreferences());
+
+        Assert.Equal("low", settings.App.State.ReasoningEffort);
+        Assert.Equal("Kore", settings.App.State.VoicePersona);
+        Assert.Contains(settings.App.State.Variables!, static v => v.Key == SettingsControls.ReasoningEffortVariable && v.Value == "low");
+        Assert.Contains(settings.App.State.Variables!, static v => v.Key == SettingsControls.VoicePersonaVariable && v.Value == "Kore");
     }
 
     [Fact]
@@ -403,8 +494,13 @@ public sealed class SettingsControlsFacts
     private sealed class RecordingSettingsModelCatalog : Neuron, IModelCatalog
     {
         public static (ModelRole Role, ModelId Model)? LastSetRole { get; private set; }
+        public static List<(string Provider, string Credential)> SavedCredentials { get; } = [];
 
-        public static void Reset() => LastSetRole = null;
+        public static void Reset()
+        {
+            LastSetRole = null;
+            SavedCredentials.Clear();
+        }
 
         public Task<ModelCard[]> List(Abilities need = Abilities.None)
             => Task.FromResult(KnownModels.All.Where(c => need == Abilities.None || (c.Can & need) == need).ToArray());
@@ -423,6 +519,10 @@ public sealed class SettingsControlsFacts
         public Task<ModelAvailability[]> Availability()
             => Task.FromResult(KnownModels.All.Select(c => new ModelAvailability(c.Id, true, null)).ToArray());
 
-        public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
+        public Task SaveProviderCredential(string provider, string credentialValue)
+        {
+            SavedCredentials.Add((provider, credentialValue));
+            return Task.CompletedTask;
+        }
     }
 }

@@ -624,12 +624,16 @@ public sealed class ModelCatalog
         }
 
         reasoning = NormalizeReasoning(reasoning);
-        if (requiresTools && provider == AiProvider.OpenAI && modelId.StartsWith("gpt-5.6", StringComparison.OrdinalIgnoreCase))
+        if (reasoning is not null && profileName is null && !capabilities.HasFlag(Abilities.Reasoning))
         {
-            if (reasoning is not null and not "none")
+            if (provider != AiProvider.Ollama || string.Equals(reasoning, "xhigh", StringComparison.Ordinal))
             {
-                throw new ArgumentException("GPT-5.6 tools through OpenAI Chat Completions require reasoning 'none'.");
+                reasoning = null;
             }
+        }
+
+        if (requiresTools && provider == AiProvider.OpenAI && modelId.StartsWith("gpt-5.6", StringComparison.OrdinalIgnoreCase) && reasoning is null)
+        {
             reasoning = "none";
         }
 

@@ -47,8 +47,20 @@ internal static class SettingsControls
     public const string McpAddForm = "mcp-add";
     public const string ApiKeys = "api-keys";
     public const string GitHubPat = "github-pat";
+    public const string ReasoningEffort = "reasoning-effort";
+    public const string VoicePersona = "voice-persona";
     public const string WebSearchProviderVariable = "web.search.provider";
     public const string WebSearxngUrlVariable = "web.search.searxng-url";
+    public const string ReasoningEffortVariable = "ai.reasoning.effort";
+    public const string VoicePersonaVariable = "ai.voice.persona";
+
+    public static readonly string[] SupportedReasoningEfforts = ["default", "none", "low", "medium", "high"];
+
+    public static readonly string[] SupportedVoicePersonas =
+    [
+        "default", "marin", "cedar", "coral", "sage", "alloy", "verse",
+        "Kore", "Puck", "Aoede", "Charon", "Fenrir",
+    ];
 
     public static string RoleKey(ModelRole role) => $"role-{role.ToString().ToLowerInvariant()}";
 
@@ -77,11 +89,71 @@ internal static class SettingsControls
         new(ThemeMode, s => s.ThemeMode),
         new(BarLayout, s => s.BarLayout),
         new(WebSearchProvider, ResolveWebSearchProvider),
+        new(ReasoningEffort, ResolveReasoningEffort),
+        new(VoicePersona, ResolveVoicePersona),
         .. Enum.GetValues<ModelRole>().Select(role => new Combo(
             RoleKey(role),
             s => s.Roles.FirstOrDefault(r => r.Role == role)?.Selected
                 ?? (role == ModelRole.Chat ? s.DefaultModel : null))),
     ];
+
+    public static string ResolveReasoningEffort(SettingsAppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var fromVariable = (state.Variables ?? [])
+            .FirstOrDefault(v => string.Equals(v.Key, ReasoningEffortVariable, StringComparison.Ordinal))?.Value;
+        if (TryNormalizeReasoningEffort(fromVariable) is { } varEffort)
+        {
+            return varEffort;
+        }
+
+        if (TryNormalizeReasoningEffort(state.ReasoningEffort) is { } stateEffort)
+        {
+            return stateEffort;
+        }
+
+        return "default";
+    }
+
+    public static string? TryNormalizeReasoningEffort(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim().ToLowerInvariant();
+        return SupportedReasoningEfforts.Contains(trimmed, StringComparer.Ordinal) ? trimmed : null;
+    }
+
+    public static string ResolveVoicePersona(SettingsAppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var fromVariable = (state.Variables ?? [])
+            .FirstOrDefault(v => string.Equals(v.Key, VoicePersonaVariable, StringComparison.Ordinal))?.Value;
+        if (TryNormalizeVoicePersona(fromVariable) is { } varPersona)
+        {
+            return varPersona;
+        }
+
+        if (TryNormalizeVoicePersona(state.VoicePersona) is { } statePersona)
+        {
+            return statePersona;
+        }
+
+        return "default";
+    }
+
+    public static string? TryNormalizeVoicePersona(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim();
+        return SupportedVoicePersonas.FirstOrDefault(p => string.Equals(p, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
 
     public static string ResolveWebSearchProvider(SettingsAppState state)
     {
@@ -206,6 +278,8 @@ internal static class SettingsControls
                 new FormInput("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKind.Secret, Placeholder: "sk-ant-…"),
                 new FormInput("OPENAI_API_KEY", "OpenAI API key", FormFieldKind.Secret, Placeholder: "sk-…"),
                 new FormInput("GOOGLE_API_KEY", "Google Gemini API key", FormFieldKind.Secret, Placeholder: "AIza…"),
+                new FormInput("OPENROUTER_API_KEY", "OpenRouter API key", FormFieldKind.Secret, Placeholder: "sk-or-…"),
+                new FormInput("XAI_API_KEY", "xAI API key", FormFieldKind.Secret, Placeholder: "xai-…"),
                 new FormInput("BRAVE_API_KEY", "Brave Search API key", FormFieldKind.Secret, Placeholder: "BSA…"),
                 new FormInput("TAVILY_API_KEY", "Tavily API key", FormFieldKind.Secret, Placeholder: "tvly-…"),
             ],

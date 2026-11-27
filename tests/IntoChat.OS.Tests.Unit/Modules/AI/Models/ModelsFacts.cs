@@ -128,6 +128,41 @@ public sealed class ModelsFacts
     [Fact]
     public void ProviderNumbersNeverMove() =>
         Assert.Equal(8, (int)AiProvider.Host);
+
+    [Fact]
+    public void OpenRouterChineseFrontierPackModelsAreRegistered()
+    {
+        (string Id, Abilities Required)[] expected =
+        [
+            ("qwen/qwen3.8-27b", Abilities.Text | Abilities.Tools | Abilities.Reasoning),
+            ("z-ai/glm-5.3", Abilities.Text | Abilities.Tools | Abilities.Reasoning),
+            ("z-ai/glm-5.3-flash", Abilities.Text | Abilities.Tools),
+            ("moonshotai/kimi-k3.1-pro", Abilities.Text | Abilities.Tools | Abilities.Vision | Abilities.Reasoning),
+            ("minimax/minimax-m3.1-flash", Abilities.Text | Abilities.Tools),
+        ];
+
+        foreach (var (id, required) in expected)
+        {
+            var card = KnownModels.Find(id);
+            Assert.NotNull(card);
+            Assert.Equal(AiProvider.OpenRouter, card!.Provider);
+            Assert.Equal(Where.Cloud, card.Where);
+            Assert.True((card.Can & required) == required, $"{id} missing abilities {required}");
+        }
+    }
+
+    [Fact]
+    public void GoogleGeminiSpeechAndLiveModelsAreRegistered()
+    {
+        Assert.Equal((AiProvider.Google, Where.Cloud, Abilities.Speak),
+            (KnownModels.Gemini38FlashTts.Provider, KnownModels.Gemini38FlashTts.Where, KnownModels.Gemini38FlashTts.Can));
+        Assert.Equal((AiProvider.Google, Where.Cloud, Abilities.Speak),
+            (KnownModels.Gemini38FlashLiteTts.Provider, KnownModels.Gemini38FlashLiteTts.Where, KnownModels.Gemini38FlashLiteTts.Can));
+        Assert.Equal((AiProvider.Google, Where.Cloud, Abilities.Hear),
+            (KnownModels.Gemini35Transcribe.Provider, KnownModels.Gemini35Transcribe.Where, KnownModels.Gemini35Transcribe.Can));
+        Assert.Equal((AiProvider.Google, Where.Cloud, Abilities.Talk),
+            (KnownModels.Gemini38Live.Provider, KnownModels.Gemini38Live.Where, KnownModels.Gemini38Live.Can));
+    }
 }
 
 public sealed class ModelsGeneratorFacts

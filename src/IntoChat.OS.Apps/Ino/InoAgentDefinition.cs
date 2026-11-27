@@ -37,15 +37,19 @@ public static class InoAgentDefinition
     If no tool fits, call `neurons_search` with what you want to do; its hits make more tools available.
     """;
 
+    public const string ReasoningEffortVariable = "ai.reasoning.effort";
+
     public static AgentDefinition For(UserSettingsState settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        var modelId = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim();
+        var reasoning = ResolveReasoningEffort(settings, modelId);
         return new()
         {
             DisplayName = "Ino",
             Description = "The brain's personal assistant.",
             Instructions = Persona.Replace("{user}", settings.DisplayName, StringComparison.Ordinal).Trim(),
-            Model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : new ModelSelection(settings.DefaultModel.Trim()),
+            Model = modelId is null && reasoning is null ? null : new ModelSelection(modelId, Reasoning: reasoning),
             Contracts =
             [
                 typeof(IStudio).FullName!, typeof(IData).FullName!, typeof(IUserSettings).FullName!, typeof(IFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IFocus).FullName!,
@@ -62,5 +66,40 @@ public static class InoAgentDefinition
             ],
             IncludeComponentOperations = true,
         };
+    }
+
+    internal static string? ResolveReasoningEffort(UserSettingsState settings, string? modelId)
+    {
+        var raw = (settings.Variables ?? [])
+            .FirstOrDefault(static v => string.Equals(v.Key, ReasoningEffortVariable, StringComparison.Ordinal))
+            ?.Value;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var normalized = raw.Trim().ToLowerInvariant() switch
+        {
+            "none" => "none",
+            "low" => "low",
+            "medium" => "medium",
+            "high" => "high",
+            "xhigh" or "extrahigh" or "extra-high" => "xhigh",
+            _ => null,
+        };
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(modelId)
+            && KnownModels.Find(modelId) is { } card
+            && !card.Can.HasFlag(Abilities.Reasoning)
+            && card.Provider != AiProvider.Ollama)
+        {
+            return null;
+        }
+
+        return normalized;
     }
 }

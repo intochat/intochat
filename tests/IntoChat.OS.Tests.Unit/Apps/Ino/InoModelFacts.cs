@@ -1,7 +1,9 @@
+using DigitalBrain;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 
@@ -158,6 +160,102 @@ public sealed class InoModelFacts
         Assert.Equal(("c2", "New chat", InoModel.Ready), (next.ConversationId, next.Title, next.Status));
         Assert.Null(next.Messages);
         Assert.Equal(["read · files"], next.GrantSummaries!);
+    }
+
+    [Fact]
+    public void InoAgentDefinitionForwardsReasoningEffortForReasoningModelsAndOmitsForNonReasoningModels()
+    {
+        var solSettings = new UserSettingsState
+        {
+            DisplayName = "Ada",
+            DefaultModel = KnownModels.Gpt56Sol.Id.Value,
+            Variables = [new UserVariableEntry(InoAgentDefinition.ReasoningEffortVariable, "low")],
+        };
+
+        var solDef = InoAgentDefinition.For(solSettings);
+        Assert.NotNull(solDef.Model);
+        Assert.Equal(KnownModels.Gpt56Sol.Id.Value, solDef.Model!.Model);
+        Assert.Equal("low", solDef.Model.Reasoning);
+
+        var nonReasoningSettings = solSettings with { DefaultModel = KnownModels.Gpt54.Id.Value };
+        var nonReasoningDef = InoAgentDefinition.For(nonReasoningSettings);
+        Assert.NotNull(nonReasoningDef.Model);
+        Assert.Equal(KnownModels.Gpt54.Id.Value, nonReasoningDef.Model!.Model);
+        Assert.Null(nonReasoningDef.Model.Reasoning);
+
+        var defaultEffortSettings = solSettings with
+        {
+            Variables = [new UserVariableEntry(InoAgentDefinition.ReasoningEffortVariable, "default")],
+        };
+        Assert.Null(InoAgentDefinition.For(defaultEffortSettings).Model!.Reasoning);
+    }
+
+    [Fact]
+    public async Task CascadedVoiceIsReadyWhenHearAndSpeakAreReadyWithoutKokoro82M()
+    {
+        var catalog = new VoiceGateStubCatalog(
+            hear: KnownModels.Gpt4oTranscribe.Id,
+            speak: KnownModels.Gpt4oMiniTts.Id,
+            talk: null,
+            availability:
+            [
+                new ModelAvailability(KnownModels.Gpt4oTranscribe.Id, Ready: true, Reason: null),
+                new ModelAvailability(KnownModels.Gpt4oMiniTts.Id, Ready: true, Reason: null),
+                new ModelAvailability(KnownModels.Kokoro82M.Id, Ready: false, Reason: "Not installed"),
+            ]);
+
+        var host = new InoSetupHost(
+            GetState: static () => new InoAppState(),
+            ShowState: static _ => Task.CompletedTask,
+            GetBrain: static () => new BrainId("local"),
+            GetCatalog: () => catalog,
+            GetDevice: static () => null,
+            GetSettings: static () => throw new NotSupportedException(),
+            GetConversation: static _ => throw new NotSupportedException(),
+            GetSessions: static () => throw new NotSupportedException(),
+            GetGrants: static () => throw new NotSupportedException(),
+            GetApprovals: static () => throw new NotSupportedException(),
+            GetProfileWriter: static () => throw new NotSupportedException(),
+            FollowConversation: static _ => Task.CompletedTask,
+            RefreshConversation: static _ => Task.CompletedTask,
+            TryOptional: static (_, _) => Task.CompletedTask,
+            ReadBoolOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadApprovalsOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadStringArrayOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadSettingsOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadDeviceOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadCatalogOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadSessionPageOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            LogOptional: static (_, _) => { },
+            Logger: null);
+
+        var voice = await InoModelSetup.ReadVoiceAsync(host);
+
+        Assert.True(voice.Hear);
+        Assert.True(voice.Speak);
+        Assert.True(voice.Talk);
+    }
+
+    private sealed class VoiceGateStubCatalog(
+        ModelId? hear,
+        ModelId? speak,
+        ModelId? talk,
+        ModelAvailability[] availability) : IModelCatalog
+    {
+        public Task<ModelCard[]> List(Abilities need = Abilities.None) => Task.FromResult(KnownModels.All.ToArray());
+
+        public Task<ModelId> Pick(ModelRole role, ModelId? turn = null) => role switch
+        {
+            ModelRole.Hear when hear is { } h => Task.FromResult(h),
+            ModelRole.Speak when speak is { } s => Task.FromResult(s),
+            ModelRole.Talk when talk is { } t => Task.FromResult(t),
+            _ => throw new InvalidOperationException($"Role {role} unavailable"),
+        };
+
+        public Task SetRole(ModelRole role, ModelId model) => Task.CompletedTask;
+        public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
+        public Task<ModelAvailability[]> Availability() => Task.FromResult(availability);
+        public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
 
     private static ConversationView View(string id, long revision, AgentRun? active, AgentRun[] runs, params ConversationEntry[] entries)

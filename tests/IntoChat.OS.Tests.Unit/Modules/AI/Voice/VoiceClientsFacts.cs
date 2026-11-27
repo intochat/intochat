@@ -236,6 +236,44 @@ public sealed class VoiceClientsFacts
         Assert.Equal(16_000, talk.InputRate);
     }
 
+    [Fact]
+    public async Task GoogleHearSpeakAndTalkResolveGeminiClients()
+    {
+        var googleRoles = new RoleMap(
+            ImmutableDictionary<ModelRole, ModelId>.Empty,
+            ImmutableDictionary<ModelRole, ModelId>.Empty
+                .Add(ModelRole.Hear, KnownModels.Gemini35Transcribe.Id)
+                .Add(ModelRole.Speak, KnownModels.Gemini38FlashTts.Id)
+                .Add(ModelRole.Talk, KnownModels.Gemini38Live.Id));
+
+        using var caller = EnterPerson();
+        var (os, clients) = CreateClients(
+            topology: IntoChatOSNames.TopologyCloud,
+            runtimes: [],
+            roles: googleRoles,
+            pickedHear: KnownModels.Gemini35Transcribe.Id,
+            pickedSpeak: KnownModels.Gemini38FlashTts.Id,
+            credentials: new FixedAiCredentials().Ready(AiIntegrations.IdOf(AiProvider.Google), "AIza-test-google-key"));
+        await using var _ = os;
+
+        var hear = await clients.Hear(Brain, Ct);
+        Assert.Null(hear.Unavailable);
+        Assert.Equal(KnownModels.Gemini35Transcribe.Id, hear.Model);
+        Assert.IsType<GeminiSpeechToTextClient>(hear.Client!.GetService<GeminiSpeechToTextClient>());
+
+        var speak = await clients.Speak(Brain, Ct);
+        Assert.Null(speak.Unavailable);
+        Assert.Equal(KnownModels.Gemini38FlashTts.Id, speak.Model);
+        Assert.IsType<GeminiTextToSpeechClient>(speak.Client!.GetService<GeminiTextToSpeechClient>());
+
+        var talk = await clients.Talk(Brain, Conversation, Ct);
+        Assert.Null(talk.Unavailable);
+        Assert.Equal(KnownModels.Gemini38Live.Id, talk.Model);
+        Assert.False(talk.RecordsItself);
+        Assert.Equal(16_000, talk.InputRate);
+        Assert.IsType<GeminiLiveRealtimeClient>(talk.Client!.GetService<GeminiLiveRealtimeClient>());
+    }
+
     private static (TestOS Os, VoiceClients Clients) CreateClients(
         string topology,
         IReadOnlyList<ILocalRuntime> runtimes,

@@ -167,6 +167,12 @@ public sealed record SettingsAppState(
     [Id(55)]
     public bool AllowClientCodeSandbox { get; init; } = ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
 
+    [Id(56)]
+    public string? ReasoningEffort { get; init; }
+
+    [Id(57)]
+    public string? VoicePersona { get; init; }
+
     [JsonIgnore]
     public Rejected? LastRejection { get; init; }
 
@@ -616,6 +622,12 @@ public sealed record SettingsAppState(
             storedVariables,
             ClientComputeConsentPolicy.SettingsVariableKey,
             AllowClientCodeSandbox);
+        var reasoningEffort = SettingsControls.TryNormalizeReasoningEffort(
+            storedVariables.FirstOrDefault(v => string.Equals(v.Key, SettingsControls.ReasoningEffortVariable, StringComparison.Ordinal))?.Value)
+            ?? ReasoningEffort;
+        var voicePersona = SettingsControls.TryNormalizeVoicePersona(
+            storedVariables.FirstOrDefault(v => string.Equals(v.Key, SettingsControls.VoicePersonaVariable, StringComparison.Ordinal))?.Value)
+            ?? VoicePersona;
 
         return this with
         {
@@ -637,6 +649,8 @@ public sealed record SettingsAppState(
             DeployedUnits = deployedUnits ?? DeployedUnits ?? [],
             TeamRoster = teamRoster ?? TeamRoster,
             AllowClientCodeSandbox = allowClientCodeSandbox,
+            ReasoningEffort = reasoningEffort,
+            VoicePersona = voicePersona,
             HasUnsavedChanges = false,
         };
     }
