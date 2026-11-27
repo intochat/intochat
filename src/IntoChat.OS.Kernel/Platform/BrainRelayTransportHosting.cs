@@ -9,6 +9,8 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices.Link;
+using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
@@ -33,8 +35,14 @@ public sealed class BrainRelayOptions
     /// <summary>Optional base URI of the Circle relay service (e.g. <c>https://cloud.intochat.ai</c>).</summary>
     public Uri? RelayBaseUri { get; set; }
 
-    /// <summary>Optional local brain ID for single-brain hosts. When null, resolved per call from the ambient caller.</summary>
+    /// <summary>Optional local brain ID for single-brain hosts. When null, resolved per call from the ambient caller or target envelope.</summary>
     public string? LocalBrainId { get; set; }
+
+    /// <summary>Optional bearer access token for desktop/home-server brains authenticating via <c>IntoChatMachine</c> (<c>Bearer</c> + <c>X-Machine-Proof</c>).</summary>
+    public string? BearerToken { get; set; }
+
+    /// <summary>Optional async delegate producing an <c>X-Machine-Proof</c> header value for machine-authenticated relay requests.</summary>
+    public Func<HttpRequestMessage, byte[], CancellationToken, ValueTask<string?>>? MachineProofFactory { get; set; }
 
     /// <summary>Maximum allowed clock skew on inbound <see cref="BrainEnvelope.SentAtUtc"/> timestamps (default ±5 minutes).</summary>
     public TimeSpan MaxClockSkew { get; set; } = BrainEnvelopeSealer.DefaultMaxClockSkew;
@@ -47,61 +55,92 @@ public sealed class BrainRelayOptions
 }
 
 /// <summary>
-/// Kernel-owned pinned public key directory backed by an immutable in-memory pin store with optional read-through
-/// to the calling brain's durable <see cref="IFriends"/> roster, plus fail-closed sender brain-to-account binding
-/// for <see cref="BrainEnvelopeReceiver"/>'s <c>verifyCallerAccount</c> gate.
+/// Kernel-owned multi-brain-isolated pinned public key directory backed by per-<c>(localBrain, remoteBrain)</c>
+/// immutable pin stores with cold-start read-through to the target brain's durable <see cref="IFriends"/> roster,
+/// plus fail-closed sender brain-to-account binding for <see cref="BrainEnvelopeReceiver"/>'s <c>verifyCallerAccount</c> gate.
 /// </summary>
 public sealed class KernelBrainKeyDirectory(
     IServiceProvider services,
-    ICallerAmbient? callers = null) : IBrainKeyDirectory
+    ICallerAmbient? callers = null,
+    IOptions<BrainRelayOptions>? options = null) : IBrainKeyDirectory
 {
-    private readonly InMemoryPinnedBrainKeyDirectory _pins = new();
-    private readonly ConcurrentDictionary<string, string> _pinnedAccounts = new(StringComparer.Ordinal);
+    private const string DefaultScopeKey = "*";
+
+    private readonly ConcurrentDictionary<string, InMemoryPinnedBrainKeyDirectory> _scopedPins = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string LocalBrain, string RemoteBrain), string> _pinnedAccounts = new();
     private readonly Lock _accountGate = new();
 
     /// <summary>
-    /// Immutably pins the trusted <paramref name="accountId"/> for <paramref name="brainId"/> on handshake.
+    /// Immutably pins the trusted <paramref name="accountId"/> for <paramref name="remoteBrain"/> in the default/active scope.
+    /// </summary>
+    public void PinAccount(BrainId remoteBrain, string accountId)
+        => PinAccountFor(ResolveActiveLocalBrain(), remoteBrain, accountId);
+
+    /// <summary>
+    /// Immutably pins the trusted <paramref name="accountId"/> for <paramref name="remoteBrain"/> scoped to <paramref name="localBrain"/>.
     /// Idempotent for the same account; rejects silent account reassignment fail-closed.
     /// </summary>
-    public void PinAccount(BrainId brainId, string accountId)
+    public void PinAccountFor(BrainId? localBrain, BrainId remoteBrain, string accountId)
     {
-        if (string.IsNullOrWhiteSpace(brainId.Value))
+        if (string.IsNullOrWhiteSpace(remoteBrain.Value))
         {
-            throw new ArgumentException("BrainId must be non-empty.", nameof(brainId));
+            throw new ArgumentException("Remote BrainId must be non-empty.", nameof(remoteBrain));
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+        var scope = ScopeKey(localBrain);
+        var key = (scope, remoteBrain.Value);
+
         lock (_accountGate)
         {
-            if (_pinnedAccounts.TryGetValue(brainId.Value, out var existing))
+            if (_pinnedAccounts.TryGetValue(key, out var existing))
             {
                 if (!string.Equals(existing, accountId, StringComparison.Ordinal))
                 {
                     throw new CryptographicException(
-                        $"Account for brain '{brainId.Value}' is already pinned and cannot be silently reassigned.");
+                        $"Account for brain '{remoteBrain.Value}' (scope '{scope}') is already pinned and cannot be silently reassigned.");
                 }
 
                 return;
             }
 
-            _pinnedAccounts[brainId.Value] = accountId;
+            _pinnedAccounts[key] = accountId;
         }
     }
 
     /// <summary>
     /// Fail-closed verification that <paramref name="callerAccount"/> is authorized for <paramref name="senderBrain"/>
-    /// according to pinned friend/owner bindings or durable <see cref="IBrainOwners"/> / <see cref="IFriends"/> state.
+    /// in the active local brain scope.
     /// </summary>
-    public async ValueTask<bool> VerifyCallerAccountAsync(BrainId senderBrain, string callerAccount, CancellationToken ct = default)
+    public ValueTask<bool> VerifyCallerAccountAsync(BrainId senderBrain, string callerAccount, CancellationToken ct = default)
+        => VerifyCallerAccountForAsync(ResolveActiveLocalBrain() ?? default, senderBrain, callerAccount, ct);
+
+    /// <summary>
+    /// Fail-closed multi-brain verification that <paramref name="callerAccount"/> is authorized for <paramref name="senderBrain"/>
+    /// when delivering to <paramref name="targetBrain"/>. Supports cold-start roster lookup when <c>callers.Current</c> is <see langword="null"/>.
+    /// </summary>
+    public async ValueTask<bool> VerifyCallerAccountForAsync(
+        BrainId targetBrain,
+        BrainId senderBrain,
+        string callerAccount,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(senderBrain.Value) || string.IsNullOrWhiteSpace(callerAccount))
         {
             return false;
         }
 
-        if (_pinnedAccounts.TryGetValue(senderBrain.Value, out var pinnedAccount))
+        var localScope = ResolveScopeBrain(targetBrain);
+        var scopeKey = ScopeKey(localScope);
+        if (_pinnedAccounts.TryGetValue((scopeKey, senderBrain.Value), out var scopedAccount))
         {
-            return string.Equals(pinnedAccount, callerAccount, StringComparison.Ordinal);
+            return string.Equals(scopedAccount, callerAccount, StringComparison.Ordinal);
+        }
+
+        if (!string.Equals(scopeKey, DefaultScopeKey, StringComparison.Ordinal)
+            && _pinnedAccounts.TryGetValue((DefaultScopeKey, senderBrain.Value), out var defaultAccount))
+        {
+            return string.Equals(defaultAccount, callerAccount, StringComparison.Ordinal);
         }
 
         if (services.GetService<IBrainOwners>() is { } owners)
@@ -113,15 +152,17 @@ public sealed class KernelBrainKeyDirectory(
             }
         }
 
-        var localBrain = callers?.Current?.Brain;
-        var proxies = services.GetService<INeuronProxies>();
-        if (localBrain is { IsSystem: false } active && !string.IsNullOrWhiteSpace(active.Value) && proxies is not null)
+        if (localScope is { IsSystem: false } target && !string.IsNullOrWhiteSpace(target.Value))
         {
-            var friends = await proxies.Get<IFriends>(FriendsDefaults.Id(active.Value)).List().ConfigureAwait(false);
-            var match = friends.FirstOrDefault(friend => friend.Brain == senderBrain);
-            if (match is not null)
+            var match = await TryFindFriendInRosterAsync(target, senderBrain).ConfigureAwait(false);
+            if (match is not null && !string.IsNullOrWhiteSpace(match.Account.Value))
             {
-                PinAccount(senderBrain, match.Account.Value);
+                PinAccountFor(target, senderBrain, match.Account.Value);
+                if (match.PublicKeys is { } friendKeys)
+                {
+                    await PinForAsync(target, senderBrain, friendKeys, ct).ConfigureAwait(false);
+                }
+
                 return string.Equals(match.Account.Value, callerAccount, StringComparison.Ordinal);
             }
         }
@@ -130,55 +171,132 @@ public sealed class KernelBrainKeyDirectory(
         return false;
     }
 
-    /// <inheritdoc />
-    public async ValueTask<BrainPublicKeys?> GetPinnedKeysAsync(BrainId brainId, CancellationToken ct = default)
+    /// <summary>
+    /// Resolves pinned public keys for <paramref name="remoteBrain"/> scoped to <paramref name="localBrain"/>,
+    /// with cold-start read-through to <c>IFriends(localBrain).List()</c> under module scope even when <c>callers.Current</c> is <see langword="null"/>.
+    /// </summary>
+    public async ValueTask<BrainPublicKeys?> GetPinnedKeysForAsync(
+        BrainId localBrain,
+        BrainId remoteBrain,
+        CancellationToken ct = default)
     {
-        if (await _pins.GetPinnedKeysAsync(brainId, ct).ConfigureAwait(false) is { } pinned)
+        var scopeBrain = ResolveScopeBrain(localBrain);
+        var scopeKey = ScopeKey(scopeBrain);
+
+        if (_scopedPins.TryGetValue(scopeKey, out var scopedDir)
+            && await scopedDir.GetPinnedKeysAsync(remoteBrain, ct).ConfigureAwait(false) is { } scopedKeys)
         {
-            return pinned;
+            return scopedKeys;
         }
 
-        // Fall back to the active caller brain's durable friend roster if available, and pin on first verified read.
-        var callerBrain = callers?.Current?.Brain;
-        if (callerBrain is not { IsSystem: false } local || string.IsNullOrWhiteSpace(local.Value))
+        if (!string.Equals(scopeKey, DefaultScopeKey, StringComparison.Ordinal)
+            && _scopedPins.TryGetValue(DefaultScopeKey, out var defaultDir)
+            && await defaultDir.GetPinnedKeysAsync(remoteBrain, ct).ConfigureAwait(false) is { } defaultKeys)
+        {
+            return defaultKeys;
+        }
+
+        if (scopeBrain is not { IsSystem: false } target || string.IsNullOrWhiteSpace(target.Value))
         {
             return null;
         }
 
-        var proxies = services.GetService<INeuronProxies>();
-        if (proxies is null)
-        {
-            return null;
-        }
-
-        var friends = await proxies.Get<IFriends>(FriendsDefaults.Id(local.Value)).List().ConfigureAwait(false);
-        var match = friends.FirstOrDefault(friend => friend.Brain == brainId);
+        var match = await TryFindFriendInRosterAsync(target, remoteBrain).ConfigureAwait(false);
         if (match?.PublicKeys is not { } friendKeys)
         {
             return null;
         }
 
-        await _pins.PinAsync(brainId, friendKeys, ct).ConfigureAwait(false);
+        await PinForAsync(target, remoteBrain, friendKeys, ct).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(match.Account.Value))
         {
-            PinAccount(brainId, match.Account.Value);
+            PinAccountFor(target, remoteBrain, match.Account.Value);
         }
 
         return friendKeys;
     }
 
+    /// <summary>Pins <paramref name="publicKeys"/> for <paramref name="remoteBrain"/> scoped to <paramref name="localBrain"/>.</summary>
+    public ValueTask PinForAsync(BrainId? localBrain, BrainId remoteBrain, BrainPublicKeys publicKeys, CancellationToken ct = default)
+    {
+        var dir = _scopedPins.GetOrAdd(ScopeKey(localBrain), static _ => new InMemoryPinnedBrainKeyDirectory());
+        return dir.PinAsync(remoteBrain, publicKeys, ct);
+    }
+
+    /// <summary>Rotates pinned keys for <see cref="BrainKeyRotationProof.BrainId"/> scoped to <paramref name="localBrain"/>.</summary>
+    public ValueTask RotateForAsync(BrainId? localBrain, BrainKeyRotationProof proof, CancellationToken ct = default)
+    {
+        var dir = _scopedPins.GetOrAdd(ScopeKey(localBrain), static _ => new InMemoryPinnedBrainKeyDirectory());
+        return dir.RotateAsync(proof, ct);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<BrainPublicKeys?> GetPinnedKeysAsync(BrainId brainId, CancellationToken ct = default)
+        => GetPinnedKeysForAsync(ResolveActiveLocalBrain() ?? default, brainId, ct);
+
     /// <inheritdoc />
     public ValueTask PinAsync(BrainId brainId, BrainPublicKeys publicKeys, CancellationToken ct = default)
-        => _pins.PinAsync(brainId, publicKeys, ct);
+        => PinForAsync(ResolveActiveLocalBrain(), brainId, publicKeys, ct);
 
     /// <inheritdoc />
     public ValueTask RotateAsync(BrainKeyRotationProof proof, CancellationToken ct = default)
-        => _pins.RotateAsync(proof, ct);
+        => RotateForAsync(ResolveActiveLocalBrain(), proof, ct);
+
+    private async Task<Friend?> TryFindFriendInRosterAsync(BrainId localBrain, BrainId remoteBrain)
+    {
+        var proxies = services.GetService<INeuronProxies>();
+        var edge = services.GetService<EdgeAuthority>();
+        if (proxies is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var scope = edge?.Enter(edge.Module(IdentityModule.Id, localBrain));
+            var friends = await proxies.Get<IFriends>(FriendsDefaults.Id(localBrain.Value)).List().ConfigureAwait(false);
+            return friends.FirstOrDefault(friend => friend.Brain == remoteBrain);
+        }
+        catch (InvalidOperationException)
+        {
+            // Minimal host without friends.links registered: fail closed (return null).
+            return null;
+        }
+    }
+
+    private BrainId? ResolveActiveLocalBrain()
+    {
+        if (callers?.Current?.Brain is { IsSystem: false } active && !string.IsNullOrWhiteSpace(active.Value))
+        {
+            return active;
+        }
+
+        if (options?.Value.LocalBrainId is { Length: > 0 } configured)
+        {
+            return new BrainId(configured);
+        }
+
+        return null;
+    }
+
+    private BrainId? ResolveScopeBrain(BrainId explicitBrain)
+    {
+        if (!explicitBrain.IsSystem && !string.IsNullOrWhiteSpace(explicitBrain.Value))
+        {
+            return explicitBrain;
+        }
+
+        return ResolveActiveLocalBrain();
+    }
+
+    private static string ScopeKey(BrainId? localBrain)
+        => localBrain is { IsSystem: false } b && !string.IsNullOrWhiteSpace(b.Value) ? b.Value : DefaultScopeKey;
 }
 
 /// <summary>
 /// Resolves <see cref="HttpBrainRelayClient"/> when <see cref="BrainRelayOptions.RelayBaseUri"/> is configured,
 /// and degrades cleanly to unconfigured (<see cref="IsConfigured"/> = <see langword="false"/>) on local-only boots.
+/// Supports both Cloud <c>ServiceAssertion</c> auth and desktop/home-server <c>Bearer</c> + <c>X-Machine-Proof</c> fallback.
 /// </summary>
 public sealed class KernelBrainRelayClientProvider
 {
@@ -227,28 +345,42 @@ public sealed class KernelBrainRelayClientProvider
 
     private async ValueTask AuthorizeAsync(HttpRequestMessage request, CancellationToken ct)
     {
-        if (_assertionSigner is not { IsConfigured: true })
+        if (_assertionSigner is { IsConfigured: true })
         {
-            return;
+            var brainId = _callers?.Current?.Brain.Value ?? _options.Value.LocalBrainId;
+            if (!string.IsNullOrWhiteSpace(brainId) && request.RequestUri is not null)
+            {
+                var bodyBytes = request.Content is not null
+                    ? await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
+                    : [];
+
+                var token = _assertionSigner.Sign(
+                    brainId,
+                    RelayPurpose,
+                    request.Method.Method,
+                    request.RequestUri.PathAndQuery,
+                    bodyBytes);
+                request.Headers.Authorization = new AuthenticationHeaderValue(ServiceAssertion.Scheme, token);
+                return;
+            }
         }
 
-        var brainId = _callers?.Current?.Brain.Value ?? _options.Value.LocalBrainId;
-        if (string.IsNullOrWhiteSpace(brainId) || request.RequestUri is null)
+        // Desktop / home-server fallback: Bearer token + optional X-Machine-Proof.
+        if (!string.IsNullOrWhiteSpace(_options.Value.BearerToken))
         {
-            return;
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Value.BearerToken);
+            if (_options.Value.MachineProofFactory is { } proofFactory)
+            {
+                var bodyBytes = request.Content is not null
+                    ? await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
+                    : [];
+                var proof = await proofFactory(request, bodyBytes, ct).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(proof))
+                {
+                    request.Headers.TryAddWithoutValidation(CircleRoutes.MachineProofHeader, proof);
+                }
+            }
         }
-
-        var bodyBytes = request.Content is not null
-            ? await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
-            : [];
-
-        var token = _assertionSigner.Sign(
-            brainId,
-            RelayPurpose,
-            request.Method.Method,
-            request.RequestUri.PathAndQuery,
-            bodyBytes);
-        request.Headers.Authorization = new AuthenticationHeaderValue(ServiceAssertion.Scheme, token);
     }
 }
 
@@ -282,7 +414,10 @@ public static class BrainRelayTransportHosting
         });
 
         services.TryAddSingleton<KernelBrainKeyDirectory>(static sp =>
-            new KernelBrainKeyDirectory(sp, sp.GetService<ICallerAmbient>()));
+            new KernelBrainKeyDirectory(
+                sp,
+                sp.GetService<ICallerAmbient>(),
+                sp.GetService<IOptions<BrainRelayOptions>>()));
         services.TryAddSingleton<IBrainKeyDirectory>(static sp =>
             sp.GetRequiredService<KernelBrainKeyDirectory>());
 
@@ -360,15 +495,17 @@ public static class BrainRelayTransportHosting
             return new BrainEnvelopeReceiver(
                 isLocalBrain: brain => !brain.IsSystem && (localBrain is null || brain == localBrain.Value),
                 signer: signer,
-                keyLookup: directory.GetPinnedKeysAsync,
+                scopedKeyLookup: kernelDirectory is not null
+                    ? kernelDirectory.GetPinnedKeysForAsync
+                    : (_, sender, ct) => directory.GetPinnedKeysAsync(sender, ct),
                 edge: edge,
                 invoke: (target, call, ct) => InvokeLocalOrleansAsync(sp, target, call, ct),
                 post: (target, call) => PostLocalOrleansAsync(sp, target, call),
                 timeProvider: time,
                 maxClockSkew: skew,
-                verifyCallerAccount: kernelDirectory is not null
-                    ? kernelDirectory.VerifyCallerAccountAsync
-                    : static (_, _, _) => ValueTask.FromResult(false),
+                scopedVerifyCallerAccount: kernelDirectory is not null
+                    ? kernelDirectory.VerifyCallerAccountForAsync
+                    : static (_, _, _, _) => ValueTask.FromResult(false),
                 replayCache: replayCache);
         });
 

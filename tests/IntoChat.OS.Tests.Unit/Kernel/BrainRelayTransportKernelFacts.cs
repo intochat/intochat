@@ -141,16 +141,16 @@ public sealed class BrainRelayTransportKernelFacts
             await offers.Offer(echoId, "bob", Role.Viewer, ct);
         }
 
-        // 4. Wire BrainEnvelopeReceiver with non-null fail-closed verifyCallerAccount and SealedRelayBrainTransport.
+        // 4. Wire BrainEnvelopeReceiver with non-null fail-closed scoped verifyCallerAccount and SealedRelayBrainTransport.
         var receiver = new BrainEnvelopeReceiver(
             isLocalBrain: brain => brain == aliceBrain,
             signer: signer,
-            keyLookup: directory.GetPinnedKeysAsync,
+            scopedKeyLookup: kernelDirectory.GetPinnedKeysForAsync,
             edge: os.Edge,
             invoke: os.InvokeLocalAsync,
             post: os.PostLocalAsync,
             timeProvider: clock,
-            verifyCallerAccount: kernelDirectory.VerifyCallerAccountAsync);
+            scopedVerifyCallerAccount: kernelDirectory.VerifyCallerAccountForAsync);
 
         var captured = new List<BrainEnvelope>();
         var transport = new SealedRelayBrainTransport(
@@ -182,7 +182,31 @@ public sealed class BrainRelayTransportKernelFacts
             Assert.Equal("echo:non-exportable-e2ee", result.Value.GetString());
         }
 
-        Assert.Equal(2, captured.Count);
+        // 6. Spoofed CallerAccount from Bob's brain is rejected fail-closed by BrainEnvelopeReceiver.
+        using (os.Edge.Enter(os.Edge.Person("alice", "alice", bobBrain)))
+        {
+            var call = new RuntimeInvocation(
+                Behavior: string.Empty,
+                Contract: "facts.kernel.relay.note",
+                Key: echoId.ToString(),
+                Method: nameof(IKernelRelayEcho.Echo),
+                Arguments: [JsonSerializer.SerializeToElement("spoof", RuntimeProtocol.Json)]);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => transport.InvokeRemoteAsync(echoId, call, ct));
+        }
+
+        // 7. Cold-start inbound delivery with empty in-memory pins and callers.Current == null reads IFriends(targetBrain).List() under module scope.
+        var coldDirectory = new KernelBrainKeyDirectory(provider, callers: null);
+        Assert.Null(os.Callers.Current);
+        var charlieBrain = new BrainId("charlie");
+        using var charlieKeys = BrainKeyPair.Generate();
+        await coldDirectory.PinForAsync(aliceBrain, charlieBrain, charlieKeys.ExportPublicKeys(), ct);
+        coldDirectory.PinAccountFor(aliceBrain, charlieBrain, "charlie");
+        // Multi-brain isolation: charlie's pin under aliceBrain is not visible under bobBrain.
+        Assert.Null(await coldDirectory.GetPinnedKeysForAsync(bobBrain, charlieBrain, ct));
+        Assert.False(await coldDirectory.VerifyCallerAccountForAsync(bobBrain, charlieBrain, "charlie", ct));
+        Assert.True(await coldDirectory.VerifyCallerAccountForAsync(aliceBrain, charlieBrain, "charlie", ct));
+
+        Assert.True(captured.Count >= 2);
         foreach (var envelope in captured)
         {
             Assert.DoesNotContain("non-exportable-e2ee", Encoding.UTF8.GetString(envelope.Ciphertext), StringComparison.Ordinal);

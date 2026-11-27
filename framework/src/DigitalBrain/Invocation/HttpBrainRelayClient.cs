@@ -45,14 +45,19 @@ public sealed class HttpBrainRelayClient
     /// <summary>
     /// Posts a one-way <paramref name="envelope"/> to the relay without waiting for a reply.
     /// Compatible with <see cref="SealedRelayBrainTransport"/>'s one-way post delegate.
+    /// Throws <see cref="ArgumentException"/> if <see cref="BrainEnvelope.OneWay"/> is <see langword="false"/>
+    /// (the flag is cryptographically authenticated and must not be mutated after sealing).
     /// </summary>
     public async Task SendOneWayAsync(BrainEnvelope envelope, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentException.ThrowIfNullOrEmpty(envelope.MessageId);
+        if (!envelope.OneWay)
+        {
+            throw new ArgumentException("SendOneWayAsync requires an envelope sealed with OneWay = true.", nameof(envelope));
+        }
 
-        var oneWayEnvelope = envelope.OneWay ? envelope : envelope with { OneWay = true };
-        await PostEnvelopeAsync(SendPath, oneWayEnvelope, ct).ConfigureAwait(false);
+        await PostEnvelopeAsync(SendPath, envelope, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -191,7 +196,10 @@ public sealed class HttpBrainRelayClient
     /// </summary>
     public async Task<FriendCodeBundle?> ResolveFriendCodeAsync(string codeHash, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
+        if (!FriendCodeBundleSigner.IsLowercaseSha256Hex(codeHash))
+        {
+            throw new ArgumentException("codeHash must be a 64-character lowercase hex SHA-256 digest.", nameof(codeHash));
+        }
 
         var body = JsonSerializer.SerializeToUtf8Bytes(new ResolveFriendCodeRequest(codeHash), RuntimeJsonContext.Default.ResolveFriendCodeRequest);
         using var content = new ByteArrayContent(body);
@@ -230,7 +238,10 @@ public sealed class HttpBrainRelayClient
     /// <summary>Revokes or consumes a published friend code via <c>DELETE /circle/v1/friends/codes/{codeHash}</c>.</summary>
     public async Task RevokeFriendCodeAsync(string codeHash, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
+        if (!FriendCodeBundleSigner.IsLowercaseSha256Hex(codeHash))
+        {
+            throw new ArgumentException("codeHash must be a 64-character lowercase hex SHA-256 digest.", nameof(codeHash));
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(_basePrefix + FriendCodesPrefix + Uri.EscapeDataString(codeHash)));
         await AuthorizeAsync(request, ct).ConfigureAwait(false);

@@ -26,46 +26,63 @@ public sealed class BrainRelaySecurityFacts
     }
 
     [Fact]
-    public void FriendCodeBundleSelfSignatureVerifiesAndRejectsTampering()
+    public void FriendCodeBundleSelfSignatureVerifiesAndRejectsTamperingAndNonP256Curves()
     {
         using var aliceKeys = BrainKeyPair.Generate();
         using var attackerKeys = BrainKeyPair.Generate();
+        using var p384Signing = ECDsa.Create(ECCurve.NamedCurves.nistP384);
+        using var p384Exchange = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP384);
         var now = new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero);
         var expiresAt = now.AddHours(24);
+        var codeHash = FriendCodeBundleSigner.ComputeCodeHash("ABCD-EFGH");
 
         var bundle = FriendCodeBundleSigner.Sign(
-            codeHash: "hash-abcd-efgh",
+            codeHash: codeHash,
             brainId: new BrainId("alice"),
             keys: aliceKeys,
             expiresAt: expiresAt,
             relayOrigin: "https://cloud.example");
 
-        var canonical = FriendCodeBundleSigner.BuildCanonicalPayload(
+        var canonical = FriendCodeBundleSigner.BuildCanonicalBytes(
             bundle.CodeHash,
             bundle.BrainId,
             bundle.SigningPublicKey,
             bundle.ExchangePublicKey,
-            expiresAt);
-        Assert.StartsWith("intochat-friend-code-v1\nalice\n", canonical, StringComparison.Ordinal);
-        Assert.EndsWith($"\nhash-abcd-efgh\n{expiresAt.ToUnixTimeSeconds()}", canonical, StringComparison.Ordinal);
+            expiresAt,
+            bundle.RelayOrigin);
+        Assert.Contains("DigitalBrain.FriendCode.v1", Encoding.UTF8.GetString(canonical), StringComparison.Ordinal);
 
         Assert.True(FriendCodeBundleSigner.Verify(bundle, now));
         Assert.True(FriendCodeBundleSigner.Verify(bundle, now.AddHours(12)));
 
-        // Expired bundle rejected.
+        // Expired bundle or lifetime > 24h rejected.
+        Assert.False(FriendCodeBundleSigner.Verify(bundle, expiresAt));
         Assert.False(FriendCodeBundleSigner.Verify(bundle, expiresAt.AddSeconds(1)));
+        var tooLongBundle = FriendCodeBundleSigner.Sign(codeHash, new BrainId("alice"), aliceKeys, now.AddHours(25), "https://cloud.example");
+        Assert.False(FriendCodeBundleSigner.Verify(tooLongBundle, now));
 
-        // Tampered codeHash, brainId, public keys, expiry, or signature -> rejected.
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { CodeHash = "hash-xxxx-yyyy" }, now));
+        // Tampered codeHash, brainId, public keys, relayOrigin, expiry, or signature -> rejected.
+        var otherHash = FriendCodeBundleSigner.ComputeCodeHash("XXXX-YYYY");
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { CodeHash = otherHash }, now));
         Assert.False(FriendCodeBundleSigner.Verify(bundle with { BrainId = new BrainId("mallory") }, now));
         Assert.False(FriendCodeBundleSigner.Verify(bundle with { SigningPublicKey = attackerKeys.ExportPublicKeys().SigningKey }, now));
         Assert.False(FriendCodeBundleSigner.Verify(bundle with { ExchangePublicKey = attackerKeys.ExportPublicKeys().ExchangeKey }, now));
-        Assert.False(FriendCodeBundleSigner.Verify(bundle with { ExpiresAt = now.AddHours(48) }, now));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { RelayOrigin = "https://evil.example" }, now));
+        Assert.False(FriendCodeBundleSigner.Verify(bundle with { ExpiresAt = now.AddHours(12) }, now));
 
         var badSig = (byte[])bundle.SelfSignature.Clone();
         badSig[0] ^= 0xFF;
         Assert.False(FriendCodeBundleSigner.Verify(bundle with { SelfSignature = badSig }, now));
         Assert.Throws<CryptographicException>(() => FriendCodeBundleSigner.VerifyOrThrow(bundle with { SelfSignature = badSig }, now));
+
+        // Non-NIST-P-256 curve keys (P-384) rejected by both FriendCodeBundleSigner and InMemoryPinnedBrainKeyDirectory.
+        var p384Public = new BrainPublicKeys(p384Signing.ExportSubjectPublicKeyInfo(), p384Exchange.ExportSubjectPublicKeyInfo());
+        var p384Canonical = FriendCodeBundleSigner.BuildCanonicalBytes(codeHash, new BrainId("alice"), p384Public.SigningKey, p384Public.ExchangeKey, expiresAt, "https://cloud.example");
+        var p384Bundle = new FriendCodeBundle(codeHash, new BrainId("alice"), p384Public.SigningKey, p384Public.ExchangeKey, p384Signing.SignData(p384Canonical, HashAlgorithmName.SHA256), "https://cloud.example", expiresAt);
+        Assert.False(FriendCodeBundleSigner.Verify(p384Bundle, now));
+
+        var pinDir = new InMemoryPinnedBrainKeyDirectory();
+        Assert.Throws<CryptographicException>(() => pinDir.PinAsync(new BrainId("p384"), p384Public, TestContext.Current.CancellationToken).AsTask().GetAwaiter().GetResult());
     }
 
     [Fact]
@@ -298,8 +315,9 @@ public sealed class BrainRelaySecurityFacts
         using var bobKeys = BrainKeyPair.Generate();
         using var mitmKeys = BrainKeyPair.Generate();
 
+        var codeHash = FriendCodeBundleSigner.ComputeCodeHash("JOIN-1234");
         var honestBundle = FriendCodeBundleSigner.Sign(
-            codeHash: "hash-join-1234",
+            codeHash: codeHash,
             brainId: new BrainId("alice"),
             keys: aliceKeys,
             expiresAt: now.AddHours(24),
@@ -349,7 +367,7 @@ public sealed class BrainRelaySecurityFacts
                 });
             }
 
-            if (request.Method == HttpMethod.Delete && request.RequestUri?.AbsolutePath == "/circle/v1/friends/codes/hash-join-1234")
+            if (request.Method == HttpMethod.Delete && request.RequestUri?.AbsolutePath == $"/circle/v1/friends/codes/{codeHash}")
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
             }
@@ -380,16 +398,32 @@ public sealed class BrainRelaySecurityFacts
 
         await client.PublishFriendCodeAsync(honestBundle, ct);
 
-        var resolved = await client.ResolveFriendCodeAsync("hash-join-1234", ct);
+        // Non-SHA256 raw code is rejected before any network call.
+        await Assert.ThrowsAsync<ArgumentException>(() => client.ResolveFriendCodeAsync("JOIN-1234", ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => client.RevokeFriendCodeAsync("JOIN-1234", ct));
+
+        // SendOneWayAsync rejects envelopes not sealed with OneWay = true.
+        var nonOneWayEnvelope = BrainEnvelopeSealer.Seal(
+            new BrainId("bob"),
+            new BrainId("alice"),
+            "msg-not-oneway",
+            "{}"u8,
+            bobKeys,
+            aliceKeys.ExportPublicKeys(),
+            sentAtUtc: now,
+            oneWay: false);
+        await Assert.ThrowsAsync<ArgumentException>(() => client.SendOneWayAsync(nonOneWayEnvelope, ct));
+
+        var resolved = await client.ResolveFriendCodeAsync(codeHash, ct);
         Assert.NotNull(resolved);
         Assert.Equal("alice", resolved.BrainId.Value);
         Assert.True(resolved.ToPublicKeys().Matches(aliceKeys.ExportPublicKeys()));
 
         // Relay attempts MITM by swapping public keys -> client rejects with CryptographicException!
         tamperMode = true;
-        await Assert.ThrowsAsync<CryptographicException>(() => client.ResolveFriendCodeAsync("hash-join-1234", ct));
+        await Assert.ThrowsAsync<CryptographicException>(() => client.ResolveFriendCodeAsync(codeHash, ct));
 
-        await client.RevokeFriendCodeAsync("hash-join-1234", ct);
+        await client.RevokeFriendCodeAsync(codeHash, ct);
 
         // OneWay leased envelope triggers explicit POST /circle/v1/brains/ack/{messageId} with X-Brain-Lease-Id.
         await using var aliceOS = TestOS.Local();

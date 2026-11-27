@@ -95,6 +95,7 @@ internal sealed class BrainKeysNeuron(IServiceProvider services) : Neuron<BrainK
     {
         RequireIdentityAuthority();
         ArgumentNullException.ThrowIfNull(peerEphemeralPublicKeySpki);
+        BrainPublicKeyValidation.ValidateNistP256ExchangeKey(peerEphemeralPublicKeySpki);
         await EnsureInternal();
 
         var sealedExchange = State.ExchangeKey
