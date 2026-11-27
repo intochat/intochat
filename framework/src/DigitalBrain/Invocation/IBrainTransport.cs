@@ -37,22 +37,25 @@ public sealed record RemoteInvocationResponse(
 
 /// <summary>
 /// <see cref="IBrainTransport"/> implementation that serializes invocations into JSON, seals them with
-/// <see cref="BrainEnvelopeSealer"/>, and forwards the opaque <see cref="BrainEnvelope"/> through a pluggable relay delegate.
+/// <see cref="BrainEnvelopeSealer"/> (via a non-exportable <see cref="IBrainKeySigner"/> or <see cref="BrainKeyPair"/>),
+/// and forwards the opaque <see cref="BrainEnvelope"/> through a pluggable relay delegate.
 /// </summary>
 public sealed class SealedRelayBrainTransport : IBrainTransport
 {
-    internal static readonly TimeSpan DefaultMaxClockSkew = TimeSpan.FromMinutes(5);
+    internal static readonly TimeSpan DefaultMaxClockSkew = BrainEnvelopeSealer.DefaultMaxClockSkew;
 
-    private readonly BrainId _localBrain;
-    private readonly BrainKeyPair _localKeys;
-    private readonly Func<BrainId, BrainPublicKeys?> _keyLookup;
+    private readonly BrainId? _localBrain;
+    private readonly IBrainKeySigner _signer;
+    private readonly Func<BrainId, CancellationToken, ValueTask<BrainPublicKeys?>> _keyLookup;
     private readonly ICallerAmbient _callers;
     private readonly Func<BrainEnvelope, CancellationToken, Task<BrainEnvelope>> _relay;
+    private readonly Func<BrainEnvelope, CancellationToken, Task>? _postRelay;
     private readonly Func<BrainId, bool>? _isRemote;
     private readonly TimeProvider _clock;
     private readonly TimeSpan _maxClockSkew;
+    private readonly BrainEnvelopeReplayCache _replayCache;
 
-    /// <summary>Creates a sealed relay transport for <paramref name="localBrain"/>.</summary>
+    /// <summary>Creates a sealed relay transport for <paramref name="localBrain"/> using an in-memory <see cref="BrainKeyPair"/>.</summary>
     public SealedRelayBrainTransport(
         BrainId localBrain,
         BrainKeyPair localKeys,
@@ -61,9 +64,41 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         Func<BrainEnvelope, CancellationToken, Task<BrainEnvelope>> relay,
         Func<BrainId, bool>? isRemote = null,
         TimeProvider? clock = null,
-        TimeSpan? maxClockSkew = null)
+        TimeSpan? maxClockSkew = null,
+        Func<BrainEnvelope, CancellationToken, Task>? postRelay = null,
+        BrainEnvelopeReplayCache? replayCache = null)
+        : this(
+            new BrainKeyPairSigner(localKeys),
+            (brain, _) => ValueTask.FromResult(keyLookup(brain)),
+            callers,
+            relay,
+            postRelay: postRelay,
+            isRemote: isRemote,
+            localBrain: localBrain,
+            timeProvider: clock,
+            maxClockSkew: maxClockSkew,
+            replayCache: replayCache)
     {
-        ArgumentNullException.ThrowIfNull(localKeys);
+        ArgumentNullException.ThrowIfNull(keyLookup);
+    }
+
+    /// <summary>
+    /// Creates a sealed relay transport backed by a non-exportable <see cref="IBrainKeySigner"/>.
+    /// When <paramref name="localBrain"/> is <see langword="null"/>, the sender brain is resolved per call from the ambient caller.
+    /// </summary>
+    public SealedRelayBrainTransport(
+        IBrainKeySigner signer,
+        Func<BrainId, CancellationToken, ValueTask<BrainPublicKeys?>> keyLookup,
+        ICallerAmbient callers,
+        Func<BrainEnvelope, CancellationToken, Task<BrainEnvelope>> relay,
+        Func<BrainEnvelope, CancellationToken, Task>? postRelay = null,
+        Func<BrainId, bool>? isRemote = null,
+        BrainId? localBrain = null,
+        TimeProvider? timeProvider = null,
+        TimeSpan? maxClockSkew = null,
+        BrainEnvelopeReplayCache? replayCache = null)
+    {
+        ArgumentNullException.ThrowIfNull(signer);
         ArgumentNullException.ThrowIfNull(keyLookup);
         ArgumentNullException.ThrowIfNull(callers);
         ArgumentNullException.ThrowIfNull(relay);
@@ -74,19 +109,24 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
             throw new ArgumentOutOfRangeException(nameof(maxClockSkew), skew, "Maximum clock skew cannot be negative.");
         }
 
-        _localBrain = localBrain;
-        _localKeys = localKeys;
+        _signer = signer;
         _keyLookup = keyLookup;
         _callers = callers;
         _relay = relay;
+        _postRelay = postRelay;
         _isRemote = isRemote;
-        _clock = clock ?? TimeProvider.System;
+        _localBrain = localBrain;
+        _clock = timeProvider ?? TimeProvider.System;
         _maxClockSkew = skew;
+        var retention = skew > TimeSpan.Zero ? skew + skew : TimeSpan.FromMinutes(1);
+        _replayCache = replayCache ?? new BrainEnvelopeReplayCache(retentionWindow: retention);
     }
 
     /// <inheritdoc />
     public bool IsRemote(BrainId brain)
-        => _isRemote is not null ? _isRemote(brain) : !brain.IsSystem && brain != _localBrain;
+        => _isRemote is not null
+            ? _isRemote(brain)
+            : _localBrain is { } local && !brain.IsSystem && brain != local;
 
     /// <inheritdoc />
     public Task<JsonElement?> InvokeRemoteAsync(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken = default)
@@ -107,34 +147,47 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         var person = caller.For
             ?? throw new UnauthorizedAccessException($"Remote call {call.Contract}.{call.Method} on {target}: caller has no person account.");
 
-        var recipientKeys = _keyLookup(target.Brain)
+        var senderBrain = _localBrain ?? caller.Brain;
+        var recipientKeys = await _keyLookup(target.Brain, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"No public keys are known for remote brain '{target.Brain.Value}'.");
 
         var request = new RemoteInvocationRequest(target, call, person.Account, person.Principal, caller.Brain, oneWay);
         var plaintext = JsonSerializer.SerializeToUtf8Bytes(request, RuntimeProtocol.Json);
         var messageId = Guid.NewGuid().ToString("N");
+        var sentAtUtc = _clock.GetUtcNow();
 
-        var requestEnvelope = BrainEnvelopeSealer.Seal(
-            _localBrain,
+        var requestEnvelope = await BrainEnvelopeSealer.SealAsync(
+            senderBrain,
             target.Brain,
             messageId,
             plaintext,
-            _localKeys,
+            _signer,
             recipientKeys,
-            sentAtUtc: _clock.GetUtcNow());
+            sentAtUtc: sentAtUtc,
+            oneWay: oneWay,
+            ct: cancellationToken).ConfigureAwait(false);
+
+        if (oneWay && _postRelay is not null)
+        {
+            await _postRelay(requestEnvelope, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
 
         var replyEnvelope = await _relay(requestEnvelope, cancellationToken).ConfigureAwait(false);
-        if (replyEnvelope.From != target.Brain || replyEnvelope.To != _localBrain || !string.Equals(replyEnvelope.ReplyToMessageId, messageId, StringComparison.Ordinal))
+        if (replyEnvelope.From != target.Brain || replyEnvelope.To != senderBrain || !string.Equals(replyEnvelope.ReplyToMessageId, messageId, StringComparison.Ordinal))
         {
             throw new CryptographicException("Remote reply envelope metadata does not match the outgoing request.");
         }
 
-        if (replyEnvelope.SentAtUtc is not { } replySentAtUtc || !BrainEnvelopeReceiver.IsWithinClockSkew(replySentAtUtc, _clock.GetUtcNow(), _maxClockSkew))
+        var now = _clock.GetUtcNow();
+        ValidateFreshnessAndReplayPrecheck(replyEnvelope, now, _maxClockSkew, _replayCache);
+
+        var replyPlaintext = await BrainEnvelopeSealer.OpenAsync(replyEnvelope, _signer, recipientKeys, cancellationToken).ConfigureAwait(false);
+        if (!_replayCache.TryAccept(replyEnvelope.From, replyEnvelope.MessageId, now))
         {
-            throw new CryptographicException("Remote reply envelope timestamp is missing or outside the allowed clock skew window.");
+            throw new CryptographicException("Duplicate reply BrainEnvelope MessageId detected (replay rejected).");
         }
 
-        var replyPlaintext = BrainEnvelopeSealer.Open(replyEnvelope, _localKeys, recipientKeys);
         var response = JsonSerializer.Deserialize<RemoteInvocationResponse>(replyPlaintext, RuntimeProtocol.Json)
             ?? throw new InvalidDataException("Remote reply payload was null.");
 
@@ -144,6 +197,28 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
         }
 
         return response.Result;
+    }
+
+    internal static void ValidateFreshnessAndReplayPrecheck(
+        BrainEnvelope envelope,
+        DateTimeOffset nowUtc,
+        TimeSpan maxClockSkew,
+        BrainEnvelopeReplayCache replayCache)
+    {
+        if (string.IsNullOrWhiteSpace(envelope.MessageId))
+        {
+            throw new CryptographicException("BrainEnvelope MessageId must be non-empty.");
+        }
+
+        if (envelope.SentAtUtc is not { } sentAt || !BrainEnvelopeReceiver.IsWithinClockSkew(sentAt, nowUtc, maxClockSkew))
+        {
+            throw new CryptographicException("BrainEnvelope timestamp is missing or outside the allowed clock skew window.");
+        }
+
+        if (replayCache.Contains(envelope.From, envelope.MessageId, nowUtc))
+        {
+            throw new CryptographicException($"Duplicate BrainEnvelope message '{envelope.MessageId}' from '{envelope.From.Value}' rejected as replay.");
+        }
     }
 
     private static void ThrowRemoteError(string errorType, string? message)
@@ -162,31 +237,25 @@ public sealed class SealedRelayBrainTransport : IBrainTransport
 }
 
 /// <summary>
-/// Receiving side of cross-cluster transport: verifies and decrypts an incoming <see cref="BrainEnvelope"/>,
-/// stamps the foreign person caller through <see cref="EdgeAuthority"/>, dispatches through the local host's
-/// unchanged <see cref="AccessGate"/> and neuron host, and returns a sealed reply <see cref="BrainEnvelope"/>.
+/// Receiving side of cross-cluster transport: enforces freshness (±5m skew), replay defense, and signature verification
+/// against pinned sender keys, decrypts via a non-exportable <see cref="IBrainKeySigner"/>, verifies caller account binding,
+/// stamps the foreign person caller through <see cref="EdgeAuthority"/>, dispatches through the local host's unchanged
+/// <see cref="AccessGate"/> and neuron host, and returns a sealed reply <see cref="BrainEnvelope"/>.
 /// </summary>
 public sealed class BrainEnvelopeReceiver
 {
-    private const int MaxReplayCacheEntries = 16_384;
-
-    private readonly BrainId _localBrain;
-    private readonly BrainKeyPair _localKeys;
-    private readonly Func<BrainId, BrainPublicKeys?> _keyLookup;
+    private readonly Func<BrainId, bool> _isLocalBrain;
+    private readonly IBrainKeySigner _signer;
+    private readonly Func<BrainId, BrainId, CancellationToken, ValueTask<BrainPublicKeys?>> _keyLookup;
     private readonly EdgeAuthority _edge;
     private readonly Func<NeuronId, RuntimeInvocation, CancellationToken, Task<JsonElement?>> _invoke;
     private readonly Func<NeuronId, RuntimeInvocation, Task>? _post;
     private readonly TimeProvider _clock;
     private readonly TimeSpan _maxClockSkew;
-    private readonly TimeSpan _replayTtl;
-    private readonly Func<BrainId, string, CancellationToken, ValueTask<bool>>? _verifyCallerAccount;
-    private readonly Lock _replayLock = new();
-    private readonly Dictionary<ReplayKey, DateTimeOffset> _seenMessages = new();
-    private readonly Queue<(ReplayKey Key, DateTimeOffset ExpiresAt)> _replayOrder = new();
+    private readonly BrainEnvelopeReplayCache _replayCache;
+    private readonly Func<BrainId, BrainId, string, CancellationToken, ValueTask<bool>>? _verifyCallerAccount;
 
-    private readonly record struct ReplayKey(string From, string MessageId);
-
-    /// <summary>Creates a receiver for <paramref name="localBrain"/>.</summary>
+    /// <summary>Creates a receiver for <paramref name="localBrain"/> using an in-memory <see cref="BrainKeyPair"/>.</summary>
     public BrainEnvelopeReceiver(
         BrainId localBrain,
         BrainKeyPair localKeys,
@@ -196,10 +265,74 @@ public sealed class BrainEnvelopeReceiver
         Func<NeuronId, RuntimeInvocation, Task>? post = null,
         TimeProvider? clock = null,
         TimeSpan? maxClockSkew = null,
-        Func<BrainId, string, CancellationToken, ValueTask<bool>>? verifyCallerAccount = null)
+        Func<BrainId, string, CancellationToken, ValueTask<bool>>? verifyCallerAccount = null,
+        BrainEnvelopeReplayCache? replayCache = null)
+        : this(
+            brain => brain == localBrain,
+            new BrainKeyPairSigner(localKeys),
+            (_, sender, _) => ValueTask.FromResult(keyLookup(sender)),
+            edge,
+            invoke,
+            post: post,
+            timeProvider: clock,
+            maxClockSkew: maxClockSkew,
+            scopedVerifyCallerAccount: verifyCallerAccount is not null
+                ? (_, sender, account, ct) => verifyCallerAccount(sender, account, ct)
+                : null,
+            replayCache: replayCache)
     {
-        ArgumentNullException.ThrowIfNull(localKeys);
         ArgumentNullException.ThrowIfNull(keyLookup);
+    }
+
+    /// <summary>Creates a receiver backed by a non-exportable <see cref="IBrainKeySigner"/>.</summary>
+    public BrainEnvelopeReceiver(
+        Func<BrainId, bool> isLocalBrain,
+        IBrainKeySigner signer,
+        Func<BrainId, CancellationToken, ValueTask<BrainPublicKeys?>> keyLookup,
+        EdgeAuthority edge,
+        Func<NeuronId, RuntimeInvocation, CancellationToken, Task<JsonElement?>> invoke,
+        Func<NeuronId, RuntimeInvocation, Task>? post = null,
+        TimeProvider? timeProvider = null,
+        TimeSpan? maxClockSkew = null,
+        Func<BrainId, string, CancellationToken, ValueTask<bool>>? verifyCallerAccount = null,
+        BrainEnvelopeReplayCache? replayCache = null)
+        : this(
+            isLocalBrain,
+            signer,
+            (_, sender, ct) => keyLookup(sender, ct),
+            edge,
+            invoke,
+            post: post,
+            timeProvider: timeProvider,
+            maxClockSkew: maxClockSkew,
+            scopedVerifyCallerAccount: verifyCallerAccount is not null
+                ? (_, sender, account, ct) => verifyCallerAccount(sender, account, ct)
+                : null,
+            replayCache: replayCache)
+    {
+        ArgumentNullException.ThrowIfNull(keyLookup);
+    }
+
+    /// <summary>
+    /// Creates a multi-brain-aware receiver backed by a non-exportable <see cref="IBrainKeySigner"/>, passing
+    /// <c>(targetBrain, senderBrain)</c> into key lookup and caller-account verification so cold-start inbound
+    /// deliveries can resolve per-target-brain friend rosters even when no ambient caller is established.
+    /// </summary>
+    public BrainEnvelopeReceiver(
+        Func<BrainId, bool> isLocalBrain,
+        IBrainKeySigner signer,
+        Func<BrainId, BrainId, CancellationToken, ValueTask<BrainPublicKeys?>> scopedKeyLookup,
+        EdgeAuthority edge,
+        Func<NeuronId, RuntimeInvocation, CancellationToken, Task<JsonElement?>> invoke,
+        Func<NeuronId, RuntimeInvocation, Task>? post = null,
+        TimeProvider? timeProvider = null,
+        TimeSpan? maxClockSkew = null,
+        Func<BrainId, BrainId, string, CancellationToken, ValueTask<bool>>? scopedVerifyCallerAccount = null,
+        BrainEnvelopeReplayCache? replayCache = null)
+    {
+        ArgumentNullException.ThrowIfNull(isLocalBrain);
+        ArgumentNullException.ThrowIfNull(signer);
+        ArgumentNullException.ThrowIfNull(scopedKeyLookup);
         ArgumentNullException.ThrowIfNull(edge);
         ArgumentNullException.ThrowIfNull(invoke);
 
@@ -209,16 +342,17 @@ public sealed class BrainEnvelopeReceiver
             throw new ArgumentOutOfRangeException(nameof(maxClockSkew), skew, "Maximum clock skew cannot be negative.");
         }
 
-        _localBrain = localBrain;
-        _localKeys = localKeys;
-        _keyLookup = keyLookup;
+        _isLocalBrain = isLocalBrain;
+        _signer = signer;
+        _keyLookup = scopedKeyLookup;
         _edge = edge;
         _invoke = invoke;
         _post = post;
-        _clock = clock ?? TimeProvider.System;
+        _clock = timeProvider ?? TimeProvider.System;
         _maxClockSkew = skew;
-        _replayTtl = skew + skew;
-        _verifyCallerAccount = verifyCallerAccount;
+        _verifyCallerAccount = scopedVerifyCallerAccount;
+        var retention = skew > TimeSpan.Zero ? skew + skew : TimeSpan.FromMinutes(1);
+        _replayCache = replayCache ?? new BrainEnvelopeReplayCache(retentionWindow: retention);
     }
 
     internal static bool IsWithinClockSkew(DateTimeOffset sentAtUtc, DateTimeOffset nowUtc, TimeSpan maxClockSkew)
@@ -228,31 +362,27 @@ public sealed class BrainEnvelopeReceiver
     }
 
     /// <summary>
-    /// Verifies the sender's signature, decrypts the request, dispatches it locally under the authenticated foreign caller,
-    /// and seals the result or error into a reply <see cref="BrainEnvelope"/>.
+    /// Verifies freshness, replay defense, and sender signature, decrypts the request, validates caller account binding,
+    /// dispatches it locally under the authenticated foreign caller, and seals the result or error into a reply <see cref="BrainEnvelope"/>.
     /// </summary>
-    /// <exception cref="CryptographicException">Thrown when the envelope fails freshness, replay, signature verification, decryption, or routing checks.</exception>
+    /// <exception cref="CryptographicException">Thrown when the envelope fails freshness, replay, signature, decryption, or routing checks.</exception>
     public async Task<BrainEnvelope> DeliverAsync(BrainEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
-        if (envelope.To != _localBrain)
+        if (!_isLocalBrain(envelope.To))
         {
-            throw new CryptographicException($"Envelope target '{envelope.To.Value}' does not match local brain '{_localBrain.Value}'.");
+            throw new CryptographicException($"Envelope target '{envelope.To.Value}' is not hosted by this receiver.");
         }
 
         var now = _clock.GetUtcNow();
-        if (envelope.SentAtUtc is not { } sentAtUtc || !IsWithinClockSkew(sentAtUtc, now, _maxClockSkew))
-        {
-            throw new CryptographicException("BrainEnvelope timestamp is missing or outside the allowed clock skew window.");
-        }
+        SealedRelayBrainTransport.ValidateFreshnessAndReplayPrecheck(envelope, now, _maxClockSkew, _replayCache);
 
-        var senderKeys = _keyLookup(envelope.From)
+        var senderKeys = await _keyLookup(envelope.To, envelope.From, cancellationToken).ConfigureAwait(false)
             ?? throw new CryptographicException($"No public keys are known for sender brain '{envelope.From.Value}'.");
 
-        var plaintext = BrainEnvelopeSealer.Open(envelope, _localKeys, senderKeys);
-
-        if (!TryRecordMessageId(envelope.From, envelope.MessageId, now))
+        var plaintext = await BrainEnvelopeSealer.OpenAsync(envelope, _signer, senderKeys, cancellationToken).ConfigureAwait(false);
+        if (!_replayCache.TryAccept(envelope.From, envelope.MessageId, now))
         {
             throw new CryptographicException($"Duplicate BrainEnvelope message '{envelope.MessageId}' from '{envelope.From.Value}' rejected as replay.");
         }
@@ -261,11 +391,11 @@ public sealed class BrainEnvelopeReceiver
             ?? throw new InvalidDataException("Remote invocation payload was null.");
 
         RemoteInvocationResponse response;
-        if (request.CallerBrain != envelope.From || request.Target.Brain != _localBrain)
+        if (request.CallerBrain != envelope.From || request.Target.Brain != envelope.To)
         {
             response = new RemoteInvocationResponse(
                 ErrorType: nameof(UnauthorizedAccessException),
-                ErrorMessage: $"Remote invocation routing mismatch: envelope from '{envelope.From.Value}' to '{_localBrain.Value}' carried caller brain '{request.CallerBrain.Value}' for target '{request.Target}'.");
+                ErrorMessage: $"Remote invocation routing mismatch: envelope from '{envelope.From.Value}' to '{envelope.To.Value}' carried caller brain '{request.CallerBrain.Value}' for target '{request.Target}'.");
         }
         else if (string.IsNullOrWhiteSpace(request.CallerAccount) || string.IsNullOrWhiteSpace(request.CallerPrincipal))
         {
@@ -273,7 +403,7 @@ public sealed class BrainEnvelopeReceiver
                 ErrorType: nameof(UnauthorizedAccessException),
                 ErrorMessage: "Remote invocation caller account and principal must be non-empty.");
         }
-        else if (_verifyCallerAccount is not null && !await _verifyCallerAccount(envelope.From, request.CallerAccount, cancellationToken).ConfigureAwait(false))
+        else if (_verifyCallerAccount is not null && !await _verifyCallerAccount(envelope.To, envelope.From, request.CallerAccount, cancellationToken).ConfigureAwait(false))
         {
             response = new RemoteInvocationResponse(
                 ErrorType: nameof(UnauthorizedAccessException),
@@ -284,7 +414,7 @@ public sealed class BrainEnvelopeReceiver
             using var _ = _edge.Enter(_edge.Person(request.CallerPrincipal, request.CallerAccount, envelope.From));
             try
             {
-                if (request.OneWay && _post is not null)
+                if ((request.OneWay || envelope.OneWay) && _post is not null)
                 {
                     await _post(request.Target, request.Call).ConfigureAwait(false);
                     response = new RemoteInvocationResponse();
@@ -304,49 +434,16 @@ public sealed class BrainEnvelopeReceiver
         }
 
         var replyPlaintext = JsonSerializer.SerializeToUtf8Bytes(response, RuntimeProtocol.Json);
-        return BrainEnvelopeSealer.Seal(
-            _localBrain,
+        return await BrainEnvelopeSealer.SealAsync(
+            envelope.To,
             envelope.From,
             Guid.NewGuid().ToString("N"),
             replyPlaintext,
-            _localKeys,
+            _signer,
             senderKeys,
             replyToMessageId: envelope.MessageId,
-            sentAtUtc: _clock.GetUtcNow());
-    }
-
-    private bool TryRecordMessageId(BrainId from, string messageId, DateTimeOffset now)
-    {
-        var key = new ReplayKey(from.Value ?? string.Empty, messageId);
-        lock (_replayLock)
-        {
-            while (_replayOrder.Count > 0 && _replayOrder.Peek().ExpiresAt < now)
-            {
-                var (expiredKey, expiredAt) = _replayOrder.Dequeue();
-                if (_seenMessages.TryGetValue(expiredKey, out var currentExpiry) && currentExpiry == expiredAt)
-                {
-                    _seenMessages.Remove(expiredKey);
-                }
-            }
-
-            if (_seenMessages.TryGetValue(key, out var existingExpiry) && existingExpiry >= now)
-            {
-                return false;
-            }
-
-            while (_seenMessages.Count >= MaxReplayCacheEntries && _replayOrder.Count > 0)
-            {
-                var (oldestKey, oldestExpiry) = _replayOrder.Dequeue();
-                if (_seenMessages.TryGetValue(oldestKey, out var currentExpiry) && currentExpiry == oldestExpiry)
-                {
-                    _seenMessages.Remove(oldestKey);
-                }
-            }
-
-            var expiresAt = now + _replayTtl;
-            _seenMessages[key] = expiresAt;
-            _replayOrder.Enqueue((key, expiresAt));
-            return true;
-        }
+            sentAtUtc: _clock.GetUtcNow(),
+            oneWay: false,
+            ct: cancellationToken).ConfigureAwait(false);
     }
 }

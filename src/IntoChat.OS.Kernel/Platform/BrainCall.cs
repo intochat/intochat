@@ -116,6 +116,7 @@ internal static class BrainCall
         "ISecretVaultPort",
         "ISecretValueSource",
         "IBrainKeys",
+        "IBrainKeysCrypto",
         "IBrainSecretSealer",
         "ISecretSealer",
         "IOAuthTokenExchange",
