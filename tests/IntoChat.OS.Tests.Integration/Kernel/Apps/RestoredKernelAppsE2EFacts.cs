@@ -182,7 +182,10 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                     {
                         services.Remove(d);
                     }
-                    services.AddSecretsCapability<VaultPort>();
+                    services.AddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(
+                        new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(System.Text.Encoding.UTF8.GetBytes("test-restored-apps-master-key")));
+                    IntoChat.OS.Modules.Identity.Secrets.MasterKeyServiceCollectionExtensions.AddOsSecretVaultPort(services);
+                    services.AddSecretsCapability<DigitalBrain.Identity.Local.Vault.LocalVaultPort>();
                     services.AddIdentityCapability<TestIdentityDirectoryPort>();
                     services.AddSingleton<ICapabilityConnections>(
                         new SingleStorageConnections("local-disk", "Workspace Disk", _storage));

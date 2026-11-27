@@ -22,6 +22,9 @@ internal interface IAzureKeyVaultSecretClient
     /// <summary>Deletes <paramref name="secretName"/>; returns <see langword="true"/> if it existed.</summary>
     ValueTask<bool> DeleteSecretAsync(string secretName, CancellationToken cancellationToken = default);
 
+    /// <summary>Recovers a soft-deleted secret <paramref name="secretName"/> so a subsequent set succeeds during soft-delete retention.</summary>
+    ValueTask RecoverDeletedSecretAsync(string secretName, CancellationToken cancellationToken = default);
+
     /// <summary>Lists all enabled secrets whose names start with <paramref name="namePrefix"/>.</summary>
     ValueTask<IReadOnlyList<AzureKeyVaultSecretItem>> ListSecretsByPrefixAsync(string namePrefix, CancellationToken cancellationToken = default);
 }

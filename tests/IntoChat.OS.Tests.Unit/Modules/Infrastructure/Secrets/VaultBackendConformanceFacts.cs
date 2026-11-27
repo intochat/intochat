@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Azure;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
@@ -231,21 +233,151 @@ public sealed class VaultBackendConformanceFacts : IDisposable
         Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddSecretsBackend(badBitwardenConfig));
     }
 
-    private sealed class FakeAzureKeyVaultSecretClient : IAzureKeyVaultSecretClient
+    [Fact]
+    public async Task AzureKeyVault_recovers_soft_deleted_secret_on_409_conflict()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fakeKv = new FakeAzureKeyVaultSecretClient(simulateSoftDelete: true);
+        var kvBackend = new AzureKeyVaultSecretStoreBackend(
+            fakeKv,
+            _custody,
+            new AzureKeyVaultSecretStoreOptions
+            {
+                VaultUri = new Uri("https://os04-softdel.vault.azure.net"),
+                DeploymentId = "dep-softdel",
+            });
+
+        await kvBackend.SetAsync("alice", "item", "Item", "dummy-val-one", ct); // gitleaks:allow
+        Assert.True(await kvBackend.RemoveAsync("alice", "item", ct));
+
+        // Re-setting during soft-delete retention triggers 409 -> RecoverDeletedSecretAsync -> retry succeeds.
+        await kvBackend.SetAsync("alice", "item", "Item v2", "dummy-val-two", ct); // gitleaks:allow
+        Assert.Equal(1, fakeKv.RecoveryCount);
+        var restored = await kvBackend.GetAsync("alice", "item", ct);
+        Assert.Equal("dummy-val-two", restored?.Value);
+    }
+
+    [Fact]
+    public async Task Bitwarden_ListEntriesAsync_skips_malformed_json_note_without_breaking_owner_redaction()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fakeBw = new FakeBitwardenSecretsClient();
+        using var bwBackend = new BitwardenSecretStoreBackend(
+            fakeBw,
+            _custody,
+            new BitwardenSecretStoreOptions
+            {
+                OrganizationId = "org-1",
+                ProjectId = "proj-1",
+                AccessToken = "dummy-token-aaa", // gitleaks:allow
+                DeploymentId = "dep-note",
+            });
+
+        await bwBackend.SetAsync("alice", "good-item", "Good", "dummy-good-value-aaa", ct); // gitleaks:allow
+
+        // Inject a record under alice's prefix with a malformed non-JSON note
+        var badKey = SecretCoordinate.OwnerPrefix("dep-note", "alice") + "0000000000000000";
+        await fakeBw.UpsertAsync(badKey, "not-valid-base64", "{malformed-json", ct);
+
+        var values = await bwBackend.ListValuesAsync("alice", ct);
+        Assert.Equal(["dummy-good-value-aaa"], values);
+    }
+
+    [Fact]
+    public async Task Bitwarden_HttpClient_exchanges_machine_token_via_IdentityUrl_and_caches_bearer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var tokenCalls = 0;
+        var apiAuthHeaders = new List<string?>();
+        using var handler = new StubHttpHandler(request =>
+        {
+            if (request.RequestUri!.AbsoluteUri.StartsWith("https://identity.example.test/connect/token", StringComparison.Ordinal))
+            {
+                tokenCalls++;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"access_token\":\"dummy-exchanged-bearer\",\"expires_in\":3600}", Encoding.UTF8, "application/json"),
+                };
+            }
+
+            apiAuthHeaders.Add(request.Headers.Authorization?.ToString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"data\":[]}", Encoding.UTF8, "application/json"),
+            };
+        });
+
+        using var http = new HttpClient(handler);
+        var options = new BitwardenSecretStoreOptions
+        {
+            OrganizationId = "org-1",
+            ProjectId = "proj-1",
+            AccessToken = "0.client-one.secret-one:enc-key", // gitleaks:allow
+            DeploymentId = "dep-http",
+            ApiUrl = new Uri("https://api.example.test/"),
+            IdentityUrl = new Uri("https://identity.example.test/"),
+        };
+
+        using var client = new HttpBitwardenSecretsClient(http, options);
+        _ = await client.ListByKeyPrefixAsync("db-", ct);
+        _ = await client.ListByKeyPrefixAsync("db-", ct);
+
+        Assert.Equal(1, tokenCalls);
+        Assert.Equal(["Bearer dummy-exchanged-bearer", "Bearer dummy-exchanged-bearer"], apiAuthHeaders);
+    }
+
+    private sealed class StubHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(responder(request));
+    }
+
+    private sealed class FakeAzureKeyVaultSecretClient(bool simulateSoftDelete = false) : IAzureKeyVaultSecretClient
     {
         private readonly ConcurrentDictionary<string, AzureKeyVaultSecretItem> _store = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, AzureKeyVaultSecretItem> _softDeleted = new(StringComparer.Ordinal);
+
+        public int RecoveryCount { get; private set; }
 
         public ValueTask<AzureKeyVaultSecretItem?> GetSecretAsync(string secretName, CancellationToken cancellationToken = default)
             => ValueTask.FromResult(_store.TryGetValue(secretName, out var item) ? item : null);
 
         public ValueTask SetSecretAsync(string secretName, string value, IDictionary<string, string> tags, CancellationToken cancellationToken = default)
         {
+            if (simulateSoftDelete && _softDeleted.ContainsKey(secretName))
+            {
+                throw new RequestFailedException(409, "Secret is currently in a deleted but recoverable state.", "Conflict", null);
+            }
+
             _store[secretName] = new AzureKeyVaultSecretItem(secretName, value, new Dictionary<string, string>(tags, StringComparer.Ordinal));
             return ValueTask.CompletedTask;
         }
 
         public ValueTask<bool> DeleteSecretAsync(string secretName, CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(_store.TryRemove(secretName, out _));
+        {
+            if (!_store.TryRemove(secretName, out var removed))
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            if (simulateSoftDelete)
+            {
+                _softDeleted[secretName] = removed;
+            }
+
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask RecoverDeletedSecretAsync(string secretName, CancellationToken cancellationToken = default)
+        {
+            if (_softDeleted.TryRemove(secretName, out var recovered))
+            {
+                _store[secretName] = recovered;
+                RecoveryCount++;
+            }
+
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask<IReadOnlyList<AzureKeyVaultSecretItem>> ListSecretsByPrefixAsync(string namePrefix, CancellationToken cancellationToken = default)
             => ValueTask.FromResult<IReadOnlyList<AzureKeyVaultSecretItem>>(

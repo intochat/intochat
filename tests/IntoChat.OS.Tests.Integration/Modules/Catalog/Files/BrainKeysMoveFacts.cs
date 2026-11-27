@@ -406,7 +406,7 @@ public sealed class BrainKeysMoveFacts
     {
         var state = JsonSerializer.Deserialize(stored, BrainKeysJson.Default.BrainKeysState)!;
         var sealer = world.Runtime.Services.GetRequiredService<IBrainSecretSealer>();
-        Assert.IsType<IntoChat.OS.Modules.Identity.Secrets.BrainSecretSealer>(sealer);
+        Assert.IsType<DigitalBrain.Identity.Local.Vault.LocalSecretSealer>(sealer);
         return (Convert.FromBase64String(await sealer.Open(brain, state.SigningKey!)), Convert.FromBase64String(await sealer.Open(brain, state.ExchangeKey!)));
     }
 

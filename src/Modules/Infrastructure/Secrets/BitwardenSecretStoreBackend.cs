@@ -64,13 +64,15 @@ public sealed class BitwardenSecretStoreOptions
 
 /// <summary>
 /// <see cref="ISecretStoreBackend"/> backed by Bitwarden Secrets Manager via <see cref="IBitwardenSecretsClient"/>.
-/// Uses deterministic <see cref="SecretCoordinate"/> keys and AEAD envelope sealing via <see cref="IMasterKeyCustody"/>.
+/// Uses deterministic <see cref="SecretCoordinate"/> keys, serialized upsert locking, resilient note parsing,
+/// and AEAD envelope sealing via <see cref="IMasterKeyCustody"/>.
 /// </summary>
-internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend
+internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend, IDisposable
 {
     private readonly IBitwardenSecretsClient _client;
     private readonly IMasterKeyCustody _custody;
     private readonly BitwardenSecretStoreOptions _options;
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public BitwardenSecretStoreBackend(
         IBitwardenSecretsClient client,
@@ -82,6 +84,8 @@ internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
     }
+
+    public void Dispose() => _writeGate.Dispose();
 
     public async ValueTask<SecretEntry?> GetAsync(string owner, string name, CancellationToken cancellationToken = default)
     {
@@ -106,7 +110,15 @@ internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend
         var coordinate = SecretCoordinate.Format(_options.DeploymentId, owner, name, _options.OwnerKind);
         var sealedValue = Seal(owner, name, label ?? "", value);
         var note = JsonSerializer.Serialize(new BitwardenSecretNote(_options.DeploymentId, _options.OwnerKind, name), BitwardenJsonContext.Default.BitwardenSecretNote);
-        await _client.UpsertAsync(coordinate, sealedValue, note, cancellationToken).ConfigureAwait(false);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _client.UpsertAsync(coordinate, sealedValue, note, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     public async ValueTask<bool> RemoveAsync(string owner, string name, CancellationToken cancellationToken = default)
@@ -114,7 +126,15 @@ internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var coordinate = SecretCoordinate.Format(_options.DeploymentId, owner, name, _options.OwnerKind);
-        return await _client.DeleteByKeyAsync(coordinate, cancellationToken).ConfigureAwait(false);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await _client.DeleteByKeyAsync(coordinate, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     public async ValueTask<IReadOnlyList<string>> ListValuesAsync(string owner, CancellationToken cancellationToken = default)
@@ -136,7 +156,17 @@ internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend
                 continue;
             }
 
-            var note = JsonSerializer.Deserialize(record.Note, BitwardenJsonContext.Default.BitwardenSecretNote);
+            BitwardenSecretNote? note;
+            try
+            {
+                note = JsonSerializer.Deserialize(record.Note, BitwardenJsonContext.Default.BitwardenSecretNote);
+            }
+            catch (JsonException)
+            {
+                // Skip malformed or non-JSON notes rather than failing redaction for the entire owner.
+                continue;
+            }
+
             if (note is null || string.IsNullOrWhiteSpace(note.Name))
             {
                 continue;
@@ -168,15 +198,30 @@ internal sealed class BitwardenSecretStoreBackend : ISecretStoreBackend
 
 /// <summary>
 /// AOT-safe HTTP client adapter for Bitwarden Secrets Manager REST API.
+/// Exchanges Bitwarden machine access tokens (<c>0.&lt;client_id&gt;.&lt;client_secret&gt;[:...]</c>)
+/// against <see cref="BitwardenSecretStoreOptions.IdentityUrl"/> (<c>/connect/token</c>) with token caching,
+/// or uses a pre-exchanged bearer token directly.
 /// </summary>
 internal sealed class HttpBitwardenSecretsClient(
     HttpClient http,
-    BitwardenSecretStoreOptions options) : IBitwardenSecretsClient
+    BitwardenSecretStoreOptions options,
+    TimeProvider? clock = null) : IBitwardenSecretsClient, IDisposable
 {
     public const string HttpClientName = "IntoChat.OS.BitwardenSecrets";
 
     private readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
     private readonly BitwardenSecretStoreOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+    private readonly SemaphoreSlim _upsertGate = new(1, 1);
+    private readonly SemaphoreSlim _tokenGate = new(1, 1);
+    private string? _cachedBearerToken;
+    private DateTimeOffset _tokenExpiresAt = DateTimeOffset.MinValue;
+
+    public void Dispose()
+    {
+        _upsertGate.Dispose();
+        _tokenGate.Dispose();
+    }
 
     public async ValueTask<BitwardenSecretRecord?> GetByKeyAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -186,31 +231,39 @@ internal sealed class HttpBitwardenSecretsClient(
 
     public async ValueTask<BitwardenSecretRecord> UpsertAsync(string key, string value, string note, CancellationToken cancellationToken = default)
     {
-        var existing = await GetByKeyAsync(key, cancellationToken).ConfigureAwait(false);
-        if (existing is not null)
+        await _upsertGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            using var putRequest = CreateRequest(HttpMethod.Put, $"secrets/{existing.Id}");
-            var updateBody = new BitwardenUpsertPayload(key, value, note, [_options.ProjectId]);
-            putRequest.Content = new StringContent(
-                JsonSerializer.Serialize(updateBody, BitwardenJsonContext.Default.BitwardenUpsertPayload),
+            var existing = await GetByKeyAsync(key, cancellationToken).ConfigureAwait(false);
+            if (existing is not null)
+            {
+                using var putRequest = await CreateRequestAsync(HttpMethod.Put, $"secrets/{existing.Id}", cancellationToken).ConfigureAwait(false);
+                var updateBody = new BitwardenUpsertPayload(key, value, note, [_options.ProjectId]);
+                putRequest.Content = new StringContent(
+                    JsonSerializer.Serialize(updateBody, BitwardenJsonContext.Default.BitwardenUpsertPayload),
+                    Encoding.UTF8,
+                    "application/json");
+                using var putResponse = await _http.SendAsync(putRequest, cancellationToken).ConfigureAwait(false);
+                putResponse.EnsureSuccessStatusCode();
+                var updatedJson = await putResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                return ParseRecord(updatedJson) ?? new BitwardenSecretRecord(existing.Id, key, value, note);
+            }
+
+            using var postRequest = await CreateRequestAsync(HttpMethod.Post, $"organizations/{_options.OrganizationId}/secrets", cancellationToken).ConfigureAwait(false);
+            var createBody = new BitwardenUpsertPayload(key, value, note, [_options.ProjectId]);
+            postRequest.Content = new StringContent(
+                JsonSerializer.Serialize(createBody, BitwardenJsonContext.Default.BitwardenUpsertPayload),
                 Encoding.UTF8,
                 "application/json");
-            using var putResponse = await _http.SendAsync(putRequest, cancellationToken).ConfigureAwait(false);
-            putResponse.EnsureSuccessStatusCode();
-            var updatedJson = await putResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            return ParseRecord(updatedJson) ?? new BitwardenSecretRecord(existing.Id, key, value, note);
+            using var postResponse = await _http.SendAsync(postRequest, cancellationToken).ConfigureAwait(false);
+            postResponse.EnsureSuccessStatusCode();
+            var createdJson = await postResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return ParseRecord(createdJson) ?? new BitwardenSecretRecord(Guid.NewGuid().ToString("D"), key, value, note);
         }
-
-        using var postRequest = CreateRequest(HttpMethod.Post, $"organizations/{_options.OrganizationId}/secrets");
-        var createBody = new BitwardenUpsertPayload(key, value, note, [_options.ProjectId]);
-        postRequest.Content = new StringContent(
-            JsonSerializer.Serialize(createBody, BitwardenJsonContext.Default.BitwardenUpsertPayload),
-            Encoding.UTF8,
-            "application/json");
-        using var postResponse = await _http.SendAsync(postRequest, cancellationToken).ConfigureAwait(false);
-        postResponse.EnsureSuccessStatusCode();
-        var createdJson = await postResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        return ParseRecord(createdJson) ?? new BitwardenSecretRecord(Guid.NewGuid().ToString("D"), key, value, note);
+        finally
+        {
+            _upsertGate.Release();
+        }
     }
 
     public async ValueTask<bool> DeleteByKeyAsync(string key, CancellationToken cancellationToken = default)
@@ -221,7 +274,7 @@ internal sealed class HttpBitwardenSecretsClient(
             return false;
         }
 
-        using var deleteRequest = CreateRequest(HttpMethod.Post, "secrets/delete");
+        using var deleteRequest = await CreateRequestAsync(HttpMethod.Post, "secrets/delete", cancellationToken).ConfigureAwait(false);
         deleteRequest.Content = new StringContent(
             JsonSerializer.Serialize(new BitwardenDeletePayload([existing.Id]), BitwardenJsonContext.Default.BitwardenDeletePayload),
             Encoding.UTF8,
@@ -233,7 +286,7 @@ internal sealed class HttpBitwardenSecretsClient(
 
     public async ValueTask<IReadOnlyList<BitwardenSecretRecord>> ListByKeyPrefixAsync(string keyPrefix, CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Get, $"organizations/{_options.OrganizationId}/secrets");
+        using var request = await CreateRequestAsync(HttpMethod.Get, $"organizations/{_options.OrganizationId}/secrets", cancellationToken).ConfigureAwait(false);
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -251,12 +304,89 @@ internal sealed class HttpBitwardenSecretsClient(
         ];
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string relativePath)
+    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string relativePath, CancellationToken cancellationToken)
     {
+        var token = await ResolveBearerTokenAsync(cancellationToken).ConfigureAwait(false);
         var uri = new Uri(_options.ApiUrl, relativePath);
         var request = new HttpRequestMessage(method, uri);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.AccessToken);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return request;
+    }
+
+    private async Task<string> ResolveBearerTokenAsync(CancellationToken cancellationToken)
+    {
+        if (!TryParseMachineCredentials(_options.AccessToken, out var clientId, out var clientSecret))
+        {
+            return _options.AccessToken;
+        }
+
+        var now = _clock.GetUtcNow();
+        if (_cachedBearerToken is not null && now < _tokenExpiresAt)
+        {
+            return _cachedBearerToken;
+        }
+
+        await _tokenGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            now = _clock.GetUtcNow();
+            if (_cachedBearerToken is not null && now < _tokenExpiresAt)
+            {
+                return _cachedBearerToken;
+            }
+
+            var tokenEndpoint = new Uri(_options.IdentityUrl, "connect/token");
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["grant_type"] = "client_credentials",
+                    ["scope"] = "api.secrets",
+                    ["client_id"] = clientId,
+                    ["client_secret"] = clientSecret,
+                }),
+            };
+
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var parsed = JsonSerializer.Deserialize(json, BitwardenJsonContext.Default.BitwardenTokenResponse);
+            if (parsed is null || string.IsNullOrWhiteSpace(parsed.AccessToken))
+            {
+                throw new InvalidOperationException("Bitwarden identity endpoint returned an empty access_token.");
+            }
+
+            var lifetime = parsed.ExpiresIn > 120 ? TimeSpan.FromSeconds(parsed.ExpiresIn - 60) : TimeSpan.FromSeconds(Math.Max(10, parsed.ExpiresIn));
+            _cachedBearerToken = parsed.AccessToken;
+            _tokenExpiresAt = now + lifetime;
+            return _cachedBearerToken;
+        }
+        finally
+        {
+            _tokenGate.Release();
+        }
+    }
+
+    internal static bool TryParseMachineCredentials(string token, out string clientId, out string clientSecret)
+    {
+        clientId = "";
+        clientSecret = "";
+        if (string.IsNullOrWhiteSpace(token) || !token.StartsWith("0.", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var colon = token.IndexOf(':', StringComparison.Ordinal);
+        var credentialPart = colon > 0 ? token[2..colon] : token[2..];
+        var dot = credentialPart.IndexOf('.', StringComparison.Ordinal);
+        if (dot <= 0 || dot == credentialPart.Length - 1)
+        {
+            return false;
+        }
+
+        clientId = credentialPart[..dot];
+        clientSecret = credentialPart[(dot + 1)..];
+        return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(clientSecret);
     }
 
     private static BitwardenSecretRecord? ParseRecord(string json)
@@ -271,6 +401,9 @@ internal sealed record BitwardenUpsertPayload(string Key, string Value, string N
 internal sealed record BitwardenDeletePayload(string[] Ids);
 internal sealed record BitwardenSecretDto(string Id, string Key, string Value, string? Note);
 internal sealed record BitwardenSecretListResponse(BitwardenSecretDto[]? Data);
+internal sealed record BitwardenTokenResponse(
+    [property: JsonPropertyName("access_token")] string AccessToken,
+    [property: JsonPropertyName("expires_in")] int ExpiresIn);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(BitwardenSecretNote))]
@@ -278,4 +411,5 @@ internal sealed record BitwardenSecretListResponse(BitwardenSecretDto[]? Data);
 [JsonSerializable(typeof(BitwardenDeletePayload))]
 [JsonSerializable(typeof(BitwardenSecretDto))]
 [JsonSerializable(typeof(BitwardenSecretListResponse))]
+[JsonSerializable(typeof(BitwardenTokenResponse))]
 internal sealed partial class BitwardenJsonContext : JsonSerializerContext;

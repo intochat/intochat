@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Identity.Local.Custody;
 
@@ -9,7 +10,7 @@ namespace DigitalBrain.Identity.Local.Vault;
 /// <summary>
 /// Encrypted local-file <see cref="ISecretStoreBackend"/> for standalone, CLI, or non-silo hosts.
 /// Persists one AES-GCM sealed JSON vault file per owner under a root directory, using <see cref="IMasterKeyCustody"/>
-/// with AAD bound to the owner identifier and atomic temp-file replacement.
+/// with AAD bound to the owner identifier, <c>0600</c> Unix permissions, and atomic temp-file replacement.
 /// </summary>
 public sealed class LocalFileSecretStoreBackend : ISecretStoreBackend
 {
@@ -115,7 +116,7 @@ public sealed class LocalFileSecretStoreBackend : ISecretStoreBackend
 
         var sealedBytes = File.ReadAllBytes(path);
         var plainBytes = _custody.Unwrap(owner, VaultFileContextPrefix + owner, sealedBytes);
-        var list = JsonSerializer.Deserialize<List<StoredEntry>>(plainBytes) ?? [];
+        var list = JsonSerializer.Deserialize(plainBytes, LocalFileVaultJsonContext.Default.ListLocalFileStoredEntry) ?? [];
         var map = new Dictionary<string, SecretEntry>(list.Count, StringComparer.Ordinal);
         foreach (var item in list)
         {
@@ -129,8 +130,8 @@ public sealed class LocalFileSecretStoreBackend : ISecretStoreBackend
     {
         System.IO.Directory.CreateDirectory(_directory);
         var path = PathFor(owner);
-        var list = entries.Values.Select(e => new StoredEntry(e.Name, e.Label, e.Value)).ToList();
-        var plainBytes = JsonSerializer.SerializeToUtf8Bytes(list);
+        var list = entries.Values.Select(e => new LocalFileStoredEntry(e.Name, e.Label, e.Value)).ToList();
+        var plainBytes = JsonSerializer.SerializeToUtf8Bytes(list, LocalFileVaultJsonContext.Default.ListLocalFileStoredEntry);
         var sealedBytes = _custody.Wrap(owner, VaultFileContextPrefix + owner, plainBytes);
         var tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         using (var stream = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -146,6 +147,9 @@ public sealed class LocalFileSecretStoreBackend : ISecretStoreBackend
 
         File.Move(tmp, path, overwrite: true);
     }
-
-    private sealed record StoredEntry(string Name, string Label, string Value);
 }
+
+internal sealed record LocalFileStoredEntry(string Name, string Label, string Value);
+
+[JsonSerializable(typeof(List<LocalFileStoredEntry>))]
+internal sealed partial class LocalFileVaultJsonContext : JsonSerializerContext;

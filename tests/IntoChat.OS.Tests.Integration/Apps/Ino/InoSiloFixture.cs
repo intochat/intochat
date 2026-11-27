@@ -373,8 +373,11 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
                 services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(AIModule.Integrations);
                 services.TryAddSingleton<IBrainSecretSealer, TestBrainSecretSealer>();
+                services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(
+                    new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(System.Text.Encoding.UTF8.GetBytes("test-ino-silo-fixture-master-key")));
+                IntoChat.OS.Modules.Identity.Secrets.MasterKeyServiceCollectionExtensions.AddOsSecretVaultPort(services);
 
-                services.AddSecretsCapability<VaultPort>();
+                services.AddSecretsCapability<DigitalBrain.Identity.Local.Vault.LocalVaultPort>();
                 services.AddIdentityCapability<TestIdentityDirectoryPort>();
                 services.AddSingleton<ICapabilityConnections>(
                     new SingleStorageConnections("local-disk", "Workspace Disk", _storage));

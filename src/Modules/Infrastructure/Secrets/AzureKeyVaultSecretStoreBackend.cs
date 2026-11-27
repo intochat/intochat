@@ -81,6 +81,12 @@ internal sealed class AzureSdkKeyVaultSecretClient(SecretClient client) : IAzure
         }
     }
 
+    public async ValueTask RecoverDeletedSecretAsync(string secretName, CancellationToken cancellationToken = default)
+    {
+        var operation = await _client.StartRecoverDeletedSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
+        await operation.WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<IReadOnlyList<AzureKeyVaultSecretItem>> ListSecretsByPrefixAsync(string namePrefix, CancellationToken cancellationToken = default)
     {
         var results = new List<AzureKeyVaultSecretItem>();
@@ -151,7 +157,16 @@ internal sealed class AzureKeyVaultSecretStoreBackend : ISecretStoreBackend
             ["ic-owner-kind"] = _options.OwnerKind,
             ["ic-name"] = name,
         };
-        await _client.SetSecretAsync(coordinate, sealedValue, tags, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _client.SetSecretAsync(coordinate, sealedValue, tags, cancellationToken).ConfigureAwait(false);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 409 || string.Equals(ex.ErrorCode, "Conflict", StringComparison.OrdinalIgnoreCase))
+        {
+            // Recover soft-deleted secret during Azure Key Vault's retention window and retry Set once.
+            await _client.RecoverDeletedSecretAsync(coordinate, cancellationToken).ConfigureAwait(false);
+            await _client.SetSecretAsync(coordinate, sealedValue, tags, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async ValueTask<bool> RemoveAsync(string owner, string name, CancellationToken cancellationToken = default)
