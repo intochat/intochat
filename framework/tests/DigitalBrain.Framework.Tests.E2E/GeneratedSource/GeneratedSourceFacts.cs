@@ -95,13 +95,19 @@ public sealed class GeneratedSourceFacts
         return state!.Value.GetProperty("spent").GetDecimal();
     }
 
-    private static void Collect()
+    // An unloaded collectible context clears only once no thread still runs its code and no finalizer holds it, which
+    // takes longer under parallel load; collect until nothing lingers, within a budget so a real leak still fails the assertion.
+    private static readonly TimeSpan UnloadBudget = TimeSpan.FromSeconds(30);
+
+    private static async Task Collect(IUnitLoader loader, CancellationToken ct)
     {
-        for (var i = 0; i < 5; i++)
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (loader.Lingering().Count > 0 && System.Diagnostics.Stopwatch.GetElapsedTime(start) < UnloadBudget)
         {
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            await Task.Delay(10, ct);
         }
     }
 
@@ -138,7 +144,7 @@ public sealed class GeneratedSourceFacts
         await Pay(os).Charge(50m);
         await os.Idle();
         Assert.Equal(100m, await Spent(os));
-        Collect();
+        await Collect(os.Loader, Ct);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
@@ -165,7 +171,7 @@ public sealed class GeneratedSourceFacts
         var listed = Assert.Single(await os.Synapses.List(Brain, Ct));
         Assert.Equal((DeployStatus.Deployed, update.Hash), (listed.Status, listed.Hash));
         Assert.NotEmpty(os.Catalog.NeedsOf(WeeklyCapSource.Week).Slots);
-        Collect();
+        await Collect(os.Loader, Ct);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
@@ -185,7 +191,7 @@ public sealed class GeneratedSourceFacts
         // No reaction is left on the alias: the publisher finds no Charging signal to publish.
         Assert.Empty(os.Catalog.For(WeeklyCapSource.Week));
         await Assert.ThrowsAsync<InvalidOperationException>(() => Pay(os).Charge(350m));
-        Collect();
+        await Collect(os.Loader, Ct);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
