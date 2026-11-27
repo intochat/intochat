@@ -1,6 +1,6 @@
 [
   {
-    "name": "opened issue signal increments triaged and attention counts",
+    "name": "opened issue signal with PascalCase payload increments triaged and attention counts",
     "when": [
       "publish github.issue-changed {\"Number\":42,\"Action\":\"opened\",\"Version\":\"rev-1\",\"SubjectKey\":\"github:123:issue:42\"}"
     ],
@@ -8,6 +8,18 @@
       "state triage.github.issues TriagedCount = 1",
       "state triage.github.issues P0Count = 1",
       "state triage.github.issues LastIssueNumber = 42",
+      "signal issues.triaged"
+    ]
+  },
+  {
+    "name": "reopened issue signal with camelCase payload increments triaged and attention counts",
+    "when": [
+      "publish github.issue-changed {\"number\":77,\"action\":\"reopened\",\"version\":\"rev-2\",\"subjectKey\":\"github:123:issue:77\"}"
+    ],
+    "then": [
+      "state triage.github.issues TriagedCount = 1",
+      "state triage.github.issues P0Count = 1",
+      "state triage.github.issues LastIssueNumber = 77",
       "signal issues.triaged"
     ]
   },

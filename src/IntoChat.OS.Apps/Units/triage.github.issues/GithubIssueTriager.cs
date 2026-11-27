@@ -4,9 +4,6 @@ using DigitalBrain.UI;
 
 namespace Units.GithubTriager;
 
-[Signal("github.issue-changed")]
-public sealed record IssueChanged(int Number, string Action, string Version, string SubjectKey) : Signal;
-
 [Signal("issues.triaged")]
 public sealed record IssuesTriaged(int IssueNumber, string Action, int TriagedCount, int P0Count) : Signal;
 
@@ -23,34 +20,26 @@ public sealed record IssueState(
 
 public static class GithubIssueTriagerUnit
 {
-    [Synapse(typeof(IssueChanged), "triage.github.issues")]
-    public static Reaction<IssueState> OnIssueChanged(IssueChanged changed, IssueState state)
+    [Synapse("github.issue-changed", "triage.github.issues")]
+    public static Reaction<IssueState> OnIssueChanged(SignalEnvelope env, IssueState state)
     {
-        var needsAttention = string.Equals(changed.Action, "opened", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(changed.Action, "reopened", StringComparison.OrdinalIgnoreCase);
+        var number = ReadInt(env.Payload, "number");
+        var action = ReadString(env.Payload, "action") ?? "updated";
+        var subject = ReadString(env.Payload, "subjectKey") ?? "";
+        var needsAttention = string.Equals(action, "opened", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(action, "reopened", StringComparison.OrdinalIgnoreCase);
         var nextTriaged = state.TriagedCount + 1;
         var nextP0 = needsAttention ? state.P0Count + 1 : state.P0Count;
         var next = state with
         {
             TriagedCount = nextTriaged,
             P0Count = nextP0,
-            LastIssueNumber = changed.Number,
-            LastAction = changed.Action,
-            LastSubject = changed.SubjectKey,
+            LastIssueNumber = number,
+            LastAction = action,
+            LastSubject = subject,
         };
 
-        return Reaction<IssueState>.Of(next, new IssuesTriaged(changed.Number, changed.Action, nextTriaged, nextP0));
-    }
-
-    [Synapse("github.issue-changed", "triage.github.issues")]
-    public static Reaction<IssueState> OnIssueEnvelope(SignalEnvelope env, IssueState state)
-    {
-        var p = env.Payload;
-        var number = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("Number", out var n) && n.TryGetInt32(out var num) ? num : 0;
-        var action = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("Action", out var a) ? a.GetString() ?? "updated" : "updated";
-        var version = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("Version", out var v) ? v.GetString() ?? "" : "";
-        var subject = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("SubjectKey", out var s) ? s.GetString() ?? "" : "";
-        return OnIssueChanged(new IssueChanged(number, action, version, subject), state);
+        return Reaction<IssueState>.Of(next, new IssuesTriaged(number, action, nextTriaged, nextP0));
     }
 
     [Synapse("triage.reset", "triage.github.issues")]
@@ -79,4 +68,30 @@ public static class GithubIssueTriagerUnit
                 .OnPress(static s => s.Scale(0.98)),
         },
     ]) { Gap = 8 });
+
+    private static int ReadInt(JsonElement payload, string name)
+    {
+        if (payload.ValueKind != JsonValueKind.Object) { return 0; }
+        foreach (var prop in payload.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase) && prop.Value.TryGetInt32(out var value))
+            {
+                return value;
+            }
+        }
+        return 0;
+    }
+
+    private static string? ReadString(JsonElement payload, string name)
+    {
+        if (payload.ValueKind != JsonValueKind.Object) { return null; }
+        foreach (var prop in payload.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase) && prop.Value.ValueKind == JsonValueKind.String)
+            {
+                return prop.Value.GetString();
+            }
+        }
+        return null;
+    }
 }

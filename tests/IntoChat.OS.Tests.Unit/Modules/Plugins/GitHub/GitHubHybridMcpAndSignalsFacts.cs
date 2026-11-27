@@ -38,7 +38,9 @@ public sealed class GitHubHybridMcpAndSignalsFacts
         Assert.Contains("github", connector.OptionalIntegrations, StringComparer.Ordinal);
         Assert.DoesNotContain("github", connector.RequiredIntegrations, StringComparer.Ordinal);
         Assert.Contains("oauth", connector.AuthMethods, StringComparer.Ordinal);
+        Assert.Contains("device", connector.AuthMethods, StringComparer.Ordinal);
         Assert.Contains("pat", connector.AuthMethods, StringComparer.Ordinal);
+        Assert.Single(connector.DeviceMethods, static m => string.Equals(m.Id, "device", StringComparison.Ordinal));
 
         Assert.Contains(GitHubModule.Manifest.Needs, static n => string.Equals(n.Name, "/integrations/github/webhook", StringComparison.Ordinal));
         Assert.DoesNotContain(GitHubModule.Manifest.Needs, static n => string.Equals(n.Name, "/github/webhook", StringComparison.Ordinal));
@@ -108,6 +110,48 @@ public sealed class GitHubHybridMcpAndSignalsFacts
         Assert.Equal(ConnectionStatus.Connected, pipeConnected.Status);
         Assert.Equal("intochat/os", pipeConnected.Account);
         Assert.DoesNotContain(pipePat, JsonSerializer.Serialize(pipeConnected), StringComparison.Ordinal);
+
+        // Failed direct PAT connect must roll back cleanly: Status=Failing (never Connected) and cleared Secrets["value"] (never sends raw JSON on Probe)
+        var badConnId = new NeuronId(brain, "github", "connection/github/bad-pat");
+        var verifyCallsBeforeBadPat = verifier.VerifyCalls;
+        await Assert.ThrowsAsync<GitHubUnavailableException>(() =>
+            os.Get<IConnection>(badConnId).Connect("pat", """{"token":"github_pat_missing_repo_target"}"""));
+        var badView = await os.Get<IConnection>(badConnId).Read();
+        Assert.Equal(ConnectionStatus.Failing, badView.Status);
+        using (os.Edge.Enter(os.Edge.Module("github", brain)))
+        {
+            Assert.Null(await os.Get<IGitHubInbound>(badConnId).Coordinates());
+        }
+        var probeAfterFailure = await os.Get<IConnection>(badConnId).Probe();
+        Assert.Equal(ConnectionStatus.Failing, probeAfterFailure.Status);
+        Assert.Equal(verifyCallsBeforeBadPat, verifier.VerifyCalls);
+
+        // Failed AcceptGrantAsync with webhookSecret must NOT leak stale _pendingWebhookSecret to a subsequent successful grant without webhookSecret
+        var staleConnId = new NeuronId(brain, "github", "connection/github/stale-webhook");
+        const string staleSecret = "stale-webhook-secret-must-never-persist-1234";
+        await Assert.ThrowsAsync<GitHubUnavailableException>(() =>
+            os.Get<IConnectionInbound>(staleConnId).AcceptGrant(new OAuthGrant(
+                AuthMethodId: "pat",
+                AccessToken: "github_pat_failing_grant",
+                RefreshToken: null,
+                ExpiresAt: null,
+                Scopes: "repo",
+                Target: null,
+                Response: JsonSerializer.Serialize(new { auth_kind = "pat", webhookSecret = staleSecret }))));
+
+        var recovered = await os.Get<IConnectionInbound>(staleConnId).AcceptGrant(new OAuthGrant(
+            AuthMethodId: "pat",
+            AccessToken: "github_pat_recovered_grant",
+            RefreshToken: null,
+            ExpiresAt: null,
+            Scopes: "repo",
+            Target: "intochat/os",
+            Response: """{"auth_kind":"pat"}"""));
+        Assert.Equal(ConnectionStatus.Connected, recovered.Status);
+        using (os.Edge.Enter(os.Edge.Module("github", brain)))
+        {
+            Assert.False(await os.Get<IGitHubInbound>(staleConnId).VerifyWebhookSignature(bodyBytes, SignWebhook(bodyBytes, staleSecret)));
+        }
     }
 
     [Fact]
@@ -740,7 +784,12 @@ public sealed class GitHubHybridMcpAndSignalsFacts
 
     private sealed class StubVerifier : IGitHubInstallationVerifier
     {
-        public Task VerifyAsync(GitHubRepository repository, CancellationToken ct) => Task.CompletedTask;
+        public int VerifyCalls { get; private set; }
+        public Task VerifyAsync(GitHubRepository repository, CancellationToken ct)
+        {
+            VerifyCalls++;
+            return Task.CompletedTask;
+        }
         public void Forget(string connectionKey) { }
     }
 

@@ -134,7 +134,7 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
 
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
-        _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
+        _pendingWebhookSecret = null;
 
         if (IsPersonalAccessTokenGrant(grant))
         {
@@ -163,6 +163,7 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
                 Account = patAccount,
             };
             await SaveQuietly(patNext);
+            _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
             // ConnectionNeuron seals accepted.AccessToken into State.Secrets["access"]; plaintext never touches GitHubRepositoryState.
             return grant with { RefreshToken = null };
         }
@@ -198,6 +199,7 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
                 Account = userAccount,
             };
             await SaveQuietly(userNext);
+            _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
             // User OAuth token (gho_/ghu_) is sealed into State.Secrets["access"] and used directly as Bearer token.
             return grant with { RefreshToken = null };
         }
@@ -220,6 +222,7 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
             Account = account,
         };
         await SaveQuietly(next);
+        _pendingWebhookSecret = TryExtractWebhookSecretFromResponse(grant.Response);
         // The user token proved access once; installation tokens do the ongoing work.
         return grant with { AccessToken = "installation", RefreshToken = null, ExpiresAt = null };
     }
@@ -1095,49 +1098,63 @@ internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRe
 
     private async Task FinalizeDirectPatConnectAsync()
     {
-        await UseCredentialAsync<bool>(async (credential, _) =>
+        try
         {
-            var (token, target, webhookSecret) = ParseDirectConnectPayload(credential.Value);
-            var effectiveTarget = target
-                ?? ExistingOrDerivedTarget()
-                ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
+            await UseCredentialAsync<bool>(async (credential, _) =>
+            {
+                var (token, target, webhookSecret) = ParseDirectConnectPayload(credential.Value);
+                var effectiveTarget = target
+                    ?? ExistingOrDerivedTarget()
+                    ?? throw new GitHubUnavailableException("Choose one GitHub repository.");
 
-            var resolved = (await _access.ResolvePersonalAccessTokenAsync(token, effectiveTarget, CancellationToken.None).ConfigureAwait(true))
-                with
-            { Key = FullKey, AuthKind = "pat" };
-            using (GitHubCredentialScope.UsePersonalAccessToken(FullKey, token))
-            {
-                await _verifier.VerifyAsync(resolved, CancellationToken.None).ConfigureAwait(true);
-            }
+                var resolved = (await _access.ResolvePersonalAccessTokenAsync(token, effectiveTarget, CancellationToken.None).ConfigureAwait(true))
+                    with
+                { Key = FullKey, AuthKind = "pat" };
+                using (GitHubCredentialScope.UsePersonalAccessToken(FullKey, token))
+                {
+                    await _verifier.VerifyAsync(resolved, CancellationToken.None).ConfigureAwait(true);
+                }
 
-            await RemoveStaleIndexEntriesAsync(nextInstallationId: 0, nextRepositoryId: resolved.RepositoryId).ConfigureAwait(true);
-            var sealedToken = await SealSecretAsync(ValueSecretName, token).ConfigureAwait(true);
-            var updatedSecrets = new Dictionary<string, SealedSecret>(Snapshot.Secrets, StringComparer.Ordinal)
-            {
-                [ValueSecretName] = sealedToken,
-            };
-            if (!string.IsNullOrWhiteSpace(webhookSecret))
-            {
-                updatedSecrets[WebhookSecretName] = await SealSecretAsync(WebhookSecretName, webhookSecret).ConfigureAwait(true);
-            }
+                await RemoveStaleIndexEntriesAsync(nextInstallationId: 0, nextRepositoryId: resolved.RepositoryId).ConfigureAwait(true);
+                var sealedToken = await SealSecretAsync(ValueSecretName, token).ConfigureAwait(true);
+                var updatedSecrets = new Dictionary<string, SealedSecret>(Snapshot.Secrets, StringComparer.Ordinal)
+                {
+                    [ValueSecretName] = sealedToken,
+                };
+                if (!string.IsNullOrWhiteSpace(webhookSecret))
+                {
+                    updatedSecrets[WebhookSecretName] = await SealSecretAsync(WebhookSecretName, webhookSecret).ConfigureAwait(true);
+                }
 
-            var account = $"{resolved.Owner}/{resolved.Name}";
-            var next = (Snapshot.RepositoryId != resolved.RepositoryId
-                ? Snapshot with { PullRequests = [], Issues = [], DraftPreviews = [], ProcessedCommentReceipts = [], LastWebhookAt = null }
-                : Snapshot) with
+                var account = $"{resolved.Owner}/{resolved.Name}";
+                var next = (Snapshot.RepositoryId != resolved.RepositoryId
+                    ? Snapshot with { PullRequests = [], Issues = [], DraftPreviews = [], ProcessedCommentReceipts = [], LastWebhookAt = null }
+                    : Snapshot) with
+                {
+                    AuthKind = "pat",
+                    AppId = 0,
+                    InstallationId = 0,
+                    RepositoryId = resolved.RepositoryId,
+                    Owner = resolved.Owner,
+                    Name = resolved.Name,
+                    Account = account,
+                    Secrets = updatedSecrets,
+                };
+                await SaveQuietly(next).ConfigureAwait(true);
+                return true;
+            }, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // Roll back cleanly so a failed direct PAT connect never leaves Status=Connected
+            // or raw unparsed JSON/pipe payload sealed in State.Secrets["value"].
+            await SaveQuietly(Snapshot with
             {
-                AuthKind = "pat",
-                AppId = 0,
-                InstallationId = 0,
-                RepositoryId = resolved.RepositoryId,
-                Owner = resolved.Owner,
-                Name = resolved.Name,
-                Account = account,
-                Secrets = updatedSecrets,
-            };
-            await SaveQuietly(next).ConfigureAwait(true);
-            return true;
-        }, CancellationToken.None).ConfigureAwait(true);
+                Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal),
+            }).ConfigureAwait(true);
+            await MarkFailing(error.Message).ConfigureAwait(true);
+            throw;
+        }
     }
 
     private async Task SyncGitHubMcpAsync()

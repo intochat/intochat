@@ -97,7 +97,7 @@ public sealed class CreatorAndShellReactorFacts
         var summary = CreatorStateSpaceInspector.AnalyzeUnitSource("triage.github.issues", files);
 
         Assert.Equal("IssueState", summary.StateType);
-        Assert.Contains("IssueChanged", summary.Triggers);
+        Assert.Contains("github.issue-changed", summary.Triggers);
         Assert.Contains(summary.Commands, c => c.Contains("OnIssueChanged", StringComparison.Ordinal));
         Assert.DoesNotContain("untrusted_evidence", summary.Rules);
         Assert.DoesNotContain("policy_guard", summary.Rules);

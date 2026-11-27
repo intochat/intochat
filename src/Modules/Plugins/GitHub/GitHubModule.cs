@@ -50,13 +50,14 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         .OffersSecret("ClientSecret")
         .OffersSecret("WebhookSecret");
 
-    // GitHub App permissions belong to the installation, so the user authorization asks for no scopes; Fine-Grained PAT is offered alongside OAuth.
-    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth", "pat"], [])
+    // GitHub App permissions belong to the installation, so the user authorization asks for no scopes; Device Login (RFC 8628) and Fine-Grained PAT are offered alongside OAuth.
+    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth", "device", "pat"], [])
     {
         OptionalIntegrations = ["github"],
         Neurons = [typeof(IRepository)],
         Signals = [typeof(Signals.PullRequestChanged), typeof(Signals.IssueChanged)],
         OAuthMethods = [new("oauth", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", [], "github", "ClientId", "ClientSecret")],
+        DeviceMethods = [new("device", "https://github.com/login/device/code", "https://github.com/login/oauth/access_token", ["repo"], IntegrationId: "github", ClientIdField: "ClientId", DisplayName: "GitHub Device Login")],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
