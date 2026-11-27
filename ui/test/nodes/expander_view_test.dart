@@ -44,6 +44,8 @@ void main() {
   ) async {
     final sent = await pump(tester, isExpanded: false);
 
+    expect(find.byType(UiMixExpander), findsOneWidget);
+    expect(find.byType(InkWell), findsNothing);
     expect(find.text('Inside'), findsNothing);
     await tester.tap(find.text('Advanced'));
     await tester.pumpAndSettle();
