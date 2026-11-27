@@ -50,6 +50,16 @@ public sealed record ClearCompletedChecklistItems : Signal;
 [Neuron("room.checklist"), Screen("room.checklist", Title = "Shared Checklist", Icon = "check-square", Category = "Social")]
 public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
 {
+    private readonly IServiceProvider? _services;
+
+    public RoomChecklistApp() : this(null) { }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public RoomChecklistApp(IServiceProvider? services = null)
+    {
+        _services = services;
+    }
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -63,6 +73,17 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
     public static string CheckKey(string itemId) => $"chk-{itemId}";
 
     private string CallerAccount() => Context.Caller?.For?.Account ?? Id.Brain.Value;
+
+    private IDisposable? OwnModuleIfForeign()
+    {
+        if (Context.Caller is null || Context.Caller.Brain == Id.Brain)
+        {
+            return null;
+        }
+
+        var edge = _services?.GetService(typeof(EdgeAuthority)) as EdgeAuthority;
+        return edge?.Enter(edge.Module(Alias, Id.Brain));
+    }
 
     [On]
     public Task EditDraft(EditChecklistDraft request)
@@ -85,7 +106,7 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
         var id = $"i{nextNumber}";
         var actor = CallerAccount();
         var item = new ChecklistItem(id, label, Checked: false, UpdatedBy: actor);
-        if (Context.Caller is null || Context.Caller.Brain == Id.Brain)
+        using (OwnModuleIfForeign())
         {
             await FollowChild<ICheckBoxControl, Toggled>(CheckKey(id));
         }
@@ -137,7 +158,7 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
         var actor = CallerAccount();
         var removed = State.Items.Where(static item => item.Checked).ToArray();
         var remaining = State.Items.Where(static item => !item.Checked).ToArray();
-        if (Context.Caller is null || Context.Caller.Brain == Id.Brain)
+        using (OwnModuleIfForeign())
         {
             foreach (var item in removed)
             {

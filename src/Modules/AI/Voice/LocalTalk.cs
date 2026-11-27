@@ -10,14 +10,33 @@ internal sealed record LocalTalkOptions
     public string? Instructions { get; init; }
 }
 
+internal sealed class LocalTalkToolRouter
+{
+    private Func<TalkTool, CancellationToken, Task>? _handler;
+
+    public void Attach(Func<TalkTool, CancellationToken, Task> handler)
+        => Volatile.Write(ref _handler, handler);
+
+    public void Detach(Func<TalkTool, CancellationToken, Task> handler)
+        => Interlocked.CompareExchange(ref _handler, null, handler);
+
+    public Task EmitAsync(TalkTool tool, CancellationToken ct)
+    {
+        var handler = Volatile.Read(ref _handler);
+        return handler is null ? Task.CompletedTask : handler(tool, ct);
+    }
+}
+
 internal sealed class LocalTalk(
     ISpeechToTextClient hear,
     IChatClient chat,
     ITextToSpeechClient speak,
     IVoiceActivityDetector vad,
-    LocalTalkOptions? options = null) : IRealtimeClient
+    LocalTalkOptions? options = null,
+    LocalTalkToolRouter? toolRouter = null) : IRealtimeClient
 {
     public static readonly RealtimeServerMessageType Interrupted = new("interrupted");
+    public static readonly RealtimeServerMessageType ToolEvent = new("tool");
 
     private readonly LocalTalkOptions _options = options ?? new LocalTalkOptions();
 
@@ -27,7 +46,7 @@ internal sealed class LocalTalk(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var activity = vad.Open(LocalTalkSession.InputSampleRate);
-        IRealtimeClientSession session = new LocalTalkSession(hear, chat, speak, activity, _options, sessionOptions);
+        IRealtimeClientSession session = new LocalTalkSession(hear, chat, speak, activity, _options, sessionOptions, toolRouter);
         return Task.FromResult(session);
     }
 

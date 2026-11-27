@@ -45,7 +45,7 @@ public sealed class ScriptedConversation : DigitalBrain.Neurons.Neuron<ScriptedC
 
     public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
 
-    public async Task Say(string text, ModelId? model = null)
+    public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         var flowKey = Id.Key.StartsWith("flow-conv/", StringComparison.Ordinal) ? Id.Key["flow-conv/".Length..] : Id.Key;

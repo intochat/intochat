@@ -29,6 +29,7 @@ import '../widgets/voice/voice_mode_view.dart';
 import 'model_label.dart';
 import 'model_picker.dart';
 import 'ui_copyable_message.dart';
+import 'voice_clip_card.dart';
 
 /// Declarative conversation surface rendered from a `ConversationNode`.
 ///
@@ -45,6 +46,7 @@ class ConversationView extends StatefulWidget {
     this.selectModel,
     this.pinModel,
     this.readAloud = false,
+    this.conversationKey,
     this.talkConversation,
     this.deltas,
     this.readConversation,
@@ -72,6 +74,10 @@ class ConversationView extends StatefulWidget {
   /// When true (and [NodeContext.speak] is available), completed assistant
   /// replies expose a read-aloud control beside the copy action.
   final bool readAloud;
+
+  /// Conversation key (e.g. `conversations/main`) used for submitting staged
+  /// attachments even when full-duplex voice mode is unconfigured.
+  final String? conversationKey;
 
   /// Conversation id that can open full-duplex voice mode when [NodeContext.talk]
   /// is available; null hides the voice-mode button.
@@ -113,6 +119,8 @@ class _ConversationViewState extends State<ConversationView> {
   int _readAloudEpoch = 0;
 
   _VoiceSession? _voiceSession;
+  final List<AttachmentNode> _stagedAttachments = <AttachmentNode>[];
+  bool _uploadingAttachment = false;
 
   @override
   void initState() {
@@ -350,15 +358,109 @@ class _ConversationViewState extends State<ConversationView> {
   }
 
   bool get _composerEnabled =>
-      widget.node.composer.enabled && widget.ctx.interactive && !_submitting;
+      widget.node.composer.enabled &&
+      widget.ctx.interactive &&
+      !_submitting &&
+      !_uploadingAttachment;
+
+  static Map<String, Object?> _attachmentToWireJson(AttachmentNode a) => {
+    'id': a.id,
+    'kind': a.kind,
+    'fileName': a.fileName,
+    'mediaType': a.mediaType,
+    'sizeBytes': a.sizeBytes,
+    'url': a.url,
+    if (a.durationMs != null) 'durationMs': a.durationMs,
+    if (a.transcript != null) 'transcript': a.transcript,
+  };
+
+  Future<void> _stageVoiceNoteClip(Uint8List audio, String mimeType) async {
+    final uploader = widget.ctx.uploadAttachment;
+    if (uploader == null || !mounted) return;
+    setState(() => _uploadingAttachment = true);
+    try {
+      final ext = audioExtensionForMime(mimeType);
+      // Estimate WAV duration from 16 kHz 16-bit mono PCM payload when available.
+      final pcmBytes = audio.length > 44 ? audio.length - 44 : audio.length;
+      final durationMs = ((pcmBytes / 32000.0) * 1000).round().clamp(
+        500,
+        300000,
+      );
+      final uploaded = await uploader(
+        audio,
+        'voice-note-${DateTime.now().millisecondsSinceEpoch}$ext',
+        mediaType: mimeType,
+        isVoiceNote: true,
+        durationMs: durationMs,
+      );
+      if (mounted) {
+        setState(() => _stagedAttachments.add(uploaded));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not upload voice clip: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingAttachment = false);
+      }
+    }
+  }
 
   Future<void> _submit() async {
     if (!_composerEnabled) return;
     final draft = _controller.text;
-    if (draft.trim().isEmpty) return;
+    final staged = List<AttachmentNode>.of(_stagedAttachments);
+    if (draft.trim().isEmpty && staged.isEmpty) return;
 
     setState(() => _submitting = true);
     try {
+      if (staged.isNotEmpty) {
+        final explicitSend = widget.ctx.sendWithAttachments;
+        final callNeuron = widget.ctx.callNeuron;
+        final rawConv = (widget.conversationKey ?? widget.talkConversation)
+            ?.trim();
+        final convKey = (rawConv != null && rawConv.isNotEmpty)
+            ? (rawConv.startsWith('conversations/')
+                  ? rawConv
+                  : 'conversations/$rawConv')
+            : null;
+        if (explicitSend != null) {
+          await explicitSend(draft, staged);
+        } else if (callNeuron != null && convKey != null) {
+          await callNeuron(
+            'IntoChat.OS.Modules.Flutter.Conversations.IConversation',
+            convKey,
+            'Say',
+            [
+              draft,
+              null,
+              [for (final item in staged) _attachmentToWireJson(item)],
+            ],
+          );
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Attachments are not supported in this view.'),
+              ),
+            );
+          }
+          return;
+        }
+
+        if (mounted) {
+          if (_controller.text == draft) {
+            _controller.clear();
+          }
+          setState(() => _stagedAttachments.clear());
+        }
+        return;
+      }
+
+      if (draft.trim().isEmpty) return;
       final composer = widget.node.composer;
       final sent = await pressCommand(
         composer.key,
@@ -654,7 +756,9 @@ class _ConversationViewState extends State<ConversationView> {
     final stop = widget.node.stop;
     final composer = widget.node.composer;
     final focused = _composerFocus.hasFocus;
-    final canSend = _composerEnabled && _controller.text.trim().isNotEmpty;
+    final canSend =
+        _composerEnabled &&
+        (_controller.text.trim().isNotEmpty || _stagedAttachments.isNotEmpty);
     final hasActiveModel =
         (composer.activeModelLabel != null &&
             composer.activeModelLabel!.trim().isNotEmpty) ||
@@ -726,6 +830,23 @@ class _ConversationViewState extends State<ConversationView> {
                         label: stop.label,
                         enabled: stop.enabled && widget.ctx.interactive,
                         onTap: _activateStop,
+                      ),
+                    if (_stagedAttachments.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (var i = 0; i < _stagedAttachments.length; i++)
+                              _StagedAttachmentChip(
+                                attachment: _stagedAttachments[i],
+                                onRemove: () => setState(
+                                  () => _stagedAttachments.removeAt(i),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     AnimatedContainer(
                       duration: UiTokens.of(context).fast,
@@ -819,6 +940,15 @@ class _ConversationViewState extends State<ConversationView> {
                               onDraft: _appendDictationDraft,
                             ),
                           ],
+                          if (widget.ctx.uploadAttachment != null) ...[
+                            const SizedBox(width: 4),
+                            UiVoiceInput(
+                              key: const ValueKey('composer-voice-note'),
+                              enabled: _composerEnabled,
+                              label: 'Record a voice-note clip',
+                              onAudio: _stageVoiceNoteClip,
+                            ),
+                          ],
                           if (showVoiceMode) ...[
                             const SizedBox(width: 8),
                             _VoiceModeIconButton(
@@ -862,6 +992,7 @@ class _UserMessageItem extends StatelessWidget {
     final bubbleBg = c.bubbleMine;
     final bubbleFg = c.onBubbleMine;
     final cards = message.cards ?? const <Node>[];
+    final attachments = message.attachments ?? const <AttachmentNode>[];
 
     return Align(
       alignment: Alignment.centerRight,
@@ -876,6 +1007,23 @@ class _UserMessageItem extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (attachments.isNotEmpty) ...[
+                  for (var i = 0; i < attachments.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    parseAttachmentKind(attachments[i].kind) ==
+                            WireAttachmentKind.voiceNote
+                        ? VoiceClipCard(
+                            attachment: attachments[i],
+                            ctx: ctx,
+                            isUserBubble: true,
+                          )
+                        : AttachmentPreviewCard(
+                            attachment: attachments[i],
+                            ctx: ctx,
+                          ),
+                  ],
+                  if (message.text.isNotEmpty) const SizedBox(height: 8),
+                ],
                 if (message.text.isNotEmpty)
                   UiCopyableMessage(
                     copyText: (_) => message.text,
@@ -1075,6 +1223,7 @@ class _AssistantMessageItem extends StatelessWidget {
     final text = textOverride ?? message.text;
     final activities = message.activities ?? const <ActivityNode>[];
     final cards = message.cards ?? const <Node>[];
+    final attachments = message.attachments ?? const <AttachmentNode>[];
     final isRunning =
         parseMessageStatus(message.status) == WireMessageStatus.running;
     final model = message.model;
@@ -1182,6 +1331,19 @@ class _AssistantMessageItem extends StatelessWidget {
                   ],
                 ),
               ),
+            if (attachments.isNotEmpty) ...[
+              if (text.isNotEmpty || isRunning) const SizedBox(height: 10),
+              for (var i = 0; i < attachments.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                parseAttachmentKind(attachments[i].kind) ==
+                        WireAttachmentKind.voiceNote
+                    ? VoiceClipCard(attachment: attachments[i], ctx: ctx)
+                    : AttachmentPreviewCard(
+                        attachment: attachments[i],
+                        ctx: ctx,
+                      ),
+              ],
+            ],
             if (cards.isNotEmpty) ...[
               if (text.isNotEmpty || isRunning) const SizedBox(height: 10),
               for (var i = 0; i < cards.length; i++) ...[
@@ -1328,6 +1490,65 @@ class _ActivityPill extends StatelessWidget {
             const SizedBox(width: 5),
             Icon(LucideIcons.check, size: 11, color: fg),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StagedAttachmentChip extends StatelessWidget {
+  const _StagedAttachmentChip({
+    required this.attachment,
+    required this.onRemove,
+  });
+
+  final AttachmentNode attachment;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final t = UiTokens.of(context);
+    final kind = parseAttachmentKind(attachment.kind);
+    final isVoice = kind == WireAttachmentKind.voiceNote;
+    final isImage = kind == WireAttachmentKind.image;
+    return Container(
+      key: ValueKey('staged-attachment:${attachment.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.surfaceSunk,
+        borderRadius: BorderRadius.circular(t.button),
+        border: Border.all(color: c.borderHairline),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isVoice
+                ? LucideIcons.audioLines
+                : (isImage ? LucideIcons.image : LucideIcons.paperclip),
+            size: 14,
+            color: c.accent,
+          ),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              isVoice ? 'Voice note' : attachment.fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: UiType.textStyle(
+                12.5,
+                weight: FontWeight.w500,
+                color: c.textStrong,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(LucideIcons.x, size: 13, color: c.textMuted),
+          ),
         ],
       ),
     );

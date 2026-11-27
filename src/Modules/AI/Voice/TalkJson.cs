@@ -33,10 +33,16 @@ internal sealed record SpeechRequest(string Text, string? Voice = null);
 
 internal sealed record TranscriptionResponse(string Text, string Model);
 
+internal sealed record TalkTicketRequest(string Conversation);
+
+internal sealed record TalkTicketResponse(string Ticket, int ExpiresInSeconds);
+
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(TalkEvent))]
 [JsonSerializable(typeof(SpeechRequest))]
 [JsonSerializable(typeof(TranscriptionResponse))]
+[JsonSerializable(typeof(TalkTicketRequest))]
+[JsonSerializable(typeof(TalkTicketResponse))]
 internal sealed partial class TalkJson : JsonSerializerContext;

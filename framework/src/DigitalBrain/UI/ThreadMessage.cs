@@ -24,6 +24,9 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     /// <summary>The cards shown with it (data nodes).</summary>
     public IReadOnlyList<Node> Cards { get; init; } = [];
 
+    /// <summary>The structured attachments and playable voice-note clips attached to this message.</summary>
+    public IReadOnlyList<AttachmentNode> Attachments { get; init; } = [];
+
     /// <summary>True on the latest completed assistant reply when no turn is active: draws a Regenerate action.</summary>
     public bool CanRegenerate { get; init; }
 
@@ -38,7 +41,7 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     public bool Equals(ThreadMessage? other) => other is not null && Id == other.Id && Role == other.Role && Text == other.Text && Status == other.Status
         && Model == other.Model && ProviderIcon == other.ProviderIcon && Failure == other.Failure && CanRegenerate == other.CanRegenerate
         && Equals(Sender, other.Sender)
-        && Activities.SequenceEqual(other.Activities) && Cards.SequenceEqual(other.Cards);
+        && Activities.SequenceEqual(other.Activities) && Cards.SequenceEqual(other.Cards) && Attachments.SequenceEqual(other.Attachments);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status, Failure, CanRegenerate);

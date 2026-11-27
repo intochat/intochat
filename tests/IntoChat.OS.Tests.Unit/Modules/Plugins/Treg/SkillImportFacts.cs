@@ -282,7 +282,7 @@ public sealed class SkillImportFacts
             return Task.CompletedTask;
         }
 
-        public async Task Say(string text, ModelId? model = null)
+        public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
         {
             SaidTexts.Add(text);
             var runId = $"r{_runs.Count + 1}";

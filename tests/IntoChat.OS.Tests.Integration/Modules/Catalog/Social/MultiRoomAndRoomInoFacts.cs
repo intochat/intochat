@@ -167,17 +167,38 @@ public sealed class MultiRoomAndRoomInoFacts
         var afterAdd = await bob.Get<IRoom>(roomId).Act("room.checklist", checklistKey, addCmd, Ct);
         Assert.Contains($"last updated by {bob.Account}", afterAdd.View.GetRawText(), StringComparison.Ordinal);
 
-        // 5. Interactive CheckBoxNeuron child updates through RoomNeuron.Act -> Screen.Dispatch -> CheckBoxNeuron -> Toggled.
-        var toggleCheckBox = new Command(
+        // 5. Interactive CheckBoxNeuron child updates through RoomNeuron.Act -> Screen.Dispatch -> CheckBoxNeuron -> Toggled,
+        // including for guest-added items (i2 added by Bob must also be wired via FollowChild and cleaned up via UnfollowChild).
+        var toggleHostCheckBox = new Command(
             RoomChecklistApp.CheckKey("i1"),
             "control.setChecked",
             System.Text.Json.JsonSerializer.SerializeToElement(new { isOn = true }));
-        var afterCheck = await aliceRoom.Act("room.checklist", checklistKey, toggleCheckBox, Ct);
+        var afterCheck = await aliceRoom.Act("room.checklist", checklistKey, toggleHostCheckBox, Ct);
         Assert.NotNull(afterCheck);
         await os.Idle();
         var latestView = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
         Assert.NotNull(latestView);
         Assert.Contains("1/2 done", latestView!.View.GetRawText(), StringComparison.Ordinal);
+
+        // Toggle Bob's guest-added item (i2) via CheckBoxNeuron and verify OnChildToggled updates to 2/2 done
+        // (proving FollowChild wired the guest-added item's CheckBoxNeuron child).
+        var toggleGuestCheckBox = new Command(
+            RoomChecklistApp.CheckKey("i2"),
+            "control.setChecked",
+            System.Text.Json.JsonSerializer.SerializeToElement(new { isOn = true }));
+        await aliceRoom.Act("room.checklist", checklistKey, toggleGuestCheckBox, Ct);
+        await os.Idle();
+        var afterGuestToggle = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
+        Assert.NotNull(afterGuestToggle);
+        Assert.Contains("2/2 done", afterGuestToggle!.View.GetRawText(), StringComparison.Ordinal);
+
+        // Guest clears completed items (exercises UnfollowChild under foreign caller) and adds a fresh item i3.
+        var clearCmd = new Command(".", "room-checklist.clear-completed");
+        await bob.Get<IRoom>(roomId).Act("room.checklist", checklistKey, clearCmd, Ct);
+        await os.Idle();
+        var afterClear = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
+        Assert.NotNull(afterClear);
+        Assert.Contains("0/0 done", afterClear!.View.GetRawText(), StringComparison.Ordinal);
     }
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, Func<Task> idle, CancellationToken ct)

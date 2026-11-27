@@ -26,7 +26,7 @@ internal sealed class VoiceClients : IVoiceClients
     private readonly INeuronProxies _neurons;
     private readonly IConfiguration _configuration;
     private readonly IVoiceActivityDetector? _vad;
-    private readonly Func<string, ConversationId, CancellationToken, Task<IChatClient?>> _chatFactory;
+    private readonly Func<string, ConversationId, Func<TalkTool, CancellationToken, Task>?, CancellationToken, Task<IChatClient?>> _chatFactory;
     private readonly ILoggerFactory? _loggerFactory;
     private readonly ProviderClientBuilder _clientBuilder;
 
@@ -53,6 +53,29 @@ internal sealed class VoiceClients : IVoiceClients
         Func<string, ConversationId, CancellationToken, Task<IChatClient?>>? chatFactory = null,
         ILoggerFactory? loggerFactory = null,
         AzureFoundryProviderFactory? foundryFactory = null)
+        : this(
+            neurons,
+            runtimes,
+            credentials,
+            configuration,
+            vad,
+            publicEndpoints,
+            chatFactory is null ? null : (brain, conversation, _, ct) => chatFactory(brain, conversation, ct),
+            loggerFactory,
+            foundryFactory)
+    {
+    }
+
+    internal VoiceClients(
+        INeuronProxies neurons,
+        IEnumerable<ILocalRuntime> runtimes,
+        IAiCredentials credentials,
+        IConfiguration configuration,
+        IVoiceActivityDetector? vad,
+        ProviderPublicEndpoints? publicEndpoints,
+        Func<string, ConversationId, Func<TalkTool, CancellationToken, Task>?, CancellationToken, Task<IChatClient?>>? chatFactory,
+        ILoggerFactory? loggerFactory = null,
+        AzureFoundryProviderFactory? foundryFactory = null)
     {
         ArgumentNullException.ThrowIfNull(neurons);
         ArgumentNullException.ThrowIfNull(runtimes);
@@ -62,7 +85,7 @@ internal sealed class VoiceClients : IVoiceClients
         _neurons = neurons;
         _configuration = configuration;
         _vad = vad;
-        _chatFactory = chatFactory ?? (static (_, _, _) => Task.FromResult<IChatClient?>(null));
+        _chatFactory = chatFactory ?? (static (_, _, _, _) => Task.FromResult<IChatClient?>(null));
         _loggerFactory = loggerFactory;
 
         var inventory = new LocalRuntimeInventory(runtimes);
@@ -128,8 +151,9 @@ internal sealed class VoiceClients : IVoiceClients
         }
 
         var vad = _vad is { Ready: true } ? _vad : new EnergyVoiceActivityDetector();
+        var toolRouter = new LocalTalkToolRouter();
 
-        var chat = await _chatFactory(brain, conversation, ct).ConfigureAwait(false);
+        var chat = await _chatFactory(brain, conversation, toolRouter.EmitAsync, ct).ConfigureAwait(false);
         if (chat is null)
         {
             hear.Client.Dispose();
@@ -138,7 +162,7 @@ internal sealed class VoiceClients : IVoiceClients
                 "Talk needs Chat: no chat model is ready.");
         }
 
-        var local = _clientBuilder.WrapLocalTalk(hear.Client, chat, speak.Client, vad);
+        var local = _clientBuilder.WrapLocalTalk(hear.Client, chat, speak.Client, vad, toolRouter);
         return new TalkVoice(local, Model: null, RecordsItself: true, InputRate: 16_000, Unavailable: null);
     }
 
@@ -190,20 +214,20 @@ internal sealed class VoiceClients : IVoiceClients
         }
     }
 
-    private static Func<string, ConversationId, CancellationToken, Task<IChatClient?>> DefaultChatFactory(
+    internal static Func<string, ConversationId, Func<TalkTool, CancellationToken, Task>?, CancellationToken, Task<IChatClient?>> DefaultChatFactory(
         INeuronProxies neurons,
         IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(neurons);
         ArgumentNullException.ThrowIfNull(services);
-        return async (brain, conversation, ct) =>
+        return async (brain, conversation, onToolEvent, ct) =>
         {
             var brains = services.GetService<IIntoChatOSBrains>();
             if (brains is not null && BrainScope.IsValidId(brain))
             {
                 var conv = neurons.Get<IConversation>(new NeuronId(new BrainId(brain), IConversation.Type, IConversation.KeyOf(conversation)));
                 var watch = brains.Open(brain);
-                return new ConversationChatClient(conv, watch);
+                return new ConversationChatClient(conv, watch, onToolEvent);
             }
 
             var catalog = services.GetService<ModelCatalog>();

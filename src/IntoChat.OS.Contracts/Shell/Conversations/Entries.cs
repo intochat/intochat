@@ -45,6 +45,17 @@ public enum Visibility { Everyone, Agents, Owner }
 [JsonDerivedType(typeof(Summarized), "summarized")]
 public abstract record ConversationEntry(EntryId Id, Participant By, DateTimeOffset At, Visibility Visible);
 
+public sealed record AttachmentRef(
+    string Id,
+    string Kind,
+    string FileName,
+    string MediaType,
+    long SizeBytes,
+    string Url,
+    int? DurationMs = null,
+    string? Transcript = null,
+    string? Sha256 = null);
+
 public sealed record Said(
     EntryId Id,
     Participant By,
@@ -52,7 +63,8 @@ public sealed record Said(
     string Text,
     ModelId? Model = null,
     EntryId? Replaces = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AttachmentRef[]? Attachments = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
 
 public sealed record Called(
     EntryId Id,

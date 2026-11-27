@@ -2,6 +2,9 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Concentus;
+using Concentus.Enums;
+using Concentus.Oggfile;
 using IntoChat.OS.Modules.AI.Voice;
 using IntoChat.OS.Modules.Devices.Voice;
 using Microsoft.Extensions.AI;
@@ -164,6 +167,105 @@ public sealed class LocalTalkFacts
         var withDecimal = new StringBuilder("Pi is 3.14 roughly. Next\nRest");
         Assert.Equal(["Pi is 3.14 roughly.", "Next"], SentenceChunker.Complete(withDecimal).ToArray());
         Assert.Equal("Rest", withDecimal.ToString());
+    }
+
+    [Fact]
+    public void NormalizeToOutputPcmPassesThrough24kAndResamples16kAndWav()
+    {
+        var pcm24 = new byte[] { 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40, 0x00 };
+        var direct = LocalTalkSession.NormalizeToOutputPcm(new DataContent(pcm24, "audio/pcm;rate=24000"));
+        Assert.Equal(pcm24, direct);
+
+        var pcm16 = new byte[16_000 * 2]; // 1s @ 16kHz
+        var resampled = LocalTalkSession.NormalizeToOutputPcm(new DataContent(pcm16, "audio/pcm;rate=16000"));
+        Assert.Equal(24_000 * 2, resampled.Length);
+
+        var wav16 = Pcm16.Wav(new byte[1_600 * 2], 16_000); // 100ms WAV @ 16kHz
+        var fromWav = LocalTalkSession.NormalizeToOutputPcm(new DataContent(wav16, "audio/wav"));
+        Assert.Equal(2_400 * 2, fromWav.Length);
+    }
+
+    [Fact]
+    public void NormalizeToOutputPcmDecodesOggOpusTo24kPcm16()
+    {
+        // Encode 200ms of 48 kHz mono PCM16 into a real Ogg Opus stream using Concentus.
+        const int sampleRate = 48_000;
+        var inputSamples = new short[sampleRate / 5]; // 9600 samples = 200ms
+        for (var i = 0; i < inputSamples.Length; i++)
+        {
+            inputSamples[i] = (short)(Math.Sin(2.0 * Math.PI * 440.0 * i / sampleRate) * 12_000);
+        }
+
+        byte[] oggBytes;
+        using (var ms = new MemoryStream())
+        {
+            using var encoder = OpusCodecFactory.CreateEncoder(sampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
+            var oggOut = new OpusOggWriteStream(encoder, ms);
+            oggOut.WriteSamples(inputSamples, 0, inputSamples.Length);
+            oggOut.Finish();
+            oggBytes = ms.ToArray();
+        }
+
+        Assert.Equal("OggS"u8.ToArray(), oggBytes[..4]);
+
+        var pcm24 = LocalTalkSession.NormalizeToOutputPcm(new DataContent(oggBytes, "audio/ogg;codecs=opus"));
+        Assert.NotEmpty(pcm24);
+        Assert.Equal(0, pcm24.Length % 2);
+        Assert.NotEqual(oggBytes, pcm24);
+        // 200ms at 24 kHz mono PCM16 is ~9600 bytes (allow Opus frame padding tolerance).
+        Assert.InRange(pcm24.Length, 4_000, 14_000);
+    }
+
+    [Fact]
+    public void NormalizeToOutputPcmDecodesMp3To24kPcm16()
+    {
+        // Build two valid MPEG-1 Layer III 128 kbps 44.1 kHz mono silent frames (417 bytes each).
+        var frame = new byte[417];
+        frame[0] = 0xFF;
+        frame[1] = 0xFB; // MPEG-1, Layer III, no CRC
+        frame[2] = 0x90; // 128 kbps, 44.1 kHz, no padding
+        frame[3] = 0xC4; // mono
+        var mp3 = new byte[frame.Length * 2];
+        Buffer.BlockCopy(frame, 0, mp3, 0, frame.Length);
+        Buffer.BlockCopy(frame, 0, mp3, frame.Length, frame.Length);
+
+        var pcm24 = LocalTalkSession.NormalizeToOutputPcm(new DataContent(mp3, "audio/mpeg"));
+        Assert.NotEmpty(pcm24);
+        Assert.Equal(0, pcm24.Length % 2);
+        Assert.NotEqual(mp3, pcm24);
+    }
+
+    [Fact]
+    public void NormalizeToOutputPcmRejectsUnsupportedCompressedPayload()
+    {
+        var unknown = new byte[] { 0x66, 0x4C, 0x61, 0x43, 0x00, 0x01 };
+        Assert.Throws<NotSupportedException>(() =>
+            LocalTalkSession.NormalizeToOutputPcm(new DataContent(unknown, "audio/flac")));
+    }
+
+    [Fact]
+    public async Task LocalTalkForwardsToolEventsToRealtimeStream()
+    {
+        var vad = new ScriptedVad();
+        var hear = new StubHear(["search news"]);
+        var router = new LocalTalkToolRouter();
+        var chat = new ToolEmittingChat(router, [new TalkTool("call_1", "web_search", "running", "Web search"), new TalkTool("call_1", "web_search", "done", "Web search")], "Done.");
+        var speak = new StubSpeak();
+        using var talk = new LocalTalk(hear, chat, speak, vad, toolRouter: router);
+        await using var session = await talk.CreateSessionAsync(cancellationToken: Ct);
+
+        vad.EnqueueEnded([1, 2, 3, 4]);
+        await SendChunkAsync(session);
+
+        var output = await ReadUntilAsync(session, static m => m.Type == RealtimeServerMessageType.ResponseDone);
+
+        var toolEvents = output
+            .Where(static m => m.Type == LocalTalk.ToolEvent)
+            .Select(static m => Assert.IsType<TalkTool>(m.RawRepresentation))
+            .ToArray();
+        Assert.Equal(2, toolEvents.Length);
+        Assert.Equal(new TalkTool("call_1", "web_search", "running", "Web search"), toolEvents[0]);
+        Assert.Equal(new TalkTool("call_1", "web_search", "done", "Web search"), toolEvents[1]);
     }
 
     private static Task SendChunkAsync(IRealtimeClientSession session)
@@ -336,6 +438,31 @@ public sealed class LocalTalkFacts
         {
             var r = await GetAudioAsync(text, options, cancellationToken);
             yield return new TextToSpeechResponseUpdate(r.Contents);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
+    private sealed class ToolEmittingChat(LocalTalkToolRouter router, TalkTool[] tools, string reply) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, reply)));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var tool in tools)
+            {
+                await router.EmitAsync(tool, cancellationToken);
+            }
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, reply);
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;

@@ -274,6 +274,51 @@ public sealed class VoiceClientsFacts
         Assert.IsType<GeminiLiveRealtimeClient>(talk.Client!.GetService<GeminiLiveRealtimeClient>());
     }
 
+    [Fact]
+    public async Task LocalTalkWiresOnToolEventCallbackThroughVoiceClients()
+    {
+        var hearRuntime = new StubRuntime(
+            id: RuntimeId.FoundryLocal,
+            installed: [KnownModels.WhisperLargeV3Turbo],
+            hearClient: new StubHearClient());
+        var speakRuntime = new StubRuntime(
+            id: RuntimeId.SherpaOnnx,
+            installed: [KnownModels.Kokoro82M],
+            speakClient: new StubSpeakClient());
+
+        Func<TalkTool, CancellationToken, Task>? capturedCallback = null;
+        using var caller = EnterPerson();
+        StubCatalogNeuron.ConfiguredRoles = KnownModels.Defaults;
+        StubCatalogNeuron.Picked = new Dictionary<ModelRole, ModelId?>
+        {
+            [ModelRole.Hear] = KnownModels.WhisperLargeV3Turbo.Id,
+            [ModelRole.Speak] = KnownModels.Kokoro82M.Id,
+            [ModelRole.Chat] = KnownModels.Qwen35.Id,
+        };
+
+        await using var os = TestOS.Local().Register<StubCatalogNeuron>();
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal })
+            .Build();
+
+        var clients = new VoiceClients(
+            new TestOsNeuronProxies(os),
+            [hearRuntime, speakRuntime],
+            new FixedAiCredentials(),
+            config,
+            vad: new StubVadDetector(ready: true),
+            publicEndpoints: null,
+            chatFactory: (_, _, onToolEvent, _) =>
+            {
+                capturedCallback = onToolEvent;
+                return Task.FromResult<IChatClient?>(new StubChatClient());
+            });
+
+        var talk = await clients.Talk(Brain, Conversation, Ct);
+        Assert.NotNull(talk.Client);
+        Assert.NotNull(capturedCallback);
+    }
+
     private static (TestOS Os, VoiceClients Clients) CreateClients(
         string topology,
         IReadOnlyList<ILocalRuntime> runtimes,

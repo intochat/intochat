@@ -41,8 +41,24 @@ public static class AccountSession
 
         app.Use(async (context, next) =>
         {
-            if (IsAnonymous(context.Request, openRegistration) || context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
+            if (IsAnonymous(context.Request, openRegistration))
             {
+                await next(context).ConfigureAwait(false);
+                return;
+            }
+
+            var currentEndpoint = context.GetEndpoint();
+            if (currentEndpoint?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
+            {
+                if (currentEndpoint.Metadata.GetMetadata<IntoChat.OS.Host.Http.OptionalSessionMetadata>() is not null
+                    && ResolvePrincipal(context, options.Posture, credential) is { } optionalPrincipal
+                    && !GuestSurface.Is(optionalPrincipal))
+                {
+                    using var optionalEntered = Edge(context).Enter(optionalPrincipal);
+                    await next(context).ConfigureAwait(false);
+                    return;
+                }
+
                 await next(context).ConfigureAwait(false);
                 return;
             }
