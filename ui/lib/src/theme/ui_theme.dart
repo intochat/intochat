@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_chat_core/flutter_chat_core.dart';
 
 import 'mix_tokens.dart' show UiThemeSeeds;
 import 'ui_colors.dart';
@@ -604,77 +603,4 @@ class UiThemeSeedsController extends InheritedWidget {
   @override
   bool updateShouldNotify(UiThemeSeedsController oldWidget) =>
       seeds != oldWidget.seeds;
-}
-
-abstract final class UiChatTheme {
-  static ChatTheme workspace(ThemeData theme) {
-    final c = theme.colorScheme;
-    return ChatTheme(
-      colors: ChatColors(
-        primary: c.primary,
-        onPrimary: c.onPrimary,
-        surface: theme.scaffoldBackgroundColor,
-        onSurface: c.onSurface,
-        surfaceContainer: c.surfaceContainer,
-        surfaceContainerLow: c.surfaceContainerLow,
-        surfaceContainerHigh: c.surfaceContainerHigh,
-      ),
-      typography: ChatTypography.standard(fontFamily: UiType.bodyFamily)
-          .copyWith(
-            bodyMedium: (theme.textTheme.bodyMedium ?? _body).copyWith(
-              fontSize: 15,
-              height: 1.65,
-              color: c.onSurface,
-            ),
-            bodySmall: (theme.textTheme.bodySmall ?? _bodyMuted).copyWith(
-              fontSize: 12,
-              color: c.onSurfaceVariant,
-            ),
-            labelSmall: (theme.textTheme.labelSmall ?? _meta).copyWith(
-              fontSize: 11,
-              color: c.onSurfaceVariant,
-            ),
-          ),
-      shape: BorderRadius.circular(12),
-    );
-  }
-
-  static ChatTheme light() => ChatTheme(
-    colors: ChatColors(
-      primary: UiColors.paper.accent,
-      onPrimary: UiColors.paper.surface,
-      surface: UiColors.paper.page,
-      onSurface: UiColors.paper.ink,
-      surfaceContainer: UiColors.paper.surface,
-      surfaceContainerLow: UiColors.paper.recessed,
-      surfaceContainerHigh: UiColors.paper.accentTint,
-    ),
-    typography: ChatTypography.standard(fontFamily: UiType.bodyFamily).copyWith(
-      bodyMedium: _body.copyWith(color: UiColors.paper.ink),
-      bodySmall: _bodyMuted.copyWith(color: UiColors.paper.muted),
-      labelSmall: _meta.copyWith(color: UiColors.paper.muted),
-    ),
-    shape: BorderRadius.circular(16),
-  );
-
-  static ChatTheme dark() {
-    final base = ChatTypography.standard(fontFamily: UiType.bodyFamily);
-    return ChatTheme(
-      colors: ChatColors(
-        primary: UiColors.midnight.accent,
-        onPrimary: UiColors.midnight.page,
-        surface: UiColors.midnight.page,
-        onSurface: UiColors.midnight.body,
-        surfaceContainer: UiColors.midnight.surface,
-        surfaceContainerLow: UiColors.midnight.recessed,
-        surfaceContainerHigh: UiColors.midnight.hairline,
-      ),
-      typography: base.copyWith(
-        bodyMedium: _body,
-        bodySmall: _bodyMuted,
-        labelSmall: _meta,
-      ),
-      shape: BorderRadius.circular(14),
-    );
-  }
 }
