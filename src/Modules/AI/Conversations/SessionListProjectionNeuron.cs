@@ -12,10 +12,13 @@ namespace IntoChat.OS.Modules.AI.Conversations;
 /// </summary>
 [Neuron(NeuronType)]
 [Reacts(typeof(IConversation), typeof(ConversationChanged))]
-internal sealed class SessionListProjectionNeuron(ILogger<SessionListProjectionNeuron>? logger = null)
+internal sealed partial class SessionListProjectionNeuron(ILogger<SessionListProjectionNeuron>? logger = null)
     : Neuron
 {
     internal const string NeuronType = "conversation.session-list";
+
+    [Slot(Key = ISessionList.DefaultKey, Required = false)]
+    private partial ISessionList? SessionList { get; }
 
     private ILogger Logger => (ILogger?)logger ?? OsConsoleLog.For<SessionListProjectionNeuron>();
 
@@ -30,8 +33,10 @@ internal sealed class SessionListProjectionNeuron(ILogger<SessionListProjectionN
 
         try
         {
-            await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey))
-                .Touch(changed.Id.Value, changed.ActivityText);
+            if (SessionList is { } sessionList)
+            {
+                await sessionList.Touch(changed.Id.Value, changed.ActivityText);
+            }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
