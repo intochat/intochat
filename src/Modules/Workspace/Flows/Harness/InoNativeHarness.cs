@@ -490,66 +490,71 @@ internal sealed partial class InoNativeHarness(
                 && selfRepairAttempts >= MaxSelfRepairTurns
                 && CanResolveModelInference()
                 && EscalatesToFrontier()
-                && await LocalLlmCoder.ResolveFrontierRunnerAsync(services, request.Brain, _logger, ct).ConfigureAwait(false) is { } frontier
-                && !string.Equals(frontier.ModelId, latestModelId, StringComparison.OrdinalIgnoreCase))
+                && await LocalLlmCoder.ResolveFrontierClientAsync(services, request.Brain, _logger, ct).ConfigureAwait(false) is { } frontier)
             {
-                selfRepairAttempts++;
-                var primaryErr = errorDiags[0];
-                var localModelId = string.IsNullOrWhiteSpace(latestModelId) ? "local" : latestModelId;
-                await InoCodeOrchestrator.EmitProgressAsync(
-                    request,
-                    slice.SliceId,
-                    percent: 85,
-                    phase: FrontierEscalationPhase,
-                    detail: string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"Escalating {primaryErr.Id} in {primaryErr.FilePath} from local model '{localModelId}' to frontier model '{frontier.ModelId}' after {MaxSelfRepairTurns} failed local repair(s)"),
-                    progressSink,
-                    progressGate,
-                    onProgress).ConfigureAwait(false);
-
-                var diagnosticContext = await _orchestrator.BuildSelfRepairDiagnosticContextAsync(
-                    request.WorktreePath,
-                    errorDiags,
-                    ct).ConfigureAwait(false);
-                var escalationPrompt = BuildFrontierRepairPrompt(slicePrompt, slice, localModelId, diagnosticContext);
-
-                // The frontier model is the one now answering for this slice, whether or not its turn succeeds.
-                latestModelId = frontier.ModelId;
-                try
+                using (frontier)
                 {
-                    var frontierResult = await RunNativeSliceModelWorkerAsync(
-                        request,
-                        slice,
-                        agentKey,
-                        escalationPrompt,
-                        hydratedContext,
-                        frontier,
-                        ct).ConfigureAwait(false);
-
-                    foreach (var repairedPath in frontierResult.TouchedFiles)
+                    if (!string.Equals(frontier.Model.Model, latestModelId, StringComparison.OrdinalIgnoreCase))
                     {
-                        touchedSet.Add(repairedPath);
-                    }
+                        selfRepairAttempts++;
+                        var primaryErr = errorDiags[0];
+                        var localModelId = string.IsNullOrWhiteSpace(latestModelId) ? "local" : latestModelId;
+                        await InoCodeOrchestrator.EmitProgressAsync(
+                            request,
+                            slice.SliceId,
+                            percent: 85,
+                            phase: FrontierEscalationPhase,
+                            detail: string.Create(
+                                CultureInfo.InvariantCulture,
+                                $"Escalating {primaryErr.Id} in {primaryErr.FilePath} from local model '{localModelId}' to frontier model '{frontier.Model.Model}' after {MaxSelfRepairTurns} failed local repair(s)"),
+                            progressSink,
+                            progressGate,
+                            onProgress).ConfigureAwait(false);
 
-                    if (!string.IsNullOrWhiteSpace(frontierResult.Summary))
-                    {
-                        latestSummary = frontierResult.Summary;
-                    }
+                        var diagnosticContext = await _orchestrator.BuildSelfRepairDiagnosticContextAsync(
+                            request.WorktreePath,
+                            errorDiags,
+                            ct).ConfigureAwait(false);
+                        var escalationPrompt = BuildFrontierRepairPrompt(slicePrompt, slice, localModelId, diagnosticContext);
 
-                    sliceDiags = await _orchestrator.GetSliceDiagnosticsAsync(
-                        request.WorktreePath,
-                        [.. touchedSet],
-                        slice.OwnedPaths,
-                        ct).ConfigureAwait(false);
-                    errorDiags = sliceDiags
-                        .Where(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
-                        .ToArray();
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogSwallowed(ex, $"InoNative slice '{slice.SliceId}' frontier escalation to '{frontier.ModelId}' failed");
-                    frontierFailure = $" (frontier escalation to '{frontier.ModelId}' failed)";
+                        // The frontier model is the one now answering for this slice, whether or not its turn succeeds.
+                        latestModelId = frontier.Model.Model;
+                        try
+                        {
+                            var frontierResult = await RunNativeSliceModelWorkerAsync(
+                                request,
+                                slice,
+                                agentKey,
+                                escalationPrompt,
+                                hydratedContext,
+                                frontier,
+                                ct).ConfigureAwait(false);
+
+                            foreach (var repairedPath in frontierResult.TouchedFiles)
+                            {
+                                touchedSet.Add(repairedPath);
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(frontierResult.Summary))
+                            {
+                                latestSummary = frontierResult.Summary;
+                            }
+
+                            sliceDiags = await _orchestrator.GetSliceDiagnosticsAsync(
+                                request.WorktreePath,
+                                [.. touchedSet],
+                                slice.OwnedPaths,
+                                ct).ConfigureAwait(false);
+                            errorDiags = sliceDiags
+                                .Where(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
+                                .ToArray();
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            _logger.LogSwallowed(ex, $"InoNative slice '{slice.SliceId}' frontier escalation to '{frontier.Model.Model}' failed");
+                            frontierFailure = $" (frontier escalation to '{frontier.Model.Model}' failed)";
+                        }
+                    }
                 }
             }
 
@@ -658,7 +663,7 @@ internal sealed partial class InoNativeHarness(
                 agentKey,
                 prompt,
                 hydratedContext,
-                resolvedInference: null,
+                resolvedClient: null,
                 ct).ConfigureAwait(false);
         }
 
@@ -692,7 +697,7 @@ internal sealed partial class InoNativeHarness(
             InstanceIndex: request.InstanceIndex);
 
     private bool CanResolveModelInference()
-        => services?.GetService<IModelInference>() is not null;
+        => services?.GetService<ModelCatalog>() is not null || services?.GetService<IModelInference>() is not null;
 
     private bool EscalatesToFrontier()
         => LocalLlmCoder.BindOptions(services?.GetService<IConfiguration>()).EscalateToFrontierOnRepeatedFailure;
@@ -703,7 +708,7 @@ internal sealed partial class InoNativeHarness(
         string agentKey,
         string slicePrompt,
         string hydratedContext,
-        LocalLlmCoder.ModelTurnRunner? resolvedInference,
+        ModelCatalog.ResolvedRoleClient? resolvedClient,
         CancellationToken ct)
     {
         var slicePolicy = slice.OwnedPaths is { Length: > 0 } && slice.OwnedPaths.Length > _orchestrator.Policy.MaxChangedFiles
@@ -738,7 +743,7 @@ internal sealed partial class InoNativeHarness(
                 Brain: request.Brain,
                 SliceOwnedPaths: slice.OwnedPaths,
                 BatchOrchestrator: _orchestrator,
-                ExplicitRunner: resolvedInference),
+                ExplicitClient: resolvedClient),
             logger: _logger,
             ct: ct);
     }

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -10,7 +11,6 @@ using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.AI;
@@ -34,33 +34,14 @@ internal sealed class LocalLlmCoderOptions
 
 /// <summary>
 /// Local-first <see cref="ICoder"/> and shared tool-calling loop used by both <see cref="LocalLlmCoder"/>
-/// and <see cref="InoNativeHarness"/> slice workers. Confines all file and Roslyn operations inside the worktree
-/// via <see cref="ConfinedWorkTreeSandbox"/> and <see cref="ChangePolicy"/>.
+/// and <see cref="InoNativeHarness"/> slice workers. Routes through <see cref="ModelCatalog.ResolveRoleClientAsync"/>
+/// and <see cref="Microsoft.Extensions.AI"/> <c>UseFunctionInvocation</c>, confining all file and Roslyn operations
+/// inside the worktree via <see cref="ConfinedWorkTreeSandbox"/> and <see cref="ChangePolicy"/>.
 /// </summary>
 internal sealed class LocalLlmCoder : ICoder
 {
     private const int MaxListedFiles = 200;
     private const int MaxReadCharacters = 24_000;
-
-    internal sealed record ModelTurnRunner(
-        IModelInference Inference,
-        ModelSelection? Selection,
-        string ModelId,
-        bool SupportsTemperature,
-        int? OllamaContextWindowTokens)
-    {
-        public Task<InferenceResult> InvokeAsync(
-            IReadOnlyList<AiMessage> messages,
-            IReadOnlyList<InferenceTool> tools,
-            string? brainId,
-            CancellationToken ct)
-        {
-            var temperature = SupportsTemperature ? 0.1f : (float?)null;
-            var provider = OllamaContextWindowTokens is { } ctx ? new OllamaInferenceOptions(ContextWindowTokens: ctx) : null;
-            var options = temperature is not null || provider is not null ? new InferenceOptions(Temperature: temperature, Provider: provider) : null;
-            return Inference.Generate(new InferenceRequest(messages, Model: Selection, Options: options, Tools: tools), model: null, cancellationToken: ct, brainId: brainId);
-        }
-    }
 
     internal sealed record ToolLoopRequest(
         string WorktreePath,
@@ -75,7 +56,7 @@ internal sealed class LocalLlmCoder : ICoder
         BrainId? Brain = null,
         string[]? SliceOwnedPaths = null,
         InoCodeOrchestrator? BatchOrchestrator = null,
-        ModelTurnRunner? ExplicitRunner = null,
+        ModelCatalog.ResolvedRoleClient? ExplicitClient = null,
         LocalLlmCoderOptions? Options = null,
         bool RejectTierDowngrade = false);
 
@@ -125,7 +106,7 @@ internal sealed class LocalLlmCoder : ICoder
         ExceptionDispatchInfo failure;
         try
         {
-            return await RunWithTimeoutAsync(sandbox, loopRequest, runner: null, m => attemptedModelId = m, ct).ConfigureAwait(false);
+            return await RunWithTimeoutAsync(sandbox, loopRequest, explicitClient: null, m => attemptedModelId = m, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -135,18 +116,23 @@ internal sealed class LocalLlmCoder : ICoder
 
         if (failure.SourceException is not SecurityException
             && _options.EscalateToFrontierOnRepeatedFailure
-            && await ResolveFrontierRunnerAsync(_services, brain: null, _logger, ct).ConfigureAwait(false) is { } frontier
-            && !string.Equals(frontier.ModelId, attemptedModelId, StringComparison.OrdinalIgnoreCase))
+            && await ResolveFrontierClientAsync(_services, brain: null, _logger, ct).ConfigureAwait(false) is { } frontier)
         {
-            _logger.LogInformation("frontier-escalation: escalating from local coder model '{LocalModel}' to frontier model '{FrontierModel}'.", attemptedModelId ?? "unresolved", frontier.ModelId);
-            try
+            using (frontier)
             {
-                return await RunWithTimeoutAsync(sandbox, loopRequest, frontier, m => attemptedModelId = m, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "frontier-escalation: frontier model '{FrontierModel}' also failed the coding task.", frontier.ModelId);
-                failure = ExceptionDispatchInfo.Capture(ex);
+                if (!string.Equals(frontier.Model.Model, attemptedModelId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation("frontier-escalation: escalating from local coder model '{LocalModel}' to frontier model '{FrontierModel}'.", attemptedModelId ?? "unresolved", frontier.Model.Model);
+                    try
+                    {
+                        return await RunWithTimeoutAsync(sandbox, loopRequest, frontier, m => attemptedModelId = m, ct).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "frontier-escalation: frontier model '{FrontierModel}' also failed the coding task.", frontier.Model.Model);
+                        failure = ExceptionDispatchInfo.Capture(ex);
+                    }
+                }
             }
         }
 
@@ -157,7 +143,7 @@ internal sealed class LocalLlmCoder : ICoder
     private async Task<CoderEditResult> RunWithTimeoutAsync(
         ConfinedWorkTreeSandbox sandbox,
         ToolLoopRequest request,
-        ModelTurnRunner? runner,
+        ModelCatalog.ResolvedRoleClient? explicitClient,
         Action<string> onModelResolved,
         CancellationToken ct)
     {
@@ -167,7 +153,7 @@ internal sealed class LocalLlmCoder : ICoder
 
         try
         {
-            return await RunToolLoopAsync(_services, request with { ExplicitRunner = runner }, sandbox, onModelResolved, _logger, timeoutCts.Token).ConfigureAwait(false);
+            return await RunToolLoopAsync(_services, request with { ExplicitClient = explicitClient }, sandbox, onModelResolved, _logger, timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -183,67 +169,162 @@ internal sealed class LocalLlmCoder : ICoder
         ILogger? logger = null,
         CancellationToken ct = default)
     {
-        var log = logger ?? OsConsoleLog.For<LocalLlmCoder>();
-        var runner = request.ExplicitRunner
-            ?? await ResolveModelRunnerAsync(services, request.Brain, request.Options, request.RejectTierDowngrade, log, ct).ConfigureAwait(false);
-        onModelResolved?.Invoke(runner.ModelId);
+        var ownedClient = request.ExplicitClient is null;
+        var explicitSelection = string.IsNullOrWhiteSpace(request.Options?.PreferredModel)
+            ? null
+            : new ModelSelection(request.Options.PreferredModel.Trim());
 
-        var sandbox = existingSandbox ?? new ConfinedWorkTreeSandbox(
-            request.WorktreePath,
-            request.Policy,
-            request.Roslyn,
-            request.SliceOwnedPaths,
-            request.BatchOrchestrator);
-        var tools = CreateToolDefinitions(request.Policy, includeBatchEdit: request.BatchOrchestrator is not null);
-        var messages = new List<AiMessage>
+        var resolved = request.ExplicitClient ?? await ModelCatalog.ResolveRoleClientAsync(
+            services,
+            request.Brain,
+            ModelRole.Think,
+            explicitSelection,
+            requiresTools: true,
+            invokesTools: false,
+            ollamaContextWindowTokens: request.Options?.ContextWindowTokens,
+            rejectDowngradedThink: request.RejectTierDowngrade,
+            ct: ct).ConfigureAwait(false);
+
+        try
         {
-            new("system", [new AiText(request.SystemPrompt)]),
-            new("user", [new AiText(request.UserPrompt)]),
+            onModelResolved?.Invoke(resolved.Model.Model);
+
+            var sandbox = existingSandbox ?? new ConfinedWorkTreeSandbox(
+                request.WorktreePath,
+                request.Policy,
+                request.Roslyn,
+                request.SliceOwnedPaths,
+                request.BatchOrchestrator);
+            var tools = sandbox.CreateAIFunctions();
+            var messages = new List<ChatMessage>
+            {
+                new(ChatRole.System, request.SystemPrompt),
+                new(ChatRole.User, request.UserPrompt),
+            };
+
+            var lastSummary = await ExecuteToolCallingSessionAsync(
+                resolved,
+                messages,
+                tools,
+                maxModelCalls: request.MaxToolRounds,
+                isWorkDone: () => sandbox.TouchedFiles.Count > 0,
+                nudgeMessage: request.NudgePrompt,
+                defaultSummary: request.DefaultSummary,
+                loggerFactory: services?.GetService<ILoggerFactory>(),
+                ct).ConfigureAwait(false);
+
+            if (sandbox.TouchedFiles.Count > 0)
+            {
+                ValidateTouchedFiles(sandbox.TouchedFiles, request.Policy, request.SliceOwnedPaths);
+                return new CoderEditResult(lastSummary, sandbox.TouchedFiles, resolved.Model.Model);
+            }
+
+            throw new InvalidOperationException($"{request.ExhaustionMessagePrefix} {request.MaxToolRounds} tool rounds using '{resolved.Model.Model}' without modifying any file.");
+        }
+        finally
+        {
+            if (ownedClient)
+            {
+                resolved.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Runs a bounded <see cref="Microsoft.Extensions.AI"/> <c>UseFunctionInvocation</c> session over
+    /// <paramref name="resolved"/>, nudging the model if it stops without modifying any files while budget remains.
+    /// Enforces a strict upper bound of <paramref name="maxModelCalls"/> total model invocations.
+    /// </summary>
+    internal static async Task<string> ExecuteToolCallingSessionAsync(
+        ModelCatalog.ResolvedRoleClient resolved,
+        List<ChatMessage> messages,
+        IList<AITool> tools,
+        int maxModelCalls,
+        Func<bool> isWorkDone,
+        string nudgeMessage,
+        string defaultSummary,
+        ILoggerFactory? loggerFactory,
+        CancellationToken ct)
+    {
+        var modelCalls = 0;
+        var countingClient = new ChatClientBuilder(resolved.Client)
+            .Use(async (msgs, opts, next, token) =>
+            {
+                modelCalls++;
+                await next(msgs, opts, token).ConfigureAwait(false);
+            })
+            .Build();
+
+        var chatOptions = new ChatOptions
+        {
+            Temperature = resolved.Descriptor.Temperature == CapabilitySupport.Supported ? 0.1f : null,
+            Tools = tools,
+            ToolMode = ChatToolMode.Auto,
         };
 
-        var lastSummary = request.DefaultSummary;
-        for (var round = 0; round < request.MaxToolRounds; round++)
+        var lastSummary = defaultSummary;
+        while (modelCalls < maxModelCalls)
         {
             ct.ThrowIfCancellationRequested();
-            var reply = await runner.InvokeAsync(messages, tools, request.Brain?.Value, ct).ConfigureAwait(false);
-            var assistant = reply.Messages.LastOrDefault(static m => string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase))
-                ?? reply.Messages.LastOrDefault()
-                ?? new AiMessage("assistant", []);
-            messages.Add(assistant);
-
-            var toolCalls = assistant.Content.OfType<AiToolCall>().ToArray();
-            var textSummary = string.Join("\n", assistant.Content.OfType<AiText>().Select(static t => t.Text)).Trim();
-            if (!string.IsNullOrWhiteSpace(textSummary)) { lastSummary = textSummary; }
-
-            if (toolCalls.Length == 0)
-            {
-                if (sandbox.TouchedFiles.Count > 0)
+            var remaining = maxModelCalls - modelCalls;
+            var invokingClient = new ChatClientBuilder(countingClient)
+                .UseFunctionInvocation(loggerFactory, cfg =>
                 {
-                    ValidateTouchedFiles(sandbox.TouchedFiles, request.Policy, request.SliceOwnedPaths);
-                    return new CoderEditResult(lastSummary, sandbox.TouchedFiles, runner.ModelId);
-                }
+                    cfg.MaximumIterationsPerRequest = remaining;
+                    cfg.AllowConcurrentInvocation = false;
+                    cfg.FunctionInvoker = async (context, token) =>
+                    {
+                        var result = await context.Function.InvokeAsync(context.Arguments, token).ConfigureAwait(false);
+                        if (modelCalls >= maxModelCalls)
+                        {
+                            context.Terminate = true;
+                        }
+                        return result;
+                    };
+                })
+                .Build();
 
-                messages.Add(new AiMessage("user", [new AiText(request.NudgePrompt)]));
+            var response = await invokingClient.GetResponseAsync(messages, chatOptions, ct).ConfigureAwait(false);
+            messages.AddRange(response.Messages);
+
+            var finalAssistantText = ExtractLastAssistantText(response.Messages);
+            if (!string.IsNullOrWhiteSpace(finalAssistantText))
+            {
+                lastSummary = finalAssistantText;
+            }
+
+            if (isWorkDone())
+            {
+                return lastSummary;
+            }
+
+            if (modelCalls < maxModelCalls)
+            {
+                messages.Add(new ChatMessage(ChatRole.User, nudgeMessage));
+            }
+        }
+
+        return lastSummary;
+    }
+
+    private static string? ExtractLastAssistantText(IList<ChatMessage> messages)
+    {
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            var msg = messages[i];
+            if (msg.Role != ChatRole.Assistant)
+            {
                 continue;
             }
 
-            var toolResults = new List<AiContent>(toolCalls.Length);
-            foreach (var call in toolCalls)
+            var text = string.Join("\n", msg.Contents.OfType<TextContent>().Select(static t => t.Text)).Trim();
+            if (!string.IsNullOrWhiteSpace(text))
             {
-                var output = await sandbox.ExecuteToolAsync(call.Name, call.ArgumentsJson, ct).ConfigureAwait(false);
-                toolResults.Add(new AiToolResult(call.CallId, EnsureJsonToolResult(output)));
+                return text;
             }
-
-            messages.Add(new AiMessage("tool", [.. toolResults]));
         }
 
-        if (sandbox.TouchedFiles.Count > 0)
-        {
-            ValidateTouchedFiles(sandbox.TouchedFiles, request.Policy, request.SliceOwnedPaths);
-            return new CoderEditResult(lastSummary, sandbox.TouchedFiles, runner.ModelId);
-        }
-
-        throw new InvalidOperationException($"{request.ExhaustionMessagePrefix} {request.MaxToolRounds} tool rounds using '{runner.ModelId}' without modifying any file.");
+        return null;
     }
 
     private static void ValidateTouchedFiles(IReadOnlyList<string> touchedFiles, ChangePolicy policy, string[]? sliceOwnedPaths)
@@ -261,89 +342,25 @@ internal sealed class LocalLlmCoder : ICoder
         }
     }
 
-    internal static async Task<ModelTurnRunner> ResolveModelRunnerAsync(
-        IServiceProvider? services,
-        BrainId? brain,
-        LocalLlmCoderOptions? options,
-        bool rejectTierDowngrade,
-        ILogger logger,
-        CancellationToken ct)
-    {
-        var catalog = services?.GetService<ModelCatalog>();
-        var inference = services?.GetService<IModelInference>();
-        var explicitSelection = string.IsNullOrWhiteSpace(options?.PreferredModel) ? null : new ModelSelection(options.PreferredModel.Trim());
-
-        if (catalog is not null)
-        {
-            var resolved = await catalog.Decide(brain?.Value, ModelRole.Think, explicitSelection, requiresTools: true, ct).ConfigureAwait(false);
-            if (resolved.Provider == AiProvider.Host && services?.GetService<IChatClient>() is null)
-            {
-                throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for coding.");
-            }
-
-            if (rejectTierDowngrade
-                && explicitSelection is null
-                && resolved.Profile is null
-                && KnownModels.Find(resolved.Model) is { Tier: not Tier.Deep } downgraded)
-            {
-                var expectedThink = KnownModels.Defaults.Device.TryGetValue(ModelRole.Think, out var thinkId) ? thinkId.Value : KnownModels.Qwen25Coder14B.Id.Value;
-                throw new NoProviderConfiguredException(
-                    $"No Think/Deep model (such as '{expectedThink}') is available for coding; refusing to silently downgrade to '{downgraded.Id.Value}' ({downgraded.Tier} tier). Pull '{expectedThink}' in Ollama, configure a Think model, or set IntoChatOS:Coder:Model explicitly.");
-            }
-
-            var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
-            var selection = ToSelection(resolved);
-            var desc = await effectiveInference.Describe(selection, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
-            var ollamaCtx = ResolveOllamaContextWindow(resolved.Provider == AiProvider.Ollama, desc, options);
-            return new ModelTurnRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported, ollamaCtx);
-        }
-
-        if (inference is not null)
-        {
-            List<ModelSelection?> candidates = explicitSelection is not null ? [explicitSelection, null] : [null];
-            foreach (var selection in candidates)
-            {
-                try
-                {
-                    var desc = await inference.Describe(selection, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
-                    if (desc.Tools == CapabilitySupport.Supported
-                        && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase) || services?.GetService<IChatClient>() is not null))
-                    {
-                        var isOllama = string.Equals(desc.Provider, nameof(AiProvider.Ollama), StringComparison.OrdinalIgnoreCase);
-                        return new ModelTurnRunner(inference, selection, desc.Model, desc.Temperature == CapabilitySupport.Supported, ResolveOllamaContextWindow(isOllama, desc, options));
-                    }
-                }
-                catch (Exception ex) when (!ct.IsCancellationRequested && ex is ArgumentException or InvalidOperationException or NotSupportedException or ProviderUnavailableException)
-                {
-                    logger.LogWarning(ex, "Configured IModelInference candidate '{Model}' could not resolve.", selection?.Model ?? "default");
-                }
-            }
-        }
-
-        throw new InvalidOperationException("No configured tool-capable AI model or local Ollama server is available for coding.");
-    }
-
-    internal static async Task<ModelTurnRunner?> ResolveFrontierRunnerAsync(
+    internal static async Task<ModelCatalog.ResolvedRoleClient?> ResolveFrontierClientAsync(
         IServiceProvider? services,
         BrainId? brain,
         ILogger logger,
         CancellationToken ct)
     {
-        if (services?.GetService<ModelCatalog>() is not { } catalog || services.GetService<IModelInference>() is not { } inference)
+        if (services?.GetService<ModelCatalog>() is not { } catalog)
         {
             return null;
         }
 
         try
         {
-            if (await catalog.DecideFrontier(brain, ModelRole.Think, requiresTools: true, ct).ConfigureAwait(false) is not { } frontier)
-            {
-                return null;
-            }
-
-            var selection = ToSelection(frontier);
-            var desc = await inference.Describe(selection, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
-            return new ModelTurnRunner(inference, selection, frontier.Model, desc.Temperature == CapabilitySupport.Supported, OllamaContextWindowTokens: null);
+            return await catalog.ResolveFrontierClientAsync(
+                brain,
+                ModelRole.Think,
+                requiresTools: true,
+                invokesTools: false,
+                ct: ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -351,17 +368,6 @@ internal sealed class LocalLlmCoder : ICoder
             return null;
         }
     }
-
-    private static int? ResolveOllamaContextWindow(bool isOllama, ModelDescriptor desc, LocalLlmCoderOptions? options)
-        => isOllama && options?.ContextWindowTokens is { } req and > 0 && desc.ContextWindowTokens is { } max and > 0
-            ? (int)Math.Min(req, max)
-            : null;
-
-    internal static ModelSelection? ToSelection(ResolvedModel resolved)
-        => resolved.Provider == AiProvider.Host ? null
-            : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
-            : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
-            : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
 
     internal static LocalLlmCoderOptions BindOptions(IConfiguration? configuration)
     {
@@ -387,34 +393,10 @@ internal sealed class LocalLlmCoder : ICoder
         return JsonSerializer.Serialize(new ToolContentPayload(true, output ?? string.Empty), CatalogAotJsonContext.Relaxed.ToolContentPayload);
     }
 
-    private static IReadOnlyList<InferenceTool> CreateToolDefinitions(ChangePolicy policy, bool includeBatchEdit)
+    internal static JsonElement ParseJsonToolResult(string? output)
     {
-        var extensions = string.Join(", ", policy.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase));
-        var tools = new List<InferenceTool>(includeBatchEdit ? 8 : 7)
-        {
-            new("list_files", "List allowed repository files under a relative directory (or optional substring filter). Never accesses outside the worktree.",
-                """{"type":"object","properties":{"directory":{"type":"string","description":"Optional relative directory path such as src/Modules"},"filter":{"type":"string","description":"Optional filename or path substring filter"}}}"""),
-            new("read_file", "Read the UTF-8 contents of a single file inside the worktree by repo-relative path.",
-                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path, e.g. README.md or src/Foo.cs"}},"required":["path"]}"""),
-            new("replace_in_file", "Replace an exact target snippet with replacement text in an existing file inside the worktree.",
-                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"old_text":{"type":"string","description":"Exact existing text to replace"},"new_text":{"type":"string","description":"New text"}},"required":["path","old_text","new_text"]}"""),
-            new("write_file", $"Create or overwrite an allowed file ({extensions}) inside the worktree.",
-                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"content":{"type":"string","description":"Full UTF-8 file content"}},"required":["path","content"]}"""),
-            new("roslyn_symbols", "Inspect C# types, namespaces, and members in the worktree via Roslyn syntax analysis.",
-                """{"type":"object","properties":{"filter":{"type":"string","description":"Optional relative path or filename substring filter"}}}"""),
-            new("roslyn_diagnostics", "Run Roslyn C# syntax and semantic diagnostics on worktree C# files.",
-                """{"type":"object","properties":{"path":{"type":"string","description":"Optional repo-relative .cs file path to analyze"}}}"""),
-            new("roslyn_edit_member", "Apply an AST-validated, Roslyn-formatted C# edit (add_using, add_or_replace_member, remove_member, create_type_file) inside the worktree.",
-                """{"type":"object","properties":{"kind":{"type":"string","description":"add_using | add_or_replace_member | remove_member | create_type_file"},"path":{"type":"string","description":"Repo-relative .cs path"},"type_name":{"type":"string"},"member_name":{"type":"string"},"namespace_name":{"type":"string"},"source":{"type":"string","description":"Complete C# member declaration or type body"},"type_kind":{"type":"string"},"base_types":{"type":"string"}},"required":["kind","path"]}"""),
-        };
-
-        if (includeBatchEdit)
-        {
-            tools.Add(new("roslyn_batch_edit", "Execute a deterministic multi-edit C# AST batch via InoCodeOrchestrator in a single turn.",
-                """{"type":"object","properties":{"edits":{"type":"array","items":{"type":"object","properties":{"kind":{"type":"string"},"path":{"type":"string"},"type_name":{"type":"string"},"member_name":{"type":"string"},"namespace_name":{"type":"string"},"source":{"type":"string"},"type_kind":{"type":"string"},"base_types":{"type":"string"}},"required":["kind","path"]}}},"required":["edits"]}"""));
-        }
-
-        return tools;
+        using var doc = JsonDocument.Parse(EnsureJsonToolResult(output));
+        return doc.RootElement.Clone();
     }
 
     private static string BuildSystemPrompt(ChangePolicy policy) => $"""
@@ -451,31 +433,119 @@ internal sealed class LocalLlmCoder : ICoder
 
         public IReadOnlyList<string> TouchedFiles => [.. _touched.OrderBy(p => p, StringComparer.Ordinal)];
 
-        public async Task<string> ExecuteToolAsync(string name, string argumentsJson, CancellationToken ct)
+        public IList<AITool> CreateAIFunctions()
+        {
+            var extensions = string.Join(", ", _policy.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase));
+            var serializerOptions = CatalogAotJsonContext.Relaxed.Options;
+
+            AIFunction CreateTool(Delegate method, string name, string description)
+                => AIFunctionFactory.Create(method, new AIFunctionFactoryOptions
+                {
+                    Name = name,
+                    Description = description,
+                    SerializerOptions = serializerOptions,
+                });
+
+            var tools = new List<AITool>(_batchOrchestrator is not null ? 8 : 7)
+            {
+                CreateTool(
+                    ([Description("Optional relative directory path such as src/Modules")] string? directory = null,
+                     [Description("Optional filename or path substring filter")] string? filter = null) =>
+                        SafeSyncTool("list_files", () => ListFiles(directory, filter, MaxListedFiles)),
+                    "list_files",
+                    "List allowed repository files under a relative directory (or optional substring filter). Never accesses outside the worktree."),
+
+                CreateTool(
+                    ([Description("Repo-relative file path, e.g. README.md or src/Foo.cs")] string path,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("read_file", () => ReadFileAsync(path, ct)),
+                    "read_file",
+                    "Read the UTF-8 contents of a single file inside the worktree by repo-relative path."),
+
+                CreateTool(
+                    ([Description("Repo-relative file path")] string path,
+                     [Description("Exact existing text to replace")] string old_text,
+                     [Description("New text")] string new_text,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("replace_in_file", () =>
+                        {
+                            EnforceOwnedPath(path);
+                            return ReplaceInFileAsync(path, old_text, new_text, ct);
+                        }),
+                    "replace_in_file",
+                    "Replace an exact target snippet with replacement text in an existing file inside the worktree."),
+
+                CreateTool(
+                    ([Description("Repo-relative file path")] string path,
+                     [Description("Full UTF-8 file content")] string content,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("write_file", () =>
+                        {
+                            EnforceOwnedPath(path);
+                            return WriteFileAsync(path, content, ct);
+                        }),
+                    "write_file",
+                    $"Create or overwrite an allowed file ({extensions}) inside the worktree."),
+
+                CreateTool(
+                    ([Description("Optional relative path or filename substring filter")] string? filter = null,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("roslyn_symbols", () => InspectRoslynSymbolsAsync(filter, ct)),
+                    "roslyn_symbols",
+                    "Inspect C# types, namespaces, and members in the worktree via Roslyn syntax analysis."),
+
+                CreateTool(
+                    ([Description("Optional repo-relative .cs file path to analyze")] string? path = null,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("roslyn_diagnostics", () => InspectRoslynDiagnosticsAsync(path, ct)),
+                    "roslyn_diagnostics",
+                    "Run Roslyn C# syntax and semantic diagnostics on worktree C# files."),
+
+                CreateTool(
+                    ([Description("add_using | add_or_replace_member | remove_member | create_type_file")] string kind,
+                     [Description("Repo-relative .cs path")] string path,
+                     string? type_name = null,
+                     string? member_name = null,
+                     string? namespace_name = null,
+                     [Description("Complete C# member declaration or type body")] string? source = null,
+                     string? type_kind = null,
+                     string? base_types = null,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("roslyn_edit_member", () =>
+                        {
+                            EnforceOwnedPath(path);
+                            return ApplyRoslynEditAsync(kind, path, type_name, member_name, namespace_name, source, type_kind, base_types, ct);
+                        }),
+                    "roslyn_edit_member",
+                    "Apply an AST-validated, Roslyn-formatted C# edit (add_using, add_or_replace_member, remove_member, create_type_file) inside the worktree."),
+            };
+
+            if (_batchOrchestrator is not null)
+            {
+                tools.Add(CreateTool(
+                    ([Description("Array of C# AST edit objects")] RoslynBatchEditArg[] edits,
+                     CancellationToken ct = default) =>
+                        SafeAsyncTool("roslyn_batch_edit", () => ApplyRoslynBatchEditAsync(edits, ct)),
+                    "roslyn_batch_edit",
+                    "Execute a deterministic multi-edit C# AST batch via InoCodeOrchestrator in a single turn."));
+            }
+
+            return tools;
+        }
+
+        private void EnforceOwnedPath(string path)
+        {
+            if (_sliceOwnedPaths is { Length: > 0 })
+            {
+                InoCodeOrchestrator.EnsureWithinSliceOwnership(path, _sliceOwnedPaths);
+            }
+        }
+
+        private JsonElement SafeSyncTool(string name, Func<string> action)
         {
             try
             {
-                using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson);
-                var args = doc.RootElement;
-
-                if (_sliceOwnedPaths is { Length: > 0 } && name is "write_file" or "replace_in_file" or "roslyn_edit_member"
-                    && args.TryGetProperty("path", out var pathEl) && pathEl.ValueKind == JsonValueKind.String)
-                {
-                    InoCodeOrchestrator.EnsureWithinSliceOwnership(pathEl.GetString() ?? string.Empty, _sliceOwnedPaths);
-                }
-
-                return name switch
-                {
-                    "list_files" => ListFiles(GetOptionalString(args, "directory"), GetOptionalString(args, "filter"), MaxListedFiles),
-                    "read_file" => await ReadFileAsync(RequireString(args, "path"), ct).ConfigureAwait(false),
-                    "replace_in_file" => await ReplaceInFileAsync(RequireString(args, "path"), RequireString(args, "old_text"), RequireString(args, "new_text"), ct).ConfigureAwait(false),
-                    "write_file" => await WriteFileAsync(RequireString(args, "path"), RequireString(args, "content"), ct).ConfigureAwait(false),
-                    "roslyn_symbols" => await InspectRoslynSymbolsAsync(GetOptionalString(args, "filter"), ct).ConfigureAwait(false),
-                    "roslyn_diagnostics" => await InspectRoslynDiagnosticsAsync(GetOptionalString(args, "path"), ct).ConfigureAwait(false),
-                    "roslyn_edit_member" => await ApplyRoslynEditAsync(args, ct).ConfigureAwait(false),
-                    "roslyn_batch_edit" when _batchOrchestrator is not null => await ApplyRoslynBatchEditAsync(args, ct).ConfigureAwait(false),
-                    _ => JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, $"Unknown tool '{name}'."), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload),
-                };
+                return ParseJsonToolResult(action());
             }
             catch (SecurityException) when (_sliceOwnedPaths is { Length: > 0 })
             {
@@ -484,21 +554,43 @@ internal sealed class LocalLlmCoder : ICoder
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, $"sandbox tool '{name}' failed");
-                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload);
+                return ParseJsonToolResult(JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload));
             }
         }
 
-        private async Task<string> ApplyRoslynBatchEditAsync(JsonElement args, CancellationToken ct)
+        private async Task<JsonElement> SafeAsyncTool(string name, Func<Task<string>> action)
         {
-            if (!args.TryGetProperty("edits", out var editsEl) || editsEl.ValueKind != JsonValueKind.Array)
+            try
+            {
+                return ParseJsonToolResult(await action().ConfigureAwait(false));
+            }
+            catch (SecurityException) when (_sliceOwnedPaths is { Length: > 0 })
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, $"sandbox tool '{name}' failed");
+                return ParseJsonToolResult(JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload));
+            }
+        }
+
+        private async Task<string> ApplyRoslynBatchEditAsync(RoslynBatchEditArg[]? editsArg, CancellationToken ct)
+        {
+            if (editsArg is null)
             {
                 return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, "roslyn_batch_edit requires an 'edits' array."), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload);
             }
 
-            var edits = new List<WorktreeCSharpEdit>();
-            foreach (var item in editsEl.EnumerateArray())
+            var edits = new List<WorktreeCSharpEdit>(editsArg.Length);
+            foreach (var item in editsArg)
             {
-                edits.Add(ParseCSharpEdit(item, RequireString(item, "path")));
+                if (string.IsNullOrWhiteSpace(item.Path))
+                {
+                    throw new ArgumentException("Missing required string argument 'path'.");
+                }
+
+                edits.Add(BuildCSharpEdit(item.Kind, item.Path, item.TypeName, item.MemberName, item.NamespaceName, item.Source, item.TypeKind, item.BaseTypes));
             }
 
             var summary = await _batchOrchestrator!.ApplyAstEditsAsync(_root, edits, _sliceOwnedPaths, ct).ConfigureAwait(false);
@@ -525,36 +617,56 @@ internal sealed class LocalLlmCoder : ICoder
             return JsonSerializer.Serialize(new RoslynDiagnosticsPayload(true, diagnostics.Count, diagnostics), CatalogAotJsonContext.Relaxed.RoslynDiagnosticsPayload);
         }
 
-        private async Task<string> ApplyRoslynEditAsync(JsonElement args, CancellationToken ct)
+        private async Task<string> ApplyRoslynEditAsync(
+            string rawKind,
+            string rawPath,
+            string? typeName,
+            string? memberName,
+            string? namespaceName,
+            string? source,
+            string? typeKind,
+            string? baseTypes,
+            CancellationToken ct)
         {
-            var (rel, _) = ResolveConfinedPath(RequireString(args, "path"), requireWriteAllowed: true, allowDirectory: false);
+            if (string.IsNullOrWhiteSpace(rawPath)) { throw new ArgumentException("Missing required string argument 'path'."); }
+            var (rel, _) = ResolveConfinedPath(rawPath, requireWriteAllowed: true, allowDirectory: false);
             EnforceMaxTouchedBudget(rel);
-            var summary = await _roslyn.ApplyEditsAsync(_root, [ParseCSharpEdit(args, rel)], ct).ConfigureAwait(false);
+            var edit = BuildCSharpEdit(rawKind, rel, typeName, memberName, namespaceName, source, typeKind, baseTypes);
+            var summary = await _roslyn.ApplyEditsAsync(_root, [edit], ct).ConfigureAwait(false);
             foreach (var touched in summary.TouchedFiles) { _touched.Add(touched); }
             return JsonSerializer.Serialize(new RoslynEditResultPayload(summary.Succeeded, summary.TouchedFiles, summary.Diagnostics, summary.Diff, summary.Detail), CatalogAotJsonContext.Relaxed.RoslynEditResultPayload);
         }
 
-        private static WorktreeCSharpEdit ParseCSharpEdit(JsonElement item, string relativePath)
+        private static WorktreeCSharpEdit BuildCSharpEdit(
+            string rawKind,
+            string relativePath,
+            string? typeName,
+            string? memberName,
+            string? namespaceName,
+            string? source,
+            string? typeKind,
+            string? baseTypes)
         {
-            var rawKind = RequireString(item, "kind").Trim().ToLowerInvariant();
-            var kind = rawKind switch
+            if (string.IsNullOrWhiteSpace(rawKind)) { throw new ArgumentException("Missing required string argument 'kind'."); }
+            var normalizedKind = rawKind.Trim().ToLowerInvariant();
+            var kind = normalizedKind switch
             {
                 "add_using" or "addusing" => WorktreeCSharpEditKind.AddUsing,
                 "add_or_replace_member" or "addorreplacemember" or "replace_member" or "add_member" => WorktreeCSharpEditKind.AddOrReplaceMember,
                 "remove_member" or "removemember" => WorktreeCSharpEditKind.RemoveMember,
                 "create_type_file" or "createtypefile" => WorktreeCSharpEditKind.CreateTypeFile,
-                _ => throw new ArgumentException($"Unsupported roslyn edit kind '{rawKind}'."),
+                _ => throw new ArgumentException($"Unsupported roslyn edit kind '{normalizedKind}'."),
             };
 
             return new WorktreeCSharpEdit(
                 Kind: kind,
                 RelativePath: relativePath,
-                TypeName: GetOptionalString(item, "type_name"),
-                MemberName: GetOptionalString(item, "member_name"),
-                NamespaceName: GetOptionalString(item, "namespace_name"),
-                Source: GetOptionalString(item, "source"),
-                TypeKind: GetOptionalString(item, "type_kind"),
-                BaseTypes: GetOptionalString(item, "base_types"));
+                TypeName: typeName,
+                MemberName: memberName,
+                NamespaceName: namespaceName,
+                Source: source,
+                TypeKind: typeKind,
+                BaseTypes: baseTypes);
         }
 
         public string ListFiles(string? relativeDir, string? filter, int maxItems = MaxListedFiles)
@@ -634,11 +746,5 @@ internal sealed class LocalLlmCoder : ICoder
 
         internal (string RelativePath, string FullPath) ResolveConfinedPath(string rawPath, bool requireWriteAllowed, bool allowDirectory)
             => _policy.ResolveConfinedPath(_root, rawPath, requireWriteAllowed, allowDirectory);
-
-        private static string RequireString(JsonElement obj, string prop)
-            => obj.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : throw new ArgumentException($"Missing required string argument '{prop}'.");
-
-        private static string? GetOptionalString(JsonElement obj, string prop)
-            => obj.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     }
 }

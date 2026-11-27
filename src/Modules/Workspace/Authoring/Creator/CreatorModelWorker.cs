@@ -1,9 +1,10 @@
+using DigitalBrain;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
@@ -54,49 +55,35 @@ internal static class CreatorModel
         var explicitModel = string.IsNullOrWhiteSpace(model) || string.Equals(model.Trim(), AutoModel, StringComparison.OrdinalIgnoreCase)
             ? null
             : model.Trim();
+        BrainId? brain = BrainScope.IsValidId(brainId) ? new BrainId(brainId) : null;
 
-        // Route all Creator calls through Modules/AI (ModelCatalog.Decide(ModelRole.Think) -> IModelInference / IChatClient / ILLM).
-        var catalog = neurons.GetService<ModelCatalog>();
-        var inference = neurons.GetService<IModelInference>();
-        if (catalog is not null)
-        {
-            var resolved = await ResolveCatalogModelAsync(neurons, catalog, brainId, explicitModel, requiresTools, ct).ConfigureAwait(false);
-            if (resolved is not null)
-            {
-                var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
-                var selection = ToSelection(resolved);
-                try
-                {
-                    return await effectiveInference.Generate(request with { Model = selection }, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
-                }
-                catch (Exception error) when (explicitModel is not null && !ct.IsCancellationRequested && IsRecoverableProviderError(error))
-                {
-                    CreatorLogger(neurons).LogWarning(error, "Explicit Creator model selection failed; retrying automatic brain code model.");
-                    var autoResolved = await ResolveCatalogModelAsync(neurons, catalog, brainId, explicitModel: null, requiresTools, ct).ConfigureAwait(false);
-                    if (autoResolved is not null)
-                    {
-                        return await effectiveInference.Generate(request with { Model = ToSelection(autoResolved) }, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
-                    }
-                }
-            }
-        }
+        // Route all Creator calls through ModelCatalog.ResolveRoleClientAsync(ModelRole.Think).
+        var candidates = explicitModel is not null
+            ? new ModelSelection?[] { new(explicitModel), null }
+            : [null];
 
-        if (inference is not null)
+        foreach (var candidate in candidates)
         {
-            var selection = explicitModel is null ? null : new ModelSelection(explicitModel);
             try
             {
-                var desc = await inference.Describe(selection, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
-                if ((!requiresTools || desc.Tools == CapabilitySupport.Supported)
-                    && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
-                        || neurons.GetService<IChatClient>() is not null))
-                {
-                    return await inference.Generate(request with { Model = selection }, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
-                }
+                using var resolved = await ModelCatalog.ResolveRoleClientAsync(
+                    neurons,
+                    brain,
+                    ModelRole.Think,
+                    candidate,
+                    requiresTools,
+                    invokesTools: false,
+                    ct: ct).ConfigureAwait(false);
+
+                return await resolved.GenerateAsync(request, ct).ConfigureAwait(false);
             }
             catch (Exception error) when (!ct.IsCancellationRequested && IsRecoverableProviderError(error))
             {
-                CreatorLogger(neurons).LogWarning(error, "IModelInference failed for Creator model '{Model}'.", explicitModel ?? AutoModel);
+                CreatorLogger(neurons).LogWarning(
+                    error,
+                    candidate is not null
+                        ? "Explicit Creator model selection failed; retrying automatic brain code model."
+                        : "ModelCatalog code model resolution failed for Creator.");
             }
         }
 
@@ -109,48 +96,6 @@ internal static class CreatorModel
             explicitModel is null
                 ? "No configured AI provider or local Ollama server is available for Creator."
                 : $"Creator model '{explicitModel}' is not configured and no fallback AI provider or local Ollama server is available.");
-    }
-
-    private static ModelSelection? ToSelection(ResolvedModel resolved)
-        => resolved.Provider == AiProvider.Host ? null
-            : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
-            : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
-            : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
-
-    private static async Task<ResolvedModel?> ResolveCatalogModelAsync(
-        IServiceProvider neurons,
-        ModelCatalog catalog,
-        string brainId,
-        string? explicitModel,
-        bool requiresTools,
-        CancellationToken ct)
-    {
-        var candidates = new List<ModelSelection?>();
-        if (explicitModel is not null)
-        {
-            candidates.Add(new ModelSelection(explicitModel));
-        }
-        candidates.Add(null);
-
-        foreach (var candidate in candidates)
-        {
-            try
-            {
-                var resolved = await catalog.Decide(brainId, ModelRole.Think, candidate, requiresTools, ct).ConfigureAwait(false);
-                if (resolved.Provider == AiProvider.Host && neurons.GetService<IChatClient>() is null)
-                {
-                    continue;
-                }
-
-                return resolved;
-            }
-            catch (Exception error) when (!ct.IsCancellationRequested && IsRecoverableProviderError(error))
-            {
-                CreatorLogger(neurons).LogWarning(error, "ModelCatalog code candidate could not resolve; checking next candidate.");
-            }
-        }
-
-        return null;
     }
 
     private static ILogger CreatorLogger(IServiceProvider neurons) =>

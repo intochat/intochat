@@ -1,9 +1,20 @@
+using System.ComponentModel;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
+
+internal sealed record RoslynBatchEditArg(
+    [property: JsonPropertyName("kind"), Description("add_using | add_or_replace_member | remove_member | create_type_file")] string Kind,
+    [property: JsonPropertyName("path"), Description("Repo-relative .cs path")] string Path,
+    [property: JsonPropertyName("type_name")] string? TypeName = null,
+    [property: JsonPropertyName("member_name")] string? MemberName = null,
+    [property: JsonPropertyName("namespace_name")] string? NamespaceName = null,
+    [property: JsonPropertyName("source"), Description("Complete C# member declaration or type body")] string? Source = null,
+    [property: JsonPropertyName("type_kind")] string? TypeKind = null,
+    [property: JsonPropertyName("base_types")] string? BaseTypes = null);
 
 internal sealed record RoslynBatchErrorPayload(bool Ok, string Error);
 
@@ -29,6 +40,8 @@ internal sealed record RoslynEditResultPayload(
 internal sealed record FileActionPayload(bool Ok, string Path, string Action);
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(RoslynBatchEditArg))]
+[JsonSerializable(typeof(RoslynBatchEditArg[]))]
 [JsonSerializable(typeof(RoslynBatchErrorPayload))]
 [JsonSerializable(typeof(RoslynBatchResultPayload))]
 [JsonSerializable(typeof(ToolContentPayload))]
@@ -36,6 +49,8 @@ internal sealed record FileActionPayload(bool Ok, string Path, string Action);
 [JsonSerializable(typeof(RoslynDiagnosticsPayload))]
 [JsonSerializable(typeof(RoslynEditResultPayload))]
 [JsonSerializable(typeof(FileActionPayload))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(JsonElement))]
 internal sealed partial class CatalogAotJsonContext : JsonSerializerContext
 {
     public static CatalogAotJsonContext Relaxed { get; } = new(new JsonSerializerOptions(JsonSerializerDefaults.Web)
