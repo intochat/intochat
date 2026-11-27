@@ -141,7 +141,7 @@ void main() {
       }
     });
 
-    test('fromStoredTheme preserves wire preset names and legacy palettes', () {
+    test('fromStoredTheme preserves wire preset names and maps legacy names at ingress', () {
       for (final preset in IcStylePreset.values) {
         final seeds = UiThemeSeeds.fromStoredTheme(
           preset.id,
@@ -155,7 +155,25 @@ void main() {
         'lumen',
         brightness: Brightness.light,
       );
-      expect(lumen.toUiColors(), UiColors.lumen);
+      expect(lumen.preset, IcStylePreset.cyberSynaptic);
+      expect(lumen.brightness, Brightness.dark);
+      expect(lumen.toUiColors(), UiColors.cyberSynapticDark);
+
+      final midnight = UiThemeSeeds.fromStoredTheme(
+        'midnight',
+        brightness: Brightness.light,
+      );
+      expect(midnight.preset, IcStylePreset.warmPaper);
+      expect(midnight.brightness, Brightness.dark);
+      expect(midnight.toUiColors(), UiColors.warmPaperDark);
+
+      final paper = UiThemeSeeds.fromStoredTheme(
+        'paper',
+        brightness: Brightness.dark,
+      );
+      expect(paper.preset, IcStylePreset.warmPaper);
+      expect(paper.brightness, Brightness.light);
+      expect(paper.toUiColors(), UiColors.warmPaperLight);
     });
 
     testWidgets(

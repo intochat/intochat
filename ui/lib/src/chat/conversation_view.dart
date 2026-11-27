@@ -6,7 +6,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' hide Focus;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../design/controls.dart';
+import '../primitives/display_primitives.dart';
 import '../design/keys.dart';
 import '../primitives/button.dart';
 import '../theme/ui_colors.dart';

@@ -189,7 +189,6 @@ final class UiThemeSeeds {
     this.density = UiDensity.comfortable,
     this.radiusScale = UiRadiusScale.fluent,
     this.motion = UiMotionMode.spring,
-    this.legacyPalette,
   });
 
   /// Builds canonical seeds for one of the 7 OS [IcStylePreset] identities.
@@ -216,7 +215,8 @@ final class UiThemeSeeds {
   }
 
   /// Builds canonical seeds from a persisted theme string (either one of the 7
-  /// OS [IcStylePreset] wire IDs or a legacy v1 palette name).
+  /// OS [IcStylePreset] wire IDs or a legacy v1 preference name mapped at
+  /// ingress).
   factory UiThemeSeeds.fromStoredTheme(
     String? stored, {
     required Brightness brightness,
@@ -224,12 +224,7 @@ final class UiThemeSeeds {
     UiRadiusScale radiusScale = UiRadiusScale.fluent,
     UiMotionMode motion = UiMotionMode.spring,
   }) {
-    final normalized = UiTheme.paletteName(stored);
-    final isLegacy =
-        normalized == 'midnight' ||
-        normalized == 'paper' ||
-        normalized == 'lumen';
-    final base = UiColors.forStoredTheme(normalized, brightness: brightness);
+    final base = UiColors.forStoredTheme(stored, brightness: brightness);
     return UiThemeSeeds(
       preset: base.preset,
       accent: base.accent,
@@ -237,7 +232,6 @@ final class UiThemeSeeds {
       density: density,
       radiusScale: radiusScale,
       motion: motion,
-      legacyPalette: isLegacy ? normalized : null,
     );
   }
 
@@ -247,9 +241,6 @@ final class UiThemeSeeds {
   final UiDensity density;
   final UiRadiusScale radiusScale;
   final UiMotionMode motion;
-
-  /// Optional legacy v1 stored palette (`midnight`, `paper`, `lumen`).
-  final String? legacyPalette;
 
   /// Warm Paper Light (IntoChat default light theme).
   static const warmPaper = UiThemeSeeds(
@@ -310,9 +301,8 @@ final class UiThemeSeeds {
     (label: 'Compact Pro', seeds: compactPro),
   ];
 
-  UiColors get _baseColors => legacyPalette != null
-      ? UiColors.forStoredTheme(legacyPalette, brightness: brightness)
-      : UiColors.forPreset(preset, dark: brightness == Brightness.dark);
+  UiColors get _baseColors =>
+      UiColors.forPreset(preset, dark: brightness == Brightness.dark);
 
   /// Guaranteed readable foreground colour on top of [accent].
   Color get onAccent {
@@ -335,8 +325,6 @@ final class UiThemeSeeds {
     UiDensity? density,
     UiRadiusScale? radiusScale,
     UiMotionMode? motion,
-    String? legacyPalette,
-    bool clearLegacyPalette = false,
   }) => UiThemeSeeds(
     preset: preset ?? this.preset,
     accent: accent ?? this.accent,
@@ -344,9 +332,6 @@ final class UiThemeSeeds {
     density: density ?? this.density,
     radiusScale: radiusScale ?? this.radiusScale,
     motion: motion ?? this.motion,
-    legacyPalette: clearLegacyPalette
-        ? null
-        : (legacyPalette ?? this.legacyPalette),
   );
 
   /// Derives a full [UiColors] ramp from [preset], [brightness], and [accent].
@@ -495,19 +480,11 @@ final class UiThemeSeeds {
           other.brightness == brightness &&
           other.density == density &&
           other.radiusScale == radiusScale &&
-          other.motion == motion &&
-          other.legacyPalette == legacyPalette;
+          other.motion == motion;
 
   @override
-  int get hashCode => Object.hash(
-    preset,
-    accent,
-    brightness,
-    density,
-    radiusScale,
-    motion,
-    legacyPalette,
-  );
+  int get hashCode =>
+      Object.hash(preset, accent, brightness, density, radiusScale, motion);
 }
 
 /// Provides [Theme] (`UiColors` + `UiTokens`), `mix` [MixScope], and

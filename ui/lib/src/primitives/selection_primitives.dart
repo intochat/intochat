@@ -601,8 +601,6 @@ final class UiSegmentedControl<T> extends StatelessWidget {
 }
 
 // --- src/primitives/select.dart ---
-typedef UiKitSelectItem<T> = UiMixSelectItem<T>;
-
 final class UiMixSelectItem<T> {
   const UiMixSelectItem(
     this.value,
@@ -625,8 +623,6 @@ final class UiMixSelectItem<T> {
 /// [itemBuilder] replaces the default row (label and detail); it receives the
 /// width available for the row. [triggerBuilder] replaces the box, for callers
 /// that supply their own trigger.
-typedef UiKitSelect<T> = UiMixSelect<T>;
-
 final class UiMixSelect<T> extends StatefulWidget {
   const UiMixSelect({
     super.key,

@@ -25,7 +25,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: LoginScreen(onSubmit: (_, _) async => null)),
     );
-    expect(find.byType(UiKitField), findsNWidgets(2));
+    expect(find.byType(UiMixField), findsNWidgets(2));
     expect(find.byType(UiMixButton), findsWidgets);
     for (final key in ['login-username', 'login-password', 'login-submit']) {
       expect(find.byKey(Key(key)), findsOneWidget);

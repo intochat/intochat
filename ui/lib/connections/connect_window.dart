@@ -358,13 +358,13 @@ class _ConnectWindowState extends State<ConnectWindow> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              UiKitSelect<String>(
+              UiMixSelect<String>(
                 key: ValueKey('connect_source_$source'),
                 label: 'Source',
                 value: source,
                 items: [
                   for (final connector in connectors)
-                    UiKitSelectItem(
+                    UiMixSelectItem(
                       '${connector['id']}',
                       '${connector['displayName']}',
                     ),
@@ -393,14 +393,14 @@ class _ConnectWindowState extends State<ConnectWindow> {
                   ),
                 ),
               if (source != 'windows' || widget.windowsRequest == null) ...[
-                UiKitField(
+                UiMixField(
                   fieldKey: const Key('connect_name'),
                   label: 'Connection name',
                   controller: _connectionId,
                 ),
                 const SizedBox(height: 16),
                 if (!usesOAuth) ...[
-                  UiKitField(
+                  UiMixField(
                     fieldKey: const Key('connect_value'),
                     label: 'Connection string or token',
                     controller: _value,
@@ -417,13 +417,13 @@ class _ConnectWindowState extends State<ConnectWindow> {
                   const SizedBox(height: 16),
                 ],
                 if (authMethods.length > 1) ...[
-                  UiKitSelect<String>(
+                  UiMixSelect<String>(
                     key: ValueKey('auth_method_$source'),
                     label: 'Authentication method',
                     value: authMethod,
                     items: [
                       for (final method in authMethods)
-                        UiKitSelectItem(method, method),
+                        UiMixSelectItem(method, method),
                     ],
                     onChanged: busy
                         ? null

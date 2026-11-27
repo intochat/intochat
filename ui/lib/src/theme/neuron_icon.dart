@@ -185,7 +185,7 @@ final class NeuronIcon extends StatelessWidget {
     return Icon(
       glyphOf(kind),
       size: size,
-      color: color ?? UiColors.paper.accent,
+      color: color ?? UiColors.of(context).accent,
       semanticLabel: semanticLabel,
     );
   }

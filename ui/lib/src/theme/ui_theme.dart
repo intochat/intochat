@@ -200,7 +200,7 @@ final _title = TextStyle(
   fontSize: 15,
   fontWeight: FontWeight.w600,
   letterSpacing: -0.2,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _heading = TextStyle(
@@ -210,7 +210,7 @@ final _heading = TextStyle(
   fontWeight: FontWeight.w700,
   letterSpacing: -0.4,
   height: 1.15,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _cardTitle = TextStyle(
@@ -219,7 +219,7 @@ final _cardTitle = TextStyle(
   fontSize: 15,
   fontWeight: FontWeight.w600,
   letterSpacing: -0.15,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _metric = TextStyle(
@@ -229,7 +229,7 @@ final _metric = TextStyle(
   fontWeight: FontWeight.w600,
   letterSpacing: -0.2,
   fontFeatures: UiType.tabular,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _body = TextStyle(
@@ -237,7 +237,7 @@ final _body = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 14,
   height: 1.5,
-  color: UiColors.midnight.body,
+  color: UiColors.intochatDark.body,
 );
 
 final _bodyMuted = TextStyle(
@@ -245,7 +245,7 @@ final _bodyMuted = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 13,
   height: 1.45,
-  color: UiColors.midnight.muted,
+  color: UiColors.intochatDark.muted,
 );
 
 final _meta = TextStyle(
@@ -255,7 +255,7 @@ final _meta = TextStyle(
   fontWeight: FontWeight.w500,
   letterSpacing: 0.45,
   fontFeatures: UiType.tabular,
-  color: UiColors.midnight.muted,
+  color: UiColors.intochatDark.muted,
 );
 
 final _metaStrong = TextStyle(
@@ -265,7 +265,7 @@ final _metaStrong = TextStyle(
   fontWeight: FontWeight.w600,
   letterSpacing: 0.45,
   fontFeatures: UiType.tabular,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _empty = TextStyle(
@@ -275,7 +275,7 @@ final _empty = TextStyle(
   fontWeight: FontWeight.w700,
   letterSpacing: -0.4,
   height: 1.15,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _control = TextStyle(
@@ -283,7 +283,7 @@ final _control = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 14,
   fontWeight: FontWeight.w700,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _fieldLabel = TextStyle(
@@ -291,7 +291,7 @@ final _fieldLabel = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 13,
   fontWeight: FontWeight.w600,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _menuItem = TextStyle(
@@ -299,7 +299,7 @@ final _menuItem = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 13,
   fontWeight: FontWeight.w500,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _menuLabel = TextStyle(
@@ -309,7 +309,7 @@ final _menuLabel = TextStyle(
   fontWeight: FontWeight.w500,
   letterSpacing: 0.88,
   fontFeatures: UiType.tabular,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _rowTitle = TextStyle(
@@ -317,7 +317,7 @@ final _rowTitle = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 13,
   fontWeight: FontWeight.w500,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 final _caption = TextStyle(
@@ -325,7 +325,7 @@ final _caption = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 12,
   fontWeight: FontWeight.w500,
-  color: UiColors.midnight.body,
+  color: UiColors.intochatDark.body,
 );
 
 final _toast = TextStyle(
@@ -333,15 +333,12 @@ final _toast = TextStyle(
   fontFamilyFallback: UiType.bodyFallback,
   fontSize: 13,
   fontWeight: FontWeight.w500,
-  color: UiColors.midnight.strong,
+  color: UiColors.intochatDark.strong,
 );
 
 abstract final class UiTheme {
   static const palettes = [
     'intochat',
-    'midnight',
-    'paper',
-    'lumen',
     'fluent-acrylic',
     'spatial-glass',
     'cyber-synaptic',
@@ -351,38 +348,39 @@ abstract final class UiTheme {
     'nordic-tactical',
   ];
 
+  /// Normalizes a stored theme preference into a canonical preset wire ID,
+  /// mapping legacy v1 names (`midnight` / `paper` -> `warm-paper`,
+  /// `lumen` -> `cyber-synaptic`) strictly at preference ingress.
   static String paletteName(String? stored) => switch (stored) {
-    'dark' || 'midnight' => 'midnight',
-    'light' || 'paper' => 'paper',
     'intochat' => 'intochat',
-    'warm-paper' => 'warm-paper',
-    'lumen' => 'lumen',
+    'warm-paper' || 'dark' || 'midnight' || 'light' || 'paper' => 'warm-paper',
+    'lumen' || 'cyber-synaptic' => 'cyber-synaptic',
     'fluent-acrylic' => 'fluent-acrylic',
     'spatial-glass' => 'spatial-glass',
-    'cyber-synaptic' => 'cyber-synaptic',
     'fluent-warm-mica' => 'fluent-warm-mica',
     'linear-carbon' => 'linear-carbon',
     'nordic-tactical' => 'nordic-tactical',
     _ => 'intochat',
   };
 
-  static ThemeMode modeFor(String? stored) => switch (paletteName(stored)) {
-    'intochat' || 'warm-paper' => ThemeMode.system,
-    'paper' => ThemeMode.light,
-    _ => ThemeMode.dark,
+  static ThemeMode modeFor(String? stored) => switch (stored) {
+    'light' || 'paper' => ThemeMode.light,
+    'dark' || 'midnight' || 'lumen' => ThemeMode.dark,
+    _ => switch (paletteName(stored)) {
+      'intochat' || 'warm-paper' => ThemeMode.system,
+      _ => ThemeMode.dark,
+    },
   };
 
   /// Light theme for a stored palette, built directly from its [UiColors]
   /// palette so every preset renders its exact identity colors.
-  static ThemeData light(String? stored) => fromColors(
-    UiColors.forStoredTheme(paletteName(stored), brightness: Brightness.light),
-  );
+  static ThemeData light(String? stored) =>
+      fromColors(UiColors.forStoredTheme(stored, brightness: Brightness.light));
 
   /// Dark theme for a stored palette, built directly from its [UiColors]
   /// palette.
-  static ThemeData dark(String? stored) => fromColors(
-    UiColors.forStoredTheme(paletteName(stored), brightness: Brightness.dark),
-  );
+  static ThemeData dark(String? stored) =>
+      fromColors(UiColors.forStoredTheme(stored, brightness: Brightness.dark));
 
   /// Builds a complete Material 3 [ThemeData] directly from a [UiColors]
   /// palette and [UiTokens] scale.
@@ -548,15 +546,17 @@ abstract final class UiTheme {
         : UiColors.intochatLight,
   );
 
-  static ThemeData workspaceDark(String? stored) => dark(stored);
-
-  static ThemeData workspace(Brightness brightness) => fromColors(
-    brightness == Brightness.dark ? UiColors.midnight : UiColors.paper,
+  /// Canonical theme for one of the 7 OS [IcStylePreset] identities.
+  static ThemeData forPreset(
+    IcStylePreset preset, {
+    Brightness brightness = Brightness.dark,
+    UiTokens tokens = const UiTokens(),
+  }) => fromColors(
+    UiColors.forPreset(preset, dark: brightness == Brightness.dark),
+    tokens: tokens,
   );
 
   static ThemeData baseLight() => fromColors(UiColors.intochatLight);
-
-  static ThemeData baseDark() => fromColors(UiColors.midnight);
 }
 
 /// Installs the transparent Material surface foundation below MaterialApp.

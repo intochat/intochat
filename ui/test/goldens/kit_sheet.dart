@@ -113,25 +113,25 @@ class KitSheet extends StatelessWidget {
           ),
         ]),
         section('INPUTS', [
-          const UiKitField(label: 'Company', placeholder: 'Nordlys AS'),
+          const UiMixField(label: 'Company', placeholder: 'Nordlys AS'),
           gap,
-          UiKitField(
+          UiMixField(
             label: 'First name',
             controller: TextEditingController(text: 'Anna'),
           ),
           gap,
-          UiKitField(
+          UiMixField(
             label: 'Work email',
             controller: TextEditingController(text: 'anna@'),
             error: 'Enter a complete email address.',
           ),
         ]),
         section('SELECT', [
-          UiKitSelect<String>(
+          UiMixSelect<String>(
             hint: 'Language',
             items: const [
-              UiKitSelectItem('en', 'English'),
-              UiKitSelectItem('de', 'Deutsch'),
+              UiMixSelectItem('en', 'English'),
+              UiMixSelectItem('de', 'Deutsch'),
             ],
             value: 'en',
             onChanged: (_) {},

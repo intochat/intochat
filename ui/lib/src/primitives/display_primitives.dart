@@ -5,7 +5,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
-import '../design/controls.dart' show WorkingSpinner;
 import '../nodes/node_common.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/ui_colors.dart';
@@ -868,6 +867,109 @@ final class UiMixToastBody extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "Working": a loader that spins while a session or app is busy.
+class WorkingSpinner extends StatefulWidget {
+  const WorkingSpinner({super.key, this.size = 14, this.color});
+
+  final double size;
+  final Color? color;
+
+  @override
+  State<WorkingSpinner> createState() => _WorkingSpinnerState();
+}
+
+class _WorkingSpinnerState extends State<WorkingSpinner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _a = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (!WidgetsBinding.instance.runtimeType.toString().contains('Test')) {
+      _a.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _a.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      LucideIcons.loaderCircle,
+      size: widget.size,
+      color: widget.color ?? UiColors.of(context).textMuted,
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return icon;
+    return RotationTransition(turns: _a, child: icon);
+  }
+}
+
+enum TagTone { neutral, accent, done, working, error }
+
+/// Compact status / metadata pill with optional icon.
+class TagPill extends StatelessWidget {
+  const TagPill({
+    super.key,
+    required this.label,
+    this.tone = TagTone.neutral,
+    this.icon,
+  });
+
+  final String label;
+  final TagTone tone;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final (bg, fg) = switch (tone) {
+      TagTone.neutral => (c.surfaceSunk, c.textMuted),
+      TagTone.accent => (c.accentTint, c.accent),
+      TagTone.done => (c.doneBg, c.done),
+      TagTone.working => (c.workingBg, c.working),
+      TagTone.error => (c.errorBg, c.error),
+    };
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
+        border: Border.all(color: fg.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: fg),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: UiType.textStyle(
+                11.5,
+                weight: FontWeight.w600,
+                color: fg,
+                tnum: true,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -14,8 +14,6 @@ import 'layout_primitives.dart';
 /// Desktop-dense text field: 13/600 label, 6 gap, then a 36px single-line box
 /// with radius 12, `inputBorder` border, `surface` fill and xs shadow. Focus
 /// turns the border `accent` and adds a 3px `focus` ring outside.
-typedef UiKitField = UiMixField;
-
 final class UiMixField extends StatefulWidget {
   const UiMixField({
     super.key,

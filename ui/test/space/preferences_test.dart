@@ -14,7 +14,7 @@ void main() {
     );
     await store.load();
     store.settings.reducedMotion = true;
-    store.settings.theme = 'paper';
+    store.settings.theme = 'warm-paper';
     await store.save();
     expect((jsonDecode(saved!) as Map).keys, [
       'defaultModelProfile',
@@ -27,7 +27,7 @@ void main() {
     final restored = WorkspaceStore(readPreferences: () async => saved);
     await restored.load();
     expect(restored.settings.reducedMotion, isTrue);
-    expect(restored.settings.theme, 'paper');
+    expect(restored.settings.theme, 'warm-paper');
     store.dispose();
     restored.dispose();
   });

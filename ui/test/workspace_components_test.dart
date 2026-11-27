@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 Widget host(Widget child, {bool reduced = false, ThemeData? theme}) =>
     MaterialApp(
-      theme: theme ?? UiTheme.workspaceDark('lumen'),
+      theme: theme ?? UiTheme.dark('cyber-synaptic'),
       home: MediaQuery(
         data: MediaQueryData(disableAnimations: reduced),
         child: Scaffold(body: child),
@@ -84,7 +84,7 @@ void main() {
     expect(tester.getSize(find.byType(UiBreadcrumbs)), Size.zero);
   });
   testWidgets('control bridge inherits selected palette', (tester) async {
-    final theme = UiTheme.workspaceDark('lumen');
+    final theme = UiTheme.dark('cyber-synaptic');
     late Color primary;
     await tester.pumpWidget(
       host(
@@ -182,7 +182,7 @@ void main() {
     },
   );
   testWidgets('surface inherits custom theme spacing', (tester) async {
-    final theme = UiTheme.workspace(Brightness.light)
+    final theme = UiTheme.intochat(Brightness.light)
         .copyWith(extensions: [const UiTokens(spaceLarge: 30)]);
     await tester.pumpWidget(
       host(const UiSurface(child: Text('Content')), theme: theme),

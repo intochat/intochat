@@ -192,7 +192,7 @@ final class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    UiKitField(
+                    UiMixField(
                       key: const Key('login-username'),
                       label: 'Username',
                       controller: _username,
@@ -209,7 +209,7 @@ final class _LoginScreenState extends State<LoginScreen> {
                       onSubmitted: (_) => _passwordFocus.requestFocus(),
                     ),
                     const SizedBox(height: 16),
-                    UiKitField(
+                    UiMixField(
                       key: const Key('login-password'),
                       label: 'Password',
                       controller: _password,
@@ -256,7 +256,7 @@ final class _LoginScreenState extends State<LoginScreen> {
                     ),
                     if (_register) ...[
                       const SizedBox(height: 16),
-                      UiKitField(
+                      UiMixField(
                         key: const Key('login-confirm-password'),
                         label: 'Confirm password',
                         controller: _confirmation,

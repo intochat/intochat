@@ -75,23 +75,40 @@ void main() {
     }
   });
 
-  test('legacy palettes map from existing tokens', () {
-    expect(UiColors.midnight.page, const Color(0xFF141720));
-    expect(UiColors.midnight.accent, const Color(0xFF7B9BE3));
-    expect(UiColors.lumen.page, const Color(0xFF060A08));
-    expect(UiColors.lumen.accent, const Color(0xFF7CE0A8));
-    expect(UiColors.paper, isNot(UiColors.lumen));
-    expect(UiColors.midnight.error, const Color(0xFFFFB4AB));
-    expect(UiColors.paper.error, const Color(0xFFAD4F3F));
-    expect(UiColors.paper.surface, const Color(0xFFFFFFFF));
+  test('legacy stored theme names map to canonical presets at ingress', () {
+    expect(
+      UiColors.forStoredTheme('midnight', brightness: Brightness.light),
+      UiColors.warmPaperDark,
+    );
+    expect(
+      UiColors.forStoredTheme('dark', brightness: Brightness.light),
+      UiColors.warmPaperDark,
+    );
+    expect(
+      UiColors.forStoredTheme('paper', brightness: Brightness.dark),
+      UiColors.warmPaperLight,
+    );
+    expect(
+      UiColors.forStoredTheme('light', brightness: Brightness.dark),
+      UiColors.warmPaperLight,
+    );
+    expect(
+      UiColors.forStoredTheme('lumen', brightness: Brightness.light),
+      UiColors.cyberSynapticDark,
+    );
   });
 
   final all = {
     'intochatLight': UiColors.intochatLight,
     'intochatDark': UiColors.intochatDark,
-    'midnight': UiColors.midnight,
-    'paper': UiColors.paper,
-    'lumen': UiColors.lumen,
+    'fluentAcrylicDark': UiColors.fluentAcrylicDark,
+    'fluentAcrylicLight': UiColors.fluentAcrylicLight,
+    'cyberSynapticDark': UiColors.cyberSynapticDark,
+    'fluentWarmMicaDark': UiColors.fluentWarmMicaDark,
+    'fluentWarmMicaLight': UiColors.fluentWarmMicaLight,
+    'linearCarbonDark': UiColors.linearCarbonDark,
+    'nordicTacticalDark': UiColors.nordicTacticalDark,
+    'nordicTacticalLight': UiColors.nordicTacticalLight,
   };
 
   test('every palette has readable body text on page', () {

@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../controls.dart';
+import '../../primitives/field.dart';
 import '../keys.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
@@ -399,22 +399,11 @@ class _RowState extends State<_Row> {
           }
           return KeyEventResult.ignored;
         },
-        child: Container(
-          height: 26,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          alignment: Alignment.centerLeft,
-          decoration: BoxDecoration(
-            color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
-            border: Border.all(color: c.accent),
-            boxShadow: [BoxShadow(color: c.ring, spreadRadius: 2)],
-          ),
-          child: Field(
-            controller: _text,
-            focusNode: _focus,
-            style: valueStyle,
-            onSubmitted: (_) => _commit(),
-          ),
+        child: UiMixField(
+          label: '',
+          controller: _text,
+          focusNode: _focus,
+          onSubmitted: (_) => _commit(),
         ),
       );
     } else {

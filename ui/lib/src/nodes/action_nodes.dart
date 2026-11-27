@@ -307,7 +307,7 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     return Semantics(
       label: controlNameOf(node.automationName, label, node.key),
       container: true,
-      child: UiKitField(
+      child: UiMixField(
         label: label,
         controller: _controller,
         focusNode: _focus,

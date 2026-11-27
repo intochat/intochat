@@ -180,10 +180,10 @@ void main() {
     await _pump(tester, _props);
 
     expect(find.text('API key'), findsOneWidget);
-    final field = tester.widget<UiKitField>(
+    final field = tester.widget<UiMixField>(
       find.ancestor(
         of: find.byKey(const ValueKey('form_field_token')),
-        matching: find.byType(UiKitField),
+        matching: find.byType(UiMixField),
       ),
     );
     expect(field.enabled, isFalse);

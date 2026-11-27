@@ -87,7 +87,7 @@ void main() {
 
     expect(
       tester
-          .widget<UiKitSelect<String>>(find.byType(UiKitSelect<String>))
+          .widget<UiMixSelect<String>>(find.byType(UiMixSelect<String>))
           .value,
       isNull,
     );

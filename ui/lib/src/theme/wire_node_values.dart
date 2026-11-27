@@ -7,7 +7,7 @@ import '../design/cards/chart_card.dart';
 import '../design/cards/draft_card.dart';
 import '../design/cards/job_card.dart';
 import '../design/cards/secret_card.dart';
-import '../design/controls.dart' show TagTone;
+import '../primitives/display_primitives.dart' show TagTone;
 
 /// Semantic node tone resolved across `Badge`, `TagPill`, `Text`, and `InfoBar`.
 enum UiNodeTone { neutral, accent, done, working, error }
