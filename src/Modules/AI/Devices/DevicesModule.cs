@@ -95,34 +95,30 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetRequiredService<TimeProvider>()));
-        services.TryAddSingleton(static sp => new CloudRelayServiceClient(
+        services.TryAddSingleton<ICloudBrainRelayClient>(static sp => new CloudBrainRelayClient(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
+            sp.GetRequiredService<CloudClient>(),
+            sp.GetRequiredService<DeviceCredentials>(),
             sp.GetService<IServiceAssertionSigner>()));
         services.TryAddSingleton<IDeviceEnrollmentRedeemer, DeviceEnrollmentRedeemer>();
         services.TryAddSingleton<IPendingDeviceEnrollmentStore>(static sp => new PendingDeviceEnrollmentStore(
             sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IDeviceChatRoute>(static sp => new RelayDeviceChatRoute(
-            sp.GetRequiredService<CloudClient>(),
-            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetRequiredService<ICloudBrainRelayClient>(),
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
-            sp.GetRequiredService<TimeProvider>(),
-            sp.GetService<CloudRelayServiceClient>()));
+            sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<RelayConnectedComputeTransport>(static sp => new RelayConnectedComputeTransport(
-            sp.GetRequiredService<CloudClient>(),
-            sp.GetRequiredService<DeviceCredentials>(),
-            sp.GetService<IOptionsMonitor<DevicesOptions>>(),
-            sp.GetService<CloudRelayServiceClient>()));
+            sp.GetRequiredService<ICloudBrainRelayClient>(),
+            sp.GetService<IOptionsMonitor<DevicesOptions>>()));
         services.TryAddSingleton<IConnectedComputeTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
         services.TryAddSingleton<IConnectedResourceTransport>(static sp => sp.GetRequiredService<RelayConnectedComputeTransport>());
         services.TryAddSingleton<IConnectedComputeRouter>(static sp => new ConnectedComputeRouter(
-            sp.GetRequiredService<CloudClient>(),
-            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetRequiredService<ICloudBrainRelayClient>(),
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
             sp.GetService<IOptionsMonitor<DevicesOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<IConnectedComputeTransport>(),
             sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>(),
-            sp.GetService<CloudRelayServiceClient>(),
             sp.GetService<IConnectedResourceTransport>()));
         services.TryAddSingleton<ClientCodeSandboxConsentStore>(static sp =>
         {

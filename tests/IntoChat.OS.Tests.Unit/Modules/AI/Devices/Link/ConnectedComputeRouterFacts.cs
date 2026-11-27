@@ -114,8 +114,9 @@ public sealed class ConnectedComputeRouterFacts
         };
         using var http = new HttpClient(relay);
         var cloud = new CloudClient(http, credentials, clock);
+        var brainRelay = new CloudBrainRelayClient(http, cloud, credentials);
         var thisMachine = new MachineId(Path.Combine(root.Path, "machine-id"));
-        var router = new ConnectedComputeRouter(cloud, credentials, thisMachine, clock: clock);
+        var router = new ConnectedComputeRouter(brainRelay, thisMachine, clock: clock);
 
         await router.RecordHeartbeatAsync(
             OtherBrain,
@@ -301,10 +302,10 @@ public sealed class ConnectedComputeRouterFacts
 
         using var http = new HttpClient(relay);
         var cloud = new CloudClient(http, credentials, clock);
-        var serviceRelay = new CloudRelayServiceClient(http, signer);
+        var brainRelay = new CloudBrainRelayClient(http, cloud, credentials, signer);
         var thisMachine = new MachineId(Path.Combine(root.Path, "machine-id"));
-        var transport = new RelayConnectedComputeTransport(cloud, credentials, serviceRelay: serviceRelay);
-        var router = new ConnectedComputeRouter(cloud, credentials, thisMachine, clock: clock, transport: transport, serviceRelay: serviceRelay);
+        var transport = new RelayConnectedComputeTransport(brainRelay);
+        var router = new ConnectedComputeRouter(brainRelay, thisMachine, clock: clock, transport: transport);
 
         var result = await router.TryExecuteOnConnectedClientAsync(OwnerBrain, NewSandboxRequest("job-sa-1", OwnerBrain.Value), Ct);
 
@@ -319,8 +320,8 @@ public sealed class ConnectedComputeRouterFacts
             var claims = ServiceAssertion.Verify(call.Token, issuer => issuer == "os.test.intochat.io" ? (signingKey, "https://cloud.test") : null, clock);
             Assert.NotNull(claims);
             Assert.Equal(OwnerBrain.Value, claims!.Subject);
-            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, claims.Purpose);
-            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, claims.Operation);
+            Assert.Equal(CloudBrainRelayClient.ComputeDispatchPurpose, claims.Purpose);
+            Assert.Equal(CloudBrainRelayClient.ComputeDispatchPurpose, claims.Operation);
             Assert.Equal(ServiceAssertion.Request(call.Method, call.Target, Encoding.UTF8.GetBytes(call.Body)), claims.Request);
         }
     }
@@ -795,7 +796,8 @@ public sealed class ConnectedComputeRouterFacts
         };
         using var http = new HttpClient(relay);
         var cloud = new CloudClient(http, credentials, clock);
-        var transport = new RelayConnectedComputeTransport(cloud, credentials);
+        var brainRelay = new CloudBrainRelayClient(http, cloud, credentials);
+        var transport = new RelayConnectedComputeTransport(brainRelay);
 
         var okNode = new ConnectedComputeNode(
             BrainId: OwnerBrain.Value,

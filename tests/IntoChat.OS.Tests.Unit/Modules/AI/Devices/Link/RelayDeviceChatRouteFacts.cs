@@ -162,12 +162,9 @@ public sealed class RelayDeviceChatRouteFacts
         };
         using var http = new HttpClient(relay);
         var machine = new MachineId(Path.Combine(root.Path, "machine-id"));
-        var route = new RelayDeviceChatRoute(
-            new CloudClient(http, credentials, clock),
-            credentials,
-            machine,
-            clock,
-            new CloudRelayServiceClient(http, signer));
+        var cloud = new CloudClient(http, credentials, clock);
+        var brainRelay = new CloudBrainRelayClient(http, cloud, credentials, signer);
+        var route = new RelayDeviceChatRoute(brainRelay, machine, clock);
 
         var cards = await route.Models(Ada, Ct);
         var card = Assert.Single(cards);
@@ -186,8 +183,8 @@ public sealed class RelayDeviceChatRouteFacts
             var verified = ServiceAssertion.Verify(req.Bearer, issuer => issuer == "os.test.intochat.io" ? (signingKey, "https://relay.test") : null, clock);
             Assert.NotNull(verified);
             Assert.Equal("ada", verified!.Subject);
-            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, verified.Purpose);
-            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, verified.Operation);
+            Assert.Equal(CloudBrainRelayClient.ComputeDispatchPurpose, verified.Purpose);
+            Assert.Equal(CloudBrainRelayClient.ComputeDispatchPurpose, verified.Operation);
             Assert.Equal(ServiceAssertion.Request(req.Method, req.Path + req.Query, Encoding.UTF8.GetBytes(req.Body)), verified.Request);
         }
     }
@@ -229,7 +226,9 @@ public sealed class RelayDeviceChatRouteFacts
             var relay = new FakeRelay();
             var http = new HttpClient(relay);
             var machine = new MachineId(Path.Combine(root.Path, "machine-id"));
-            var route = new RelayDeviceChatRoute(new CloudClient(http, credentials, clock), credentials, machine, clock);
+            var cloud = new CloudClient(http, credentials, clock);
+            var brainRelay = new CloudBrainRelayClient(http, cloud, credentials);
+            var route = new RelayDeviceChatRoute(brainRelay, machine, clock);
             return new World(root, clock, relay, http, route, machine.Value, access);
         }
 

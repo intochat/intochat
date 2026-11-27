@@ -539,7 +539,7 @@ public sealed class Slice3PairingAndModeBFacts
 
         try
         {
-            // 1. Multi-tenant Hosted Cloud OS Mode B dispatch via CloudRelayServiceClient (ServiceAssertion JWT, no link.bin)
+            // 1. Multi-tenant Hosted Cloud OS Mode B dispatch via CloudBrainRelayClient (ServiceAssertion JWT, no link.bin)
             string? capturedAuth = null;
             string? capturedPurpose = null;
             string? capturedBrain = null;
@@ -567,10 +567,10 @@ public sealed class Slice3PairingAndModeBFacts
                 };
             });
             using var serviceHttp = new HttpClient(serviceHandler);
-            var serviceRelay = new CloudRelayServiceClient(serviceHttp, signer);
             var emptyCreds = new DeviceCredentials(new PlaintextProtector(), Path.Combine(tempRoot, "missing-link.bin"));
             var cloudClient = new CloudClient(serviceHttp, emptyCreds, TimeProvider.System);
-            var transport = new RelayConnectedComputeTransport(cloudClient, emptyCreds, serviceRelay: serviceRelay);
+            var brainRelay = new CloudBrainRelayClient(serviceHttp, cloudClient, emptyCreds, signer);
+            var transport = new RelayConnectedComputeTransport(brainRelay);
 
             var node = new ConnectedComputeNode(
                 BrainId: "tenant-brain-42",
@@ -594,7 +594,7 @@ public sealed class Slice3PairingAndModeBFacts
             Assert.True(resp!.Ok);
             Assert.Equal("Service eyJ.service.assertion", capturedAuth);
             Assert.Equal("tenant-brain-42", capturedBrain);
-            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, capturedPurpose);
+            Assert.Equal(CloudBrainRelayClient.ComputeDispatchPurpose, capturedPurpose);
             Assert.Contains("\"capability\":\"IWindowsFolderGateway\"", capturedBody!, StringComparison.Ordinal);
 
             // 2. Server revocation (401 on refresh/call) clears link.bin without touching custody/user state
