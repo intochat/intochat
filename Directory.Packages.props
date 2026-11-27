@@ -6,10 +6,10 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Pin patched transitive dependencies; keep NuGet auditing enabled.
-         MessagePack 2.5.302 is NU1902 (GHSA-qhrr-8q5h-9q3h); 2.5.307+ is the patched 2.x release. -->
-    <PackageVersion Include="MessagePack" Version="2.5.307" />
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
+         MessagePack 2.5.302 is NU1902 (GHSA-qhrr-8q5h-9q3h); 3.1.12+ is the patched 3.x release. -->
+    <PackageVersion Include="MessagePack" Version="3.1.12" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="11.0.0" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
     <PackageVersion Include="ModelContextProtocol.Core" Version="2.4.0" />
@@ -21,8 +21,8 @@
     <PackageVersion Include="Grpc.Net.Client" Version="2.85.0" />
     <PackageVersion Include="Grpc.Net.Client.Web" Version="2.85.0" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
-    <PackageVersion Include="Microsoft.Build.Framework" Version="17.11.48" />
-    <PackageVersion Include="Microsoft.NET.StringTools" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.Build.Framework" Version="18.12.2" />
+    <PackageVersion Include="Microsoft.NET.StringTools" Version="18.12.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.12.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.12.0" />
