@@ -1,4 +1,5 @@
 using System.ClientModel;
+using System.ClientModel.Primitives;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Log;
@@ -9,6 +10,7 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.AzureFoundry;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Devices.Voice;
 using IntoChat.OS.Modules.Flutter.Conversations;
@@ -34,6 +36,7 @@ internal sealed class VoiceClients : IVoiceClients
     private readonly ProviderPublicEndpoints? _publicEndpoints;
     private readonly Func<string, ConversationId, CancellationToken, Task<IChatClient?>> _chatFactory;
     private readonly ILoggerFactory? _loggerFactory;
+    private readonly AzureFoundryProviderFactory _foundryFactory;
 
     public VoiceClients(
         INeuronProxies neurons,
@@ -44,7 +47,7 @@ internal sealed class VoiceClients : IVoiceClients
         ProviderPublicEndpoints? publicEndpoints = null,
         IVoiceActivityDetector? vad = null,
         ILoggerFactory? loggerFactory = null)
-        : this(neurons, runtimes, credentials, configuration, vad, publicEndpoints, DefaultChatFactory(neurons, services), loggerFactory)
+        : this(neurons, runtimes, credentials, configuration, vad, publicEndpoints, DefaultChatFactory(neurons, services), loggerFactory, foundryFactory: null)
     {
     }
 
@@ -56,7 +59,8 @@ internal sealed class VoiceClients : IVoiceClients
         IVoiceActivityDetector? vad = null,
         ProviderPublicEndpoints? publicEndpoints = null,
         Func<string, ConversationId, CancellationToken, Task<IChatClient?>>? chatFactory = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        AzureFoundryProviderFactory? foundryFactory = null)
     {
         ArgumentNullException.ThrowIfNull(neurons);
         ArgumentNullException.ThrowIfNull(runtimes);
@@ -71,6 +75,7 @@ internal sealed class VoiceClients : IVoiceClients
         _publicEndpoints = publicEndpoints;
         _chatFactory = chatFactory ?? (static (_, _, _) => Task.FromResult<IChatClient?>(null));
         _loggerFactory = loggerFactory;
+        _foundryFactory = foundryFactory ?? (AzureFoundryProviderFactory)AIClients.Factory(AiProvider.AzureFoundry);
     }
 
     private string? Topology => _configuration[IntoChatOSNames.TopologyKey];
@@ -84,7 +89,7 @@ internal sealed class VoiceClients : IVoiceClients
             Abilities.Hear,
             verb: "hear",
             fromRuntime: static (runtime, id) => runtime.Hear(id),
-            fromOpenAi: static (apiKey, endpoint, id) => CreateAudioClient(apiKey, endpoint, id).AsISpeechToTextClient(),
+            fromCloud: static (client, deployment) => client.GetAudioClient(deployment).AsISpeechToTextClient(),
             wrapTelemetry: raw => raw.AsBuilder().UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource).Build(),
             ct);
 
@@ -95,7 +100,7 @@ internal sealed class VoiceClients : IVoiceClients
             Abilities.Speak,
             verb: "speak",
             fromRuntime: static (runtime, id) => runtime.Speak(id),
-            fromOpenAi: static (apiKey, endpoint, id) => CreateAudioClient(apiKey, endpoint, id).AsITextToSpeechClient(),
+            fromCloud: static (client, deployment) => client.GetAudioClient(deployment).AsITextToSpeechClient(),
             wrapTelemetry: raw => raw.AsBuilder().UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource).Build(),
             ct);
 
@@ -114,23 +119,23 @@ internal sealed class VoiceClients : IVoiceClients
                     $"{card?.Name ?? binding.Value} cannot talk in this build.");
             }
 
-            if (card.Provider != AiProvider.OpenAI)
+            if (card.Provider is not (AiProvider.OpenAI or AiProvider.AzureFoundry))
             {
                 return new TalkVoice(null, card.Id, RecordsItself: false, InputRate: 24_000,
                     $"{card.Name} cannot talk in this build.");
             }
 
-            var (apiKey, _, error) = await ResolveOpenAiCredentialsAsync(brain, card, ModelRole.Talk, ct).ConfigureAwait(false);
-            if (apiKey is null)
+            var (realtime, error) = await CreateCloudRealtimeClientAsync(brain, card, ct).ConfigureAwait(false);
+            if (realtime is null)
             {
                 return new TalkVoice(null, card.Id, RecordsItself: false, InputRate: 24_000, error);
             }
 
-            IRealtimeClient realtime = new OpenAIRealtimeClient(apiKey, card.Id.Value)
+            IRealtimeClient wrapped = realtime
                 .AsBuilder()
                 .UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource)
                 .Build();
-            return new TalkVoice(realtime, card.Id, RecordsItself: false, InputRate: 24_000, Unavailable: null);
+            return new TalkVoice(wrapped, card.Id, RecordsItself: false, InputRate: 24_000, Unavailable: null);
         }
 
         var hear = await Hear(brain, ct).ConfigureAwait(false);
@@ -148,13 +153,7 @@ internal sealed class VoiceClients : IVoiceClients
                 $"Talk needs Speak: {speak.Unavailable ?? "no text-to-speech model is ready."}");
         }
 
-        if (_vad is null || !_vad.Ready)
-        {
-            hear.Client.Dispose();
-            speak.Client.Dispose();
-            return new TalkVoice(null, null, RecordsItself: true, InputRate: 16_000,
-                "Talk needs voice activity detection (Silero VAD is not installed).");
-        }
+        var vad = _vad is { Ready: true } ? _vad : new EnergyVoiceActivityDetector();
 
         var chat = await _chatFactory(brain, conversation, ct).ConfigureAwait(false);
         if (chat is null)
@@ -165,7 +164,7 @@ internal sealed class VoiceClients : IVoiceClients
                 "Talk needs Chat: no chat model is ready.");
         }
 
-        IRealtimeClient local = new LocalTalk(hear.Client, chat, speak.Client, _vad)
+        IRealtimeClient local = new LocalTalk(hear.Client, chat, speak.Client, vad)
             .AsBuilder()
             .UseOpenTelemetry(_loggerFactory, sourceName: TelemetrySource)
             .Build();
@@ -178,7 +177,7 @@ internal sealed class VoiceClients : IVoiceClients
         Abilities ability,
         string verb,
         Func<ILocalRuntime, ModelId, T?> fromRuntime,
-        Func<string, string?, ModelId, T> fromOpenAi,
+        Func<OpenAIClient, string, T> fromCloud,
         Func<T, T> wrapTelemetry,
         CancellationToken ct) where T : class
     {
@@ -222,15 +221,15 @@ internal sealed class VoiceClients : IVoiceClients
             return new Voice<T>(wrapTelemetry(raw), card.Id, Unavailable: null);
         }
 
-        if (card.Provider == AiProvider.OpenAI)
+        if (card.Provider is AiProvider.OpenAI or AiProvider.AzureFoundry)
         {
-            var (apiKey, endpoint, error) = await ResolveOpenAiCredentialsAsync(brain, card, role, ct).ConfigureAwait(false);
-            if (apiKey is null)
+            var (client, deployment, error) = await CreateCloudAudioOpenAIClientAsync(brain, card, role, ct).ConfigureAwait(false);
+            if (client is null || deployment is null)
             {
                 return new Voice<T>(null, card.Id, error);
             }
 
-            var raw = fromOpenAi(apiKey, endpoint, card.Id);
+            var raw = fromCloud(client, deployment);
             return new Voice<T>(wrapTelemetry(raw), card.Id, Unavailable: null);
         }
 
@@ -266,6 +265,98 @@ internal sealed class VoiceClients : IVoiceClients
         }
 
         return null;
+    }
+
+    private async Task<(OpenAIClient? Client, string? Deployment, string? Error)> CreateCloudAudioOpenAIClientAsync(
+        string brain,
+        ModelCard card,
+        ModelRole role,
+        CancellationToken ct)
+    {
+        if (card.Provider == AiProvider.AzureFoundry)
+        {
+            try
+            {
+                var aiOptions = AIOptionsRuntime.Read(_configuration);
+                var (endpoint, apiKey, policy) = await _foundryFactory.ResolveAuthAsync(
+                    aiOptions, _credentials, pinnedEndpoint: null, brainId: BrainScope.IsValidId(brain) ? brain : null, ct).ConfigureAwait(false);
+                var clientOptions = new OpenAIClientOptions { NetworkTimeout = AudioTimeout, Endpoint = endpoint };
+#pragma warning disable OPENAI001 // OpenAIClient(AuthenticationPolicy, OpenAIClientOptions) for Entra ID BearerTokenPolicy.
+                var client = apiKey is not null
+                    ? new OpenAIClient(new ApiKeyCredential(apiKey), clientOptions)
+                    : new OpenAIClient(policy!, clientOptions);
+#pragma warning restore OPENAI001
+                return (client, AzureFoundryProviderFactory.DeploymentNameOf(card.Id.Value), null);
+            }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+            {
+                return (null, null, $"{card.Name} needs an Azure AI Foundry endpoint for the {role} role: {error.Message}");
+            }
+        }
+
+        var (openAiKey, openAiEndpoint, openAiError) = await ResolveOpenAiCredentialsAsync(brain, card, role, ct).ConfigureAwait(false);
+        if (openAiKey is null)
+        {
+            return (null, null, openAiError);
+        }
+
+        var options = new OpenAIClientOptions { NetworkTimeout = AudioTimeout };
+        if (openAiEndpoint is { Length: > 0 })
+        {
+            options.Endpoint = new Uri(openAiEndpoint);
+        }
+
+        return (new OpenAIClient(new ApiKeyCredential(openAiKey), options), card.Id.Value, null);
+    }
+
+    private async Task<(OpenAIRealtimeClient? Client, string? Error)> CreateCloudRealtimeClientAsync(
+        string brain,
+        ModelCard card,
+        CancellationToken ct)
+    {
+#pragma warning disable OPENAI001, OPENAI002 // OpenAI.Realtime client construction for OpenAI and Azure AI Foundry.
+        if (card.Provider == AiProvider.AzureFoundry)
+        {
+            try
+            {
+                var aiOptions = AIOptionsRuntime.Read(_configuration);
+                var (endpoint, apiKey, policy) = await _foundryFactory.ResolveAuthAsync(
+                    aiOptions, _credentials, pinnedEndpoint: null, brainId: BrainScope.IsValidId(brain) ? brain : null, ct).ConfigureAwait(false);
+                var realtimeOptions = new OpenAI.Realtime.RealtimeClientOptions
+                {
+                    Endpoint = AzureFoundryProviderFactory.RealtimeEndpointOf(endpoint),
+                };
+                var rawClient = apiKey is not null
+                    ? new OpenAI.Realtime.RealtimeClient(new ApiKeyCredential(apiKey), realtimeOptions)
+                    : new OpenAI.Realtime.RealtimeClient(policy!, realtimeOptions);
+                return (new OpenAIRealtimeClient(rawClient, AzureFoundryProviderFactory.DeploymentNameOf(card.Id.Value)), null);
+            }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+            {
+                return (null, $"{card.Name} needs an Azure AI Foundry endpoint for the {ModelRole.Talk} role: {error.Message}");
+            }
+        }
+
+        var (openAiKey, openAiEndpoint, openAiError) = await ResolveOpenAiCredentialsAsync(brain, card, ModelRole.Talk, ct).ConfigureAwait(false);
+        if (openAiKey is null)
+        {
+            return (null, openAiError);
+        }
+
+        if (openAiEndpoint is { Length: > 0 }
+            && Uri.TryCreate(openAiEndpoint, UriKind.Absolute, out var customUri)
+            && !string.Equals(customUri.Host, "api.openai.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var realtimeOptions = new OpenAI.Realtime.RealtimeClientOptions
+            {
+                Endpoint = AzureFoundryProviderFactory.RealtimeEndpointOf(customUri),
+            };
+            var rawClient = new OpenAI.Realtime.RealtimeClient(new ApiKeyCredential(openAiKey), realtimeOptions);
+            return (new OpenAIRealtimeClient(rawClient, card.Id.Value), null);
+        }
+
+        return (new OpenAIRealtimeClient(openAiKey, card.Id.Value), null);
+#pragma warning restore OPENAI001, OPENAI002
     }
 
     private async Task<(string? ApiKey, string? Endpoint, string? Error)> ResolveOpenAiCredentialsAsync(
@@ -321,17 +412,6 @@ internal sealed class VoiceClients : IVoiceClients
         }
 
         return null;
-    }
-
-    private static OpenAI.Audio.AudioClient CreateAudioClient(string apiKey, string? endpoint, ModelId id)
-    {
-        var options = new OpenAIClientOptions { NetworkTimeout = AudioTimeout };
-        if (endpoint is { Length: > 0 })
-        {
-            options.Endpoint = new Uri(endpoint);
-        }
-
-        return new OpenAIClient(new ApiKeyCredential(apiKey), options).GetAudioClient(id.Value);
     }
 
     private static Func<string, ConversationId, CancellationToken, Task<IChatClient?>> DefaultChatFactory(

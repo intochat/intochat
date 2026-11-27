@@ -15,6 +15,7 @@ public sealed class AIOptions : IModuleOptions
     public AIProviderOptions Google { get; set; } = new();
     public AIProviderOptions XAI { get; set; } = new();
     public AIProviderOptions OpenRouter { get; set; } = new();
+    public AzureFoundryOptions AzureFoundry { get; set; } = new();
     public OllamaOptions Ollama { get; set; } = new();
     public SystemOneOptions SystemOne { get; set; } = new();
     public AIHostingOptions Hosting { get; set; } = new();
@@ -28,6 +29,7 @@ public sealed class AIOptions : IModuleOptions
         AiProvider.Google => Google,
         AiProvider.XAI => XAI,
         AiProvider.OpenRouter => OpenRouter,
+        AiProvider.AzureFoundry => AzureFoundry,
         AiProvider.Ollama => Ollama,
         _ => throw new NotSupportedException($"{provider} has no hosted provider settings."),
     };

@@ -39,6 +39,7 @@ public static partial class AIHostingExtensions
         var state = State(module);
         state.EnableSensitiveData = options.Telemetry.EnableSensitiveData ?? false;
         state.Reasoning = options.Reasoning;
+        state.AzureFoundryEndpoint = options.AzureFoundry.Endpoint;
         state.SetRoles(options.Roles);
 
         foreach (var name in options.Hosting.Llms)

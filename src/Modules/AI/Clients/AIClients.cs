@@ -4,6 +4,7 @@ using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Anthropic;
+using IntoChat.OS.Modules.AI.Models.AzureFoundry;
 using IntoChat.OS.Modules.AI.Models.Google;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.AI.Models.OpenRouter;
@@ -31,6 +32,7 @@ internal static class AIClients
             new GoogleProviderFactory(),
             new XAIProviderFactory(),
             new OpenRouterProviderFactory(),
+            new AzureFoundryProviderFactory(),
         }.ToDictionary(static factory => factory.Provider);
 
     internal static void Add(IServiceCollection services)
@@ -227,7 +229,10 @@ internal static class AIClients
         }
 
         services.AddSingleton<IImageGeneration>(sp =>
-            new OpenAIImageGeneration(card, sp.GetRequiredService<IAiCredentials>()));
+            new OpenAIImageGeneration(
+                card,
+                sp.GetRequiredService<IAiCredentials>(),
+                sp.GetService<IOptions<AIOptions>>()?.Value ?? configuration));
     }
 
     private static InvalidOperationException UnknownModel(

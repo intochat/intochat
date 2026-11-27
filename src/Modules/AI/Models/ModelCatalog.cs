@@ -784,6 +784,11 @@ public sealed class ModelCatalog
                     ? (true, null)
                     : (false, NoKeyReason);
 
+            case AiProvider.AzureFoundry:
+                return await AIClients.Factory(card.Provider).IsConfigured(configuration, credentials, ct).ConfigureAwait(false)
+                    ? (true, null)
+                    : (false, NotConfiguredReason);
+
             case AiProvider.TypeSafe:
                 return await credentials.IsReady(AiIntegrations.TypeSafe.Id, ct).ConfigureAwait(false)
                     ? (true, null)
@@ -910,10 +915,11 @@ public sealed class ModelCatalog
         AiProvider.Google,
         AiProvider.XAI,
         AiProvider.OpenRouter,
+        AiProvider.AzureFoundry,
     ];
 
     private static bool IsCloudChatProvider(AiProvider provider)
-        => provider is AiProvider.OpenAI or AiProvider.Anthropic or AiProvider.Google or AiProvider.XAI or AiProvider.OpenRouter;
+        => provider is AiProvider.OpenAI or AiProvider.Anthropic or AiProvider.Google or AiProvider.XAI or AiProvider.OpenRouter or AiProvider.AzureFoundry;
 
     private static bool IsDeviceProvider(AiProvider provider)
         => provider is AiProvider.Ollama or AiProvider.FoundryLocal or AiProvider.OpenAICompatible or AiProvider.SherpaOnnx;
@@ -1223,6 +1229,10 @@ public sealed class ModelCatalog
         {
             var configuration = new AIOptions();
             configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
+            if (resolved.Provider == AiProvider.AzureFoundry)
+            {
+                configuration.AzureFoundry.UseEntraId = options.CurrentValue.AzureFoundry.UseEntraId;
+            }
             inner = new RebuildingChatClient(
                 token => Build(brainId, resolved, configuration, token),
                 token => AiIntegrations.KeyedProviders.Contains(resolved.Provider) ? credentials.GenerationOf(AiIntegrations.IdOf(resolved.Provider), token) : Task.FromResult(0L));
@@ -1287,7 +1297,9 @@ public sealed class ModelCatalog
             && !HasProfileEndpoint(resolved)
             && await Deployment.BrainKey(brainId, resolved.Provider, ct).ConfigureAwait(false) is { Length: > 0 } key)
         {
-            var publicEndpoint = services.GetRequiredService<ProviderPublicEndpoints>().Of(resolved.Provider);
+            var publicEndpoint = resolved.Provider == AiProvider.AzureFoundry
+                ? resolved.Endpoint ?? options.CurrentValue.AzureFoundry.Endpoint
+                : services.GetRequiredService<ProviderPublicEndpoints>().Of(resolved.Provider);
             return await factory.CreateChatClient(resolved.Model, new AIOptions(), new BrainKeyCredentials(AiIntegrations.IdOf(resolved.Provider), key), publicEndpoint, ct).ConfigureAwait(false);
         }
         return await factory.CreateChatClient(resolved.Model, configuration, Deployment, resolved.Endpoint, ct).ConfigureAwait(false);
@@ -1328,10 +1340,15 @@ public sealed class ModelCatalog
     private static AiProvider ParseProvider(string name)
         => Enum.TryParse<AiProvider>(name, ignoreCase: true, out var provider) && Enum.IsDefined(provider)
             && provider is not (AiProvider.Host or AiProvider.TypeSafe or AiProvider.Device)
-            ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter, Ollama, FoundryLocal or OpenAICompatible.", nameof(name));
+            ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter, AzureFoundry, Ollama, FoundryLocal or OpenAICompatible.", nameof(name));
 
     private static string? Endpoint(string? endpoint, AiProvider provider)
     {
+        if (provider == AiProvider.AzureFoundry)
+        {
+            return AzureFoundry.AzureFoundryProviderFactory.NormalizeEndpoint(endpoint).AbsoluteUri;
+        }
+
         endpoint ??= provider switch
         {
             AiProvider.OpenAI => "https://api.openai.com/v1",

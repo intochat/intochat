@@ -124,6 +124,19 @@ public sealed class AIDeployment
         // Bind Cloud roles whenever topology uses cloud, OR when running local-host with Cloud-only AI (.Device omitted).
         if (hasCloud && (profile.UsesCloud || !hasDevice))
         {
+            if (_cloud!.AzureFoundryEnabled)
+            {
+                var configuredEndpoint = _cloud.AzureFoundryEndpoint
+                    ?? configuration[AIKeys.AzureFoundryEndpoint]
+                    ?? configuration["AZURE_AI_FOUNDRY_ENDPOINT"];
+                if (!string.IsNullOrWhiteSpace(configuredEndpoint))
+                {
+                    ai.AzureFoundry.Endpoint = configuredEndpoint.Trim();
+                }
+
+                ai.AzureFoundry.UseEntraId = true;
+            }
+
             foreach (var (role, card) in _cloud!.RoleBindings.Bindings)
             {
                 ai.WithRole(role, card, Where.Cloud);
@@ -247,7 +260,35 @@ public sealed class DeviceDeployment
 
 public sealed class CloudDeployment
 {
+    internal bool AzureFoundryEnabled { get; private set; }
+    internal string? AzureFoundryEndpoint { get; private set; }
     internal RoleBindings RoleBindings { get; } = new();
+
+    public CloudDeployment AzureFoundry(Uri? endpoint = null)
+    {
+        if (endpoint is not null)
+        {
+            if (!endpoint.IsAbsoluteUri
+                || (!string.Equals(endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                    && !(string.Equals(endpoint.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && endpoint.IsLoopback))
+                || !string.IsNullOrEmpty(endpoint.UserInfo)
+                || !string.IsNullOrEmpty(endpoint.Query)
+                || !string.IsNullOrEmpty(endpoint.Fragment))
+            {
+                throw new ArgumentException($"'{endpoint}' must be an absolute HTTPS URI (or loopback HTTP) without credentials, query strings, or fragments.", nameof(endpoint));
+            }
+
+            AzureFoundryEndpoint = endpoint.OriginalString;
+        }
+
+        AzureFoundryEnabled = true;
+        return this;
+    }
+
+    public CloudDeployment AzureFoundry(string? endpoint)
+        => string.IsNullOrWhiteSpace(endpoint)
+            ? AzureFoundry((Uri?)null)
+            : AzureFoundry(new Uri(endpoint.Trim(), UriKind.Absolute));
 
     public CloudDeployment Roles(Action<RoleBindings> configure)
     {

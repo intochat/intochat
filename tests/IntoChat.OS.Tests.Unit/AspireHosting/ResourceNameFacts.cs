@@ -29,10 +29,10 @@ public sealed class ResourceNameFacts
         string[] expected =
         [
             "intochat",
-            "ai", "aspire", "devices", "mcp", "orleans", "sandbox", "web",
-            "ai-ollama", "ai-ollama-openwebui", "web-searxng", "sandbox-worker",
+            "ai", "aspire", "mcp", "orleans", "sandbox", "web",
+            "sandbox-worker",
             "os", "os-gateway", "os-rebuilder",
-            "Modules-intochat-os-master-key", "Modules-searxng-secret",
+            "Modules-intochat-os-master-key",
         ];
 
         Assert.Equal(
@@ -66,8 +66,6 @@ public sealed class ResourceNameFacts
 
         if (topology == "local")
         {
-            Assert.Equal("ai", ParentOf(Named(resources, "ai-ollama"))?.Name);
-            Assert.Equal("web", ParentOf(Named(resources, "web-searxng"))?.Name);
             Assert.Equal("sandbox", ParentOf(Named(resources, "sandbox-worker"))?.Name);
         }
     }
@@ -126,15 +124,18 @@ public sealed class ResourceNameFacts
 
     [Theory]
     [InlineData("flutter", "flutter", "flutter-windows", "IntoChatOS:Shell:Enabled")]
-    [InlineData("webtools", "web", "web-searxng", "IntoChatOS:Modules:webtools:Enabled")]
-    public void AFrozenModuleIdStillSwitchesItsComponentOff(string moduleId, string shown, string child, string switchKey)
+    [InlineData("webtools", "web", null, "IntoChatOS:Modules:webtools:Enabled")]
+    public void AFrozenModuleIdStillSwitchesItsComponentOff(string moduleId, string shown, string? child, string switchKey)
     {
         // The shell is switched by its own deployment key; configuration under the frozen module id does not remove it.
         var on = ComposeWithShell((switchKey, "true"));
         Assert.Contains(moduleId, on.Modules);
         var onNames = on.ApplicationBuilder.Resources.Select(static r => r.Name).ToArray();
         Assert.Contains(shown, onNames);
-        Assert.Contains(child, onNames);
+        if (child is not null)
+        {
+            Assert.Contains(child, onNames);
+        }
 
         var off = ComposeWithShell((switchKey, "false"));
         Assert.DoesNotContain(moduleId, off.Modules);

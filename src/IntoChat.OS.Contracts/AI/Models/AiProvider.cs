@@ -22,4 +22,6 @@ public enum AiProvider
     SherpaOnnx,
     // An enrolled owner device serving its local model over the cloud relay ("device:{name}/{modelId}").
     Device,
+    // Azure AI Foundry unified OpenAI-v1 endpoint (Entra ID / Managed Identity or explicit API key).
+    AzureFoundry,
 }

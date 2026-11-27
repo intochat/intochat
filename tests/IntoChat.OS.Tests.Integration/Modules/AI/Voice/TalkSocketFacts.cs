@@ -140,6 +140,78 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
     }
 
     [Fact]
+    public async Task CloudRealtimeToolCallDelegatesToBrainAndContinuesResponse()
+    {
+        var toolResultReceived = new TaskCompletionSource<FunctionResultContent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var continueRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var realtime = new ScriptedRealtimeClient(
+            onFirstAudio: session =>
+            {
+                session.Emit(new InputAudioTranscriptionRealtimeServerMessage(
+                    RealtimeServerMessageType.InputAudioTranscriptionCompleted)
+                {
+                    Transcription = "check my memory",
+                });
+                session.Emit(new ResponseOutputItemRealtimeServerMessage(
+                    RealtimeServerMessageType.ResponseOutputItemDone)
+                {
+                    ResponseId = "resp_tool_1",
+                    Item = new RealtimeConversationItem(
+                    [
+                        new FunctionCallContent("call_42", TalkEndpoint.BrainTurnToolName, new Dictionary<string, object?> { ["request"] = "check my memory" }),
+                    ]),
+                });
+            },
+            onClientMessage: (session, message) =>
+            {
+                if (message is CreateConversationItemRealtimeClientMessage created
+                    && created.Item?.Contents.OfType<FunctionResultContent>().FirstOrDefault() is { } result)
+                {
+                    toolResultReceived.TrySetResult(result);
+                }
+                else if (message is CreateResponseRealtimeClientMessage)
+                {
+                    continueRequested.TrySetResult();
+                    session.Emit(new OutputTextAudioRealtimeServerMessage(
+                        RealtimeServerMessageType.OutputTextDelta)
+                    {
+                        ResponseId = "resp_tool_2",
+                        Text = "I checked with the brain.",
+                    });
+                    session.Emit(new ResponseCreatedRealtimeServerMessage(
+                        RealtimeServerMessageType.ResponseDone)
+                    {
+                        ResponseId = "resp_tool_2",
+                        Status = RealtimeResponseStatus.Completed,
+                    });
+                }
+            });
+
+        var stub = new StubVoiceClients(
+            talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, KnownModels.FoundryGptRealtime.Id, RecordsItself: false, InputRate: 24_000, Unavailable: null)));
+
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
+
+        var conversation = ConversationId.New();
+        using var ws = await ConnectTalkAsync(host, conversation.Value, Ct);
+        await ws.SendAsync(new byte[320], WebSocketMessageType.Binary, endOfMessage: true, Ct);
+
+        var frames = await ReadUntilAsync(ws, static frame => frame is TalkState { State: "listening" }, Ct);
+
+        Assert.NotNull(realtime.LastOptions?.Tools);
+        Assert.Contains(realtime.LastOptions!.Tools!, static t => string.Equals(t.Name, TalkEndpoint.BrainTurnToolName, StringComparison.Ordinal));
+        var toolResult = await toolResultReceived.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        Assert.Equal("call_42", toolResult.CallId);
+        Assert.NotNull(toolResult.Result);
+        await continueRequested.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        Assert.Equal("I checked with the brain.", string.Concat(frames.OfType<TalkReply>().Select(static r => r.Text)));
+
+        await SendEventAsync(ws, new TalkEnd(), Ct);
+    }
+
+    [Fact]
     public async Task ALocalExchangeIsNotRecordedTwice()
     {
         var realtime = new ScriptedRealtimeClient(onFirstAudio: session =>
@@ -381,17 +453,21 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
         return await conv.Read();
     }
 
-    private sealed class ScriptedRealtimeClient(Action<ScriptedRealtimeSession>? onFirstAudio = null) : IRealtimeClient
+    private sealed class ScriptedRealtimeClient(
+        Action<ScriptedRealtimeSession>? onFirstAudio = null,
+        Action<ScriptedRealtimeSession, RealtimeClientMessage>? onClientMessage = null) : IRealtimeClient
     {
         private long _receivedAudioBytes;
 
         public long ReceivedAudioBytes => Interlocked.Read(ref _receivedAudioBytes);
+        public RealtimeSessionOptions? LastOptions { get; private set; }
 
         public Task<IRealtimeClientSession> CreateSessionAsync(
             RealtimeSessionOptions? options = null,
             CancellationToken cancellationToken = default)
         {
-            IRealtimeClientSession session = new ScriptedRealtimeSession(this, options, onFirstAudio);
+            LastOptions = options;
+            IRealtimeClientSession session = new ScriptedRealtimeSession(this, options, onFirstAudio, onClientMessage);
             return Task.FromResult(session);
         }
 
@@ -406,7 +482,8 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
     private sealed class ScriptedRealtimeSession(
         ScriptedRealtimeClient owner,
         RealtimeSessionOptions? options,
-        Action<ScriptedRealtimeSession>? onFirstAudio) : IRealtimeClientSession
+        Action<ScriptedRealtimeSession>? onFirstAudio,
+        Action<ScriptedRealtimeSession, RealtimeClientMessage>? onClientMessage) : IRealtimeClientSession
     {
         private readonly Channel<RealtimeServerMessage> _channel = Channel.CreateUnbounded<RealtimeServerMessage>();
         private int _triggered;
@@ -426,6 +503,7 @@ public sealed class TalkSocketFacts(VoiceHostFixture fixture)
                 }
             }
 
+            onClientMessage?.Invoke(this, message);
             return Task.CompletedTask;
         }
 

@@ -13,13 +13,13 @@ internal static class ModelConnectors
         var provider = AiIntegrations.KeyedProviders.Single(provider => AiIntegrations.IdOf(provider) == schema.Id);
         Type[] media = provider switch
         {
-            AiProvider.OpenAI => [typeof(IImageGenerator), typeof(IEmbeddingModel)],
+            AiProvider.OpenAI or AiProvider.AzureFoundry => [typeof(IImageGenerator), typeof(IEmbeddingModel)],
             AiProvider.Google => [typeof(IEmbeddingModel)],
             _ => [],
         };
         Type[] signals = provider switch
         {
-            AiProvider.OpenAI => [typeof(ImageGenerated), typeof(EmbeddingsGenerated), typeof(SpeechRecognized), typeof(SpeechSynthesized), typeof(MediaOperationFailed)],
+            AiProvider.OpenAI or AiProvider.AzureFoundry => [typeof(ImageGenerated), typeof(EmbeddingsGenerated), typeof(SpeechRecognized), typeof(SpeechSynthesized), typeof(MediaOperationFailed)],
             AiProvider.Google => [typeof(EmbeddingsGenerated), typeof(MediaOperationFailed)],
             _ => [],
         };

@@ -15,10 +15,7 @@ public sealed class LegacyVolumeFacts
     public void EveryDataVolumeKeepsTheNameItHadBeforeTheRename(string topology, string resourceName, string expectedTail)
     {
         var os = topology == "local"
-            ? AppHostChainFacts.Compose(
-                topology,
-                ("IntoChatOS:Ollama:AutoContainer", "true"),
-                ("IntoChatOS:Modules:devices:Options:Ollama:Endpoint", "http://127.0.0.1:1"))
+            ? ComposeLocalWithOllama()
             : AppHostChainFacts.Compose(topology);
         var builder = os.ApplicationBuilder;
 
@@ -32,11 +29,27 @@ public sealed class LegacyVolumeFacts
     [Fact]
     public void TheOllamaVolumeIsNotPinnedWithTheDefaultSuffix()
     {
-        var builder = AppHostChainFacts.Compose(
-            "local",
-            ("IntoChatOS:Ollama:AutoContainer", "true"),
-            ("IntoChatOS:Modules:devices:Options:Ollama:Endpoint", "http://127.0.0.1:1")).ApplicationBuilder;
+        var builder = ComposeLocalWithOllama().ApplicationBuilder;
         Assert.False(VolumeSource(builder, "ai-ollama").EndsWith("-data", StringComparison.Ordinal));
+    }
+
+    private static IntoChatOSBuilder ComposeLocalWithOllama()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
+        {
+            Args =
+            [
+                "--IntoChatOS:Topology=local",
+                "--IntoChatOS:Shell:Enabled=false",
+                "--IntoChatOS:Ollama:AutoContainer=true",
+                "--IntoChatOS:Modules:devices:Options:Ollama:Endpoint=http://127.0.0.1:1",
+            ],
+            DisableDashboard = true,
+        });
+        var silos = builder.AddIntoChatOS("Modules")
+            .WithAI(ai => ai.Device(d => d.Ollama()))
+            .AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
+        return silos[0].Resource.Annotations.OfType<BrainSiloAnnotation>().Single().Brain;
     }
 
     // The suffix each integration's WithDataVolume() gives its default name; the pins above copy these.

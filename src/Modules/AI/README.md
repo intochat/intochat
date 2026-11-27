@@ -21,11 +21,13 @@ Options:
 | `Endpoint` | integration setting | unset | no |
 | `Endpoint` | integration setting | unset | no |
 | `Endpoint` | integration setting | unset | no |
+| `Endpoint` | integration setting | unset | no |
 
 Secrets (names only; values are sealed per brain, never configuration):
 
 | Secret | Required |
 | --- | --- |
+| `ApiKey` | yes |
 | `ApiKey` | yes |
 | `ApiKey` | yes |
 | `ApiKey` | yes |
