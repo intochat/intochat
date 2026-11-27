@@ -218,4 +218,76 @@ void main() {
       expect(opacity.opacity, 0.45);
     });
   });
+
+  group('UiMixExpander (header-scoped NakedButton.builder)', () {
+    testWidgets(
+      'tapping header toggles expander while expanded body stays outside NakedButton',
+      (tester) async {
+        var expanded = false;
+        var childTaps = 0;
+        const bodyKey = ValueKey('expander_body_content');
+
+        await tester.pumpWidget(
+          _host(
+            SizedBox(
+              width: 320,
+              child: StatefulBuilder(
+                builder: (context, setState) => UiMixExpander(
+                  header: 'Advanced',
+                  isExpanded: expanded,
+                  onExpandedChanged: (next) => setState(() => expanded = next),
+                  body: Container(
+                    key: bodyKey,
+                    child: UiMixButton.preset(
+                      label: 'Inner Action',
+                      onPressed: () => childTaps++,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        expect(expanded, isFalse);
+        expect(find.byKey(bodyKey), findsNothing);
+
+        // Tapping header expands UiMixExpander.
+        await tester.tap(find.text('Advanced'));
+        await tester.pumpAndSettle();
+        expect(expanded, isTrue);
+        expect(find.byKey(bodyKey), findsOneWidget);
+
+        // Expanded body is strictly outside the header's NakedButton.
+        expect(
+          find.ancestor(
+            of: find.byKey(bodyKey),
+            matching: find.byType(NakedButton),
+          ),
+          findsNothing,
+        );
+        final headerButton = find
+            .ancestor(
+              of: find.text('Advanced'),
+              matching: find.byType(NakedButton),
+            )
+            .first;
+        expect(
+          find.descendant(of: headerButton, matching: find.byKey(bodyKey)),
+          findsNothing,
+        );
+
+        // Tapping interactive child invokes child without collapsing expander.
+        await tester.tap(find.text('Inner Action'));
+        await tester.pumpAndSettle();
+        expect(childTaps, 1);
+        expect(expanded, isTrue);
+
+        // Tapping header again collapses UiMixExpander.
+        await tester.tap(find.text('Advanced'));
+        await tester.pumpAndSettle();
+        expect(expanded, isFalse);
+      },
+    );
+  });
 }

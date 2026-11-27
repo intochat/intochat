@@ -249,84 +249,108 @@ final class UiMixExpander extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
+    final tokens = UiTokens.of(context);
+    final duration = style.motion.duration;
+    final curve = style.motion.curve;
 
-    final card = NakedButton(
-      enabled: enabled,
-      onPressed: () => onExpandedChanged(!isExpanded),
-      builder: (context, buttonState, _) {
-        final hovered = buttonState.isHovered && enabled;
-        final pressed = buttonState.isPressed && enabled;
-        final focused = buttonState.isFocused && enabled;
-        final resolved = style.resolve(
-          hovered: hovered,
-          pressed: pressed,
-          focused: focused,
-        );
-        final duration = resolved.motion.duration;
-        final curve = resolved.motion.curve;
+    final card = Box(
+      style: UiStyleMapper.boxStyler(context, style, isEnabled: enabled),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NakedButton(
+            enabled: enabled,
+            onPressed: () => onExpandedChanged(!isExpanded),
+            builder: (context, buttonState, _) {
+              final hovered = buttonState.isHovered && enabled;
+              final pressed = buttonState.isPressed && enabled;
+              final focused = buttonState.isFocused && enabled;
+              final resolved = style.resolve(
+                hovered: hovered,
+                pressed: pressed,
+                focused: focused,
+              );
+              final headerBg = focused
+                  ? UiMixTokens.accentTint()
+                  : pressed
+                  ? UiMixTokens.recessed()
+                  : hovered
+                  ? UiMixTokens.recessed().withValues(alpha: 0.6)
+                  : Colors.transparent;
 
-        return Box(
-          style: UiStyleMapper.boxStyler(
-            context,
-            style,
-            isHovered: hovered,
-            isPressed: pressed,
-            isFocused: focused,
-            isEnabled: enabled,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          header,
-                          style: TextStyle(
-                            color: colors.strong,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (subtitle.isNotEmpty)
+              return Box(
+                style: BoxStyler()
+                    .color(headerBg)
+                    .borderRadius(
+                      BorderRadiusGeometryMix.circular(tokens.radiusSmall),
+                    )
+                    .border(
+                      BoxBorderMix.all(
+                        BorderSideMix.color(
+                          focused ? UiMixTokens.focus() : Colors.transparent,
+                        ).width(focused ? 1.5 : 1.0),
+                      ),
+                    )
+                    .animate(
+                      AnimationConfig.curve(
+                        duration: resolved.motion.duration,
+                        curve: resolved.motion.curve,
+                      ),
+                    ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            subtitle,
-                            style: TextStyle(color: colors.muted, fontSize: 12),
+                            header,
+                            style: TextStyle(
+                              color: colors.strong,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                      ],
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                color: colors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  AnimatedRotation(
-                    turns: isExpanded ? 0.5 : 0.0,
-                    duration: duration,
-                    curve: curve,
-                    child: Icon(
-                      uiIcon('chevron-down') ?? Icons.expand_more,
-                      size: 18,
-                      color: colors.muted,
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0.0,
+                      duration: duration,
+                      curve: curve,
+                      child: Icon(
+                        uiIcon('chevron-down') ?? Icons.expand_more,
+                        size: 18,
+                        color: colors.muted,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              AnimatedSize(
-                duration: duration,
-                curve: curve,
-                alignment: Alignment.topCenter,
-                child: isExpanded
-                    ? Padding(
-                        padding: EdgeInsets.only(top: resolved.gap ?? 10),
-                        child: body,
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
+                  ],
+                ),
+              );
+            },
           ),
-        );
-      },
+          AnimatedSize(
+            duration: duration,
+            curve: curve,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Padding(
+                    padding: EdgeInsets.only(top: style.gap ?? 10),
+                    child: body,
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
     );
 
     if (semanticsId == null) return card;
