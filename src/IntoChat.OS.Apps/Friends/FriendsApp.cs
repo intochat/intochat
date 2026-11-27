@@ -884,8 +884,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 return State with { Status = "Room key is required to leave." };
             }
 
+            var normalizedKey = roomKey.StartsWith("conversations/", StringComparison.Ordinal) ? roomKey : "conversations/" + roomKey;
             var isOwnRoom = string.Equals(ownerBrain, CurrentBrainId().Value, StringComparison.Ordinal);
-            if (!isOwnRoom && ResolveRoom(ownerBrain, roomKey, isOwnRoom: false) is { } remoteRoom)
+            if (!isOwnRoom && ResolveRoom(ownerBrain, normalizedKey, isOwnRoom: false) is { } remoteRoom)
             {
                 try { await remoteRoom.Leave(); }
                 catch (UnauthorizedAccessException refused)
@@ -894,7 +895,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 }
             }
 
-            var roomId = new NeuronId(new BrainId(ownerBrain), IConversation.Type, roomKey);
+            var roomId = new NeuronId(new BrainId(ownerBrain), IConversation.Type, normalizedKey);
             if (RoomIndex is { } index)
             {
                 await index.Leave(roomId);
@@ -1355,19 +1356,21 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         var roomRows = rooms.Select(summary =>
         {
             var thread = summary.Thread ?? new NeuronId(CurrentBrainId(), IConversation.Type, summary.Id);
+            var shortKey = thread.Key.StartsWith("conversations/", StringComparison.Ordinal) ? thread.Key["conversations/".Length..] : thread.Key;
             var kindLabel = summary.Kind == ThreadKind.DirectPerson ? "DM" : "Group";
             var active = room is not null
                 && string.Equals(room.OwnerBrain, thread.Brain.Value, StringComparison.Ordinal)
-                && string.Equals(room.RoomKey, thread.Key, StringComparison.Ordinal);
+                && (string.Equals(room.RoomKey, thread.Key, StringComparison.Ordinal)
+                    || string.Equals(room.RoomKey, shortKey, StringComparison.Ordinal));
             return (Node)HStack(Space.Sm)[
                 new TagPill(kindLabel, summary.Kind == ThreadKind.DirectPerson ? "accent" : "done", summary.Kind == ThreadKind.DirectPerson ? Icons.MessageSquare : "users"),
                 Button(summary.Title, Icons.MessageSquare)
-                    .Key($"btn:switch-room:{thread.Brain.Value}:{thread.Key}")
+                    .Key($"btn:switch-room:{thread.Brain.Value}:{shortKey}")
                     .Small()
                     .Style(OsMixStyles.FilterPill(selected: active))
                     .Sends(Sends(new OpenFriendRoom(thread.Key, "", thread.Brain.Value))),
                 GhostButton("Leave", "log-out")
-                    .Key($"btn:leave-room:{thread.Brain.Value}:{thread.Key}")
+                    .Key($"btn:leave-room:{thread.Brain.Value}:{shortKey}")
                     .Small()
                     .Sends(Sends(new LeaveRoom(thread.Brain.Value, thread.Key)))
             ];

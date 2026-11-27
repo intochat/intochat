@@ -491,8 +491,10 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
                 // Verify switching between DM and Group Room in Chromium UI
                 var dmSummary = summaries.First(s => s.Kind == ThreadKind.DirectPerson);
                 var dmThread = dmSummary.Thread!.Value;
-                await page.ClickButtonAsync($"btn:switch-room:{dmThread.Brain.Value}:{dmThread.Key}", ct);
-                await page.ClickButtonAsync($"btn:switch-room:{groupRoomId.Brain.Value}:{groupRoomId.Key}", ct);
+                var dmShortKey = dmThread.Key.StartsWith("conversations/", StringComparison.Ordinal) ? dmThread.Key["conversations/".Length..] : dmThread.Key;
+                var groupShortKey = groupRoomId.Key.StartsWith("conversations/", StringComparison.Ordinal) ? groupRoomId.Key["conversations/".Length..] : groupRoomId.Key;
+                await page.ClickButtonAsync($"btn:switch-room:{dmThread.Brain.Value}:{dmShortKey}", ct);
+                await page.ClickButtonAsync($"btn:switch-room:{groupRoomId.Brain.Value}:{groupShortKey}", ct);
             }
 
             // 4. Normal friend messages trigger 0 agent turns; host message renders as Self, bob's renders with Human attribution
