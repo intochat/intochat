@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using DigitalBrain.Modules.Options;
 
 namespace IntoChat.OS.Modules.Postgres;
@@ -7,6 +9,17 @@ public sealed class PostgresModuleOptions : IModuleOptions
     public string ConnectionName { get; set; } = "postgres";
     public PostgresIsolation Isolation { get; set; } = PostgresIsolation.Shared;
     public PostgresResourceOptions Hosting { get; set; } = new();
+
+    /// <summary>
+    /// Derives the deterministic PostgreSQL database name (<c>brain_&lt;sha256-16&gt;</c>) for a brain or deployment id.
+    /// Shared by both <c>BrainDatabases</c> and Aspire <c>InfrastructureBackingBuilder</c> to prevent normalization drift.
+    /// </summary>
+    public static string DeriveDatabaseName(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var normalized = id.Trim().ToLowerInvariant();
+        return "brain_" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))[..16];
+    }
 
     public PostgresModuleOptions WithConnection(string name)
     {

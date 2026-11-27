@@ -39,8 +39,9 @@ public sealed class AppHostChainFacts
             .WithInfrastructure(infra => infra
                 .Postgres(ResourceBacking.LocalContainer)
                 .ClickHouse(ResourceBacking.LocalContainer)
+                .Playwright(ResourceBacking.LocalContainer)
                 .ArtCraft(ResourceBacking.LocalContainer)
-                .Sandbox(ResourceBacking.LocalProcess))
+                .Sandbox(ResourceBacking.LocalContainer))
             .AddKernel(KernelPath);
 
         return silos[0].Resource.Annotations.OfType<BrainSiloAnnotation>().Single().Brain;

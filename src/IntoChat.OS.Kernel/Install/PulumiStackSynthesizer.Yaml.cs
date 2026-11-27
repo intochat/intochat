@@ -44,9 +44,18 @@ public static partial class PulumiStackSynthesizer
             .ToArray();
         var secretValuesByName = allSecretSpecs.ToDictionary(s => s.Name, s => s.Value, StringComparer.Ordinal);
 
+        var previousFoundryDeploymentByAccount = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var spec in foundationSpecs)
         {
-            AppendResourceYaml(resources, c, spec, secretValuesByName);
+            string? foundryDependencyLogical = null;
+            if (spec is FoundryDeploymentSpec foundryDeployment)
+            {
+                foundryDependencyLogical = previousFoundryDeploymentByAccount.TryGetValue(foundryDeployment.Account, out var prevLogical)
+                    ? prevLogical
+                    : LogicalResourceName(new FoundrySpec { Name = foundryDeployment.Account });
+                previousFoundryDeploymentByAccount[foundryDeployment.Account] = LogicalResourceName(foundryDeployment);
+            }
+            AppendResourceYaml(resources, c, spec, secretValuesByName, foundryDependencyLogical);
         }
 
         foreach (var secretSpec in moduleSecretSpecs.Where(s => !s.External && !string.IsNullOrEmpty(s.Value)))
@@ -87,7 +96,7 @@ public static partial class PulumiStackSynthesizer
             .Replace("{{moduleVariablesCount}}", osApp.Variables.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
-    private static void AppendResourceYaml(StringBuilder sb, InstallConfig c, ResourceSpec spec, IReadOnlyDictionary<string, string> secretValuesByName)
+    private static void AppendResourceYaml(StringBuilder sb, InstallConfig c, ResourceSpec spec, IReadOnlyDictionary<string, string> secretValuesByName, string? foundryDependencyLogical = null)
     {
         var logical = LogicalResourceName(spec);
         var rgLogical = LogicalResourceName(new ResourceGroupSpec { Name = c.GroupName });
@@ -245,13 +254,17 @@ public static partial class PulumiStackSynthesizer
                 sb.AppendLine($"        customSubDomainName: \"{foundry.Name}\"");
                 sb.AppendLine("        publicNetworkAccess: Enabled");
                 sb.AppendLine("        allowProjectManagement: true");
+                sb.AppendLine("        disableLocalAuth: true");
                 AppendTags(sb, tags, indent: 6);
                 break;
 
             case FoundryDeploymentSpec deployment:
                 var foundryLogical = LogicalResourceName(new FoundrySpec { Name = deployment.Account });
+                var deploymentDep = foundryDependencyLogical ?? foundryLogical;
                 sb.AppendLine($"  {logical}:");
                 sb.AppendLine("    type: azure-native:cognitiveservices:Deployment");
+                sb.AppendLine("    options:");
+                sb.AppendLine($"      dependsOn: [\"${{{deploymentDep}}}\"]");
                 sb.AppendLine("    properties:");
                 sb.AppendLine($"      deploymentName: \"{deployment.Name}\"");
                 sb.AppendLine($"      accountName: \"${{{foundryLogical}.name}}\"");

@@ -188,7 +188,7 @@ public sealed class ResourceNameFacts
         var os = builder.AddIntoChatOS("Modules")
             .WithAI(ai => ai.Web(w => w.SearXng()))
             .WithModule<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule>()
-            .WithInfrastructure(infra => infra.Sandbox(ResourceBacking.LocalProcess));
+            .WithInfrastructure(infra => infra.Sandbox(ResourceBacking.LocalContainer));
         os.AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
         return os;
     }

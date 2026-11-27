@@ -770,10 +770,24 @@ public sealed class InstallPlanFacts
         Assert.Contains("type: azure-native:cognitiveservices:Account", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("kind: AIServices", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("customSubDomainName: \"intochat-test-foundry\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("disableLocalAuth: true", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("type: azure-native:cognitiveservices:Deployment", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("deploymentName: \"DeepSeek-V3.2\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("deploymentName: \"gpt-realtime\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains("deploymentName: \"text-embedding-3-small\"", plan.PulumiYaml, StringComparison.Ordinal);
+
+        // Foundry deployments must be sequentially chained via dependsOn to prevent Azure ARM HTTP 409 AccountOperationInProgress.
+        var firstBlock = ResourceBlock(plan.PulumiYaml, "foundry-deployment-deepseek-v3-2");
+        Assert.Contains("dependsOn: [\"${foundry-intochat-test-foundry}\"]", firstBlock, StringComparison.Ordinal);
+        var secondBlock = ResourceBlock(plan.PulumiYaml, "foundry-deployment-gpt-realtime");
+        Assert.Contains("dependsOn: [\"${foundry-deployment-deepseek-v3-2}\"]", secondBlock, StringComparison.Ordinal);
+        var thirdBlock = ResourceBlock(plan.PulumiYaml, "foundry-deployment-gpt-4o-transcribe");
+        Assert.Contains("dependsOn: [\"${foundry-deployment-gpt-realtime}\"]", thirdBlock, StringComparison.Ordinal);
+        var fourthBlock = ResourceBlock(plan.PulumiYaml, "foundry-deployment-gpt-4o-mini-tts");
+        Assert.Contains("dependsOn: [\"${foundry-deployment-gpt-4o-transcribe}\"]", fourthBlock, StringComparison.Ordinal);
+        var fifthBlock = ResourceBlock(plan.PulumiYaml, "foundry-deployment-text-embedding-3-small");
+        Assert.Contains("dependsOn: [\"${foundry-deployment-gpt-4o-mini-tts}\"]", fifthBlock, StringComparison.Ordinal);
+
         Assert.Contains(InstallPlan.CognitiveServicesOpenAIUser, plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains(InstallPlan.CognitiveServicesUser, plan.PulumiYaml, StringComparison.Ordinal);
         Assert.Contains(InstallPlan.FoundryEndpointVariable, plan.PulumiYaml, StringComparison.Ordinal);

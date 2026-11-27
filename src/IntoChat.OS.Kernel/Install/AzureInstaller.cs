@@ -256,7 +256,7 @@ public static class AzureInstaller
                     await Ensure(new SecretSpec
                     {
                         Name = secret.VaultSecret,
-                        ResourceGroup = validated.ResourceGroup,
+                        ResourceGroup = validated.GroupName,
                         Location = validated.Location,
                         Vault = secret.Vault,
                         Value = secretValue,
@@ -277,7 +277,7 @@ public static class AzureInstaller
                             await Ensure(new SecretSpec
                             {
                                 Name = secret.VaultSecret,
-                                ResourceGroup = validated.ResourceGroup,
+                                ResourceGroup = validated.GroupName,
                                 Location = validated.Location,
                                 Vault = secret.Vault,
                                 Value = legacyValue,

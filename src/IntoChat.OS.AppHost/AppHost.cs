@@ -16,8 +16,9 @@ builder.AddIntoChatOS("Modules")
     .WithInfrastructure(infra => infra
         .Postgres(ResourceBacking.LocalContainer)
         .ClickHouse(ResourceBacking.LocalContainer)
+        .Playwright(ResourceBacking.LocalContainer)
         .ArtCraft(ResourceBacking.LocalContainer)
-        .Sandbox(ResourceBacking.LocalProcess))
+        .Sandbox(ResourceBacking.LocalContainer))
     .AddKernel("../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj");
 
 builder.Build().Run();

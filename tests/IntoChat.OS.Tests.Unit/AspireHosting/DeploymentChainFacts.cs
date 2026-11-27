@@ -50,7 +50,7 @@ public sealed class DeploymentChainFacts
                 .ClickHouse(ResourceBacking.LocalContainer)
                 .Playwright(ResourceBacking.LocalContainer)
                 .ArtCraft(ResourceBacking.LocalContainer)
-                .Sandbox(ResourceBacking.LocalProcess));
+                .Sandbox(ResourceBacking.LocalContainer));
         Assert.DoesNotContain(id, os.Modules);
         Assert.DoesNotContain(os.ApplicationBuilder.Resources, r => r.Name.Contains(id, StringComparison.OrdinalIgnoreCase) && r is ContainerResource);
     }
@@ -111,6 +111,28 @@ public sealed class DeploymentChainFacts
         Assert.Contains("postgres", os.Modules);
         Assert.DoesNotContain(os.ApplicationBuilder.Resources, static r => r is PostgresServerResource);
         Assert.Contains(os.ApplicationBuilder.Resources, static r => r is ParameterResource && r.Name.Contains("postgres-connection", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ResourceBackingCloudSuppressesLocalContainersForSandboxArtCraftAndPlaywright()
+    {
+        var os = Os("cloud").WithInfrastructure(infra => infra
+            .Sandbox(ResourceBacking.Cloud)
+            .ArtCraft(ResourceBacking.Cloud)
+            .Playwright(ResourceBacking.Cloud));
+
+        Assert.Empty(os.ApplicationBuilder.Resources.OfType<ContainerResource>());
+        Assert.DoesNotContain("sandbox", os.Modules);
+        Assert.DoesNotContain("artcraft", os.Modules);
+        Assert.DoesNotContain("playwright", os.Modules);
+    }
+
+    [Fact]
+    public void UnsupportedLocalProcessBackingThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => Os("cloud").WithInfrastructure(infra => infra.Sandbox(ResourceBacking.LocalProcess)));
+        Assert.Throws<ArgumentException>(() => Os("cloud").WithInfrastructure(infra => infra.ArtCraft(ResourceBacking.LocalProcess)));
+        Assert.Throws<ArgumentException>(() => Os("cloud").WithInfrastructure(infra => infra.Playwright(ResourceBacking.LocalProcess)));
     }
 
     [Fact]

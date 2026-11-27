@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 using IntoChat.OS.Modules.ClickHouse;
@@ -16,10 +14,10 @@ public enum ResourceBacking
     /// <summary>Do not provision or bind this backing resource.</summary>
     Off,
 
-    /// <summary>Provision a local container resource (e.g. Postgres, ClickHouse, ArtCraft) via Aspire.</summary>
+    /// <summary>Provision a local container resource (e.g. Postgres, ClickHouse, ArtCraft, Sandbox) via Aspire.</summary>
     LocalContainer,
 
-    /// <summary>Provision a local host/process-managed backing resource (e.g. local Sandbox worker).</summary>
+    /// <summary>Provision a local host/process-managed backing resource.</summary>
     LocalProcess,
 
     /// <summary>Bind to an external/cloud-managed backing resource via configuration/parameters.</summary>
@@ -38,6 +36,7 @@ public sealed class InfrastructureBackingBuilder
 
     public InfrastructureBackingBuilder Postgres(ResourceBacking backing = ResourceBacking.LocalContainer, string? databaseName = null)
     {
+        EnsureNotLocalProcess(backing, nameof(Postgres));
         if (databaseName is not null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
@@ -48,6 +47,7 @@ public sealed class InfrastructureBackingBuilder
 
     public InfrastructureBackingBuilder ClickHouse(ResourceBacking backing = ResourceBacking.LocalContainer, string? databaseName = null)
     {
+        EnsureNotLocalProcess(backing, nameof(ClickHouse));
         if (databaseName is not null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
@@ -58,32 +58,31 @@ public sealed class InfrastructureBackingBuilder
 
     public InfrastructureBackingBuilder ArtCraft(ResourceBacking backing = ResourceBacking.LocalContainer)
     {
+        EnsureNotLocalProcess(backing, nameof(ArtCraft));
         _policies["artcraft"] = (backing, null);
         return this;
     }
 
     public InfrastructureBackingBuilder Playwright(ResourceBacking backing = ResourceBacking.LocalContainer)
     {
+        EnsureNotLocalProcess(backing, nameof(Playwright));
         _policies["playwright"] = (backing, null);
         return this;
     }
 
-    public InfrastructureBackingBuilder Sandbox(ResourceBacking backing = ResourceBacking.LocalProcess)
+    public InfrastructureBackingBuilder Sandbox(ResourceBacking backing = ResourceBacking.LocalContainer)
     {
+        EnsureNotLocalProcess(backing, nameof(Sandbox));
         _policies[SandboxModuleHosting.ModuleName] = (backing, null);
         return this;
     }
 
     /// <summary>
     /// Derives a deterministic PostgreSQL database name (<c>brain_&lt;sha256-16&gt;</c>) from the deployment/brain name,
-    /// eliminating hardcoded database names while matching <c>BrainDatabases</c> naming.
+    /// delegating to <see cref="PostgresModuleOptions.DeriveDatabaseName"/> so AppHost and runtime share one canonical rule.
     /// </summary>
     public static string DerivePostgresDatabaseName(string deploymentName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(deploymentName);
-        var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(deploymentName.Trim().ToLowerInvariant())))[..16];
-        return $"brain_{hash}";
-    }
+        => PostgresModuleOptions.DeriveDatabaseName(deploymentName);
 
     internal IntoChatOSBuilder ApplyTo(IntoChatOSBuilder os, DeploymentProfile profile)
     {
@@ -124,21 +123,33 @@ public sealed class InfrastructureBackingBuilder
             os = os.WithModule<ClickHouseModule, ClickHouseModuleOptions>(options);
         }
 
-        if (_policies.TryGetValue("playwright", out var pw) && pw.Backing != ResourceBacking.Off && profile.IsEnabled("playwright"))
+        // Local Docker container hosting is strictly gated on ResourceBacking.LocalContainer.
+        // ResourceBacking.Cloud and ResourceBacking.Off never provision local containers or localhost container origins.
+        if (_policies.TryGetValue("playwright", out var pw) && pw.Backing == ResourceBacking.LocalContainer && profile.IsEnabled("playwright"))
         {
             os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);
         }
 
-        if (_policies.TryGetValue("artcraft", out var ac) && ac.Backing != ResourceBacking.Off && profile.IsEnabled("artcraft"))
+        if (_policies.TryGetValue("artcraft", out var ac) && ac.Backing == ResourceBacking.LocalContainer && profile.IsEnabled("artcraft"))
         {
             os = os.WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps());
         }
 
-        if (_policies.TryGetValue(SandboxModuleHosting.ModuleName, out var sb) && sb.Backing != ResourceBacking.Off && profile.IsEnabled(SandboxModuleHosting.ModuleName))
+        if (_policies.TryGetValue(SandboxModuleHosting.ModuleName, out var sb) && sb.Backing == ResourceBacking.LocalContainer && profile.IsEnabled(SandboxModuleHosting.ModuleName))
         {
             os = os.WithHosting<SandboxModuleHosting>();
         }
 
         return os;
+    }
+
+    private static void EnsureNotLocalProcess(ResourceBacking backing, string resource)
+    {
+        if (backing == ResourceBacking.LocalProcess)
+        {
+            throw new ArgumentException(
+                $"{resource} does not support {nameof(ResourceBacking)}.{nameof(ResourceBacking.LocalProcess)}; use {nameof(ResourceBacking.LocalContainer)}, {nameof(ResourceBacking.Cloud)}, or {nameof(ResourceBacking.Off)}.",
+                nameof(backing));
+        }
     }
 }
