@@ -28,6 +28,10 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         {
             Content = JsonContent(request, DeviceWireJson.Default.EnrollRequest),
         };
+        if (!string.IsNullOrWhiteSpace(request.InstallId))
+        {
+            message.Headers.TryAddWithoutValidation(CircleRoutes.InstallIdHeader, request.InstallId);
+        }
 
         using var response = await http.SendAsync(message, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)

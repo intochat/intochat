@@ -9,6 +9,7 @@ public sealed class OllamaRuntimeOptions
 {
     public bool Enabled { get; set; } = true;
     public string Endpoint { get; set; } = IntoChatOSNames.LocalOllamaEndpoint;
+    public int ProbeTimeoutMs { get; set; } = 1_500;
 }
 
 public sealed class FoundryLocalRuntimeOptions
@@ -82,6 +83,10 @@ public sealed partial class DevicesOptions : IModuleOptions
         if (Ollama.Enabled || !string.IsNullOrWhiteSpace(Ollama.Endpoint))
         {
             ValidateHttpUrl(Ollama.Endpoint, "Ollama.Endpoint");
+        }
+        if (Ollama.ProbeTimeoutMs is < 100 or > 60_000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Ollama), Ollama.ProbeTimeoutMs, "Devices Ollama.ProbeTimeoutMs must be between 100 and 60000 ms.");
         }
 
         if (FoundryLocal is null)

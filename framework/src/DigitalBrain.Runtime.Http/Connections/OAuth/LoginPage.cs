@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Modules.Identity.Connections;
+namespace DigitalBrain.Runtime.Http.Connections.OAuth;
 
 public static class LoginPage
 {

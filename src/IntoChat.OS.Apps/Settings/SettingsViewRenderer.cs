@@ -1,4 +1,5 @@
 using System.Globalization;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
@@ -190,7 +191,7 @@ internal static class SettingsViewRenderer
             ];
         }
 
-        var connectionCount = (state.ConnectionKeys ?? []).Count;
+        var connectionCount = (state.ActiveConnections ?? []).Count(static c => c.Status == ConnectionStatus.Connected);
 
         return VStack(Space.Md)[
             Grid(3, Space.Md)[
@@ -557,209 +558,186 @@ internal static class SettingsViewRenderer
 
     private static Node RenderConnectionsSection(SettingsAppState state, string? subPage, SettingsChildren children)
     {
-        var keys = state.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys;
-        if (SettingsAppState.IsGitHubSubPage(subPage))
-        {
-            return RenderGitHubConnectionHub(state, subPage!, children);
-        }
+        var active = (state.ActiveConnections ?? [])
+            .OrderBy(static c => c.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         if (!string.IsNullOrWhiteSpace(subPage))
         {
-            return Surface(SurfaceKind.Elevated, $"Connections / {subPage}", "Zero-token credential injection via ICapabilityBroker")
-                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
-                VStack(Space.Md)[
-                    HStack(Space.Sm)[
-                        Heading($"ConnectionPage · {subPage}", 3, "OAuth scopes, health probe, and capability bindings."),
-                        StatusPill(StatusKind.Done, "Connected")
-                    ],
-                    Table(
-                        $"Connection detail · {subPage}",
-                        ["Field", "Value"],
-                        [
-                            ["Endpoint", subPage],
-                            ["Neuron URI", $"neuron://local/connection/{subPage}"],
-                            ["Broker mode", "Zero-token credential injection"],
-                        ]),
-                    HStack(Space.Sm)[
-                        PrimaryButton("Reconnect OAuth", Icons.RefreshCw)
-                            .Key("conn:reconnect-oauth")
-                            .Small()
-                            .Sends(new SettingsNavigate("connections", subPage, "add-connection")),
-                        Button("Back to Connections", "arrow-left")
-                            .Key("conn:back")
-                            .Small()
-                            .Sends(new SettingsGoBack())
-                    ]
-                ]
-            ];
+            var matched = active.FirstOrDefault(c =>
+                string.Equals(c.ConnectorId, subPage, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.ConnectionId, subPage, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.Key, subPage, StringComparison.OrdinalIgnoreCase));
+            var statusText = matched?.Status.ToString() ?? "Not connected";
+            return DetailSubPage(
+                $"Connections / {subPage}",
+                $"ConnectionPage · {subPage}",
+                "Live connection status, endpoint, and capability bindings.",
+                [
+                    ["Connector", matched?.ConnectorId ?? subPage],
+                    ["Neuron URI", $"neuron://local/{matched?.Key ?? $"connection/{subPage}"}"],
+                    ["Status", statusText],
+                    ["Account", matched?.Account ?? "Not configured"],
+                ],
+                "conn:back",
+                "Back to Connections");
         }
+        var offers = state.AvailableConnectors is { Length: > 0 }
+            ? state.AvailableConnectors
+            :
+            [
+                new SettingsConnectorOffer("github", "GitHub", ["device", "oauth", "pat"], "GitHub"),
+                new SettingsConnectorOffer("muncly", "Muncly CRM", ["bearer-token"], "Muncly CRM"),
+                new SettingsConnectorOffer("google-drive", "Google Drive", ["oauth"], "Google Drive"),
+                new SettingsConnectorOffer("gmail", "Gmail", ["oauth"], "Gmail"),
+                new SettingsConnectorOffer("salesforce", "Salesforce", ["oauth"], "Salesforce"),
+                new SettingsConnectorOffer("mcp", "MCP Servers", ["bearer-token"], "MCP"),
+            ];
 
-        var connectionRows = keys.Count == 0
-            ? [["Local storage", "Built-in", "Connected"]]
-            : keys.Select((k, idx) => (IReadOnlyList<string>)[$"Connection {idx + 1}", k, "Connected"]).ToArray();
+        var webhookBase = string.IsNullOrWhiteSpace(state.WebhookBaseUrl)
+            ? SettingsApp.DefaultWebhookBaseUrl
+            : state.WebhookBaseUrl.TrimEnd('/');
+        var webhookUrl = $"{webhookBase}/integrations/github/webhook";
+        var ghForwardCommand = $"gh webhook forward --repo <owner/repo> --events=issues,issue_comment,pull_request,check_run,check_suite --url={webhookUrl}";
+        var copyWebhookIntent = AppSignals.Copy(webhookUrl);
+        var copyGhForwardIntent = AppSignals.Copy(ghForwardCommand);
 
-        return Surface(SurfaceKind.Elevated, "Connections", "Accounts and services this brain can reach without exposing raw secrets")
+        var activeRows = active.Select(static conn =>
+        {
+            var statusKind = conn.Status switch
+            {
+                ConnectionStatus.Connected => StatusKind.Done,
+                ConnectionStatus.Expired => StatusKind.NeedsYou,
+                ConnectionStatus.Failing => StatusKind.Error,
+                _ => StatusKind.Idle,
+            };
+            var statusLabel = conn.Status switch
+            {
+                ConnectionStatus.Connected when conn.ToolCount > 0 => $"Connected · {conn.ToolCount} tools",
+                ConnectionStatus.Connected => "Connected",
+                ConnectionStatus.Expired => "Expired",
+                ConnectionStatus.Failing => string.IsNullOrWhiteSpace(conn.Detail) ? "Failing" : $"Failing · {conn.Detail}",
+                _ => "Disconnected",
+            };
+            var subtitle = !string.IsNullOrWhiteSpace(conn.Account)
+                ? conn.Account!
+                : !string.IsNullOrWhiteSpace(conn.Endpoint)
+                    ? conn.Endpoint!
+                    : conn.Key;
+
+            return (Node)HStack(Space.Sm)[
+                Text(conn.DisplayName),
+                MutedText(subtitle),
+                FlexSpacer(),
+                StatusPill(statusKind, statusLabel),
+                Button("Probe", Icons.RefreshCw)
+                    .Key($"conn:probe:{conn.ConnectorId}:{conn.ConnectionId}")
+                    .Small()
+                    .Sends(new SettingsProbeConnection(conn.ConnectorId, conn.ConnectionId)),
+                DangerButton("Disconnect", Icons.Trash2)
+                    .Key($"conn:disconnect:{conn.ConnectorId}:{conn.ConnectionId}")
+                    .Small()
+                    .Sends(new SettingsDisconnectConnection(conn.ConnectorId, conn.ConnectionId))
+            ];
+        }).ToArray();
+
+        var oauthOffers = offers
+            .Where(static o => !string.Equals(o.Id, "github", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(o.Id, "muncly", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(o.Id, "mcp", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        var oauthRows = oauthOffers.Select(offer =>
+        {
+            var existing = active.FirstOrDefault(c => string.Equals(c.ConnectorId, offer.Id, StringComparison.OrdinalIgnoreCase));
+            var isConnected = existing?.Status == ConnectionStatus.Connected;
+            return (Node)HStack(Space.Sm)[
+                Text(offer.DisplayName),
+                MutedText(string.Join(", ", offer.AuthMethods)),
+                FlexSpacer(),
+                StatusPill(isConnected ? StatusKind.Done : StatusKind.Idle, isConnected ? "Connected" : "Not connected"),
+                PrimaryButton(isConnected ? "Reconnect" : "Connect OAuth", "plug")
+                    .Key($"conn:oauth:{offer.Id}")
+                    .Small()
+                    .WithIntent(IntentKind.OpenWindow, $"/connections/login/{offer.Id}")
+            ];
+        }).ToArray();
+
+        var connectedCount = active.Count(static c => c.Status == ConnectionStatus.Connected);
+
+        return Surface(SurfaceKind.Elevated, "Connections", "Catalog-driven external accounts, GitHub, Muncly CRM, and authenticated MCP servers")
             .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
             VStack(Space.Md)[
                 HStack(Space.Sm)[
-                    StatusPill(keys.Count > 0 ? StatusKind.Done : StatusKind.Idle, $"{keys.Count} external connection(s)"),
-                    StatusPill(StatusKind.Done, "Capability broker active")
-                ],
-                Table("Active connections", ["Slot", "Connection key", "Health"], connectionRows),
-                HStack(Space.Sm)[
-                    PrimaryButton("Add connection", Icons.Plus)
-                        .Key("conn:add")
+                    StatusPill(connectedCount > 0 ? StatusKind.Done : StatusKind.Idle, $"{connectedCount} active connection(s)"),
+                    StatusPill(StatusKind.Done, $"{offers.Length} connector(s) available"),
+                    FlexSpacer(),
+                    Button("Refresh", Icons.RefreshCw)
+                        .Key("conn:refresh")
                         .Small()
-                        .Sends(new SettingsNavigate("connections", "", "add-connection")),
-                    Button("GitHub connection", "plug")
-                        .Key("conn:github")
-                        .Small()
-                        .Sends(new SettingsNavigate("connections", "github")),
-                    Button("Google Drive connection", Icons.Folder)
-                        .Key("conn:google-drive")
-                        .Small()
-                        .Sends(new SettingsNavigate("connections", "google-drive"))
-                ]
-            ]
-        ];
-    }
-
-    private static Node RenderGitHubConnectionHub(SettingsAppState state, string subPage, SettingsChildren children)
-    {
-        var slug = SettingsAppState.ResolveGitHubSlug(subPage, state.GitHubConnectionSlug);
-        var connectionKey = SettingsAppState.NormalizeGitHubConnectionKey(slug);
-        var isConnected = state.GitHubConnected
-            || (state.ConnectionKeys ?? []).Any(k =>
-                string.Equals(k, connectionKey, StringComparison.OrdinalIgnoreCase)
-                || (string.Equals(slug, "main", StringComparison.OrdinalIgnoreCase) && string.Equals(k, "github", StringComparison.OrdinalIgnoreCase)));
-
-        var repoTarget = string.IsNullOrWhiteSpace(state.GitHubRepository) ? "<owner/repo>" : state.GitHubRepository.Trim();
-        const string webhookPath = "/integrations/github/webhook";
-        var ghForwardCommand = $"gh webhook forward --repo {repoTarget} --events=issues,issue_comment,pull_request,check_run,check_suite --url=http://localhost:5000/integrations/github/webhook";
-
-        var copyWebhookIntent = AppSignals.Copy(webhookPath);
-        var copyGhForwardIntent = AppSignals.Copy(ghForwardCommand);
-        var openTasksIntent = AppSignals.OpenApp("tasks", "approvals");
-        var openCreatorIntent = AppSignals.OpenApp("creator", state.GitHubInstalledSynapseAlias);
-
-        var policyLabel = state.GitHubTriagePolicyPreset switch
-        {
-            "auto-10" => "Auto-comment cap: 10 / hr",
-            "draft-only" => "Draft-only (0 auto-posts)",
-            "reset" => "Policy reset (unrestricted)",
-            _ => "Default governance",
-        };
-        var policyStatusKind = state.GitHubTriagePolicyPreset switch
-        {
-            "auto-10" or "draft-only" => StatusKind.Done,
-            _ => StatusKind.Idle,
-        };
-
-        var synapseSummary = !string.IsNullOrWhiteSpace(state.GitHubInstalledSynapseAlias)
-            ? $"Installed unit: {state.GitHubInstalledSynapseAlias}"
-                + (!string.IsNullOrWhiteSpace(state.GitHubSynapseMode) ? $" ({state.GitHubSynapseMode})" : "")
-            : "No issue triage Synapse unit installed yet.";
-
-        return Surface(SurfaceKind.Elevated, $"Connections / {subPage}", "Turnkey GitHub Repository, Webhook & Issue Triage Hub")[
-            VStack(Space.Md)[
-                HStack(Space.Sm)[
-                    Heading($"GitHub Hub · {slug}", 3, "Fine-Grained PAT vault onboarding, signed webhook forwarding, policy governance, and 1-click Synapse triage."),
-                    StatusPill(isConnected ? StatusKind.Done : StatusKind.Idle, isConnected ? "Connected" : "Not configured"),
-                    state.GitHubWebhookSecretConfigured
-                        ? StatusPill(StatusKind.Done, "Webhook secret sealed")
-                        : null
+                        .Sends(new SettingsRefreshConnections())
                 ],
-                Grid(4, Space.Md)[
-                    StatCard("gh-stat-prs", "Tracked PRs", $"{state.GitHubPullRequestCount}", isConnected ? connectionKey : "Awaiting sync", BadgeTone.Neutral, "git-pull-request"),
-                    StatCard("gh-stat-issues", "Tracked Issues", $"{state.GitHubIssueCount}", "Untrusted-fenced", BadgeTone.Accent, "circle-dot"),
-                    StatCard("gh-stat-drafts", "Pending Triage Drafts", $"{state.GitHubPendingDraftCount}", state.GitHubPendingDraftCount > 0 ? "Awaiting approval" : "Clear", state.GitHubPendingDraftCount > 0 ? BadgeTone.Accent : BadgeTone.Done, Icons.MessageSquare),
-                    StatCard("gh-stat-webhook", "LastWebhookAt", state.GitHubLastWebhookAt ?? "Never", webhookPath, isConnected ? BadgeTone.Done : BadgeTone.Neutral, "radio")
+                Card("Active Connections", "Live connections projected from IConnectionCatalog and connected MCP tool servers")
+                    .Style(OsMixStyles.Card())[
+                    activeRows.Length > 0
+                        ? VStack(Space.Sm, activeRows).ToNode()
+                        : MutedText("No external connections yet. Connect a service below.").ToNode()
                 ],
-                Table(
-                    $"Live repository telemetry · {connectionKey}",
-                    ["Field", "Value"],
-                    [
-                        ["Connection key", connectionKey],
-                        ["Repository", string.IsNullOrWhiteSpace(state.GitHubRepository) ? "Not configured" : state.GitHubRepository],
-                        ["Status", isConnected ? "Connected" : "Not configured"],
-                        ["LastWebhookAt", state.GitHubLastWebhookAt ?? "Never"],
-                        ["Webhook endpoint", webhookPath],
-                        ["CLI forwarder", ghForwardCommand],
-                    ]),
-                HStack(Space.Sm)[
-                    Button("Copy webhook URL", "copy")
-                        .Key("settings:github:copy-webhook-url")
-                        .Small()
-                        .WithIntent(copyWebhookIntent.Kind, copyWebhookIntent.Arg),
-                    Button("Copy gh webhook forward", "terminal")
-                        .Key("settings:github:copy-gh-forward")
-                        .Small()
-                        .WithIntent(copyGhForwardIntent.Kind, copyGhForwardIntent.Arg)
-                ],
-                Card("Fine-Grained PAT & Webhook Onboarding", "Tokens are sealed via SecretRef and ConnectionNeuron; raw credentials never touch SettingsAppState.")[
-                    SettingsControls.GitHubPatForm(children, state)
-                ],
-                Card("Issue Comment Policy Governance (github.issue.comment)", "Set hourly comment limits or draft-only human review before Octokit writes execute.")[
+                Card("GitHub", "Sign in with GitHub (Device Flow) or connect a repository via Fine-Grained PAT + optional webhook secret")
+                    .Style(OsMixStyles.Card())[
                     VStack(Space.Sm)[
                         HStack(Space.Sm)[
-                            StatusPill(policyStatusKind, policyLabel),
-                            !string.IsNullOrWhiteSpace(state.GitHubTriagePolicyPlanId)
-                                ? StatusPill(StatusKind.NeedsYou, $"Pending plan {state.GitHubTriagePolicyPlanId}")
-                                : null
+                            PrimaryButton("Sign in with GitHub (Device Flow)", "log-in")
+                                .Key("settings:github:device-flow-start")
+                                .Small()
+                                .Sends(new SettingsStartDeviceFlow("github", "main")),
+                            FlexSpacer(),
+                            Button("Copy webhook URL", "copy")
+                                .Key("settings:github:copy-webhook-url")
+                                .Small()
+                                .WithIntent(copyWebhookIntent.Kind, copyWebhookIntent.Arg),
+                            Button("Copy gh webhook forward", "terminal")
+                                .Key("settings:github:copy-gh-forward")
+                                .Small()
+                                .WithIntent(copyGhForwardIntent.Kind, copyGhForwardIntent.Arg)
                         ],
-                        HStack(Space.Sm)[
-                            (string.Equals(state.GitHubTriagePolicyPreset, "auto-10", StringComparison.Ordinal)
-                                ? PrimaryButton("Auto-comment (10 / hr)", "shield-check")
-                                : Button("Auto-comment (10 / hr)", "shield-check"))
-                                .Key("settings:github-policy:auto-10")
-                                .Small()
-                                .Sends(new SettingsSetGitHubTriagePolicy("auto-10")),
-                            (string.Equals(state.GitHubTriagePolicyPreset, "draft-only", StringComparison.Ordinal)
-                                ? PrimaryButton("Draft-only (0 auto-posts)", Icons.Hand)
-                                : Button("Draft-only (0 auto-posts)", Icons.Hand))
-                                .Key("settings:github-policy:draft-only")
-                                .Small()
-                                .Sends(new SettingsSetGitHubTriagePolicy("draft-only")),
-                            Button("Reset policy", Icons.RefreshCw)
-                                .Key("settings:github-policy:reset")
-                                .Small()
-                                .Sends(new SettingsSetGitHubTriagePolicy("reset"))
-                        ]
+                        !string.IsNullOrWhiteSpace(state.DeviceFlowUserCode)
+                            ? VStack(Space.Xs)[
+                                HStack(Space.Sm)[
+                                    StatusPill(StatusKind.NeedsYou, $"Code: {state.DeviceFlowUserCode}"),
+                                    Button("Open github.com/login/device ↗", "external-link")
+                                        .Key("settings:github:device-flow-open")
+                                        .Small()
+                                        .WithIntent(IntentKind.OpenWindow, state.DeviceFlowVerificationUri ?? "https://github.com/login/device"),
+                                    PrimaryButton("Complete Sign-In", Icons.Check)
+                                        .Key("settings:github:device-flow-complete")
+                                        .Small()
+                                        .Sends(new SettingsCompleteDeviceFlow(state.DeviceFlowId ?? ""))
+                                ],
+                                !string.IsNullOrWhiteSpace(state.DeviceFlowStatus)
+                                    ? MutedText(state.DeviceFlowStatus!).ToNode()
+                                    : null
+                            ].ToNode()
+                            : !string.IsNullOrWhiteSpace(state.DeviceFlowStatus)
+                                ? MutedText(state.DeviceFlowStatus!).ToNode()
+                                : null,
+                        MutedText($"Webhook endpoint: {webhookUrl}"),
+                        SettingsControls.GitHubPatForm(children, state)
                     ]
                 ],
-                Card("1-Click Issue Triage Synapse & Cross-Window Studio", "Deploy a deterministic read-only fenced IssueChanged Synapse unit and jump directly to Tasks or Creator.")[
-                    VStack(Space.Sm)[
-                        HStack(Space.Sm)[
-                            StatusPill(
-                                !string.IsNullOrWhiteSpace(state.GitHubInstalledSynapseAlias) ? StatusKind.Done : StatusKind.Idle,
-                                synapseSummary),
-                            !string.IsNullOrWhiteSpace(state.GitHubSynapseInstallStatus)
-                                ? MutedText(state.GitHubSynapseInstallStatus).ToNode()
-                                : null
-                        ],
-                        HStack(Space.Sm)[
-                            PrimaryButton("Install Triage Synapse (Draft)", Icons.Sparkles)
-                                .Key("settings:github-synapse:draft")
-                                .Small()
-                                .Sends(new SettingsInstallIssueTriageSynapse(connectionKey, "DraftForApproval")),
-                            Button("Install Triage Synapse (Auto)", Icons.Play)
-                                .Key("settings:github-synapse:auto")
-                                .Small()
-                                .Sends(new SettingsInstallIssueTriageSynapse(connectionKey, "AutoComment")),
-                            Button("Open Tasks Approvals ↗", "list-checks")
-                                .Key("settings:github:open-tasks")
-                                .Small()
-                                .WithIntent(openTasksIntent.Kind, openTasksIntent.Arg),
-                            Button("Open in Creator ↗", "wand-sparkles")
-                                .Key("settings:github:open-creator")
-                                .Small()
-                                .WithIntent(openCreatorIntent.Kind, openCreatorIntent.Arg),
-                            Button("Back to Connections", "arrow-left")
-                                .Key("conn:back")
-                                .Small()
-                                .Sends(new SettingsGoBack())
-                        ]
-                    ]
+                Card("Muncly CRM", "Connect your Muncly CRM workspace and MCP tools on connection/mcp/muncly-crm")
+                    .Style(OsMixStyles.Card())[
+                    SettingsControls.MunclyConnectForm(children, state)
+                ],
+                oauthRows.Length > 0
+                    ? Card("Cloud Services (OAuth)", "Authorize Google Drive, Gmail, Salesforce, and other catalog connectors")
+                        .Style(OsMixStyles.Card())[
+                        VStack(Space.Sm, oauthRows)
+                    ].ToNode()
+                    : null,
+                Card("Add Authenticated MCP Server", "Connect any Streamable HTTP MCP server with an optional Bearer token sealed in your vault")
+                    .Style(OsMixStyles.Card())[
+                    SettingsControls.McpAddFormControl(children, state)
                 ]
             ]
         ];
@@ -767,12 +745,12 @@ internal static class SettingsViewRenderer
 
     private static Node RenderFilesSection(SettingsAppState state)
     {
-        var keys = state.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys;
+        var active = state.ActiveConnections ?? [];
         IReadOnlyList<string>[] mountRows =
         [
             ["IntoChat Storage", "neuron://local/local-cloud/main", "Connected"],
             ["Local Computer Root", "neuron://local/disk.files", "Connected"],
-            .. keys.Select(static (k, idx) => (IReadOnlyList<string>)[$"Connected Mount {idx + 1}", k, "Connected"]),
+            .. active.Select(static (c, idx) => (IReadOnlyList<string>)[$"Connected Mount {idx + 1}", c.Key, c.Status.ToString()]),
         ];
 
         return Surface(SurfaceKind.Elevated, "Files", "Manage IntoChat cloud storage, connected mounts, and local disk roots")
@@ -1305,7 +1283,7 @@ internal static class SettingsViewRenderer
 
     private static bool HasVaultEntry(SettingsAppState state, string variableKey, string connectionKey)
         => (state.Variables ?? []).Any(v => string.Equals(v.Key, variableKey, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(v.Value))
-           || (state.ConnectionKeys ?? []).Any(k => string.Equals(k, connectionKey, StringComparison.OrdinalIgnoreCase));
+           || (state.ActiveConnections ?? []).Any(c => string.Equals(c.ConnectorId, connectionKey, StringComparison.OrdinalIgnoreCase) && c.Status == ConnectionStatus.Connected);
 
     private static Node RenderVariablesSection(SettingsAppState state)
     {

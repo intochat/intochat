@@ -402,7 +402,33 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     }
 
     private static Friend[] UpsertFriend(Friend[] existing, Friend added)
-        => [.. existing.Where(row => row.Account != added.Account), added];
+    {
+        var prior = existing.FirstOrDefault(row => row.Account == added.Account || row.Brain == added.Brain);
+        if (prior is not null)
+        {
+            if (prior.Brain == added.Brain && prior.Account != added.Account)
+            {
+                throw new CryptographicException(
+                    $"Friend brain '{added.Brain.Value}' is already bound to account '{prior.Account.Value}' and cannot be silently rebound to '{added.Account.Value}'.");
+            }
+
+            if (prior.PublicKeys is { } pinned)
+            {
+                if (added.PublicKeys is { } incoming && !pinned.Matches(incoming))
+                {
+                    throw new CryptographicException(
+                        $"Public keys for friend brain '{added.Brain.Value}' are already pinned and cannot be silently replaced without a signed key-rotation proof.");
+                }
+
+                if (added.PublicKeys is null)
+                {
+                    added = added with { PublicKeys = pinned };
+                }
+            }
+        }
+
+        return [.. existing.Where(row => row.Account != added.Account && row.Brain != added.Brain), added];
+    }
 
     private FriendsRecord With(
         PendingFriendCode[]? pending = null,

@@ -11,6 +11,7 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Connections;
@@ -362,7 +363,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
         builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority);
         builder.Services.AddSingleton<TimeProvider>(fakeClock);
-        builder.Services.AddSingleton(Options.Create(new ConnectionsOptions()));
+        builder.Services.AddSingleton(Options.Create(new OAuthConnectionsOptions()));
         builder.Services.AddSingleton<IHttpClientFactory>(new SingleHandlerHttpClientFactory(handler));
         builder.Services.AddSingleton(sp => new AuthorityNeurons(grains, sp, _ => connection, _ => connection));
         builder.Services.AddSingleton(sp => new ConnectorCatalog(definitions, sp.GetRequiredService<AuthorityNeurons>(), NullLogger<ConnectorCatalog>.Instance));
@@ -371,7 +372,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
             definitions,
             sp.GetRequiredService<AuthorityNeurons>(),
             sp.GetRequiredService<OAuthDeviceRequests>(),
-            sp.GetRequiredService<IOptions<ConnectionsOptions>>(),
+            sp.GetRequiredService<IOptions<OAuthConnectionsOptions>>(),
             fakeClock,
             sp.GetRequiredService<IHttpClientFactory>(),
             IntoChat.OS.Tests.TestEdge.Authority,
@@ -484,7 +485,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         services.AddSingleton<IGrainFactory>(grains);
         var sp = services.BuildServiceProvider();
         var neurons = new AuthorityNeurons(grains, sp, connectionInboundOverride: _ => inbound);
-        var options = Options.Create(new ConnectionsOptions());
+        var options = Options.Create(new OAuthConnectionsOptions());
         var requests = new OAuthDeviceRequests(options, clock);
         return new OAuthDeviceFlow(
             connectors,
