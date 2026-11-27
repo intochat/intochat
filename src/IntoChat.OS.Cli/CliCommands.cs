@@ -80,7 +80,7 @@ public static class CliCommands
                 string? outcome = runId.StartsWith("workflows/", StringComparison.Ordinal)
                     ? (await edge.Call<WorkflowRunView>(typeof(IWorkflowRun), new NeuronId(new BrainId(brain), "workflow.run", runId).FullKey(), nameof(IWorkflowRun.Cancel), reason))?.Status.ToString()
                     : runId.StartsWith("code-orchestration/", StringComparison.Ordinal)
-                        ? (await edge.Call<CodeOrchestrationRunView>(typeof(ICodeOrchestration), new NeuronId(new BrainId(brain), "flow.code-orchestration", runId).FullKey(), nameof(ICodeOrchestration.Cancel), reason))?.Status.ToString()
+                        ? (await edge.Call<CodeOrchestrationView>(typeof(ICodeOrchestration), new NeuronId(new BrainId(brain), "flow.code-orchestration", runId).FullKey(), nameof(ICodeOrchestration.CancelAsync), reason))?.Status.ToString()
                         : null;
                 await output.WriteLineAsync(outcome is null ? $"No cancellable run {runId}: workflows/ and code-orchestration/ runs can be cancelled." : $"{outcome} {runId}");
                 return outcome is null ? 1 : 0;

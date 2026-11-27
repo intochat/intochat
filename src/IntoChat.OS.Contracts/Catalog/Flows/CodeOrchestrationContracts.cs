@@ -43,59 +43,65 @@ public interface ICodeOrchestrationModel
 }
 
 /// <summary>Snapshot of a Plane 1 <c>flow.code-orchestration</c> run.</summary>
-public sealed record CodeOrchestrationRunView(
-    string RunId,
-    FlowStatus Status,
+public sealed record CodeOrchestrationView(
+    string FlowId,
     string Title,
-    string Goal,
+    FlowStatus Status,
+    string? CompiledScript,
     string[] ScopedContracts,
-    string[] PersonOnlyCalls,
-    int RepairRoundsUsed,
     CodeOrchestrationResult? Result,
-    string? ResultJson,
-    string? ExecutionTarget,
-    string? ExecutedByMachineId,
-    string? RouteReason,
     string? Error,
-    string? CrystallizedAppKey = null,
-    string? CrystallizedUnitAlias = null);
+    string? PlanId = null,
+    string? PinnedAppAlias = null,
+    string? LiveViewPath = null,
+    string? ExecutionTarget = null,
+    string? ExecutedByMachineId = null);
 
-/// <summary>Result of crystallizing ("Pin as App") a verified Plane 1 orchestration run into a sandboxed unit.</summary>
-public sealed record CodeOrchestrationCrystallizeResult(
-    bool Succeeded,
-    string AppKey,
-    string? UnitAlias,
+/// <summary>Receipt returned when crystallizing ("Pin as App") a verified Plane 1 orchestration run into a sandboxed app.</summary>
+public sealed record CrystallizedAppReceipt(
+    string Alias,
+    string Title,
+    string LiveViewPath,
+    string EventTarget,
     string[] ScopedContracts,
-    string? DeployHash,
-    string? ExecutionTarget,
-    string? Error);
+    string? PlanId = null,
+    bool Succeeded = true,
+    string? AppKey = null,
+    string? DeployHash = null,
+    string? ExecutionTarget = null,
+    string? Error = null);
 
 /// <summary>
-/// Plane 1 code orchestration neuron contract (<c>flow.code-orchestration</c>): compiles, Roslyn-AST-sanitizes
-/// (fail-closed), and runs C# orchestration scripts inside the least-privilege <c>IntoChat.OS.Sandbox</c> boundary,
-/// and optionally crystallizes ("Pin as App") a verified run into a durable sandboxed app via <c>UnitDeployer</c>.
+/// Plane 1 code orchestration neuron contract (<c>code.orchestration</c> / <c>flow.code-orchestration</c>):
+/// compiles, Roslyn-AST-sanitizes (fail-closed), and runs C# orchestration scripts inside the least-privilege
+/// <c>IntoChat.OS.Sandbox</c> boundary, and crystallizes ("Pin as App") a verified run into a durable sandboxed
+/// app via <c>UnitDeployer</c>.
 /// </summary>
-[NeuronAlias("flow.code-orchestration"), DefaultNeuronType("flow.code-orchestration")]
+[NeuronAlias("code.orchestration"), DefaultNeuronType("flow.code-orchestration")]
 [Description("Run a Plane 1 C# orchestration script inside IntoChat.OS.Sandbox with fail-closed AST sanitization and least-privilege ScopedContracts, or crystallize a verified run as a pinned app.")]
 public interface ICodeOrchestration
 {
     const string KeyPattern = "code-orchestration/{new short id}";
 
-    [Description("Start a Plane 1 C# orchestration run. Provide a goal and optional preauthored C# source (`public static class OrchestrationScript { public static Task<OrchestrationResult> RunAsync(ISandboxBrain os, string inputJson, CancellationToken ct) ... }`), inputJson, and allowedContracts.")]
-    Task<CodeOrchestrationRunView> Start(
+    [Description("Run a Plane 1 C# orchestration script. Provide title, goal, optional inputJson, allowedContracts, and preauthoredScript (`public static class OrchestrationScript { public static Task<OrchestrationResult> RunAsync(ISandboxBrain os, string inputJson, CancellationToken ct) ... }`).")]
+    Task<CodeOrchestrationView> RunAsync(
         string title,
         string goal,
-        string? source = null,
-        string? inputJson = null,
-        string[]? allowedContracts = null);
+        string inputJson = "{}",
+        string[]? allowedContracts = null,
+        string? preauthoredScript = null,
+        CancellationToken ct = default);
 
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     [Description("Read the current status, scoped contracts, result.json, and diagnostics of this code orchestration run.")]
-    Task<CodeOrchestrationRunView?> Read();
-
-    [Description("Cancel an in-flight or waiting code orchestration run.")]
-    Task<CodeOrchestrationRunView?> Cancel(string reason);
+    Task<CodeOrchestrationView?> ReadAsync(CancellationToken ct = default);
 
     [Description("Pin a verified code orchestration run as a durable sandboxed app via UnitDeployer using a least-privilege ScopedContracts AppToken inside IntoChat.OS.Sandbox (never wildcard */*).")]
-    Task<CodeOrchestrationCrystallizeResult> CrystallizeAsync(string appAlias, string? title = null);
+    Task<CrystallizedAppReceipt> CrystallizeAsync(
+        string alias,
+        string? title = null,
+        CancellationToken ct = default);
+
+    [Description("Cancel an in-flight or waiting code orchestration run.")]
+    Task<CodeOrchestrationView?> CancelAsync(string reason, CancellationToken ct = default);
 }

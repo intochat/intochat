@@ -11,7 +11,7 @@ namespace IntoChat.OS.Tests.Unit.Modules.AI;
 public sealed class AgentToolsFacts
 {
     private static readonly ToolSchema FocusPointSchema = ToolSchemas.Of(typeof(IFocus)).Single(static s => s.Name == "focus_point");
-    private static readonly ToolSchema CodeOrchestrationStartSchema = ToolSchemas.Of(typeof(ICodeOrchestration)).Single(static s => s.Name == "flow_code_orchestration_start");
+    private static readonly ToolSchema CodeOrchestrationRunSchema = ToolSchemas.Of(typeof(ICodeOrchestration)).Single(static s => s.Name == "code_orchestration_run_async");
 
     [Fact]
     public async Task ContractToolSendsNamedArgumentsAndTheDefaultKey()
@@ -38,17 +38,17 @@ public sealed class AgentToolsFacts
     public async Task AKeyedToolPrefixesTheBrain()
     {
         (string C, string K, string M, string A)? seen = null;
-        var tool = new ContractTool(CodeOrchestrationStartSchema, (c, k, m, a, _) =>
+        var tool = new ContractTool(CodeOrchestrationRunSchema, (c, k, m, a, _) =>
         {
             seen = (c, k, m, a);
             return Task.FromResult<JsonElement?>(null);
         });
 
         await tool.InvokeAsync(
-            new AIFunctionArguments { ["key"] = "code-orchestration/x1", ["title"] = "sum", ["goal"] = "sum numbers", ["source"] = "code" },
+            new AIFunctionArguments { ["key"] = "code-orchestration/x1", ["title"] = "sum", ["goal"] = "sum numbers", ["preauthoredScript"] = "code" },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal((typeof(ICodeOrchestration).FullName!, "{brain}/code-orchestration/x1", "Start"), (seen!.Value.C, seen.Value.K, seen.Value.M));
+        Assert.Equal((typeof(ICodeOrchestration).FullName!, "{brain}/code-orchestration/x1", "RunAsync"), (seen!.Value.C, seen.Value.K, seen.Value.M));
         using var args = JsonDocument.Parse(seen.Value.A);
         Assert.False(args.RootElement.TryGetProperty("key", out _));
         Assert.Equal("sum", args.RootElement.GetProperty("title").GetString());

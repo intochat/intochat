@@ -114,9 +114,9 @@ public sealed class CodeBlockConnectedComputeFacts
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
         {
             var run1 = os.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/tier1-test"));
-            _ = await run1.Start("Tier 1 test", "Run on connected PC", SimpleOrchestrationScript, "{\"msg\":\"hello\"}");
+            _ = await run1.RunAsync("Tier 1 test", "Run on connected PC", inputJson: "{\"msg\":\"hello\"}", preauthoredScript: SimpleOrchestrationScript, ct: Ct);
             await os.Idle();
-            var view1 = await run1.Read();
+            var view1 = await run1.ReadAsync(Ct);
             Assert.NotNull(view1);
             Assert.Equal(FlowStatus.Completed, view1!.Status);
             Assert.Equal("from-connected-pc", view1.Result?.Summary);
@@ -141,9 +141,9 @@ public sealed class CodeBlockConnectedComputeFacts
         using (fallbackOs.Edge.Enter(fallbackOs.Edge.Person("owner", "owner", brain)))
         {
             var run2 = fallbackOs.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/tier2-test"));
-            _ = await run2.Start("Tier 2 fallback test", "Run on fallback sandbox", SimpleOrchestrationScript, "{\"msg\":\"hello\"}");
+            _ = await run2.RunAsync("Tier 2 fallback test", "Run on fallback sandbox", inputJson: "{\"msg\":\"hello\"}", preauthoredScript: SimpleOrchestrationScript, ct: Ct);
             await fallbackOs.Idle();
-            var view2 = await run2.Read();
+            var view2 = await run2.ReadAsync(Ct);
             Assert.NotNull(view2);
             Assert.Equal(FlowStatus.Completed, view2!.Status);
             Assert.Equal("from-local-unit-host", view2.Result?.Summary);

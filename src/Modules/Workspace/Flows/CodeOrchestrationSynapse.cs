@@ -98,16 +98,17 @@ internal sealed partial class CodeOrchestrationSynapse(
 
     protected override IReadOnlyList<string> Steps => StepNames;
 
-    public async Task<CodeOrchestrationRunView> Start(
+    public async Task<CodeOrchestrationView> RunAsync(
         string title,
         string goal,
-        string? source = null,
-        string? inputJson = null,
-        string[]? allowedContracts = null)
+        string inputJson = "{}",
+        string[]? allowedContracts = null,
+        string? preauthoredScript = null,
+        CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(State.Title) || State.Started != default)
         {
-            return ToRunView();
+            return ToView();
         }
 
         var effectiveTitle = string.IsNullOrWhiteSpace(title)
@@ -119,20 +120,20 @@ internal sealed partial class CodeOrchestrationSynapse(
         {
             Goal = effectiveGoal,
             InputJson = string.IsNullOrWhiteSpace(inputJson) ? "{}" : inputJson,
-            PreauthoredScript = string.IsNullOrWhiteSpace(source) ? null : source,
+            PreauthoredScript = string.IsNullOrWhiteSpace(preauthoredScript) ? null : preauthoredScript,
             AllowedContracts = allowedContracts ?? [],
         };
 
         await Start(effectiveTitle, owner, parentFlowId: null, inner).ConfigureAwait(true);
-        return ToRunView();
+        return ToView();
     }
 
-    public Task<CodeOrchestrationRunView?> Read()
+    public Task<CodeOrchestrationView?> ReadAsync(CancellationToken ct = default)
         => Task.FromResult(State.Started == default && string.IsNullOrWhiteSpace(State.Title)
             ? null
-            : ToRunView());
+            : ToView());
 
-    public new async Task<CodeOrchestrationRunView?> Cancel(string reason)
+    public async Task<CodeOrchestrationView?> CancelAsync(string reason, CancellationToken ct = default)
     {
         if (State.Started == default && string.IsNullOrWhiteSpace(State.Title))
         {
@@ -141,10 +142,10 @@ internal sealed partial class CodeOrchestrationSynapse(
 
         if (!State.IsOver)
         {
-            await base.Cancel(string.IsNullOrWhiteSpace(reason) ? "Cancelled." : reason).ConfigureAwait(true);
+            await Cancel(string.IsNullOrWhiteSpace(reason) ? "Cancelled." : reason).ConfigureAwait(true);
         }
 
-        return ToRunView();
+        return ToView();
     }
 
     /// <summary>
@@ -152,70 +153,56 @@ internal sealed partial class CodeOrchestrationSynapse(
     /// <see cref="ISynapseHost"/> (<c>UnitDeployer</c>) running strictly inside the
     /// <c>IntoChat.OS.Sandbox</c> execution boundary with a least-privilege <c>ScopedContracts</c> <c>AppToken</c>.
     /// </summary>
-    public async Task<CodeOrchestrationCrystallizeResult> CrystallizeAsync(string appAlias, string? title = null)
+    public async Task<CrystallizedAppReceipt> CrystallizeAsync(
+        string alias,
+        string? title = null,
+        CancellationToken ct = default)
     {
-        var normalizedAlias = NormalizeAppAlias(appAlias);
+        var normalizedAlias = NormalizeAppAlias(alias);
+        var effectiveTitle = string.IsNullOrWhiteSpace(title)
+            ? (string.IsNullOrWhiteSpace(State.Title) ? normalizedAlias : State.Title)
+            : title.Trim();
+
+        CrystallizedAppReceipt Fail(string error, string[]? contracts = null, string? appKey = null, string? deployHash = null, string? target = null)
+            => new(
+                Alias: normalizedAlias,
+                Title: effectiveTitle,
+                LiveViewPath: string.IsNullOrWhiteSpace(normalizedAlias) ? string.Empty : $"apps/{normalizedAlias}/view",
+                EventTarget: string.IsNullOrWhiteSpace(normalizedAlias) ? string.Empty : new NeuronId(Id.Brain, normalizedAlias, "default").ToString(),
+                ScopedContracts: contracts ?? [],
+                PlanId: State.Waiting?.ConfirmationPlanId,
+                Succeeded: false,
+                AppKey: appKey,
+                DeployHash: deployHash,
+                ExecutionTarget: target,
+                Error: error);
+
         if (string.IsNullOrWhiteSpace(normalizedAlias))
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: null,
-                ScopedContracts: [],
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: "CrystallizeAsync requires a non-empty alphanumeric appAlias (e.g. 'daily.digest').");
+            return Fail("CrystallizeAsync requires a non-empty alphanumeric alias (e.g. 'daily.digest').");
         }
 
         var inner = State.Inner;
         if (string.IsNullOrWhiteSpace(inner.CompiledScript))
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: [],
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: "Cannot crystallize: no compiled orchestration script exists on this run.");
+            return Fail("Cannot crystallize: no compiled orchestration script exists on this run.");
         }
 
         if (State.Status is FlowStatus.Failed or FlowStatus.Cancelled || inner.Result is null || !string.IsNullOrWhiteSpace(inner.Error))
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: [],
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: $"Cannot crystallize an unverified or failed run (status={State.Status}, error={inner.Error ?? "no result"}).");
+            return Fail($"Cannot crystallize an unverified or failed run (status={State.Status}, error={inner.Error ?? "no result"}).");
         }
 
         // Fail-closed AST sanitization check before crystallizing.
         if (_astSanitizer is UnavailableCodeOrchestrationAstSanitizer)
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: [],
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: "AST000: Roslyn AST sanitizer is unavailable; fail-closed policy refuses crystallization.");
+            return Fail("AST000: Roslyn AST sanitizer is unavailable; fail-closed policy refuses crystallization.");
         }
 
         var ast = _astSanitizer.Validate(inner.CompiledScript);
         if (!ast.IsValid)
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: [],
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: $"AST policy rejected script during crystallization: {string.Join("; ", ast.Diagnostics.Take(5))}");
+            return Fail($"AST policy rejected script during crystallization: {string.Join("; ", ast.Diagnostics.Take(5))}");
         }
 
         // Compute least-privilege ScopedContracts; explicitly forbid wildcards (*/*) and authority contracts.
@@ -227,44 +214,20 @@ internal sealed partial class CodeOrchestrationSynapse(
 
         if (scopedContracts.Any(CodeOrchestrationCompiler.IsWildcardContract))
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: scopedContracts,
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: "SCOPE002: Cannot crystallize with wildcard ('*' or '*/*') contract grants; least-privilege ScopedContracts are required.");
+            return Fail("SCOPE002: Cannot crystallize with wildcard ('*' or '*/*') contract grants; least-privilege ScopedContracts are required.", scopedContracts);
         }
 
         var forbiddenAuthority = scopedContracts.Where(NeuronContractDiscovery.IsAuthorityContract).ToArray();
         if (forbiddenAuthority.Length > 0)
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: scopedContracts,
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: $"AUTH001: Cannot crystallize with authority contract(s): {string.Join(", ", forbiddenAuthority)}.");
+            return Fail($"AUTH001: Cannot crystallize with authority contract(s): {string.Join(", ", forbiddenAuthority)}.", scopedContracts);
         }
 
         if (sandbox is null)
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: string.Empty,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: scopedContracts,
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: "ISandboxRuntimeBridge is not configured; cannot deploy crystallized app into IntoChat.OS.Sandbox.");
+            return Fail("ISandboxRuntimeBridge is not configured; cannot deploy crystallized app into IntoChat.OS.Sandbox.", scopedContracts);
         }
 
-        var effectiveTitle = string.IsNullOrWhiteSpace(title)
-            ? (string.IsNullOrWhiteSpace(State.Title) ? normalizedAlias : State.Title)
-            : title.Trim();
         var appKey = $"pinned-{normalizedAlias.Replace('.', '-')}";
 
         // 1. Compile the verified script as a sandbox AppPackage and deploy strictly into IntoChat.OS.Sandbox
@@ -273,14 +236,7 @@ internal sealed partial class CodeOrchestrationSynapse(
         var compiled = packageCompiler.Compile(package);
         if (!compiled.Succeeded || compiled.EnrichedPackage is null)
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: appKey,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: scopedContracts,
-                DeployHash: null,
-                ExecutionTarget: null,
-                Error: $"Crystallization sandbox compilation failed: {string.Join("; ", compiled.Errors.Take(5))}");
+            return Fail($"Crystallization sandbox compilation failed: {string.Join("; ", compiled.Errors.Take(5))}", scopedContracts, appKey);
         }
 
         var sandboxDeploy = await sandbox.DeployScopedPackageAsync(
@@ -290,22 +246,16 @@ internal sealed partial class CodeOrchestrationSynapse(
             stateJson: null,
             settingsJson: null,
             allowedContracts: scopedContracts,
-            cancellationToken: CancellationToken.None).ConfigureAwait(true);
+            cancellationToken: ct).ConfigureAwait(true);
 
         if (!sandboxDeploy.Succeeded)
         {
-            return new CodeOrchestrationCrystallizeResult(
-                Succeeded: false,
-                AppKey: appKey,
-                UnitAlias: normalizedAlias,
-                ScopedContracts: scopedContracts,
-                DeployHash: null,
-                ExecutionTarget: "IntoChat.OS.Sandbox",
-                Error: $"IntoChat.OS.Sandbox scoped deployment failed: {sandboxDeploy.Error ?? "unknown error"}");
+            return Fail($"IntoChat.OS.Sandbox scoped deployment failed: {sandboxDeploy.Error ?? "unknown error"}", scopedContracts, appKey, target: "IntoChat.OS.Sandbox");
         }
 
         // 2. Register the pinned app unit through UnitDeployer (ISynapseHost) when available.
         string? deployHash = compiled.EnrichedPackage.Digest;
+        string? installPlanId = null;
         if (unitDeployer is not null)
         {
             var unitSource = BuildCrystallizedUnitSource(normalizedAlias, appKey, effectiveTitle, scopedContracts);
@@ -321,26 +271,32 @@ internal sealed partial class CodeOrchestrationSynapse(
                 Id.Brain,
                 synapseSource,
                 new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal),
-                CancellationToken.None).ConfigureAwait(true);
+                ct).ConfigureAwait(true);
 
             if (deployOutcome.Status is DeployStatus.Failed or DeployStatus.Refused)
             {
                 await sandbox.UnloadAsync(Id.Brain.Value, appKey, CancellationToken.None).ConfigureAwait(true);
-                return new CodeOrchestrationCrystallizeResult(
-                    Succeeded: false,
-                    AppKey: appKey,
-                    UnitAlias: normalizedAlias,
-                    ScopedContracts: scopedContracts,
-                    DeployHash: deployOutcome.Hash,
-                    ExecutionTarget: "IntoChat.OS.Sandbox",
-                    Error: $"UnitDeployer rejected crystallized unit '{normalizedAlias}': {deployOutcome.Reason ?? deployOutcome.Status.ToString()}");
+                return Fail(
+                    $"UnitDeployer rejected crystallized unit '{normalizedAlias}': {deployOutcome.Reason ?? deployOutcome.Status.ToString()}",
+                    scopedContracts,
+                    appKey,
+                    deployOutcome.Hash,
+                    "IntoChat.OS.Sandbox");
             }
 
             if (!string.IsNullOrWhiteSpace(deployOutcome.Hash))
             {
                 deployHash = deployOutcome.Hash;
             }
+
+            installPlanId = deployOutcome.Installs.Values
+                .Where(static i => i.Status == InstallStatus.Pending)
+                .Select(static i => i.Reason)
+                .FirstOrDefault(static p => !string.IsNullOrWhiteSpace(p));
         }
+
+        var liveViewPath = $"apps/{normalizedAlias}/view";
+        var eventTarget = new NeuronId(Id.Brain, normalizedAlias, "default").ToString();
 
         inner.CrystallizedAppKey = appKey;
         inner.CrystallizedUnitAlias = normalizedAlias;
@@ -352,35 +308,39 @@ internal sealed partial class CodeOrchestrationSynapse(
                 StepOutcome.Completed,
                 $"Crystallized as '{normalizedAlias}' ({appKey}) inside IntoChat.OS.Sandbox.")).ConfigureAwait(true);
 
-        return new CodeOrchestrationCrystallizeResult(
+        return new CrystallizedAppReceipt(
+            Alias: normalizedAlias,
+            Title: effectiveTitle,
+            LiveViewPath: liveViewPath,
+            EventTarget: eventTarget,
+            ScopedContracts: scopedContracts,
+            PlanId: installPlanId,
             Succeeded: true,
             AppKey: appKey,
-            UnitAlias: normalizedAlias,
-            ScopedContracts: scopedContracts,
             DeployHash: deployHash,
             ExecutionTarget: "IntoChat.OS.Sandbox",
             Error: null);
     }
 
-    private CodeOrchestrationRunView ToRunView()
+    private CodeOrchestrationView ToView()
     {
         var inner = State.Inner;
-        return new CodeOrchestrationRunView(
-            RunId: Id.Key,
-            Status: State.Status,
+        var liveViewPath = !string.IsNullOrWhiteSpace(inner.CrystallizedUnitAlias)
+            ? $"apps/{inner.CrystallizedUnitAlias}/view"
+            : null;
+        return new CodeOrchestrationView(
+            FlowId: Id.ToString(),
             Title: State.Title,
-            Goal: inner.Goal,
+            Status: State.Status,
+            CompiledScript: inner.CompiledScript,
             ScopedContracts: inner.ScopedContracts,
-            PersonOnlyCalls: inner.PersonOnlyCalls,
-            RepairRoundsUsed: inner.RepairRoundsUsed,
             Result: inner.Result,
-            ResultJson: inner.ResultJson,
-            ExecutionTarget: inner.ExecutionTarget,
-            ExecutedByMachineId: inner.ExecutedByMachineId,
-            RouteReason: inner.RouteReason,
             Error: inner.Error,
-            CrystallizedAppKey: inner.CrystallizedAppKey,
-            CrystallizedUnitAlias: inner.CrystallizedUnitAlias);
+            PlanId: State.Waiting?.ConfirmationPlanId,
+            PinnedAppAlias: inner.CrystallizedUnitAlias,
+            LiveViewPath: liveViewPath,
+            ExecutionTarget: inner.ExecutionTarget,
+            ExecutedByMachineId: inner.ExecutedByMachineId);
     }
 
     internal static string NormalizeAppAlias(string? raw)

@@ -72,13 +72,13 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
 
         Assert.Contains(typeof(ICodeOrchestration).FullName!, def.Contracts);
         Assert.DoesNotContain(def.Contracts, static c => c.Contains("ICodeBlockRun", StringComparison.Ordinal));
-        Assert.Contains("flow_code_orchestration_start", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("flow_code_orchestration_crystallize_async", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("code_orchestration_run_async", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("code_orchestration_crystallize_async", def.Instructions, StringComparison.Ordinal);
         Assert.DoesNotContain("codeblock_run_start", def.Instructions, StringComparison.Ordinal);
 
         var schemas = ToolSchemas.Of(typeof(ICodeOrchestration));
-        Assert.Contains(schemas, static s => s.Name == "flow_code_orchestration_start");
-        Assert.Contains(schemas, static s => s.Name == "flow_code_orchestration_crystallize_async");
+        Assert.Contains(schemas, static s => s.Name == "code_orchestration_run_async");
+        Assert.Contains(schemas, static s => s.Name == "code_orchestration_crystallize_async");
 
         // CodeBlockRunNeuron and EngineerApp are completely removed from shipped assemblies.
         Assert.Null(typeof(AppsModule).Assembly.GetType("IntoChat.OS.Modules.Apps.CodeBlocks.CodeBlockRunNeuron"));
@@ -112,9 +112,9 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
         {
             var neuron = os.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/no-sanitizer"));
-            _ = await neuron.Start("No sanitizer", "Run script", SafeNotificationsScript);
+            _ = await neuron.RunAsync("No sanitizer", "Run script", preauthoredScript: SafeNotificationsScript, ct: Ct);
             await os.Idle();
-            var view = await neuron.Read();
+            var view = await neuron.ReadAsync(Ct);
 
             Assert.NotNull(view);
             Assert.Equal(FlowStatus.Failed, view!.Status);
@@ -134,9 +134,9 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
         {
             var neuron = os.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/forbidden-ast"));
-            _ = await neuron.Start("Forbidden process", "Launch process", ForbiddenProcessScript);
+            _ = await neuron.RunAsync("Forbidden process", "Launch process", preauthoredScript: ForbiddenProcessScript, ct: Ct);
             await os.Idle();
-            var view = await neuron.Read();
+            var view = await neuron.ReadAsync(Ct);
 
             Assert.NotNull(view);
             Assert.Equal(FlowStatus.Failed, view!.Status);
@@ -163,24 +163,28 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         var neuron = os.Get<ICodeOrchestration>(new NeuronId(brain, CodeOrchestrationSynapse.Alias, "code-orchestration/crystallize-ok"));
-        _ = await neuron.Start(
+        _ = await neuron.RunAsync(
             title: "Daily Digest",
             goal: "Send daily digest notification",
-            source: SafeNotificationsScript,
             inputJson: "{}",
-            allowedContracts: ["notifications"]);
+            allowedContracts: ["notifications"],
+            preauthoredScript: SafeNotificationsScript,
+            ct: Ct);
         await os.Idle();
-        var run = await neuron.Read();
+        var run = await neuron.ReadAsync(Ct);
 
         Assert.NotNull(run);
         Assert.Equal(FlowStatus.Completed, run!.Status);
         Assert.Equal(1, sandbox.ExecuteCalls);
 
-        var pin = await neuron.CrystallizeAsync("daily.digest", "Daily Digest App");
+        var pin = await neuron.CrystallizeAsync("daily.digest", "Daily Digest App", Ct);
 
         Assert.True(pin.Succeeded, pin.Error);
         Assert.Equal("pinned-daily-digest", pin.AppKey);
-        Assert.Equal("daily.digest", pin.UnitAlias);
+        Assert.Equal("daily.digest", pin.Alias);
+        Assert.Equal("Daily Digest App", pin.Title);
+        Assert.Equal("apps/daily.digest/view", pin.LiveViewPath);
+        Assert.Equal("owner/daily.digest/default", pin.EventTarget);
         Assert.Equal("IntoChat.OS.Sandbox", pin.ExecutionTarget);
         Assert.Equal(["notifications"], pin.ScopedContracts);
         Assert.DoesNotContain(pin.ScopedContracts, static c => c.Contains('*', StringComparison.Ordinal));
