@@ -339,12 +339,13 @@ public sealed class ConfinedProcessAndUnitHostFacts
     [Fact]
     public void ChildEnvironmentPolicyBlocksServiceAssertionAndCustodySecrets()
     {
-        Assert.True(ChildEnvironmentPolicy.IsBlockedSecretVariableName("IntoChatOS__MasterKey"));
+        Assert.True(ChildEnvironmentPolicy.IsBlockedSecretVariableName("INTOCHATOS_MASTER_KEY"));
+        Assert.True(ChildEnvironmentPolicy.IsBlockedSecretVariableName("INTOCHAT_PRESENCE_TOKEN"));
         Assert.True(ChildEnvironmentPolicy.IsBlockedSecretVariableName("INTOCHAT_SERVICE_ASSERTION_SIGNING_KEY"));
         Assert.True(ChildEnvironmentPolicy.IsBlockedSecretVariableName("SERVICE_ASSERTION_JWT"));
         Assert.True(ChildEnvironmentPolicy.IsBlockedSecretVariableName("OPENAI_API_KEY"));
         Assert.False(ChildEnvironmentPolicy.IsBlockedSecretVariableName("SPIKE_WINDOWS"));
-        Assert.False(ChildEnvironmentPolicy.IsBlockedSecretVariableName("DOTNET_ROOT"));
+        Assert.False(ChildEnvironmentPolicy.IsBlockedSecretVariableName("SAFE_CUSTOM_FLAG"));
     }
 
     [Fact]
@@ -507,7 +508,7 @@ public sealed class ConfinedProcessAndUnitHostFacts
         if (!OperatingSystem.IsWindows()) { Assert.Skip("Windows AppContainer UnitHost integration requires Windows."); return; }
 
         var ct = TestContext.Current.CancellationToken;
-        var custodySecretVar = "IntoChatOS__MasterKey";
+        var custodySecretVar = "INTOCHATOS_MASTER_KEY";
         var assertionSecretVar = "INTOCHAT_SERVICE_ASSERTION_SIGNING_KEY";
         var arbitraryParentVar = "UNITHOST_ARBITRARY_HOST_SECRET";
         var prevCustody = Environment.GetEnvironmentVariable(custodySecretVar);

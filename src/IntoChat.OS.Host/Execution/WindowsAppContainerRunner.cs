@@ -1205,9 +1205,9 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
                 return ValueTask.CompletedTask;
             }
 
-            try { StandardInput.Dispose(); } catch (ObjectDisposedException) { } catch (IOException) { }
-            try { StandardOutput.Dispose(); } catch (ObjectDisposedException) { } catch (IOException) { }
-            try { StandardError.Dispose(); } catch (ObjectDisposedException) { } catch (IOException) { }
+            TryDisposeStream(StandardInput, "StandardInput");
+            TryDisposeStream(StandardOutput, "StandardOutput");
+            TryDisposeStream(StandardError, "StandardError");
 
             var job = Interlocked.Exchange(ref _job, IntPtr.Zero);
             var iocp = Interlocked.Exchange(ref _iocp, IntPtr.Zero);
@@ -1220,6 +1220,25 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             _owner.RevokeGrantedAccess(_grantedWorkDirs);
             TryPurgeDirectory(TempDirectory, _owner._logger);
             return ValueTask.CompletedTask;
+        }
+
+        private void TryDisposeStream(IDisposable stream, string streamName)
+        {
+            try
+            {
+                stream.Dispose();
+            }
+            catch (Exception ex) when (ex is ObjectDisposedException or IOException)
+            {
+                if (_owner._logger is not null)
+                {
+                    _owner._logger.LogDebug(ex, "Ignoring {StreamName} dispose failure during confined session teardown.", streamName);
+                }
+                else
+                {
+                    Trace.TraceWarning("Ignoring {0} dispose failure during confined session teardown: {1}", streamName, ex.Message);
+                }
+            }
         }
     }
 }
