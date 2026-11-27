@@ -4,7 +4,7 @@ namespace IntoChat.Aspire;
 
 public enum CandidateStage { Proposed, Queued, Building, Starting, Healthy, Verifying, Verified, Promoting, Promoted, Discarded, Failed }
 
-public enum CandidateHostMode { Process = 1, AgentDevSlots = 2 }
+public enum CandidateHostMode { Process = 1, AgentDevSlots = 2, AcaJob = 3 }
 
 public sealed record CandidateEndpoints(string Mcp, string Ui);
 

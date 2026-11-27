@@ -30,7 +30,8 @@ public static partial class PulumiStackSynthesizer
         IReadOnlyList<SecretSpec> moduleSecretSpecs,
         ContainerAppSpec osApp,
         ContainerAppSpec? cloudApp = null,
-        ContainerAppSpec? sandboxApp = null)
+        ContainerAppSpec? sandboxApp = null,
+        ContainerAppsJobSpec? devSlotJob = null)
     {
         var rgLogical = LogicalResourceName(new ResourceGroupSpec { Name = c.GroupName });
         var logLogical = LogicalResourceName(new LogWorkspaceSpec { Name = c.LogsName });
@@ -74,6 +75,10 @@ public static partial class PulumiStackSynthesizer
         if (sandboxApp is not null)
         {
             AppendContainerAppYaml(resources, c, sandboxApp, allSecretSpecs, roleGrantSpecs);
+        }
+        if (devSlotJob is not null)
+        {
+            AppendContainerAppsJobYaml(resources, c, devSlotJob, roleGrantSpecs);
         }
 
         var (osMinReplicas, osMaxReplicas) = ResolveScale(osApp);
@@ -541,6 +546,80 @@ public static partial class PulumiStackSynthesizer
         {
             AppendStartAfterUpdate(output, c, app, logical + "-start", trigger, [logical, logical + "-stop"]);
         }
+    }
+
+    private static void AppendContainerAppsJobYaml(
+        StringBuilder output,
+        InstallConfig c,
+        ContainerAppsJobSpec job,
+        IReadOnlyList<RoleGrantSpec> roleGrants)
+    {
+        var logical = LogicalResourceName(job);
+        var rgLogical = LogicalResourceName(new ResourceGroupSpec { Name = c.GroupName });
+        var identityLogical = LogicalResourceName(new IdentitySpec { Name = job.Identity });
+        var envLogical = LogicalResourceName(new ManagedEnvironmentSpec { Name = job.Environment });
+        var identityResourceId = ResourceIds.For(c.Subscription, ResourceKinds.Identity, c.GroupName, job.Identity);
+        var tags = AzureTags.Merge(job);
+
+        var dependsOn = new List<string> { envLogical };
+        if (job.RegistryServer.Length > 0 && job.Identity.Length > 0)
+        {
+            dependsOn.Add(identityLogical);
+            foreach (var grant in roleGrants.Where(g =>
+                string.Equals(g.Principal, job.Identity, StringComparison.Ordinal)
+                && g.Scope.Contains("/Microsoft.ContainerRegistry/registries/", StringComparison.OrdinalIgnoreCase)))
+            {
+                dependsOn.Add(LogicalResourceName(grant));
+            }
+        }
+
+        output.AppendLine($"  {logical}:");
+        output.AppendLine("    type: azure-native:app:Job");
+        output.AppendLine("    options:");
+        output.AppendLine($"      dependsOn: [{string.Join(", ", dependsOn.Distinct(StringComparer.Ordinal).Select(d => $"\"${{{d}}}\""))}]");
+        output.AppendLine("    properties:");
+        output.AppendLine($"      jobName: \"{job.Name}\"");
+        output.AppendLine($"      resourceGroupName: \"${{{rgLogical}.name}}\"");
+        output.AppendLine($"      location: \"{c.Location}\"");
+        output.AppendLine($"      environmentId: \"${{{envLogical}.id}}\"");
+        output.AppendLine("      workloadProfileName: Consumption");
+        if (job.RegistryServer.Length > 0 && job.Identity.Length > 0)
+        {
+            output.AppendLine("      identity:");
+            output.AppendLine("        type: UserAssigned");
+            output.AppendLine("        userAssignedIdentities:");
+            output.AppendLine($"          - \"{identityResourceId}\"");
+        }
+        output.AppendLine("      configuration:");
+        output.AppendLine("        triggerType: Manual");
+        output.AppendLine($"        replicaTimeout: {job.ReplicaTimeoutSeconds.ToString(CultureInfo.InvariantCulture)}");
+        output.AppendLine($"        replicaRetryLimit: {job.ReplicaRetryLimit.ToString(CultureInfo.InvariantCulture)}");
+        output.AppendLine("        manualTriggerConfig:");
+        output.AppendLine($"          parallelism: {job.Parallelism.ToString(CultureInfo.InvariantCulture)}");
+        output.AppendLine($"          replicaCompletionCount: {job.ReplicaCompletionCount.ToString(CultureInfo.InvariantCulture)}");
+        if (job.RegistryServer.Length > 0 && job.Identity.Length > 0)
+        {
+            output.AppendLine("        registries:");
+            output.AppendLine($"          - server: \"{job.RegistryServer}\"");
+            output.AppendLine($"            identity: \"{identityResourceId}\"");
+        }
+        output.AppendLine("      template:");
+        output.AppendLine("        containers:");
+        output.AppendLine("          - name: devslot");
+        output.AppendLine($"            image: {YamlQuote(job.Image)}");
+        output.AppendLine("            resources:");
+        output.AppendLine($"              cpu: {job.Cpu.ToString(CultureInfo.InvariantCulture)}");
+        output.AppendLine($"              memory: \"{job.Memory}\"");
+        if (job.Variables.Count > 0)
+        {
+            output.AppendLine("            env:");
+            foreach (var (name, value) in job.Variables.OrderBy(p => p.Key, StringComparer.Ordinal))
+            {
+                output.AppendLine($"              - name: \"{name}\"");
+                output.AppendLine($"                value: {YamlQuote(value)}");
+            }
+        }
+        AppendTags(output, tags, indent: 6);
     }
 
     // Single-silo ContainerApps (StopBeforeUpdate = true) run Orleans with SingleSiloGuard:
