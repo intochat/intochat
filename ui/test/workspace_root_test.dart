@@ -138,15 +138,23 @@ void main() {
         ..root = {'kind': 'view', 'name': 'brain-1/apps/desktop/view'};
       final fixture = await ApplicationFixture.start(tester, server: server);
       List<String?> hints() => [
-        for (final r in server.requestsTo(
-          '/brains/brain-1/apps/desktop/request',
-        ))
-          if (r.body['operation'] == 'narrow') r.body['input'] as String?,
+        for (final r in server.requestsTo('/brains/brain-1/act'))
+          if (r.body['neuron'] == 'brain-1/apps/desktop' &&
+              r.body['signal'] == 'desktop.narrow')
+            (r.body['args'] as Map?)?['narrow'] as String?,
       ];
       expect(hints(), ['false']);
+      expect(
+        server.requestsTo('/brains/brain-1/apps/desktop/request'),
+        isEmpty,
+      );
       tester.view.physicalSize = const Size(700, 800);
       await tester.pumpAndSettle();
       expect(hints(), ['false', 'true']);
+      expect(
+        server.requestsTo('/brains/brain-1/apps/desktop/request'),
+        isEmpty,
+      );
       await fixture.dispose();
     },
   );
@@ -156,6 +164,12 @@ void main() {
       ..root = {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'};
     final fixture = await ApplicationFixture.start(tester, server: server);
     expect(server.requestsTo('/brains/brain-1/apps/desktop/request'), isEmpty);
+    expect(
+      server
+          .requestsTo('/brains/brain-1/act')
+          .where((r) => r.body['signal'] == 'desktop.narrow'),
+      isEmpty,
+    );
     await fixture.dispose();
   });
 
@@ -242,6 +256,10 @@ class DesktopServer extends ApplicationServer {
         'generation': 1,
         'root': {'key': 'desktop', 'kind': 'text', 'text': 'Desktop'},
       });
+    }
+    if (request.url.path.endsWith('/act')) {
+      requests.add(RecordedAppRequest(request.url.path, body(request)));
+      return json({'delivered': true});
     }
     if (request.url.path.endsWith('/apps/desktop/request')) {
       requests.add(RecordedAppRequest(request.url.path, body(request)));
