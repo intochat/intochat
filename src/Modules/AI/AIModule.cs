@@ -87,6 +87,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();
+        services.TryAddSingleton<Conversations.IConversationMigrationService, Conversations.ConversationMigrationService>();
         services.TryAddSingleton<ITestVerificationService, TestVerificationService>();
     }
 
