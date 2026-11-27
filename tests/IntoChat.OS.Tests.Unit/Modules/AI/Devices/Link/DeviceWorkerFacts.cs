@@ -317,7 +317,7 @@ public sealed class DeviceWorkerFacts
         await harness.Worker.StartAsync(ct);
         try
         {
-        // Wait for attempt 1 to fail and register its 500ms backoff timer.
+            // Wait for attempt 1 to fail and register its 500ms backoff timer.
             await harness.Clock.WaitForTimerAsync(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), ct);
 
             // While sandbox is failing/backing off, chat and resource lanes keep executing without delay.
