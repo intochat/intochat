@@ -162,7 +162,7 @@ public sealed partial class SettingsApp
         var connectorId = string.IsNullOrWhiteSpace(request.ConnectorId) ? "github" : request.ConnectorId.Trim().ToLowerInvariant();
         var connectionId = SettingsAppState.NormalizeConnectionSlug(request.ConnectionId, fallback: "main");
         var authMethodId = string.IsNullOrWhiteSpace(request.AuthMethodId) ? "device-flow" : request.AuthMethodId.Trim();
-        var connectionKey = $"connection/{connectorId}/{connectionId}";
+        var connectionKey = ConnectionKeys.For(brain.Value, connectorId, connectionId);
 
         try
         {
@@ -413,9 +413,30 @@ public sealed partial class SettingsApp
         var webhookRef = secretRefs is not null && secretRefs.TryGetValue("WebhookSecret", out var wRef) ? wRef : null;
 
         var unsealedPat = await TryOpenSecretRefAsync(patRef, "PersonalAccessToken");
-        var unsealedWebhookSecret = await TryOpenSecretRefAsync(webhookRef, "WebhookSecret");
-        var grantToken = !string.IsNullOrWhiteSpace(unsealedPat) ? unsealedPat : patRef;
-        var hasWebhookSecret = !string.IsNullOrWhiteSpace(unsealedWebhookSecret) || !string.IsNullOrWhiteSpace(webhookRef);
+        if (string.IsNullOrWhiteSpace(unsealedPat))
+        {
+            var reason = string.IsNullOrWhiteSpace(patRef)
+                ? "Personal Access Token is required to connect GitHub."
+                : "Failed to unseal GitHub Personal Access Token from vault.";
+            await RecordGitHubConnectionOutcomeAsync(connectionKey, slug, normalizedRepo, ConnectionStatus.Failing, reason);
+            return;
+        }
+
+        string? unsealedWebhookSecret = null;
+        if (!string.IsNullOrWhiteSpace(webhookRef))
+        {
+            unsealedWebhookSecret = await TryOpenSecretRefAsync(webhookRef, "WebhookSecret");
+            if (string.IsNullOrWhiteSpace(unsealedWebhookSecret))
+            {
+                await RecordGitHubConnectionOutcomeAsync(
+                    connectionKey,
+                    slug,
+                    normalizedRepo,
+                    ConnectionStatus.Failing,
+                    "Failed to unseal GitHub Webhook Secret from vault.");
+                return;
+            }
+        }
 
         var responsePayload = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -428,17 +449,17 @@ public sealed partial class SettingsApp
         }
 
         var responseJson = JsonSerializer.Serialize(responsePayload);
-        var status = ConnectionStatus.Disconnected;
-        string? detail = hasWebhookSecret ? "Webhook secret sealed" : null;
+        ConnectionStatus status;
+        string? detail = !string.IsNullOrWhiteSpace(unsealedWebhookSecret) ? "Webhook secret sealed" : null;
 
-        if (TryBrainOrNull() is { Value.Length: > 0 } brain && !string.IsNullOrWhiteSpace(grantToken))
+        if (TryBrainOrNull() is { Value.Length: > 0 } brain)
         {
             var connId = new NeuronId(brain, "github", connectionKey);
             try
             {
                 var grantView = await ConnectionInbounds[connId].AcceptGrant(new OAuthGrant(
                     AuthMethodId: "pat",
-                    AccessToken: grantToken,
+                    AccessToken: unsealedPat,
                     RefreshToken: null,
                     ExpiresAt: null,
                     Scopes: "issues:write,pull_requests:write,contents:write,metadata:read",
@@ -455,7 +476,7 @@ public sealed partial class SettingsApp
                     var connectPayload = new Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["repository"] = normalizedRepo,
-                        ["token"] = grantToken,
+                        ["token"] = unsealedPat,
                     };
                     if (!string.IsNullOrWhiteSpace(unsealedWebhookSecret))
                     {
@@ -468,16 +489,28 @@ public sealed partial class SettingsApp
                 }
                 catch (Exception inner) when (inner is not OperationCanceledException)
                 {
-                    Log.LogDebug(inner, "IConnection.Connect is unavailable in standalone host for {ConnectionKey}.", connectionKey);
-                    status = ConnectionStatus.Connected;
+                    Log.LogWarning(inner, "Failed to connect GitHub repository {Repository} on {ConnectionKey}.", normalizedRepo, connectionKey);
+                    status = ConnectionStatus.Failing;
+                    detail = inner.Message;
                 }
             }
         }
-        else if (!string.IsNullOrWhiteSpace(grantToken))
+        else
         {
-            status = ConnectionStatus.Connected;
+            status = ConnectionStatus.Failing;
+            detail = "Brain context is unavailable for GitHub connection.";
         }
 
+        await RecordGitHubConnectionOutcomeAsync(connectionKey, slug, normalizedRepo, status, detail);
+    }
+
+    private async Task RecordGitHubConnectionOutcomeAsync(
+        string connectionKey,
+        string slug,
+        string normalizedRepo,
+        ConnectionStatus status,
+        string? detail)
+    {
         var row = new SettingsConnectionRow(
             Key: connectionKey,
             ConnectorId: "github",
@@ -495,10 +528,14 @@ public sealed partial class SettingsApp
             ActiveConnections = UpsertConnectionRow(State.ActiveConnections, row),
         });
 
+        var statusText = status == ConnectionStatus.Connected
+            ? $"Connected GitHub repository {normalizedRepo} ({connectionKey})."
+            : $"Failed to connect GitHub repository {normalizedRepo}: {detail ?? "Connection failed."}";
+
         await UpdateAsync(refreshed with
         {
             Title = "Settings · connections",
-            Status = $"Connected GitHub repository {normalizedRepo} ({connectionKey}).",
+            Status = statusText,
         });
     }
 
@@ -541,9 +578,6 @@ public sealed partial class SettingsApp
         string? tokenRef,
         bool navigateToConnections)
     {
-        var unsealedToken = await TryOpenSecretRefAsync(tokenRef, "token");
-        var bearerToken = !string.IsNullOrWhiteSpace(unsealedToken) ? unsealedToken : null;
-
         McpServerRow mcpRow;
         ConnectionStatus connStatus = ConnectionStatus.Disconnected;
         string? connDetail = null;
@@ -557,10 +591,11 @@ public sealed partial class SettingsApp
                 McpServerState? serverState = null;
                 if (ConnectionSecretBinder is { } binder && !string.IsNullOrWhiteSpace(tokenRef))
                 {
+                    var fullConnectionKey = ConnectionKeys.For(brain.Value, IMcpToolConnection.TypeName, name);
                     var connView = await binder.BindAsync(
                         brain,
                         IMcpToolConnection.TypeName,
-                        $"connection/mcp/{name}",
+                        fullConnectionKey,
                         "bearer-token",
                         tokenRef,
                         formatValue: token => SerializeMcpBearerPayload(url, title, token),
@@ -576,8 +611,14 @@ public sealed partial class SettingsApp
                         Log.LogDebug(readError, "IMcpToolConnection.ReadState after binder BindAsync failed for '{ServerName}'.", name);
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(bearerToken))
+                else if (!string.IsNullOrWhiteSpace(tokenRef))
                 {
+                    var bearerToken = await TryOpenSecretRefAsync(tokenRef, "token");
+                    if (string.IsNullOrWhiteSpace(bearerToken))
+                    {
+                        throw new InvalidOperationException("Failed to unseal MCP Bearer token from vault.");
+                    }
+
                     var payload = SerializeMcpBearerPayload(url, title, bearerToken);
                     var connView = await Connections[serverId].Connect("bearer-token", payload);
                     try

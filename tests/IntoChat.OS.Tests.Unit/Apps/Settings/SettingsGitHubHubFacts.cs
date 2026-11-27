@@ -42,6 +42,7 @@ public sealed class FakeGitHubConnectionNeuron : Neuron, IConnection, IConnectio
     public static string? CurrentAccount { get; set; }
     public static int ProbeCount { get; set; }
     public static int DisconnectCount { get; set; }
+    public static Exception? ThrowOnConnect { get; set; }
 
     public static void Reset()
     {
@@ -50,6 +51,7 @@ public sealed class FakeGitHubConnectionNeuron : Neuron, IConnection, IConnectio
         CurrentAccount = null;
         ProbeCount = 0;
         DisconnectCount = 0;
+        ThrowOnConnect = null;
     }
 
     Task<ConnectionView> IConnection.Read()
@@ -65,6 +67,11 @@ public sealed class FakeGitHubConnectionNeuron : Neuron, IConnection, IConnectio
 
     public Task<ConnectionView> Connect(string authMethodId, string value)
     {
+        if (ThrowOnConnect is not null)
+        {
+            throw ThrowOnConnect;
+        }
+
         CurrentStatus = ConnectionStatus.Connected;
         return ((IConnection)this).Read();
     }
@@ -94,6 +101,11 @@ public sealed class FakeGitHubConnectionNeuron : Neuron, IConnection, IConnectio
 
     public Task<ConnectionView> AcceptGrant(OAuthGrant grant)
     {
+        if (ThrowOnConnect is not null)
+        {
+            throw ThrowOnConnect;
+        }
+
         LastGrant = grant;
         CurrentStatus = ConnectionStatus.Connected;
         CurrentAccount = grant.Target;
@@ -478,6 +490,11 @@ public sealed class SettingsGitHubHubFacts
 
         Assert.Equal("flow-gh-1", settings.App.State.DeviceFlowId);
         Assert.Equal("ABCD-1234", settings.App.State.DeviceFlowUserCode);
+        Assert.NotNull(flow.LastConnectionKey);
+        var parsedDeviceKey = ConnectionKeys.Parse(flow.LastConnectionKey!);
+        Assert.Equal("local", parsedDeviceKey.BrainId);
+        Assert.Equal("github", parsedDeviceKey.ConnectorId);
+        Assert.Equal("main", parsedDeviceKey.ConnectionId);
 
         var startedWire = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
         Assert.Contains("ABCD-1234", startedWire, StringComparison.Ordinal);
@@ -496,16 +513,170 @@ public sealed class SettingsGitHubHubFacts
             && c.Account == "octocat");
     }
 
+    [Fact]
+    public async Task GitHubPatFormSubmission_FailsClosedOnVaultUnsealFailureAndConnectFailure()
+    {
+        FakeGitHubConnectionNeuron.Reset();
+        var pat = "github_pat_" + new string('b', 32);
+        var patRef = SecretReferences.For("local", "app.settings/default/github-pat/PersonalAccessToken", "Personal access token", isSet: true).Reference;
+        var webhookRef = SecretReferences.For("local", "app.settings/default/github-pat/WebhookSecret", "Webhook secret", isSet: true).Reference;
+
+        try
+        {
+            var brain = new BrainId("local");
+            await using var os = TestOS.Local()
+                .RegisterCatalog()
+                .Register<FakeGitHubConnectionNeuron>();
+            using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+
+            var settings = await os.Install<SettingsApp>();
+            var vault = new MemorySecretVault();
+            settings.App.SecretVault = vault;
+            await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
+            await os.Idle();
+
+            // 1. Unopenable PAT ref fails closed: never passes secret:// URI as token, marks Failing
+            await SubmitForm(
+                settings,
+                SettingsControls.GitHubPat,
+                new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" },
+                new Dictionary<string, string> { ["PersonalAccessToken"] = patRef });
+
+            Assert.Null(FakeGitHubConnectionNeuron.LastGrant);
+            var patFailRow = Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main");
+            Assert.Equal(ConnectionStatus.Failing, patFailRow.Status);
+            Assert.Contains("unseal", patFailRow.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+
+            // 2. Valid PAT + unopenable WebhookSecret fails closed: never claims "Webhook secret sealed"
+            vault.SetSecret(patRef, pat);
+            await SubmitForm(
+                settings,
+                SettingsControls.GitHubPat,
+                new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" },
+                new Dictionary<string, string> { ["PersonalAccessToken"] = patRef, ["WebhookSecret"] = webhookRef });
+
+            Assert.Null(FakeGitHubConnectionNeuron.LastGrant);
+            var webhookFailRow = Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main");
+            Assert.Equal(ConnectionStatus.Failing, webhookFailRow.Status);
+            Assert.DoesNotContain("Webhook secret sealed", webhookFailRow.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+
+            // 3. Valid PAT when AcceptGrant & Connect fail marks Failing (never Connected)
+            FakeGitHubConnectionNeuron.ThrowOnConnect = new InvalidOperationException("Bad credentials");
+            await SubmitForm(
+                settings,
+                SettingsControls.GitHubPat,
+                new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" },
+                new Dictionary<string, string> { ["PersonalAccessToken"] = patRef });
+
+            var connectFailRow = Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main");
+            Assert.Equal(ConnectionStatus.Failing, connectFailRow.Status);
+            Assert.Contains("Bad credentials", connectFailRow.Detail ?? "", StringComparison.Ordinal);
+            Assert.Contains("Bad credentials", settings.App.State.Status, StringComparison.Ordinal);
+        }
+        finally
+        {
+            FakeGitHubConnectionNeuron.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task McpAddWithConnectionSecretBinder_UsesCanonicalConnectionKeyWithoutEagerUnseal()
+    {
+        var binder = new RecordingConnectionSecretBinder();
+        var throwingVault = new ThrowingSecretVault();
+        var tokenRef = SecretReferences.For("local", "app.settings/default/mcp-add/token", "Bearer token", isSet: true).Reference;
+
+        var brain = new BrainId("local");
+        await using var os = TestOS.Local()
+            .RegisterCatalog()
+            .Register<FakeBearerMcpConnectionNeuron>();
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+
+        var settings = await os.Install<SettingsApp>();
+        settings.App.SecretVault = throwingVault;
+        settings.App.ConnectionSecretBinder = binder;
+        await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
+        await os.Idle();
+
+        await SubmitForm(
+            settings,
+            SettingsControls.McpAddForm,
+            new Dictionary<string, string> { ["name"] = "corp-mcp", ["url"] = "https://mcp.corp.example/api" },
+            new Dictionary<string, string> { ["token"] = tokenRef });
+
+        Assert.Equal(0, throwingVault.OpenCalls);
+        Assert.NotNull(binder.LastConnectionKey);
+        var parsed = ConnectionKeys.Parse(binder.LastConnectionKey!);
+        Assert.Equal("local", parsed.BrainId);
+        Assert.Equal("mcp", parsed.ConnectorId);
+        Assert.Equal("corp-mcp", parsed.ConnectionId);
+        Assert.Equal(tokenRef, binder.LastSecretRef);
+        Assert.Equal("bearer-token", binder.LastAuthMethodId);
+    }
+
+    private sealed class ThrowingSecretVault : ISecretVault
+    {
+        public int OpenCalls { get; private set; }
+        public Task<bool> HasSecretAsync(string secretName, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<string> GetSecretStatusAsync(string secretName, CancellationToken cancellationToken = default) => Task.FromResult("Not set");
+        public Task<string?> TryOpenSecretAsync(string secretName, CancellationToken cancellationToken = default)
+        {
+            OpenCalls++;
+            throw new InvalidOperationException("Vault must not be eagerly unsealed when IConnectionSecretBinder is present.");
+        }
+    }
+
+    private sealed class RecordingConnectionSecretBinder : IConnectionSecretBinder
+    {
+        public string? LastConnectionKey { get; private set; }
+        public string? LastSecretRef { get; private set; }
+        public string? LastAuthMethodId { get; private set; }
+
+        public Task<ConnectionView> BindAsync(
+            BrainId brain,
+            string connectorId,
+            string connectionKey,
+            string authMethodId,
+            string secretRef,
+            Func<string, string>? formatValue = null,
+            bool probe = true,
+            CancellationToken ct = default)
+        {
+            LastConnectionKey = connectionKey;
+            LastSecretRef = secretRef;
+            LastAuthMethodId = authMethodId;
+            return Task.FromResult(new ConnectionView(connectorId, ConnectionKeys.Parse(connectionKey).ConnectionId, authMethodId, ConnectionStatus.Connected, null, null, DateTimeOffset.UtcNow, null));
+        }
+
+        public Task<ConnectionView> BindGrantAsync(
+            BrainId brain,
+            string connectorId,
+            string connectionKey,
+            string authMethodId,
+            string secretRef,
+            string? target,
+            string? scopes = null,
+            Func<string, string>? formatValue = null,
+            bool probe = true,
+            CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
     private sealed class FakeOAuthDeviceFlow : IOAuthDeviceFlow
     {
+        public string? LastConnectionKey { get; private set; }
+
         public Task<OAuthDeviceStartResult> StartAsync(BrainId brainId, string connectionKey, string authMethodId, string? target = null, CancellationToken ct = default)
-            => Task.FromResult(new OAuthDeviceStartResult(
+        {
+            LastConnectionKey = connectionKey;
+            return Task.FromResult(new OAuthDeviceStartResult(
                 FlowId: "flow-gh-1",
                 UserCode: "ABCD-1234",
                 VerificationUri: "https://github.com/login/device",
                 VerificationUriComplete: "https://github.com/login/device?user_code=ABCD-1234",
                 ExpiresInSeconds: 900,
                 IntervalSeconds: 5));
+        }
 
         public Task<OAuthDevicePollResult> PollOnceAsync(BrainId brainId, string flowId, CancellationToken ct = default)
             => Task.FromResult(new OAuthDevicePollResult(

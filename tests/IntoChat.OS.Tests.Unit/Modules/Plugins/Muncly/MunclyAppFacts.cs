@@ -12,6 +12,7 @@ using IntoChat.Muncly.Screens;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Apps.Tests.Unit;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Identity.Contracts.Connections;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Tools;
 using IntoChat.OS.Modules.UI;
@@ -224,6 +225,95 @@ public sealed class MunclyAppFacts
         {
             FakeMunclyMcpConnectionNeuron.Reset();
         }
+    }
+
+    [Fact]
+    public async Task MunclyAppWithConnectionSecretBinder_UsesCanonicalConnectionKeyWithoutEagerUnseal()
+    {
+        var binder = new RecordingMunclySecretBinder();
+        var throwingPort = new ThrowingSecretVaultPort();
+        var tokenRef = SecretReferences.For("local", "app.muncly/default/muncly-connect/token", "MCP Bearer Token", isSet: true).Reference;
+
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretVaultPort>(throwingPort)
+            .AddSingleton<IConnectionSecretBinder>(binder)
+            .BuildServiceProvider();
+
+        var brain = new BrainId("local");
+        await using var os = TestOS.Local(o => o.Services = services)
+            .RegisterCatalog()
+            .Register<FakeMunclyMcpConnectionNeuron>();
+        os.Register<MunclyApp>();
+
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+        var muncly = await os.Install<MunclyApp>();
+        await muncly.Screen.Open();
+
+        var submit = new Submit(
+            new Dictionary<string, string> { ["url"] = "https://mcpdemo-crm.munc.ly" },
+            new Dictionary<string, string> { ["token"] = tokenRef });
+        await muncly.Screen.Dispatch(new Command(
+            MunclyApp.ConnectFormKey,
+            "control.submit",
+            JsonSerializer.SerializeToElement(submit, JsonSerializerOptions.Web)));
+        await os.Idle();
+
+        Assert.Equal(0, throwingPort.ResolveCalls);
+        Assert.NotNull(binder.LastConnectionKey);
+        var parsed = ConnectionKeys.Parse(binder.LastConnectionKey!);
+        Assert.Equal("local", parsed.BrainId);
+        Assert.Equal("mcp", parsed.ConnectorId);
+        Assert.Equal(MunclyOptions.DefaultMcpServerName, parsed.ConnectionId);
+        Assert.Equal(tokenRef, binder.LastSecretRef);
+        Assert.Equal("bearer-token", binder.LastAuthMethodId);
+    }
+
+    private sealed class ThrowingSecretVaultPort : ISecretVaultPort
+    {
+        public int ResolveCalls { get; private set; }
+        public Task<SecretVaultResult> Set(string name, string label, string value, CancellationToken cancellationToken) => Task.FromResult(SecretVaultResult.Denied);
+        public Task<SecretVaultStatus> Remove(string name, CancellationToken cancellationToken) => Task.FromResult(SecretVaultStatus.Ok);
+        public Task<SecretVaultResult> Resolve(SecretRef secret, CancellationToken cancellationToken)
+        {
+            ResolveCalls++;
+            throw new InvalidOperationException("ISecretVaultPort must not be eagerly called when IConnectionSecretBinder is present.");
+        }
+    }
+
+    private sealed class RecordingMunclySecretBinder : IConnectionSecretBinder
+    {
+        public string? LastConnectionKey { get; private set; }
+        public string? LastSecretRef { get; private set; }
+        public string? LastAuthMethodId { get; private set; }
+
+        public Task<ConnectionView> BindAsync(
+            BrainId brain,
+            string connectorId,
+            string connectionKey,
+            string authMethodId,
+            string secretRef,
+            Func<string, string>? formatValue = null,
+            bool probe = true,
+            CancellationToken ct = default)
+        {
+            LastConnectionKey = connectionKey;
+            LastSecretRef = secretRef;
+            LastAuthMethodId = authMethodId;
+            return Task.FromResult(new ConnectionView(connectorId, ConnectionKeys.Parse(connectionKey).ConnectionId, authMethodId, ConnectionStatus.Connected, null, null, DateTimeOffset.UtcNow, null));
+        }
+
+        public Task<ConnectionView> BindGrantAsync(
+            BrainId brain,
+            string connectorId,
+            string connectionKey,
+            string authMethodId,
+            string secretRef,
+            string? target,
+            string? scopes = null,
+            Func<string, string>? formatValue = null,
+            bool probe = true,
+            CancellationToken ct = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class InMemorySecretVaultPort(Dictionary<string, string> secrets) : ISecretVaultPort

@@ -371,7 +371,6 @@ public sealed partial class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigat
 
         var next = decision.Next!;
         var mcpUrl = MunclyAppState.BuildMcpEndpointUrl(rawUrl!);
-        var bearerToken = await TryResolveSecretRefAsync(tokenRef, ct);
         var connStatus = ConnectionStatus.Connected;
         string[] tools = next.DiscoveredTools;
         string? detail = null;
@@ -383,10 +382,11 @@ public sealed partial class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigat
                 McpServerState? serverState = null;
                 if (ConnectionSecretBinder is { } binder && !string.IsNullOrWhiteSpace(tokenRef))
                 {
+                    var fullConnectionKey = ConnectionKeys.For(connId.Brain.Value, IMcpToolConnection.TypeName, MunclyOptions.DefaultMcpServerName);
                     var connView = await binder.BindAsync(
                         connId.Brain,
                         IMcpToolConnection.TypeName,
-                        $"connection/mcp/{MunclyOptions.DefaultMcpServerName}",
+                        fullConnectionKey,
                         "bearer-token",
                         tokenRef,
                         formatValue: token => SerializeMcpBearerPayload(mcpUrl, token),
@@ -403,8 +403,14 @@ public sealed partial class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigat
                         Log.LogDebug(readError, "IMcpToolConnection.ReadState after Muncly binder BindAsync failed.");
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(bearerToken))
+                else if (!string.IsNullOrWhiteSpace(tokenRef))
                 {
+                    var bearerToken = await TryResolveSecretRefAsync(tokenRef, ct);
+                    if (string.IsNullOrWhiteSpace(bearerToken))
+                    {
+                        throw new InvalidOperationException("Failed to unseal Muncly Bearer token from vault.");
+                    }
+
                     var payload = SerializeMcpBearerPayload(mcpUrl, bearerToken);
                     var connView = await Connections[connId].Connect("bearer-token", payload);
                     try
