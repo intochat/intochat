@@ -75,9 +75,10 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
     protected override IReadOnlyList<string> Steps => StepNames;
 
     /// <summary>
-    /// Resolves the effective least-privilege contract subset for a task worker. Requested contracts are
-    /// intersected with <see cref="DefaultContracts"/> so workers never escalate beyond allowed contracts
-    /// and never run with an empty tool surface.
+    /// Resolves the effective least-privilege contract subset for a task worker. When <paramref name="requested"/>
+    /// is null or empty, returns <see cref="DefaultContracts"/>. When a non-empty allowlist is requested, intersects
+    /// it with <see cref="DefaultContracts"/> and fails closed (returning <c>[]</c>) if none are allowed so a
+    /// disallowed request never widens privileges.
     /// </summary>
     public static string[] ResolveContracts(string[]? requested)
     {
@@ -86,14 +87,12 @@ internal sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFl
             return [.. DefaultContracts];
         }
 
-        var filtered = requested
+        return requested
             .Where(static c => !string.IsNullOrWhiteSpace(c))
             .Select(static c => c.Trim())
             .Where(AllowedContracts.Contains)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-
-        return filtered.Length > 0 ? filtered : [.. DefaultContracts];
     }
 
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)

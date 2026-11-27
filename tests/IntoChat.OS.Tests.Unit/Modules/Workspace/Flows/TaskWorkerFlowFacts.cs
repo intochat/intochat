@@ -74,9 +74,9 @@ public sealed class TaskWorkerFlowFacts
         var narrowed = TaskWorkerFlow.ResolveContracts([typeof(ITasks).FullName!, "IntoChat.OS.Modules.Apps.IUserSettings"]);
         Assert.Equal([typeof(ITasks).FullName!], narrowed);
 
-        // If all requested contracts are disallowed, falls back to safe least-privilege defaults (never empty).
-        var fallback = TaskWorkerFlow.ResolveContracts(["IntoChat.OS.Modules.Apps.IUserSettings"]);
-        Assert.Equal(defaults, fallback);
+        // Fail-closed: if all requested contracts are disallowed/unrecognized, return empty [] and NEVER widen to DefaultContracts.
+        var disallowed = TaskWorkerFlow.ResolveContracts(["*/*", "IntoChat.OS.Modules.Identity.Contracts.Keys.IBrainKeys"]);
+        Assert.Empty(disallowed);
     }
 
     [Fact]
