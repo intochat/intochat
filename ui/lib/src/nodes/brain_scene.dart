@@ -4,11 +4,11 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../flame/prefabs/signal_pulse.dart';
+import '../flame/flame_prefabs.dart';
 import '../flame/scene_game.dart';
 import '../flame/scene_view.dart';
 import '../theme/wire_node_values.dart';
-import 'button.dart';
+import 'action_nodes.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 

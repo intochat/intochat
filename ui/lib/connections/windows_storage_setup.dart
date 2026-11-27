@@ -192,7 +192,7 @@ class _WindowsStorageSetupState extends State<WindowsStorageSetup> {
           ),
           const SizedBox(height: 16),
           if (!_connected)
-            UiKitButton(
+            UiMixButton.preset(
               label: 'Connect $_machineName',
               icon: 'local-machine',
               fullWidth: true,
@@ -232,7 +232,7 @@ class _WindowsStorageSetupState extends State<WindowsStorageSetup> {
               onSubmitted: (_) => _busy ? null : _allow(),
             ),
             const SizedBox(height: 16),
-            UiKitButton(
+            UiMixButton.preset(
               label: 'Allow folder',
               icon: 'plus',
               fullWidth: true,

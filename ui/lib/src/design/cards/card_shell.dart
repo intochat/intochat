@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../primitives/button.dart';
 import '../controls.dart';
 import '../keys.dart';
 import '../../theme/ui_colors.dart';
@@ -354,7 +355,12 @@ class CardError extends StatelessWidget {
           ),
           if (onRetry != null) ...[
             const SizedBox(width: 10),
-            Btn(label: retryLabel, small: true, onTap: onRetry),
+            UiMixButton.preset(
+              label: retryLabel,
+              style: UiMixButtonStyle.secondary,
+              compact: true,
+              onPressed: onRetry,
+            ),
           ],
         ],
       ),

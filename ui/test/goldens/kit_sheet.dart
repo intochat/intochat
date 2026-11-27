@@ -77,30 +77,38 @@ class KitSheet extends StatelessWidget {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              UiKitButton(label: 'Continue', onPressed: () {}),
-              UiKitButton(
+              UiMixButton.preset(label: 'Continue', onPressed: () {}),
+              UiMixButton.preset(
                 label: 'Manage',
-                style: UiKitButtonStyle.secondary,
+                style: UiMixButtonStyle.secondary,
                 onPressed: () {},
               ),
-              UiKitButton(
+              UiMixButton.preset(
                 label: 'Ghost',
-                style: UiKitButtonStyle.ghost,
+                style: UiMixButtonStyle.ghost,
                 onPressed: () {},
               ),
-              UiKitButton(
+              UiMixButton.preset(
                 label: 'Delete',
-                style: UiKitButtonStyle.danger,
+                style: UiMixButtonStyle.danger,
                 onPressed: () {},
               ),
-              UiKitButton(
+              UiMixButton.preset(
                 label: 'Read more',
-                style: UiKitButtonStyle.link,
+                style: UiMixButtonStyle.link,
                 onPressed: () {},
               ),
-              UiKitButton(label: 'New chat', icon: 'plus', onPressed: () {}),
-              UiKitButton(label: 'Small', compact: true, onPressed: () {}),
-              const UiKitButton(label: 'Disabled'),
+              UiMixButton.preset(
+                label: 'New chat',
+                icon: 'plus',
+                onPressed: () {},
+              ),
+              UiMixButton.preset(
+                label: 'Small',
+                compact: true,
+                onPressed: () {},
+              ),
+              const UiMixButton.preset(label: 'Disabled'),
             ],
           ),
         ]),
@@ -289,10 +297,10 @@ class _ValueTree extends StatelessWidget {
     final text = node['text'] as String? ?? '';
     return switch (node['kind']) {
       0 => Text(text),
-      1 => UiKitButton(
+      1 => UiMixButton.preset(
         label: text,
         icon: node['icon'] as String?,
-        style: UiKitButtonStyle.values[(node['style'] as int? ?? 0)],
+        style: UiMixButtonStyle.values[(node['style'] as int? ?? 0)],
         onPressed: () {},
       ),
       2 => Column(

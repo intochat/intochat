@@ -581,15 +581,16 @@
     <div class="badge-row">
       <span class="badge badge-accent">Owner Architecture Direction</span>
       <span class="badge badge-purple">Two-Plane Synthesis</span>
-      <span class="badge badge-blue">Milestones: intochat v0.24.0 + cloud v0.2.0</span>
-      <span class="badge badge-green">Zero Runtime Code Changes</span>
+      <span class="badge badge-green">Core Primitives Implemented on master</span>
+      <span class="badge badge-blue">Item #350 Wave 2A/2B Roadmap Approved</span>
     </div>
 
     <h1>Two-Plane Architecture: CodeOrchestrationSynapse &amp; Leased Devcontainer Slots</h1>
     <p class="subtitle">
-      A unified architectural blueprint reconciling two essential, non-competing execution requirements: 
-      <strong>Plane 1 (Code Mode)</strong> via an IAW-inspired <code>CodeOrchestrationSynapse</code> executing typed C# Neuron interactions in the native client/cloud sandbox, and 
+      A unified architectural blueprint reconciling two essential, non-competing execution requirements:
+      <strong>Plane 1 (Code Mode)</strong> via an IAW-inspired <code>CodeOrchestrationSynapse</code> executing typed C# Neuron interactions in the native client/cloud sandbox, and
       <strong>Plane 2 (Dev Mode)</strong> via leased Docker Compose devcontainer slots (<code>agent-dev-slots</code>) for full-stack repo engineering and live .NET Aspire verification.
+      Core primitives (Slices RFC-1 through RFC-4) are <strong>implemented on <code>master</code></strong>; end-to-end Ino unification and live candidate-host wiring are <strong>approved for Item #350 Wave 2A/2B</strong>.
     </p>
 
     <div class="meta-grid">
@@ -602,12 +603,12 @@
         <span class="meta-value">IAW <code>CodeOrchestratorAgent</code> + <code>agent-dev-slots</code></span>
       </div>
       <div class="meta-item">
-        <span class="meta-label">Status</span>
-        <span class="meta-value" style="color: var(--green);">Revised per Owner Feedback (PR #450)</span>
+        <span class="meta-label">Master Status</span>
+        <span class="meta-value" style="color: var(--green);">Slices RFC-1&ndash;RFC-4 Implemented on master</span>
       </div>
       <div class="meta-item">
-        <span class="meta-label">Guardrail Policy</span>
-        <span class="meta-value" style="color: var(--accent);">Strict: RFC &amp; Docs Only (No code implementation)</span>
+        <span class="meta-label">Next Approved Roadmap</span>
+        <span class="meta-value" style="color: var(--blue);">Item #350 Wave 2A &amp; Wave 2B (Planned)</span>
       </div>
     </div>
   </header>
@@ -644,7 +645,7 @@
           <span>IAW Reference Architecture</span>
           <span class="badge badge-amber">Direct Orleans Socket</span>
         </div>
-        <p><strong>Source:</strong> <code>E:\projects\Projects\IAW\src\Agents\Orchestration\CodeOrchestratorAgent.cs</code></p>
+        <p><strong>Source:</strong> IAW <code>CodeOrchestratorAgent.cs</code> (reference pattern)</p>
         <ul class="check-list">
           <li><strong>Mechanism:</strong> LLM generates a standalone C# console project (<code>net11.0</code>) with <code>using var iaw = await IAWCluster.Connect(args);</code> and <code>iaw.Get&lt;T&gt;(taskId)</code>.</li>
           <li><strong>Compilation:</strong> Pre-sanitizes usings via <code>CodeValidator</code>, runs <code>dotnet build</code>, feeds compiler diagnostics back to LLM in a 2-attempt repair loop.</li>
@@ -674,7 +675,7 @@
         <thead>
           <tr>
             <th>Module / Building Block</th>
-            <th>Location in Master Codebase</th>
+            <th>Location on Master &amp; Status</th>
             <th>Plane 1 Role (Code Mode)</th>
             <th>Plane 2 Role (Dev Mode)</th>
           </tr>
@@ -682,26 +683,35 @@
         <tbody>
           <tr>
             <td>
-              <strong>Ino &amp; Synapse Engine</strong><br/>
-              <code>src/Modules/Catalog</code><br/>
-              <code>DigitalBrain.Runtime.Synapses</code>
+              <strong>Workspace Flows &amp; Synapse Engine</strong>
             </td>
             <td>
-              Ino detects query/automation intent &rarr; triggers <code>CodeOrchestrationSynapse</code>. Compiles unit with Roslyn analyzers.
+              <code>src/Modules/Workspace/Flows/CodeOrchestrationSynapse.cs</code><br/>
+              <code>src/Modules/Workspace/Flows/EngineerFlow.cs</code><br/>
+              <code>framework/src/DigitalBrain.Simulation/RuntimeSynapses/</code><br/>
+              <span class="status-pill status-live">&#10003; Implemented on master</span>
+              <span class="status-pill status-proposed">Wave 2A: Ino rebind</span>
             </td>
             <td>
-              Ino detects refactoring/bugfix intent &rarr; launches <code>EngineerFlow</code> durable pipeline.
+              <code>CodeOrchestrationSynapse</code> compiles &amp; sanitizes typed C# scripts with Roslyn. <em>Planned Wave 2A:</em> rebind Ino off legacy <code>src/Modules/Workspace/CodeBlocks/CodeBlockRunNeuron.cs</code> onto <code>ICodeOrchestration</code> + right-hand <code>SplitPaneNode</code> Inline Live App Drawer.
+            </td>
+            <td>
+              <code>EngineerFlow</code> + <code>InoNativeHarness</code> (<code>src/Modules/Workspace/Flows/Harness/</code>) orchestrate multi-stage repo engineering runs.
             </td>
           </tr>
 
           <tr>
             <td>
-              <strong>Sandbox Edge &amp; AppToken</strong><br/>
-              <code>src/IntoChat.OS.Kernel/Sandbox</code><br/>
-              <code>SandboxEdgeEndpoints.cs</code>
+              <strong>Sandbox Edge &amp; AppToken</strong>
             </td>
             <td>
-              <strong>Core Bridge:</strong> Mediates <code>/edge/sandbox/invoke</code>, <code>/signals</code>, <code>/logs</code>. Validates <code>AppToken</code> bound to brain + task.
+              <code>src/IntoChat.OS.Kernel/Sandbox/SandboxEdgeEndpoints.cs</code><br/>
+              <code>src/IntoChat.OS.Kernel/Sandbox/AppTokenService.cs</code><br/>
+              <code>src/IntoChat.OS.Sandbox/IntoChatClient.cs</code><br/>
+              <span class="status-pill status-live">&#10003; Implemented on master</span>
+            </td>
+            <td>
+              <strong>Core Bridge:</strong> Mediates <code>/edge/sandbox/invoke</code>, <code>/signals</code>, <code>/logs</code>. Validates scoped <code>AppToken</code> bound to brain + task.
             </td>
             <td>
               Supplies black-box token and edge callback for candidate host verification.
@@ -710,42 +720,54 @@
 
           <tr>
             <td>
-              <strong>Devices Module &amp; Relays</strong><br/>
-              <code>src/Modules/Devices</code><br/>
-              <code>HardwareProbe.cs</code>, <code>DeviceLinkNeuron.cs</code>
+              <strong>Devices &amp; Connected Compute</strong>
             </td>
             <td>
-              <strong>Execution Target:</strong> Dispatches the sandboxed C# script to an enrolled user PC or Android device over P-256 edge relay.
+              <code>src/Modules/AI/Devices/Hardware/HardwareProbe.cs</code><br/>
+              <code>src/Modules/AI/Devices/Link/DeviceLinkNeuron.cs</code><br/>
+              <code>src/Modules/AI/Devices/Link/ConnectedComputeRouter.cs</code><br/>
+              <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
-              Discovers local GPU capacity for running Ollama/DeepSeek repair models in <code>InoNativeHarness</code>.
+              <strong>Execution Target:</strong> Dispatches sandboxed C# scripts to an enrolled user PC over P-256 edge relay (namespace <code>IntoChat.OS.Modules.Devices</code> inside <code>IntoChat.OS.Modules.AI</code>).
+            </td>
+            <td>
+              Discovers local GPU capacity for running Ollama/Foundry repair models in <code>InoNativeHarness</code>.
             </td>
           </tr>
 
           <tr>
             <td>
-              <strong>Candidate Hosts</strong><br/>
-              <code>src/Components/Aspire/Neurons/Candidates</code><br/>
-              <code>ProcessCandidateHost.cs</code>
+              <strong>Candidate Hosts</strong>
+            </td>
+            <td>
+              <code>src/Components/Aspire/Neurons/Candidates/ICandidateHost.cs</code><br/>
+              <code>ProcessCandidateHost.cs</code>, <code>AgentDevSlotsCandidateHost.cs</code>,<br/>
+              <code>CandidateSlotLeasePool.cs</code>, <code>AcaDynamicSessionsCandidateHost.cs</code><br/>
+              <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
               <em>Not used</em> (Plane 1 executes scripts, not whole OS instances).
             </td>
             <td>
-              <strong>Verification Spine:</strong> Ephemeral loopback ports &amp; temp homes; easily plugs into <code>agent-dev-slots</code> Docker Compose leases.
+              <strong>Verification Spine:</strong> Ephemeral loopback ports &amp; temp homes, leased Docker Compose slots (<code>agent-dev-slots</code>), and ACA Dynamic Sessions candidate hosts.
             </td>
           </tr>
 
           <tr>
             <td>
-              <strong>EngineerLiveVerifier</strong><br/>
-              <code>src/Modules/Catalog/Flows/Live</code>
+              <strong>EngineerLiveVerifier</strong>
+            </td>
+            <td>
+              <code>src/Modules/Workspace/Flows/Verification/EngineerLiveVerifier.cs</code><br/>
+              <span class="status-pill status-live">&#10003; Implemented on master</span>
+              <span class="status-pill status-proposed">Wave 2B: ICandidateHost wiring</span>
             </td>
             <td>
               <em>Not used</em> (Plane 1 checks <code>result.json</code> and exception traces).
             </td>
             <td>
-              <strong>Gatekeeper:</strong> Probes candidate HTTP <code>/health</code>, MCP <code>tools/list</code>, and zero error telemetry spans.
+              <strong>Gatekeeper:</strong> Probes candidate HTTP <code>/health</code>, MCP <code>tools/list</code>, and zero error telemetry spans. <em>Planned Wave 2B:</em> wire directly to <code>ICandidateHost</code> (fail-closed when unconfigured, isolated from host custody keys/secrets).
             </td>
           </tr>
         </tbody>
@@ -1004,14 +1026,14 @@
         <span class="badge badge-green">Architectural Verdict</span>
       </div>
       <p style="font-size:14px; color:var(--text); line-height:1.65;">
-        In IntoChat OS, an ad-hoc agent is merely a prompt loop. A <strong>Synapse</strong>, by contrast, is a first-class, durable, reactive reactive unit of code governed by DigitalBrain analyzers, capable of holding state, subscribing to signals, and interacting with cluster capabilities. Implementing Code Orchestration as a Synapse provides five critical superpowers:
+        In IntoChat OS, an ad-hoc agent is merely a prompt loop. A <strong>Synapse</strong>, by contrast, is a first-class, durable, reactive unit of code governed by DigitalBrain analyzers, capable of holding state, subscribing to signals, and interacting with cluster capabilities. Implementing Code Orchestration as a Synapse provides five critical superpowers:
       </p>
 
       <div class="grid-2" style="margin-top:16px;">
         <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
           <div style="font-weight:700; color:var(--accent); font-size:13.5px; margin-bottom:6px;">1. Scoped Grant &amp; AppToken Minting</div>
           <div style="font-size:13px; color:var(--muted);">
-            The Synapse inspects the user intent, queries <code>CodeGraph</code> for only the required <code>[NeuronContract]</code> interfaces (e.g. <code>INotifications</code>, <code>ITables</code>), and mints a short-lived, least-privilege <code>AppToken</code> authorizing only those contracts. The script cannot reach unauthorized Neurons.
+            The Synapse inspects the user intent, queries <code>NeuronContractDiscovery</code> for only the required <code>[NeuronContract]</code> interfaces (e.g. <code>INotifications</code>, <code>ITables</code>), and mints a short-lived, least-privilege <code>AppToken</code> authorizing only those contracts. The script cannot reach unauthorized Neurons.
           </div>
         </div>
 
@@ -1038,9 +1060,9 @@
       </div>
 
       <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border); margin-top:14px;">
-        <div style="font-weight:700; color:var(--green); font-size:13.5px; margin-bottom:6px;">5. Crystallization into Permanent Apps-as-Data</div>
+        <div style="font-weight:700; color:var(--green); font-size:13.5px; margin-bottom:6px;">5. Crystallization into Permanent Apps-as-Data <span class="status-pill status-proposed">Planned Wave 2A</span></div>
         <div style="font-size:13px; color:var(--muted);">
-          When a generated C# script proves useful (e.g. daily PR summary or Linear triage), the user can click <strong>"Save as App"</strong>. IntoChat crystallizes the script into a permanent <strong>App-as-Data</strong> package with <code>[OnSignal]</code> and <code>[Every]</code> handlers, running in the sandbox forever without re-generation costs.
+          When a generated C# script or inline app proves useful (e.g. daily PR summary or Linear triage), the user can click <strong>"Pin as App"</strong> in Ino's Inline Live App Drawer (<code>SplitPaneNode</code>). Planned Wave 2A adds <code>CrystallizeAsync</code> &rarr; <code>UnitDeployer</code> (<code>framework/src/DigitalBrain.Simulation/RuntimeSynapses/Host/UnitDeployer.cs</code>) to deploy it as a permanent sandboxed <strong>App-as-Data</strong> package running strictly inside <code>IntoChat.OS.Sandbox</code> with least-privilege <code>AppToken</code> grants.
         </div>
       </div>
     </div>
@@ -1052,7 +1074,7 @@
         <span class="badge badge-accent">C# net11.0 Syntax</span>
       </div>
       <p style="font-size:13px; color:var(--muted);">
-        Notice how IntoChat OS provides identical developer ergonomics to IAW, but executes over the secure <code>IntoChatClient</code> reverse proxy instead of joining the Orleans cluster.
+        Notice how IntoChat OS provides identical developer ergonomics to IAW, but executes over the secure <code>IntoChatClient</code> reverse proxy (<code>src/IntoChat.OS.Sandbox/IntoChatClient.cs</code>) instead of joining the Orleans cluster.
       </p>
 
       <div class="grid-2" style="margin-top:12px;">
@@ -1074,20 +1096,19 @@ File.WriteAllText("result.json", ...);</code></pre>
         </div>
 
         <div>
-          <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">IntoChat OS Style (Closed Edge Proxy)</span>
+          <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">IntoChat OS Style (Closed Edge Proxy &mdash; Illustrative)</span>
           <pre><code>// IntoChat OS: Sovereign Sandboxed Execution
-using IntoChat.OS.Client;
-using IntoChat.OS.Modules.GitHub.Contracts;
-using IntoChat.OS.Modules.Catalog.Contracts;
+using IntoChat.OS.Sandbox;
+using IntoChat.Sdk; // e.g. INotifications, ITables
 
 using var os = await IntoChatClient.ConnectAsync(args);
 
-// Proxied over /edge/sandbox/invoke with AppToken
-var github = os.Get&lt;IGitHub&gt;("repo:intochat");
+// Proxied over /edge/sandbox/invoke with scoped AppToken
+var tables = os.Get&lt;ITables&gt;("triage");
 var notify = os.Get&lt;INotifications&gt;();
 
-var prs = await github.ListActivePRsAsync();
-await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
+var rows = await tables.QueryAsync("open_prs");
+await notify.PublishAsync("Open PRs audited: " + rows.Count);</code></pre>
         </div>
       </div>
     </div>
@@ -1097,13 +1118,13 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
   <section id="section-5">
     <div class="section-header">
       <span class="section-tag">Section 5</span>
-      <h2>Phased Rollout Plan &amp; Owner Decisions</h2>
+      <h2>Implemented Primitives vs. Approved Item #350 Wave 2A/2B Roadmap</h2>
       <p class="section-desc">
-        Structured vertical slices implementing the Two-Plane Architecture, accompanied by the interactive decision panel for owner sign-off.
+        Clear separation between the four foundational Two-Plane slices already implemented on <code>master</code> and the owner-approved Item #350 Wave 2A/2B integration roadmap.
       </p>
     </div>
 
-    <!-- 4 Rollout Slices -->
+    <!-- 4 Rollout Slices (Implemented on master) -->
     <div class="grid-2" style="margin-bottom:28px;">
       <div class="card">
         <div class="card-header">
@@ -1111,7 +1132,7 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
           <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Implemented <code>CodeOrchestrationSynapse</code> in <code>src/Modules/Workspace/Flows</code>. Roslyn in-memory compilation and AST sanitization of generated C# scripts, contract extraction from <code>NeuronContractDiscovery</code>, least-privilege scoped <code>AppToken</code> minting, and execution in <code>IntoChat.OS.Sandbox</code>.
+          Implemented <code>CodeOrchestrationSynapse</code> in <code>src/Modules/Workspace/Flows/CodeOrchestrationSynapse.cs</code>. Roslyn in-memory compilation and AST sanitization of generated C# scripts, contract extraction from <code>NeuronContractDiscovery</code> (<code>src/IntoChat.OS.Host/Surface/NeuronContractDiscovery.cs</code>), least-privilege scoped <code>AppToken</code> minting, and execution in <code>IntoChat.OS.Sandbox</code>.
         </p>
       </div>
 
@@ -1121,7 +1142,7 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
           <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Extended <code>IntoChat.OS.Modules.Devices</code> to advertise <code>ICodeSandbox</code> capability over the paired P-256 edge relay with explicit device consent toggles. Enables <code>CodeOrchestrationSynapse</code> to dispatch scripts locally to the owner's Windows, macOS, or Linux workstation.
+          Extended <code>src/Modules/AI/Devices/</code> (namespace <code>IntoChat.OS.Modules.Devices</code> inside <code>IntoChat.OS.Modules.AI</code>) to advertise <code>ICodeSandbox</code> capability over the paired P-256 edge relay with explicit device consent toggles. Enables <code>CodeOrchestrationSynapse</code> to dispatch scripts locally to the owner's Windows, macOS, or Linux workstation.
         </p>
       </div>
 
@@ -1131,7 +1152,7 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
           <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Implemented <code>AgentDevSlotsCandidateHost</code> and <code>CandidateSlotLeasePool</code> implementing <code>ICandidateHost</code> for <code>EngineerFlow</code>. Leases Docker Compose slots with dynamic port allocation, unprivileged UID 1000, warm sidecar reuse, and ephemeral homes for full Aspire verification.
+          Implemented <code>AgentDevSlotsCandidateHost</code> and <code>CandidateSlotLeasePool</code> in <code>src/Components/Aspire/Neurons/Candidates/</code> implementing <code>ICandidateHost</code>. Leases Docker Compose slots with dynamic port allocation, unprivileged UID 1000, warm sidecar reuse, and ephemeral homes for full Aspire verification.
         </p>
       </div>
 
@@ -1141,19 +1162,47 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
           <span class="status-pill status-live">&#10003; Implemented on master</span>
         </div>
         <p>
-          Implemented the headless cloud fallback over Azure Container Apps Dynamic Sessions (<code>poolManagementEndpoint</code>) via shared <code>AcaDynamicSessionsClient</code> + <code>ManagedIdentityAcaTokenProvider</code> with per-session Kata MicroVM <code>identifier</code> isolation, strict timeouts, secret-scrubbed payloads, and fail-closed dormancy when unconfigured: <code>AcaDynamicSessionsSandbox</code> (Plane 1 Tier-3 fallback in <code>Sovereign Client &rarr; Local Sandbox &rarr; ACA Dynamic Sessions</code>) and <code>AcaDynamicSessionsCandidateHost</code> (Plane 2 <code>CandidateHostMode.AcaDynamicSessions</code>).
+          Implemented the headless cloud fallback over Azure Container Apps Dynamic Sessions (<code>poolManagementEndpoint</code>) via shared <code>AcaDynamicSessionsClient</code> + <code>ManagedIdentityAcaTokenProvider</code> (<code>src/IntoChat.OS.Host/Execution/AcaDynamicSessions/</code>) with per-session Kata MicroVM <code>identifier</code> isolation, strict timeouts, secret-scrubbed payloads, and fail-closed dormancy when unconfigured: <code>AcaDynamicSessionsSandbox</code> (<code>src/IntoChat.OS.Kernel/Sandbox/</code>) and <code>AcaDynamicSessionsCandidateHost</code> (<code>src/Components/Aspire/Neurons/Candidates/</code>).
         </p>
       </div>
     </div>
 
-    <!-- Interactive Decision Panel -->
+    <!-- Approved Item #350 Wave 2A & 2B Roadmap (Planned) -->
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div class="card" style="border-color: rgba(96, 165, 250, 0.4);">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--blue);">Wave 2A (Item #350): Unified Ino Inline Live App Drawer &amp; Pin as App</span>
+          <span class="status-pill status-proposed">Planned &mdash; Approved</span>
+        </div>
+        <ul class="check-list">
+          <li><strong>Rebind Ino onto <code>CodeOrchestrationSynapse</code>:</strong> Route Ino script &amp; authoring tools through <code>ICodeOrchestration</code> (fail-closed Roslyn AST sanitizer + scoped 5-min <code>AppToken</code>).</li>
+          <li><strong>Inline Live App Drawer (<code>SplitPaneNode</code>):</strong> Render active builds/apps inline in Ino's right-hand drawer (<code>Preview | Diff | Logs</code>) with a <code>28px</code> active context chip above the composer (removing the <code>"change &lt;alias&gt;:"</code> prefix).</li>
+          <li><strong>1-Click Pin as App:</strong> Crystallize active scripts/apps via <code>CrystallizeAsync</code> &rarr; <code>UnitDeployer</code> running strictly inside <code>IntoChat.OS.Sandbox</code>.</li>
+          <li><strong>Retire Legacy Surfaces:</strong> Delete <code>CodeBlockRunNeuron</code> (<code>src/Modules/Workspace/CodeBlocks/CodeBlockRunNeuron.cs</code>) and standalone <code>CreatorApp</code> (<code>src/IntoChat.OS.Apps/Creator/</code>, demoting the 3D Brain/Accordant inspector to opt-in <code>DevUI</code>).</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color: rgba(96, 165, 250, 0.4);">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--blue);">Wave 2B (Item #350): EngineerLiveVerifier &rarr; ICandidateHost &amp; Retire EngineerApp</span>
+          <span class="status-pill status-proposed">Planned &mdash; Approved</span>
+        </div>
+        <ul class="check-list">
+          <li><strong>Wire <code>EngineerLiveVerifier</code> to <code>ICandidateHost</code>:</strong> Connect <code>src/Modules/Workspace/Flows/Verification/EngineerLiveVerifier.cs</code> to <code>ProcessCandidateHost</code> and <code>AgentDevSlotsCandidateHost</code>, failing closed when unconfigured and isolating candidate slots from host custody keys and secrets.</li>
+          <li><strong>Surface PR Runs Inside Ino:</strong> Escalate multi-file repo changes from Plane 1 into durable <code>ITasks</code> + SHA-bound PR cards inside Ino.</li>
+          <li><strong>Retire Standalone <code>EngineerApp</code>:</strong> Delete standalone <code>src/IntoChat.OS.Apps/Engineer/</code> (including fake <code>eng-01</code> / <code>aaaa...</code> SHA / <code>pull/204</code> reducers).</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Owner Sign-Off Record -->
     <div class="decision-panel">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h3 style="margin:0; font-size:18px; color:var(--text);">&#9997; Owner Sign-Off: Two-Plane Architectural Confirmation</h3>
-        <span class="badge badge-accent">Interactive Decision Card</span>
+        <h3 style="margin:0; font-size:18px; color:var(--text);">&#9997; Owner Sign-Off Record: Two-Plane Architectural Decisions</h3>
+        <span class="badge badge-green">Approved (RFC + Item #350)</span>
       </div>
       <p style="margin:0 0 20px; font-size:13.5px; color:var(--muted);">
-        Please confirm your preferred configuration for the Two-Plane Architecture. Click "Copy Approved Decision Config" to output the decisions into chat.
+        All four foundational Two-Plane decisions below are confirmed and implemented on <code>master</code> (Slices RFC-1&ndash;RFC-4), with Wave 2A/2B product unification approved under Item #350.
       </p>
 
       <!-- Decision 1 -->
@@ -1265,7 +1314,7 @@ await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
         client_compute_consent: d3,
         cloud_fallback_provider: d4
       },
-      next_action: "Dispatch worker for Slice RFC-1 (CodeOrchestrationSynapse & Scoped AppToken)"
+      next_action: "Execute approved Item #350 Wave 2A (Ino CodeOrchestrationSynapse + SplitPaneNode Inline Live App Drawer) & Wave 2B (EngineerLiveVerifier -> ICandidateHost)"
     };
 
     const text = JSON.stringify(payload, null, 2);

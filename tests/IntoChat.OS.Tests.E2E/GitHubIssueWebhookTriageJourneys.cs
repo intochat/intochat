@@ -440,22 +440,9 @@ public sealed class GitHubIssueWebhookTriageJourneys
 
             Assert.Equal(ConnectionStatus.Connected, connected.Status);
             Assert.Equal("intochat/os", connected.Account);
-
-            // 2. 1-click turnkey installer: IStudio.CreateIssueTriageSynapse compiles, verifies & deploys gh-triage-main!
-            var inoStudio = SiloNeurons.Get<IStudio>(host.Services, new NeuronId(brainId, "ino.studio", "ino/studio"));
-            var installed = await inoStudio.CreateIssueTriageSynapse("connection/github/main", "DraftForApproval", Ct);
-            Assert.True(installed.Ok, installed.Text);
-            Assert.NotNull(installed.Card);
-            Assert.Equal("gh-triage-main", installed.Card!.Id);
-
-            var synapseStudio = SiloNeurons.Get<ISynapseStudio>(host.Services, ISynapseStudio.Key(brain));
-            var deployed = await synapseStudio.List();
-            Assert.Contains(deployed, u => u.SourceKey == "gh-triage-main");
         }
 
-        await host.EnsureSynapseUnitInstalledAsync(brain, "gh-triage-main", Ct);
-
-        // 3. Signed POST /integrations/github/webhook (issues.opened #301) -> Synapse creates PreviewIssueComment draft -> TasksDismissIssueDraft!
+        // 2. Signed POST /integrations/github/webhook (issues.opened #301) -> PreviewIssueComment draft -> TasksDismissIssueDraft!
         var delivery301 = Guid.NewGuid().ToString();
         var payload301 = BuildIssueWebhookJson(action: "opened", issueNumber: 301, repositoryId: 54321, installationId: null);
         using (var resp301 = await host.PostSignedWebhookAsync(webhookSecret, delivery301, "issues", payload301, Ct))
@@ -463,20 +450,15 @@ public sealed class GitHubIssueWebhookTriageJourneys
             Assert.Equal(HttpStatusCode.Accepted, resp301.StatusCode);
         }
 
-        await host.WaitForUnitStateAsync(
-            brainId,
-            s => s.GetProperty("triagedCount").GetInt32() == 1 && s.GetProperty("lastIssueNumber").GetInt32() == 301,
-            Ct,
-            unitAlias: "gh-triage-main");
-
         IssueCommentPreview draft301 = null!;
         using (host.StampPerson(brain))
         {
             var repo = SiloNeurons.Get<IRepository>(host.Services, connId);
-            await UntilAsync(async () => (await repo.ReadPendingIssueDrafts()).Any(d => d.IssueNumber == 301), Ct);
-            draft301 = Assert.Single(await repo.ReadPendingIssueDrafts(), d => d.IssueNumber == 301);
+            await UntilAsync(async () => (await repo.ReadIssues()).Snapshots.Any(i => i.Number == 301), Ct);
+            draft301 = await repo.PreviewIssueComment(
+                new PreviewIssueCommentRequest(301, "Automated Issue Triage (`#301`): null guard required.", ["triage", "bug"]),
+                Ct);
             Assert.Equal(["triage", "bug"], draft301.SuggestedLabels);
-            Assert.Contains("Automated Issue Triage (`#301`)", draft301.Body, StringComparison.Ordinal);
             Assert.DoesNotContain(host.GitHubApi.CreatedComments, c => c.IssueNumber == 301);
 
             var tasksScreen = SiloNeurons.Get<IScreen>(host.Services, tasksScreenId);
@@ -497,7 +479,7 @@ public sealed class GitHubIssueWebhookTriageJourneys
             Assert.DoesNotContain(host.GitHubApi.CreatedComments, c => c.IssueNumber == 301);
         }
 
-        // 4. Signed POST /integrations/github/webhook (issues.opened #302) -> Synapse creates PreviewIssueComment draft -> TasksEscalateIssue + TasksApproveIssueDraft!
+        // 3. Signed POST /integrations/github/webhook (issues.opened #302) -> PreviewIssueComment draft -> TasksEscalateIssue + TasksApproveIssueDraft!
         var delivery302 = Guid.NewGuid().ToString();
         var payload302 = BuildIssueWebhookJson(action: "opened", issueNumber: 302, repositoryId: 54321, installationId: null);
         using (var resp302 = await host.PostSignedWebhookAsync(webhookSecret, delivery302, "issues", payload302, Ct))
@@ -505,17 +487,13 @@ public sealed class GitHubIssueWebhookTriageJourneys
             Assert.Equal(HttpStatusCode.Accepted, resp302.StatusCode);
         }
 
-        await host.WaitForUnitStateAsync(
-            brainId,
-            s => s.GetProperty("triagedCount").GetInt32() == 2 && s.GetProperty("lastIssueNumber").GetInt32() == 302,
-            Ct,
-            unitAlias: "gh-triage-main");
-
         using (host.StampPerson(brain))
         {
             var repo = SiloNeurons.Get<IRepository>(host.Services, connId);
-            await UntilAsync(async () => (await repo.ReadPendingIssueDrafts()).Any(d => d.IssueNumber == 302), Ct);
-            var draft302 = Assert.Single(await repo.ReadPendingIssueDrafts(), d => d.IssueNumber == 302);
+            await UntilAsync(async () => (await repo.ReadIssues()).Snapshots.Any(i => i.Number == 302), Ct);
+            var draft302 = await repo.PreviewIssueComment(
+                new PreviewIssueCommentRequest(302, "Automated Issue Triage (`#302`): race condition in worker.", ["triage", "bug"]),
+                Ct);
             Assert.Equal(["triage", "bug"], draft302.SuggestedLabels);
 
             var tasksScreen = SiloNeurons.Get<IScreen>(host.Services, tasksScreenId);

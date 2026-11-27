@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/nodes/button.dart';
-import 'package:intochat_os_flutter_shell/src/nodes/card.dart';
-import 'package:intochat_os_flutter_shell/src/nodes/icon_button.dart';
-import 'package:intochat_os_flutter_shell/src/nodes/surface.dart';
+import 'package:intochat_os_flutter_shell/src/nodes/action_nodes.dart';
+import 'package:intochat_os_flutter_shell/src/nodes/surface_nodes.dart';
+
 import 'package:intochat_os_flutter_shell/src/primitives/ui_control_surface.dart';
 
 void main() {
@@ -455,8 +454,17 @@ void main() {
     'UiStyleMapper.widgetStateBoxStyler and textStyle map typography (Inter only) and variants',
     (tester) async {
       late TextStyle displayStyle;
-      late TextStyle metricStyle;
+      late TextStyle headingStyle;
+      late TextStyle labelStyle;
+      late TextStyle bodyNeutralStyle;
+      late TextStyle bodyAccentStyle;
+      late TextStyle metaStyle;
+      late TextStyle secondaryStyle;
+      late TextStyle metaOverrideStyle;
       late TextStyle captionStyle;
+      late TextStyle groupStyle;
+      late TextStyle metricStyle;
+      late TextStyle fallbackStyle;
       late Object widgetStateStyler;
 
       await tester.pumpWidget(
@@ -468,13 +476,50 @@ void main() {
                 context,
                 const UiStyleData(tone: 'accent', typography: 'display'),
               );
-              metricStyle = UiStyleMapper.textStyle(
+              headingStyle = UiStyleMapper.textStyle(
                 context,
-                const UiStyleData(tone: 'default', typography: 'metric'),
+                const UiStyleData(tone: 'default', typography: 'heading'),
+              );
+              labelStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'label'),
+              );
+              bodyNeutralStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'body'),
+              );
+              bodyAccentStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'accent', typography: 'body'),
+              );
+              metaStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'meta'),
+              );
+              secondaryStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'secondary'),
+              );
+              metaOverrideStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'meta'),
+                colorOverride: Colors.red,
               );
               captionStyle = UiStyleMapper.textStyle(
                 context,
                 const UiStyleData(tone: 'ghost', typography: 'caption'),
+              );
+              groupStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'group'),
+              );
+              metricStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'metric'),
+              );
+              fallbackStyle = UiStyleMapper.textStyle(
+                context,
+                const UiStyleData(tone: 'default', typography: 'unknown-token'),
               );
               widgetStateStyler = UiStyleMapper.widgetStateBoxStyler(
                 context,
@@ -492,18 +537,44 @@ void main() {
         ),
       );
 
+      final colors = UiColors.intochatLight;
       expect(displayStyle.fontFamily, UiType.display);
       expect(displayStyle.fontSize, 24);
+      expect(headingStyle.fontFamily, UiType.display);
+      expect(headingStyle.fontSize, 17);
+      expect(headingStyle.fontWeight, FontWeight.w700);
+      expect(labelStyle.fontFamily, UiType.sans);
+      expect(labelStyle.fontSize, 13.5);
+      expect(labelStyle.fontWeight, FontWeight.w600);
+      expect(bodyNeutralStyle.fontFamily, UiType.sans);
+      expect(bodyNeutralStyle.fontSize, 14);
+      expect(bodyNeutralStyle.fontWeight, FontWeight.w400);
+      expect(bodyNeutralStyle.height, 1.5);
+      expect(bodyNeutralStyle.color, colors.textBody);
+      expect(bodyAccentStyle.color, colors.onAccent);
+      expect(metaStyle.fontSize, 13);
+      expect(metaStyle.fontWeight, FontWeight.w400);
+      expect(metaStyle.color, colors.textMuted);
+      expect(secondaryStyle.fontSize, 13);
+      expect(secondaryStyle.fontWeight, FontWeight.w400);
+      expect(secondaryStyle.color, colors.textMuted);
+      expect(metaOverrideStyle.color, Colors.red);
+      expect(captionStyle.fontFamily, UiType.sans);
+      expect(captionStyle.fontSize, 12.5);
+      expect(captionStyle.fontWeight, FontWeight.w400);
+      expect(groupStyle.fontSize, 11.5);
+      expect(groupStyle.fontWeight, FontWeight.w700);
+      expect(groupStyle.letterSpacing, 0.6);
       expect(metricStyle.fontFamily, UiType.sans);
       expect(metricStyle.fontFeatures, UiType.tabular);
-      expect(captionStyle.fontFamily, UiType.sans);
-      expect(captionStyle.fontSize, 12);
+      expect(fallbackStyle.fontSize, 14);
+      expect(fallbackStyle.fontWeight, FontWeight.w400);
       expect(widgetStateStyler, isNotNull);
     },
   );
 
   testWidgets(
-    'renderButton uses UiMixButton for structured Mix.Style() JSON and UiKitButton for legacy strings',
+    'renderButton routes both structured Mix.Style() JSON and legacy strings through UiMixButton',
     (tester) async {
       final structuredNode = ButtonNode.fromJson({
         'key': 'btn-mix',
@@ -540,8 +611,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(UiMixButton), findsOneWidget);
-      expect(find.byType(UiKitButton), findsOneWidget);
+      expect(find.byType(UiMixButton), findsNWidgets(2));
       expect(find.text('Mix Styled'), findsOneWidget);
       expect(find.text('Legacy Primary'), findsOneWidget);
     },

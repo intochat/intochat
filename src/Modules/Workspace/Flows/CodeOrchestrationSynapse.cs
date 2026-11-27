@@ -175,10 +175,13 @@ internal sealed class CodeOrchestrationSynapse(
         CancellationToken ct)
     {
         var goal = !string.IsNullOrWhiteSpace(inner.Goal) ? inner.Goal : State.Title;
-        var allowedFilter = inner.AllowedContracts.Length > 0
-            ? NeuronContractDiscovery.NormalizeScopeList(inner.AllowedContracts)
+        var hasAllowedConstraint = inner.AllowedContracts.Length > 0;
+        var allowedFilter = hasAllowedConstraint
+            ? SanitizeScopeList(inner.AllowedContracts)
             : null;
-        var discoveredContracts = NeuronContractDiscovery.Discover(filterAliases: allowedFilter);
+        var discoveredContracts = hasAllowedConstraint && allowedFilter!.Length == 0
+            ? []
+            : NeuronContractDiscovery.Discover(filterAliases: allowedFilter);
 
         var appKey = CodeOrchestrationScriptWrapper.AppKey(Id.Key);
         var compile = await _compiler.CompileWithRepairAsync(
@@ -206,7 +209,9 @@ internal sealed class CodeOrchestrationSynapse(
         }
 
         inner.InferredContracts = compile.RequiredContracts;
-        inner.ScopedContracts = ComputeEffectiveScope(allowedFilter, compile.RequiredContracts);
+        inner.ScopedContracts = ComputeEffectiveScope(
+            hasAllowedConstraint ? inner.AllowedContracts : null,
+            compile.RequiredContracts);
         inner.PersonOnlyCalls = compile.PersonOnlyCalls;
 
         if (compile.PersonOnlyCalls.Length > 0)
@@ -249,11 +254,12 @@ internal sealed class CodeOrchestrationSynapse(
             throw new FlowFailed(step, $"Orchestration script failed verification before execution: {detail}");
         }
 
-        var effectiveScope = inner.ScopedContracts.Length > 0
+        var candidateContracts = inner.ScopedContracts.Length > 0
             ? inner.ScopedContracts
-            : ComputeEffectiveScope(
-                inner.AllowedContracts.Length > 0 ? inner.AllowedContracts : null,
-                inner.InferredContracts);
+            : inner.InferredContracts;
+        var effectiveScope = ComputeEffectiveScope(
+            inner.AllowedContracts.Length > 0 ? inner.AllowedContracts : null,
+            candidateContracts);
 
         var inputArg = string.IsNullOrWhiteSpace(inner.InputJson) ? "{}" : inner.InputJson;
         var payload = JsonSerializer.Serialize(inputArg, Json);
@@ -338,24 +344,28 @@ internal sealed class CodeOrchestrationSynapse(
 
     internal static string[] ComputeEffectiveScope(string[]? allowedContracts, string[] inferredContracts)
     {
-        var normalizedInferred = NeuronContractDiscovery.NormalizeScopeList(inferredContracts);
+        var normalizedInferred = SanitizeScopeList(inferredContracts);
         if (allowedContracts is { Length: > 0 })
         {
-            var normalizedAllowed = NeuronContractDiscovery.NormalizeScopeList(allowedContracts);
-            if (normalizedInferred.Length == 0)
+            var normalizedAllowed = SanitizeScopeList(allowedContracts);
+            if (normalizedAllowed.Length == 0 || normalizedInferred.Length == 0)
             {
-                return normalizedAllowed;
+                return [];
             }
 
             // Least-privilege: restrict the minted AppToken strictly to contracts BOTH allowed AND actually referenced.
-            var intersection = normalizedInferred
+            return normalizedInferred
                 .Where(contract => NeuronContractDiscovery.IsContractAllowed(contract, null, normalizedAllowed))
                 .ToArray();
-            return intersection.Length > 0 ? intersection : normalizedAllowed;
         }
 
         return normalizedInferred;
     }
+
+    private static string[] SanitizeScopeList(IEnumerable<string> scopes)
+        => NeuronContractDiscovery.NormalizeScopeList(scopes)
+            .Where(static s => !s.Contains('*', StringComparison.Ordinal) && !NeuronContractDiscovery.IsAuthorityContract(s))
+            .ToArray();
 
     internal static bool IsApprovalRequirementError(string error)
     {

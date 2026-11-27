@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../primitives/chip.dart';
+import '../primitives/display_primitives.dart';
 import '../primitives/style.dart';
-import '../primitives/surface.dart';
-import '../primitives/toggle.dart';
+import '../primitives/layout_primitives.dart';
+import '../primitives/selection_primitives.dart';
 import 'mix_tokens.dart';
 import 'ui_colors.dart';
 import 'ui_tokens.dart';

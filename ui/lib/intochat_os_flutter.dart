@@ -1,16 +1,7 @@
 export 'src/core/basic_credentials.dart';
 export 'src/core/host_environment.dart';
-export 'src/core/models/installed_app.dart';
-export 'src/core/models/cluster.dart';
-export 'src/core/models/compute_usage.dart';
-export 'src/core/models/approval_models.dart';
-export 'src/core/models/journal_models.dart';
-export 'src/core/models/notification_models.dart';
-export 'src/core/models/presence_models.dart';
-export 'src/core/models/scene_models.dart';
-export 'src/core/models/table_models.dart';
-export 'src/core/models/tree_models.dart';
-export 'src/core/models/desktop_projection.dart';
+export 'src/core/models/domain_models.dart';
+
 export 'src/core/models/ui_wire_models.dart';
 export 'src/core/models/workspace_models.dart';
 export 'src/core/journal_tail_client.dart';

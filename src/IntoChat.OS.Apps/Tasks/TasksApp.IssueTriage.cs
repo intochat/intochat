@@ -1,34 +1,7 @@
-/*
-# Tasks
-Role: Default
-Shipped: true
-Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue
-
-Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
-and `control.*` children (`IKanbanControl`, `IStepperControl`, `ITabStripControl`, `IQueryTableControl`).
-*/
-using System.Globalization;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using DigitalBrain;
-using DigitalBrain.Capabilities.Connections.Catalog;
-using DigitalBrain.Confirmation;
-using DigitalBrain.Flows;
-using DigitalBrain.Log;
-using DigitalBrain.Neurons;
-using DigitalBrain.Rules;
-using DigitalBrain.UI;
-using DigitalBrain.Units;
-using IntoChat.OS.Host.Logging;
-using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.UI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Tasks;
 
@@ -36,7 +9,6 @@ public sealed partial class TasksApp
 {
     private async Task<PendingIssueTriageDraft[]> TryReadGitHubIssueDraftsAsync()
     {
-        List<string> connectionKeys = [];
         BrainId brain;
         try
         {
@@ -48,14 +20,16 @@ public sealed partial class TasksApp
             return [];
         }
 
+        var connectionKeys = new HashSet<string>(StringComparer.Ordinal);
         if (ConnectionCatalog is { } connectionCatalog)
         {
             try
             {
                 var catalog = await connectionCatalog.Read();
-                foreach (var row in catalog.Rows.Where(static r => string.Equals(r.ConnectorId, "github", StringComparison.Ordinal)))
+                foreach (var row in catalog.Rows)
                 {
-                    if (!string.IsNullOrWhiteSpace(row.ConnectionId))
+                    if (string.Equals(row.ConnectorId, "github", StringComparison.Ordinal)
+                        && !string.IsNullOrWhiteSpace(row.ConnectionId))
                     {
                         connectionKeys.Add(string.Concat("connection/github/", Uri.EscapeDataString(row.ConnectionId)));
                     }
@@ -63,11 +37,11 @@ public sealed partial class TasksApp
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                _logger.LogDebug(error, "Connection catalog is optional when probing GitHub triage drafts.");
+                _logger.LogDebug(error, "Connection catalog is optional when probing GitHub issue drafts.");
             }
         }
 
-        if (!connectionKeys.Contains("connection/github/main", StringComparer.Ordinal))
+        if (connectionKeys.Count == 0)
         {
             connectionKeys.Add("connection/github/main");
         }
@@ -76,12 +50,11 @@ public sealed partial class TasksApp
         var results = new List<PendingIssueTriageDraft>();
         var seenPreviews = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var connKey in connectionKeys.Distinct(StringComparer.Ordinal))
+        foreach (var connKey in connectionKeys)
         {
             try
             {
-                var repo = Repositories[new NeuronId(brain, "github", connKey)];
-                var drafts = await repo.ReadPendingIssueDrafts();
+                var drafts = await Repositories[new NeuronId(brain, "github", connKey)].ReadPendingIssueDrafts();
                 foreach (var draft in drafts)
                 {
                     if (draft.ExpiresAt <= now || !seenPreviews.Add(draft.PreviewId))
@@ -89,10 +62,9 @@ public sealed partial class TasksApp
                         continue;
                     }
 
-                    var repoLabel = !string.IsNullOrWhiteSpace(draft.Repository) ? draft.Repository : connKey;
                     results.Add(new PendingIssueTriageDraft(
                         connKey,
-                        repoLabel,
+                        !string.IsNullOrWhiteSpace(draft.Repository) ? draft.Repository : connKey,
                         draft.PreviewId,
                         draft.IssueNumber,
                         draft.Body,
@@ -102,7 +74,7 @@ public sealed partial class TasksApp
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                _logger.LogDebug(error, "GitHub connection {ConnectionKey} has no pending issue triage drafts or is unhosted.", connKey);
+                _logger.LogDebug(error, "GitHub connection {ConnectionKey} has no pending issue drafts or is unhosted.", connKey);
             }
         }
 
@@ -111,22 +83,16 @@ public sealed partial class TasksApp
 
     private static string NormalizeGitHubConnectionKey(string? connectionKey)
     {
+        const string marker = "connection/github/";
         if (string.IsNullOrWhiteSpace(connectionKey))
         {
             return "connection/github/main";
         }
 
         var trimmed = connectionKey.Trim();
-        const string marker = "connection/github/";
         var idx = trimmed.IndexOf(marker, StringComparison.Ordinal);
-        if (idx >= 0)
-        {
-            var slug = trimmed[(idx + marker.Length)..].Trim('/');
-            return slug.Length > 0 ? string.Concat(marker, slug) : "connection/github/main";
-        }
-
-        var rawSlug = trimmed.Trim('/');
-        return rawSlug.Length > 0 ? string.Concat(marker, rawSlug) : "connection/github/main";
+        var slug = (idx >= 0 ? trimmed[(idx + marker.Length)..] : trimmed).Trim('/');
+        return slug.Length > 0 ? string.Concat(marker, slug) : "connection/github/main";
     }
 
     private async Task<string> StartEngineerFlowForIssueAsync(IFlows flows, string repoLabel, string taskTitle, string goal)
@@ -151,12 +117,11 @@ public sealed partial class TasksApp
             }
         }
 
-        var fallbackStart = new EngineerStartRequest(
+        return await new EngineerStartRequest(
             RunId: string.Empty,
             Repository: "os",
             Goal: goal,
             InstanceCount: 1,
-            RequirePlanRatification: true);
-        return await fallbackStart.StartOnAsync(flows, title: taskTitle);
+            RequirePlanRatification: true).StartOnAsync(flows, title: taskTitle);
     }
 }

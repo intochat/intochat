@@ -15,7 +15,7 @@ using IntoChat.OS.Host.Logging;
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.studio")]
-internal sealed partial class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron<InoStudioState>, IStudio
+internal sealed partial class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IStudio
 {
     // Bounded well below Orleans' default 30s grain RPC ResponseTimeout so contention still returns a tracking card cleanly.
     private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(15);

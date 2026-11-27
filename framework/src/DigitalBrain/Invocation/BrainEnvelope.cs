@@ -23,7 +23,8 @@ public sealed record BrainEnvelope(
     string? ReplyToMessageId = null,
     byte[]? EphemeralPublicKey = null,
     byte[]? Nonce = null,
-    byte[]? Tag = null);
+    byte[]? Tag = null,
+    DateTimeOffset? SentAtUtc = null);
 
 /// <summary>
 /// Asymmetric key pair owned by a brain: P-256 <see cref="ECDsa"/> for signing and P-256 <see cref="ECDiffieHellman"/> for key agreement.
@@ -90,11 +91,14 @@ public static class BrainEnvelopeSealer
         ReadOnlySpan<byte> plaintext,
         BrainKeyPair senderKeys,
         BrainPublicKeys recipientPublicKeys,
-        string? replyToMessageId = null)
+        string? replyToMessageId = null,
+        DateTimeOffset? sentAtUtc = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
         ArgumentNullException.ThrowIfNull(senderKeys);
         ArgumentNullException.ThrowIfNull(recipientPublicKeys);
+
+        var timestamp = (sentAtUtc ?? DateTimeOffset.UtcNow).ToUniversalTime();
 
         using var ephemeral = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
         using var recipientExchange = ECDiffieHellman.Create();
@@ -106,7 +110,7 @@ public static class BrainEnvelopeSealer
 
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[TagSize];
-        var associatedData = BuildAssociatedData(from, to, messageId, replyToMessageId);
+        var associatedData = BuildAssociatedData(from, to, messageId, replyToMessageId, timestamp);
 
         byte[]? sharedSecret = null;
         var aesKey = new byte[AesKeySize];
@@ -124,7 +128,7 @@ public static class BrainEnvelopeSealer
             CryptographicOperations.ZeroMemory(aesKey);
         }
 
-        var signingInput = BuildSigningInput(from, to, messageId, replyToMessageId, ephemeralPublicKey, nonce, tag, ciphertext);
+        var signingInput = BuildSigningInput(from, to, messageId, replyToMessageId, timestamp, ephemeralPublicKey, nonce, tag, ciphertext);
         var signature = senderKeys.SigningKey.SignData(signingInput, HashAlgorithmName.SHA256);
 
         return new BrainEnvelope(
@@ -136,7 +140,8 @@ public static class BrainEnvelopeSealer
             ReplyToMessageId: replyToMessageId,
             EphemeralPublicKey: ephemeralPublicKey,
             Nonce: nonce,
-            Tag: tag);
+            Tag: tag,
+            SentAtUtc: timestamp);
     }
 
     /// <summary>
@@ -152,7 +157,8 @@ public static class BrainEnvelopeSealer
         ArgumentNullException.ThrowIfNull(recipientKeys);
         ArgumentNullException.ThrowIfNull(expectedSenderPublicKeys);
 
-        if (envelope.EphemeralPublicKey is null
+        if (string.IsNullOrEmpty(envelope.MessageId)
+            || envelope.EphemeralPublicKey is null
             || envelope.Nonce is null
             || envelope.Nonce.Length != NonceSize
             || envelope.Tag is null
@@ -168,6 +174,7 @@ public static class BrainEnvelopeSealer
             envelope.To,
             envelope.MessageId,
             envelope.ReplyToMessageId,
+            envelope.SentAtUtc,
             envelope.EphemeralPublicKey,
             envelope.Nonce,
             envelope.Tag,
@@ -186,7 +193,12 @@ public static class BrainEnvelopeSealer
         ephemeralPublic.ImportSubjectPublicKeyInfo(envelope.EphemeralPublicKey, out _);
 
         var plaintext = new byte[envelope.Ciphertext.Length];
-        var associatedData = BuildAssociatedData(envelope.From, envelope.To, envelope.MessageId, envelope.ReplyToMessageId);
+        var associatedData = BuildAssociatedData(
+            envelope.From,
+            envelope.To,
+            envelope.MessageId,
+            envelope.ReplyToMessageId,
+            envelope.SentAtUtc);
 
         byte[]? sharedSecret = null;
         var aesKey = new byte[AesKeySize];
@@ -207,20 +219,27 @@ public static class BrainEnvelopeSealer
         return plaintext;
     }
 
-    private static byte[] BuildAssociatedData(BrainId from, BrainId to, string messageId, string? replyToMessageId)
+    private static byte[] BuildAssociatedData(
+        BrainId from,
+        BrainId to,
+        string messageId,
+        string? replyToMessageId,
+        DateTimeOffset? sentAtUtc)
     {
         var fromBytes = Encoding.UTF8.GetBytes(from.Value ?? string.Empty);
         var toBytes = Encoding.UTF8.GetBytes(to.Value ?? string.Empty);
         var idBytes = Encoding.UTF8.GetBytes(messageId);
         var replyBytes = replyToMessageId is null ? [] : Encoding.UTF8.GetBytes(replyToMessageId);
+        var timestampSize = sentAtUtc.HasValue ? 9 : 1;
 
-        var total = 4 + fromBytes.Length + 4 + toBytes.Length + 4 + idBytes.Length + 4 + replyBytes.Length;
+        var total = 4 + fromBytes.Length + 4 + toBytes.Length + 4 + idBytes.Length + 4 + replyBytes.Length + timestampSize;
         var buffer = new byte[total];
         var offset = 0;
         WriteLengthPrefixed(buffer, ref offset, fromBytes);
         WriteLengthPrefixed(buffer, ref offset, toBytes);
         WriteLengthPrefixed(buffer, ref offset, idBytes);
         WriteLengthPrefixed(buffer, ref offset, replyBytes);
+        WriteOptionalTimestamp(buffer, ref offset, sentAtUtc);
         return buffer;
     }
 
@@ -229,6 +248,7 @@ public static class BrainEnvelopeSealer
         BrainId to,
         string messageId,
         string? replyToMessageId,
+        DateTimeOffset? sentAtUtc,
         byte[] ephemeralPublicKey,
         byte[] nonce,
         byte[] tag,
@@ -238,12 +258,14 @@ public static class BrainEnvelopeSealer
         var toBytes = Encoding.UTF8.GetBytes(to.Value ?? string.Empty);
         var idBytes = Encoding.UTF8.GetBytes(messageId);
         var replyBytes = replyToMessageId is null ? [] : Encoding.UTF8.GetBytes(replyToMessageId);
+        var timestampSize = sentAtUtc.HasValue ? 9 : 1;
 
         var total =
             4 + fromBytes.Length +
             4 + toBytes.Length +
             4 + idBytes.Length +
             4 + replyBytes.Length +
+            timestampSize +
             4 + ephemeralPublicKey.Length +
             4 + nonce.Length +
             4 + tag.Length +
@@ -255,11 +277,26 @@ public static class BrainEnvelopeSealer
         WriteLengthPrefixed(buffer, ref offset, toBytes);
         WriteLengthPrefixed(buffer, ref offset, idBytes);
         WriteLengthPrefixed(buffer, ref offset, replyBytes);
+        WriteOptionalTimestamp(buffer, ref offset, sentAtUtc);
         WriteLengthPrefixed(buffer, ref offset, ephemeralPublicKey);
         WriteLengthPrefixed(buffer, ref offset, nonce);
         WriteLengthPrefixed(buffer, ref offset, tag);
         WriteLengthPrefixed(buffer, ref offset, ciphertext);
         return buffer;
+    }
+
+    private static void WriteOptionalTimestamp(byte[] destination, ref int offset, DateTimeOffset? sentAtUtc)
+    {
+        if (sentAtUtc.HasValue)
+        {
+            destination[offset++] = 1;
+            BinaryPrimitives.WriteInt64BigEndian(destination.AsSpan(offset, 8), sentAtUtc.Value.UtcTicks);
+            offset += 8;
+        }
+        else
+        {
+            destination[offset++] = 0;
+        }
     }
 
     private static void WriteLengthPrefixed(byte[] destination, ref int offset, ReadOnlySpan<byte> value)

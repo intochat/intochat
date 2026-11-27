@@ -149,7 +149,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             Builder(
-              builder: (context) => UiMixActionButton(
+              builder: (context) => UiMixButton.preset(
                 label: 'Open Sheet',
                 onPressed: () {
                   showUiSheet<void>(

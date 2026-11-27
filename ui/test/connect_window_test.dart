@@ -47,7 +47,7 @@ void main() {
     );
     expect(
       tester
-          .widget<UiKitButton>(find.byKey(const Key('connect_submit')))
+          .widget<UiMixButton>(find.byKey(const Key('connect_submit')))
           .onPressed,
       isNull,
     );

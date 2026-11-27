@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
-import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/mix_tokens.dart';
 import '../theme/ui_colors.dart';
-import '../theme/ui_icon.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
@@ -380,6 +378,24 @@ abstract final class UiStyleMapper {
         _ => const <BoxShadow>[],
       };
 
+  static bool _isNeutralTone(String tone) =>
+      switch (tone.trim().toLowerCase()) {
+        'accent' ||
+        'primary' ||
+        'accentstrong' ||
+        'accent-strong' ||
+        'accenttint' ||
+        'accent-tint' ||
+        'link' ||
+        'success' ||
+        'done' ||
+        'warning' ||
+        'working' ||
+        'danger' ||
+        'error' => false,
+        _ => true,
+      };
+
   static TextStyle textStyle(
     BuildContext context,
     UiStyleData style, {
@@ -389,13 +405,38 @@ abstract final class UiStyleMapper {
     final colors = UiColors.of(context);
     final baseFg = colorOverride ?? resolveToneForeground(colors, style.tone);
     final fg = isEnabled ? baseFg : baseFg.withValues(alpha: 0.5);
+    final bodyBaseFg =
+        colorOverride ??
+        (_isNeutralTone(style.tone)
+            ? colors.textBody
+            : resolveToneForeground(colors, style.tone));
+    final bodyFg = isEnabled ? bodyBaseFg : bodyBaseFg.withValues(alpha: 0.5);
+    final metaBaseFg = colorOverride ?? colors.textMuted;
+    final metaFg = isEnabled ? metaBaseFg : metaBaseFg.withValues(alpha: 0.5);
 
     return switch (style.typography.trim().toLowerCase()) {
       'display' => UiType.displayStyle(24, weight: FontWeight.w700, color: fg),
       'heading' ||
       'title' => UiType.displayStyle(17, weight: FontWeight.w700, color: fg),
       'label' => UiType.textStyle(13.5, weight: FontWeight.w600, color: fg),
-      'caption' => UiType.textStyle(12, weight: FontWeight.w500, color: fg),
+      'body' => UiType.textStyle(
+        14,
+        weight: FontWeight.w400,
+        color: bodyFg,
+        height: 1.5,
+      ),
+      'meta' || 'secondary' => UiType.textStyle(
+        13,
+        weight: FontWeight.w400,
+        color: metaFg,
+      ),
+      'caption' => UiType.textStyle(12.5, weight: FontWeight.w400, color: fg),
+      'group' => UiType.textStyle(
+        11.5,
+        weight: FontWeight.w700,
+        color: fg,
+        letterSpacing: 0.6,
+      ),
       'metric' => UiType.textStyle(
         16,
         weight: FontWeight.w600,
@@ -404,7 +445,7 @@ abstract final class UiStyleMapper {
       ),
       'tabular' ||
       'code' => UiType.tabularStyle(13, weight: FontWeight.w500, color: fg),
-      _ => UiType.textStyle(13.5, weight: FontWeight.w600, color: fg),
+      _ => UiType.textStyle(14, weight: FontWeight.w400, color: fg),
     };
   }
 
@@ -556,146 +597,5 @@ abstract final class UiStyleMapper {
         .onHovered(hovered)
         .onPressed(pressed)
         .onDisabled(disabled);
-  }
-}
-
-/// Option B flagship control: headless `NakedButton` (accessibility, keyboard
-/// focus, hover/press/focus states) + `mix` `Box` driven directly by C#
-/// [UiStyleData] (`Mix.Style()`).
-final class UiMixButton extends StatefulWidget {
-  const UiMixButton({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.style = const UiStyleData(tone: 'accent', paddingX: 16, paddingY: 10),
-    this.icon,
-    this.enabled = true,
-    this.fullWidth = false,
-    this.focusNode,
-    this.tooltip,
-    this.semanticsId,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final UiStyleData style;
-  final String? icon;
-  final bool enabled;
-  final bool fullWidth;
-  final FocusNode? focusNode;
-  final String? tooltip;
-  final String? semanticsId;
-
-  @override
-  State<UiMixButton> createState() => _UiMixButtonState();
-}
-
-class _UiMixButtonState extends State<UiMixButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-  bool _focused = false;
-
-  bool get _interactive => widget.enabled && widget.onPressed != null;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = UiColors.of(context);
-    final resolved = widget.style.resolve(
-      hovered: _hovered && _interactive,
-      pressed: _pressed && _interactive,
-      focused: _focused && _interactive,
-    );
-    final fg = UiStyleMapper.resolveToneForeground(colors, resolved.tone);
-    final effectiveFg = _interactive ? fg : fg.withValues(alpha: 0.5);
-    final iconName = widget.icon ?? resolved.icon;
-    final iconData = iconName != null && iconName.isNotEmpty
-        ? uiIcon(iconName)
-        : null;
-    final gap = resolved.gap ?? 6.0;
-    final textStyle = UiStyleMapper.textStyle(
-      context,
-      resolved,
-      isEnabled: _interactive,
-      colorOverride: fg,
-    );
-
-    final labelWidget = Text(
-      widget.label,
-      style: textStyle,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-
-    final content = iconData == null
-        ? labelWidget
-        : Row(
-            mainAxisSize: widget.fullWidth
-                ? MainAxisSize.max
-                : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(iconData, size: 15, color: effectiveFg),
-              SizedBox(width: gap),
-              Flexible(child: labelWidget),
-            ],
-          );
-
-    Widget box = Box(
-      style: UiStyleMapper.boxStyler(
-        context,
-        widget.style,
-        isHovered: _hovered,
-        isPressed: _pressed,
-        isFocused: _focused,
-        isEnabled: _interactive,
-      ),
-      child: widget.fullWidth ? Center(child: content) : content,
-    );
-    if (widget.fullWidth) {
-      box = SizedBox(width: double.infinity, child: box);
-    }
-
-    Widget button = NakedButton(
-      focusNode: widget.focusNode,
-      enabled: _interactive,
-      onPressed: widget.onPressed,
-      onHoverChange: (hovered) {
-        if (_hovered == hovered) return;
-        setState(() => _hovered = hovered);
-      },
-      onPressChange: (pressed) {
-        if (_pressed == pressed) return;
-        setState(() => _pressed = pressed);
-      },
-      onFocusChange: (focused) {
-        if (_focused == focused) return;
-        setState(() => _focused = focused);
-      },
-      child: AnimatedScale(
-        scale: UiStyleMapper.resolveScale(
-          widget.style,
-          isHovered: _hovered,
-          isPressed: _pressed,
-          isFocused: _focused,
-          isEnabled: _interactive,
-        ),
-        duration: resolved.motion.duration,
-        curve: resolved.motion.curve,
-        child: box,
-      ),
-    );
-
-    final tip = widget.tooltip?.trim();
-    if (tip != null && tip.isNotEmpty) {
-      button = Tooltip(message: tip, child: button);
-    }
-
-    if (widget.semanticsId == null) return button;
-    return Semantics(
-      identifier: widget.semanticsId,
-      button: true,
-      enabled: _interactive,
-      child: button,
-    );
   }
 }
