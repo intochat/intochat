@@ -28,7 +28,7 @@ public sealed class CallerRuleFacts
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.Social.PostsNeuron", "social.posts", "default", "Publish", () => [new PostDraft("hello", []), CancellationToken.None]),
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.Social.RoomNeuron", "social.room", "hall", "Pin", () => ["app.notes", "default", CancellationToken.None]),
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.Social.RoomNeuron", "social.room", "hall", "Invite", () => ["bob", Stranger, Role.Editor, CancellationToken.None]),
-        new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "c1", "Post", () => ["hello", "e1"]),
+        new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "c1", "Post", () => ["hello", "e1", IntoChat.OS.Modules.Flutter.Conversations.Visibility.Everyone]),
         new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "c1", "Stop", () => []),
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.FriendsNeuron", "friends", "default", "List", () => []),
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.FriendsNeuron", "friends", "default", "IsFriend", () => [new AccountId("bob")]),
