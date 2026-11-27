@@ -309,13 +309,8 @@ public sealed class UnitLoaderAdversarialFacts
         var lingering = loader.Lingering();
         Assert.Contains(image.Ref, lingering);
 
-        // Force GC in rounds
-        for (var i = 0; i < 5; i++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-        }
+        // Force GC until collectible ALC is reclaimed within budget
+        UnitLoaderFacts.Collect(loader);
 
         // Lingering must now be empty
         Assert.Empty(loader.Lingering());

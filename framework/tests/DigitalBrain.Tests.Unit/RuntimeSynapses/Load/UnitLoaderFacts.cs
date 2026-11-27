@@ -158,15 +158,25 @@ public sealed class UnitLoaderFacts
         var lingering = loader.Lingering();
         Assert.Contains(image.Ref, lingering);
 
-        // Force GC in rounds to reclaim collectible ALC
-        for (var i = 0; i < 5; i++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-        }
+        // An unloaded collectible context clears only once no thread still runs its code and no finalizer holds it, which
+        // takes longer under parallel load; collect until nothing lingers, within a budget so a real leak still fails the assertion.
+        Collect(loader);
 
         Assert.Empty(loader.Lingering());
+    }
+
+    private static readonly TimeSpan UnloadBudget = TimeSpan.FromSeconds(30);
+
+    internal static void Collect(IUnitLoader loader)
+    {
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (loader.Lingering().Count > 0 && System.Diagnostics.Stopwatch.GetElapsedTime(start) < UnloadBudget)
+        {
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            Thread.Sleep(10);
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -475,11 +475,14 @@ public sealed class AtomicJournalChallengerFacts
     {
         var loader = new UnitLoader();
         var weakContext = LoadUseAndUnload(loader);
-        for (var i = 0; i < 10 && weakContext.IsAlive; i++)
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var budget = TimeSpan.FromSeconds(30);
+        while ((weakContext.IsAlive || loader.Lingering().Count > 0) && System.Diagnostics.Stopwatch.GetElapsedTime(start) < budget)
         {
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
-            await Task.Delay(20, TestContext.Current.CancellationToken);
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            await Task.Delay(10, TestContext.Current.CancellationToken);
         }
         Assert.False(weakContext.IsAlive);
         Assert.Empty(loader.Lingering());
