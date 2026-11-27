@@ -229,6 +229,61 @@ public sealed class ArmRepeatabilityFacts
         Assert.Null(statelessHandler.LastAppWrite?["properties"]?["configuration"]?["ingress"]?["traffic"]);
     }
 
+    [Fact]
+    public async Task Postgres_server_and_database_are_idempotent_and_recreate_on_storage_change()
+    {
+        using var handler = new AzureHttp();
+        using var client = new HttpClient(handler);
+        var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
+        var ct = TestContext.Current.CancellationToken;
+
+        await arm.Ensure(AzureHttp.Subscription,
+            new SecretSpec { Name = "pg-admin-pass", Vault = "test-kv", Value = "super-secret-pg-pass", Overwrite = true, ResourceGroup = "rg", Location = "polandcentral" }, ct);
+
+        var pg = new PostgresSpec
+        {
+            Name = "test-pg",
+            ResourceGroup = "rg",
+            Location = "polandcentral",
+            Vault = "test-kv",
+            AdminPasswordSecret = "pg-admin-pass",
+            AdminLogin = "pgadmin",
+            Sku = "Standard_B1ms",
+            Tier = "Burstable",
+            Version = "16",
+            StorageGb = 32,
+        };
+
+        var first = await arm.Ensure(AzureHttp.Subscription, pg, ct);
+        Assert.Equal("test-pg.postgres.database.azure.com", first.Endpoint);
+        Assert.Equal(1, handler.PostgresWrites);
+        Assert.Equal(1, handler.FirewallWrites);
+        Assert.Equal(32, handler.LastPostgresWrite?["properties"]?["storage"]?["storageSizeGB"]?.GetValue<int>());
+        Assert.Equal("Standard_B1ms", handler.LastPostgresWrite?["sku"]?["name"]?.GetValue<string>());
+        Assert.Equal("0.0.0.0", handler.LastFirewallWrite?["properties"]?["startIpAddress"]?.GetValue<string>());
+        Assert.Equal("0.0.0.0", handler.LastFirewallWrite?["properties"]?["endIpAddress"]?.GetValue<string>());
+
+        // Second Ensure with identical Ready server skips both server PUT and firewall PUT.
+        var second = await arm.Ensure(AzureHttp.Subscription, pg, ct);
+        Assert.Equal(first, second);
+        Assert.Equal(1, handler.PostgresWrites);
+        Assert.Equal(1, handler.FirewallWrites);
+
+        // Storage size change triggers a server PUT while keeping the existing firewall rule.
+        await arm.Ensure(AzureHttp.Subscription, pg with { StorageGb = 64 }, ct);
+        Assert.Equal(2, handler.PostgresWrites);
+        Assert.Equal(1, handler.FirewallWrites);
+        Assert.Equal(64, handler.LastPostgresWrite?["properties"]?["storage"]?["storageSizeGB"]?.GetValue<int>());
+
+        // Database Ensure creates once on 404 and skips on subsequent calls.
+        var dbSpec = new PostgresDatabaseSpec { Name = "intochat", Server = "test-pg", ResourceGroup = "rg", Location = "polandcentral" };
+        var dbFirst = await arm.Ensure(AzureHttp.Subscription, dbSpec, ct);
+        var dbSecond = await arm.Ensure(AzureHttp.Subscription, dbSpec, ct);
+        Assert.Equal(dbFirst, dbSecond);
+        Assert.Equal(1, handler.PostgresDatabaseWrites);
+        Assert.EndsWith("/providers/Microsoft.DBforPostgreSQL/flexibleServers/test-pg/databases/intochat", dbFirst.Id, StringComparison.Ordinal);
+    }
+
     private sealed class Credential : TokenCredential
     {
         public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) => new("offline-test-token", DateTimeOffset.UtcNow.AddHours(1));
@@ -244,9 +299,17 @@ public sealed class ArmRepeatabilityFacts
         public const string CertificateId = Group + "/providers/Microsoft.App/managedEnvironments/test-env/managedCertificates/test-cert";
         private JsonObject? _app;
         private string? _secret;
+        private JsonObject? _postgres;
+        private JsonObject? _firewallRule;
+        private JsonObject? _postgresDb;
         public int SecretWrites { get; private set; }
         public int AppWrites { get; private set; }
+        public int PostgresWrites { get; private set; }
+        public int FirewallWrites { get; private set; }
+        public int PostgresDatabaseWrites { get; private set; }
         public JsonObject? LastAppWrite => _app;
+        public JsonObject? LastPostgresWrite => _postgres;
+        public JsonObject? LastFirewallWrite => _firewallRule;
         public int SubscriptionReads { get; private set; }
         public string? Tenant { get; init; } = SubscriptionTenant;
         public JsonObject? LastVaultWrite { get; private set; }
@@ -319,6 +382,44 @@ public sealed class ArmRepeatabilityFacts
                     _app["properties"]!["provisioningState"] = "Succeeded";
                 }
                 result = _app;
+            }
+            else if (path.Equals(Group + "/providers/Microsoft.DBforPostgreSQL/flexibleServers/test-pg", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Put)
+                {
+                    PostgresWrites++;
+                    _postgres = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
+                    _postgres["id"] = Group + "/providers/Microsoft.DBforPostgreSQL/flexibleServers/test-pg";
+                    _postgres["name"] = "test-pg";
+                    _postgres["type"] = "Microsoft.DBforPostgreSQL/flexibleServers";
+                    _postgres["properties"]!["state"] = "Ready";
+                    _postgres["properties"]!["fullyQualifiedDomainName"] = "test-pg.postgres.database.azure.com";
+                }
+                result = _postgres;
+            }
+            else if (path.Contains("/flexibleServers/test-pg/firewallRules/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Put)
+                {
+                    FirewallWrites++;
+                    _firewallRule = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
+                    _firewallRule["id"] = path;
+                    _firewallRule["name"] = path[(path.LastIndexOf('/') + 1)..];
+                    _firewallRule["type"] = "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules";
+                }
+                result = _firewallRule;
+            }
+            else if (path.Contains("/flexibleServers/test-pg/databases/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.Method == HttpMethod.Put)
+                {
+                    PostgresDatabaseWrites++;
+                    _postgresDb = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
+                    _postgresDb["id"] = path;
+                    _postgresDb["name"] = path[(path.LastIndexOf('/') + 1)..];
+                    _postgresDb["type"] = "Microsoft.DBforPostgreSQL/flexibleServers/databases";
+                }
+                result = _postgresDb;
             }
             else { throw new InvalidOperationException($"Unexpected Azure test request: {request.Method} {uri.GetLeftPart(UriPartial.Path)}"); }
 
