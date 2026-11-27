@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -55,9 +56,27 @@ public sealed record SettingsEnrolledDeviceRow(
     string[] AdvertisedCapabilities,
     string[] ConsentedFolders);
 
+public sealed record SettingsConnectionRow(
+    string Key,
+    string ConnectorId,
+    string ConnectionId,
+    string DisplayName,
+    ConnectionStatus Status,
+    string? Account = null,
+    int ToolCount = 0,
+    string? Endpoint = null,
+    DateTimeOffset? LastProbedAt = null,
+    string? Detail = null);
+
+public sealed record SettingsConnectorOffer(
+    string Id,
+    string DisplayName,
+    string[] AuthMethods,
+    string ExternalSystem);
+
 /// <summary>
 /// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
-/// (compute spend/cap, pending approvals, and redacted secret statuses) without transient grain fields.
+/// (compute spend/cap, pending approvals, live connections, and redacted secret statuses) without transient grain fields.
 /// </summary>
 public sealed record SettingsAppState(
     string Title,
@@ -77,7 +96,6 @@ public sealed record SettingsAppState(
     string Language = "English",
     string TimeZone = "UTC",
     string DateFormat = "17 Oct 2026",
-    IReadOnlyList<string>? ConnectionKeys = null,
     IReadOnlyList<string>? FriendGrants = null,
     string? ExportedArchiveJson = null,
     IReadOnlyList<UserVariableEntry>? Variables = null,
@@ -99,10 +117,7 @@ public sealed record SettingsAppState(
         "floating-glass", "compact-pill", "classic-bottom", "split-top-dock",
     ];
     public static readonly string[] SupportedDesktopTones = ["cream", "sand", "peat", "ink"];
-    public static readonly string[] SupportedGitHubPolicyPresets = ["auto-10", "draft-only", "reset"];
-    public static readonly string[] SupportedGitHubSynapseModes = ["DraftForApproval", "AutoComment"];
 
-    public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
     public static IReadOnlyList<string> DefaultFriendGrants { get; } = [];
 
     // Projected immutable read-model fields (eliminating transient mutable grain fields on SettingsApp):
@@ -129,51 +144,12 @@ public sealed record SettingsAppState(
     public string? WebSearchProvider { get; init; }
     public string? WebSearxngUrl { get; init; }
 
-    // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):
+    // Additive navigation & catalog-driven Connections read-model fields (never raw secrets!):
     [Id(40)]
     public bool HasUnsavedChanges { get; init; }
 
     [Id(41)]
     public string ActiveTransition { get; init; } = string.Empty;
-
-    [Id(42)]
-    public string GitHubConnectionSlug { get; init; } = "main";
-
-    [Id(43)]
-    public string GitHubRepository { get; init; } = string.Empty;
-
-    [Id(44)]
-    public bool GitHubConnected { get; init; }
-
-    [Id(45)]
-    public string? GitHubLastWebhookAt { get; init; }
-
-    [Id(46)]
-    public int GitHubPullRequestCount { get; init; }
-
-    [Id(47)]
-    public int GitHubIssueCount { get; init; }
-
-    [Id(48)]
-    public int GitHubPendingDraftCount { get; init; }
-
-    [Id(49)]
-    public bool GitHubWebhookSecretConfigured { get; init; }
-
-    [Id(50)]
-    public string GitHubTriagePolicyPreset { get; init; } = string.Empty;
-
-    [Id(51)]
-    public string? GitHubTriagePolicyPlanId { get; init; }
-
-    [Id(52)]
-    public string GitHubInstalledSynapseAlias { get; init; } = string.Empty;
-
-    [Id(53)]
-    public string GitHubSynapseInstallStatus { get; init; } = string.Empty;
-
-    [Id(54)]
-    public string GitHubSynapseMode { get; init; } = string.Empty;
 
     [Id(55)]
     public bool AllowClientCodeSandbox { get; init; } = ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform();
@@ -224,6 +200,27 @@ public sealed record SettingsAppState(
     [Id(70)]
     public SettingsEnrolledDeviceRow[] EnrolledDevices { get; init; } = [];
 
+    [Id(71)]
+    public SettingsConnectionRow[] ActiveConnections { get; init; } = [];
+
+    [Id(72)]
+    public SettingsConnectorOffer[] AvailableConnectors { get; init; } = [];
+
+    [Id(73)]
+    public string WebhookBaseUrl { get; init; } = SettingsApp.DefaultWebhookBaseUrl;
+
+    [JsonIgnore]
+    public string? DeviceFlowId { get; init; }
+
+    [JsonIgnore]
+    public string? DeviceFlowUserCode { get; init; }
+
+    [JsonIgnore]
+    public string? DeviceFlowVerificationUri { get; init; }
+
+    [JsonIgnore]
+    public string? DeviceFlowStatus { get; init; }
+
     [JsonIgnore]
     public string? MintedEnrollmentCode { get; init; }
 
@@ -261,7 +258,6 @@ public sealed record SettingsAppState(
         "UTC",
         "17 Oct 2026",
         [],
-        [],
         null,
         [],
         [])
@@ -289,24 +285,17 @@ public sealed record SettingsAppState(
         && !string.IsNullOrWhiteSpace(BarLayout)
         && !string.IsNullOrWhiteSpace(DesktopTone);
 
-    [Invariant("Connection keys are non-empty and unique."), JsonIgnore]
+    [Invariant("Active connection keys are non-empty and unique."), JsonIgnore]
     public bool ValidConnectionsInvariant =>
-        (ConnectionKeys ?? []).All(static k => !string.IsNullOrWhiteSpace(k))
-        && (ConnectionKeys ?? []).Distinct(StringComparer.Ordinal).Count() == (ConnectionKeys ?? []).Count;
+        (ActiveConnections ?? []).All(static c => !string.IsNullOrWhiteSpace(c.Key))
+        && (ActiveConnections ?? []).Select(static c => c.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count() == (ActiveConnections ?? []).Length;
 
     [Invariant("Stored configuration variables always carry non-empty keys."), JsonIgnore]
     public bool ValidVariablesInvariant =>
         (Variables ?? []).All(static v => !string.IsNullOrWhiteSpace(v.Key));
 
-    [Invariant("Navigation transition and GitHub hub telemetry fields remain within valid domain bounds."), JsonIgnore]
-    public bool ValidGitHubHubProjectionInvariant =>
-        ViewTransition.IsValid(ActiveTransition)
-        && GitHubPullRequestCount >= 0
-        && GitHubIssueCount >= 0
-        && GitHubPendingDraftCount >= 0
-        && !string.IsNullOrWhiteSpace(GitHubConnectionSlug)
-        && (string.IsNullOrEmpty(GitHubTriagePolicyPreset) || SupportedGitHubPolicyPresets.Contains(GitHubTriagePolicyPreset, StringComparer.Ordinal))
-        && (string.IsNullOrEmpty(GitHubSynapseMode) || SupportedGitHubSynapseModes.Contains(GitHubSynapseMode, StringComparer.Ordinal));
+    [Invariant("Navigation transition token remains valid."), JsonIgnore]
+    public bool ValidTransitionInvariant => ViewTransition.IsValid(ActiveTransition);
 
     // ── Declarative Domain Rules ─────────────────────────────────────────────
 
@@ -321,18 +310,6 @@ public sealed record SettingsAppState(
         repository,
         static r => NormalizeGitHubRepository(r) is null,
         "GitHub repository must be formatted as 'owner/repo'.");
-
-    public static Rule ValidateGitHubPolicyPresetRule(string? preset) => Decision.Rule(
-        "invalid_github_policy_preset",
-        preset,
-        static p => NormalizeGitHubPolicyPreset(p) is null,
-        "GitHub triage policy preset must be 'auto-10', 'draft-only', or 'reset'.");
-
-    public static Rule ValidateGitHubSynapseModeRule(string? mode) => Decision.Rule(
-        "invalid_triage_synapse_mode",
-        mode,
-        static m => NormalizeGitHubSynapseMode(m) is null,
-        "Issue triage Synapse mode must be 'DraftForApproval' or 'AutoComment'.");
 
     [JsonIgnore]
     public bool CanGoBack => !string.IsNullOrEmpty(SubPage) || !string.IsNullOrEmpty(Sheet) || (History is { Count: > 0 });
@@ -633,13 +610,19 @@ public sealed record SettingsAppState(
     [IgnoreExplore]
     public SettingsAppState RefreshConnectionsProjection(string? connectionKey, string? friendApp)
     {
-        var keys = (ConnectionKeys ?? DefaultConnectionKeys).ToList();
+        var active = (ActiveConnections ?? []).ToList();
         if (!string.IsNullOrWhiteSpace(connectionKey))
         {
             var trimmedKey = connectionKey.Trim();
-            if (!keys.Contains(trimmedKey, StringComparer.Ordinal))
+            if (!active.Any(c => string.Equals(c.Key, trimmedKey, StringComparison.OrdinalIgnoreCase)))
             {
-                keys.Add(trimmedKey);
+                var (connectorId, connectionId) = ParseConnectionKeyParts(trimmedKey);
+                active.Add(new SettingsConnectionRow(
+                    Key: trimmedKey,
+                    ConnectorId: connectorId,
+                    ConnectionId: connectionId,
+                    DisplayName: trimmedKey,
+                    Status: ConnectionStatus.Connected));
             }
         }
 
@@ -658,9 +641,26 @@ public sealed record SettingsAppState(
         {
             Title = "Settings",
             Status = "Connections",
-            ConnectionKeys = keys,
+            ActiveConnections = [.. active.OrderBy(static c => c.Key, StringComparer.OrdinalIgnoreCase)],
             FriendGrants = grants,
         };
+    }
+
+    private static (string ConnectorId, string ConnectionId) ParseConnectionKeyParts(string key)
+    {
+        var normalized = key.Trim().Trim('/');
+        if (normalized.Contains("/connection/", StringComparison.OrdinalIgnoreCase))
+        {
+            var idx = normalized.IndexOf("/connection/", StringComparison.OrdinalIgnoreCase);
+            normalized = normalized[(idx + "/connection/".Length)..];
+        }
+        else if (normalized.StartsWith("connection/", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized["connection/".Length..];
+        }
+
+        var parts = normalized.Split('/', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 2 ? (parts[0], parts[1]) : (normalized, "main");
     }
 
     [IgnoreExplore]
@@ -762,14 +762,10 @@ public sealed record SettingsAppState(
         }
 
         var navigated = NavigateCore(rawSection, rawSubPage, args.Sheet, args.SearchQuery);
-        var nextSlug = IsGitHubSubPage(navigated.SubPage)
-            ? ResolveGitHubSlug(navigated.SubPage, GitHubConnectionSlug)
-            : GitHubConnectionSlug;
         return navigated with
         {
             ActiveTransition = normalizedTransition,
             SearchQuery = args.SearchQuery is not null ? args.SearchQuery.Trim() : navigated.SearchQuery,
-            GitHubConnectionSlug = nextSlug,
         };
     }
 
@@ -865,65 +861,22 @@ public sealed record SettingsAppState(
     public static string FormatUsd(long micros)
         => (micros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
 
-    public static bool IsGitHubSubPage(string? subPage)
-        => !string.IsNullOrWhiteSpace(subPage)
-            && (string.Equals(subPage.Trim(), "github", StringComparison.OrdinalIgnoreCase)
-                || subPage.Trim().StartsWith("github/", StringComparison.OrdinalIgnoreCase));
-
-    public static string NormalizeGitHubSlug(string? rawSlug)
+    public static string NormalizeConnectionSlug(string? rawSlug, string fallback = "main")
     {
         if (string.IsNullOrWhiteSpace(rawSlug))
         {
-            return "main";
+            return fallback;
         }
 
         var trimmed = rawSlug.Trim().Trim('/');
-        if (trimmed.StartsWith("connection/github/", StringComparison.OrdinalIgnoreCase))
+        var slash = trimmed.LastIndexOf('/');
+        if (slash >= 0 && slash < trimmed.Length - 1)
         {
-            trimmed = trimmed["connection/github/".Length..].Trim('/');
-        }
-        else if (trimmed.StartsWith("github/", StringComparison.OrdinalIgnoreCase))
-        {
-            trimmed = trimmed["github/".Length..].Trim('/');
-        }
-        else if (string.Equals(trimmed, "github", StringComparison.OrdinalIgnoreCase))
-        {
-            return "main";
-        }
-
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            return "main";
+            trimmed = trimmed[(slash + 1)..];
         }
 
         var chars = trimmed.Where(static ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.').ToArray();
-        return chars.Length > 0 ? new string(chars) : "main";
-    }
-
-    public static string ResolveGitHubSlug(string? subPage, string? fallbackSlug = null)
-    {
-        if (!string.IsNullOrWhiteSpace(subPage))
-        {
-            var trimmed = subPage.Trim();
-            if (trimmed.StartsWith("github/", StringComparison.OrdinalIgnoreCase))
-            {
-                var suffix = trimmed["github/".Length..].Trim();
-                if (!string.IsNullOrWhiteSpace(suffix))
-                {
-                    return NormalizeGitHubSlug(suffix);
-                }
-            }
-        }
-
-        return NormalizeGitHubSlug(fallbackSlug);
-    }
-
-    public static string NormalizeGitHubConnectionKey(string? connectionKey, string? fallbackSlug = null)
-    {
-        var slug = string.IsNullOrWhiteSpace(connectionKey)
-            ? NormalizeGitHubSlug(fallbackSlug)
-            : NormalizeGitHubSlug(connectionKey);
-        return $"connection/github/{slug}";
+        return chars.Length > 0 ? new string(chars).ToLowerInvariant() : fallback;
     }
 
     public static string? NormalizeGitHubRepository(string? rawRepository)
@@ -970,39 +923,6 @@ public sealed record SettingsAppState(
         static bool IsValidRepoSegment(string segment)
             => segment.Any(char.IsLetterOrDigit)
                 && segment.All(static ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.');
-    }
-
-    public static string? NormalizeGitHubPolicyPreset(string? preset)
-    {
-        if (string.IsNullOrWhiteSpace(preset))
-        {
-            return null;
-        }
-
-        return preset.Trim().ToLowerInvariant() switch
-        {
-            "auto-10" => "auto-10",
-            "draft-only" => "draft-only",
-            "reset" => "reset",
-            _ => null,
-        };
-    }
-
-    public static string? NormalizeGitHubSynapseMode(string? mode)
-    {
-        if (string.IsNullOrWhiteSpace(mode))
-        {
-            return null;
-        }
-
-        return mode.Trim() switch
-        {
-            var m when string.Equals(m, "DraftForApproval", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(m, "draft", StringComparison.OrdinalIgnoreCase) => "DraftForApproval",
-            var m when string.Equals(m, "AutoComment", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(m, "auto", StringComparison.OrdinalIgnoreCase) => "AutoComment",
-            _ => null,
-        };
     }
 
     public override string ToString()

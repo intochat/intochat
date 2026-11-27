@@ -2,10 +2,8 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Mcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.Muncly;
 
@@ -16,9 +14,6 @@ public sealed class MunclyModule : Module
 
     public const string BaseUrlField = "BaseUrl";
     public const string ToolSetsField = "ToolSets";
-    public const string WebEmailField = "WebEmail";
-    public const string WebPasswordField = "WebPassword";
-    public const string McpTokenField = "McpToken";
 
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],
@@ -31,15 +26,12 @@ public sealed class MunclyModule : Module
 
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For(ManifestName, "Muncly CRM")
         .OffersSetting(BaseUrlField)
-        .OffersSetting(ToolSetsField)
-        .OffersSetting(WebEmailField)
-        .OffersSecret(WebPasswordField)
-        .OffersSecret(McpTokenField);
+        .OffersSetting(ToolSetsField);
 
-    public static ConnectorDefinition Connector => new(ManifestName, "Muncly CRM", ["crm"], ["muncly"])
+    public static ConnectorDefinition Connector => new(ManifestName, "Muncly CRM", ["bearer-token"], [])
     {
         Neurons = [],
-        Signals = [typeof(MunclyOpen), typeof(MunclyConnect), typeof(MunclyReload)],
+        Signals = [typeof(MunclyOpen), typeof(MunclyConnect), typeof(MunclyReload), typeof(MunclyProbe), typeof(MunclyDisconnect), typeof(MunclyToggleInspector)],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
@@ -47,6 +39,5 @@ public sealed class MunclyModule : Module
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.AddSingleton(new CompiledAppsRegistration(typeof(MunclyModule).Assembly));
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IMcpConnectionSeedProvider, MunclyMcpSeedProvider>());
     }
 }

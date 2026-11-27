@@ -80,9 +80,9 @@ public sealed partial class SettingsApp
 
         next = await RefreshDeviceProjectionAsync(next);
 
-        if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
+        if (string.Equals(next.Section, "connections", StringComparison.Ordinal))
         {
-            next = await RefreshGitHubHubProjectionAsync(next);
+            next = await RefreshConnectionsProjectionAsync(next);
         }
 
         await UpdateAsync(next);
@@ -590,10 +590,9 @@ public sealed partial class SettingsApp
             var secrets = await InspectSecretStatusesAsync(next.Variables ?? []);
             next = next with { SecretStatuses = secrets };
         }
-        else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
+        else if (string.Equals(next.Section, "connections", StringComparison.Ordinal))
         {
-            next = next with { GitHubConnectionSlug = SettingsAppState.ResolveGitHubSlug(next.SubPage, next.GitHubConnectionSlug) };
-            next = await RefreshGitHubHubProjectionAsync(next);
+            next = await RefreshConnectionsProjectionAsync(next);
         }
 
         await UpdateAsync(next);
@@ -614,15 +613,21 @@ public sealed partial class SettingsApp
     }
 
     [On]
-    public Task RefreshConnections(SettingsRefreshConnections request)
+    public async Task RefreshConnections(SettingsRefreshConnections request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.ConnectionKey is not null && string.IsNullOrWhiteSpace(request.ConnectionKey) && string.IsNullOrWhiteSpace(request.FriendApp))
         {
-            return ApplySettingsDecisionAsync(State.RegisterConnection(request.ConnectionKey, request.FriendApp));
+            await ApplySettingsDecisionAsync(State.RegisterConnection(request.ConnectionKey, request.FriendApp));
+            return;
         }
 
-        return UpdateAsync(State.RefreshConnectionsProjection(request.ConnectionKey, request.FriendApp));
+        var refreshed = await RefreshConnectionsProjectionAsync(State);
+        refreshed = !string.IsNullOrWhiteSpace(request.ConnectionKey) || !string.IsNullOrWhiteSpace(request.FriendApp)
+            ? refreshed.RefreshConnectionsProjection(request.ConnectionKey, request.FriendApp)
+            : refreshed with { Title = "Settings", Status = "Connections refreshed." };
+
+        await UpdateAsync(refreshed);
     }
 
     [On]
@@ -730,59 +735,10 @@ public sealed partial class SettingsApp
     }
 
     [On]
-    public async Task McpAdd(SettingsMcpAdd request)
+    public Task McpAdd(SettingsMcpAdd request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (Decision.Check(
-                "mcp-add",
-                SettingsAppState.ValidateMcpServerNameRule(request.Name),
-                SettingsAppState.ValidateMcpServerUrlRule(request.Url)) is { } rejected)
-        {
-            await ApplySettingsDecisionAsync(rejected);
-            return;
-        }
-
-        var name = request.Name!.Trim().ToLowerInvariant();
-        var url = request.Url!.Trim();
-        var title = string.IsNullOrWhiteSpace(request.Title) ? name : request.Title.Trim();
-
-        McpServerRow row;
-        string status;
-        if (TryBrainOrNull() is { Value.Length: > 0 } brain)
-        {
-            var serverId = IMcpToolConnection.NeuronIdOf(brain, name);
-            try
-            {
-                var connected = await McpServers[serverId].ConnectServer(new McpConnectionConfig(url, title));
-                row = new McpServerRow(
-                    Name: name,
-                    Title: string.IsNullOrWhiteSpace(connected.Title) ? title : connected.Title,
-                    Url: string.IsNullOrWhiteSpace(connected.Url) ? url : connected.Url,
-                    Connected: connected.Connected,
-                    ToolCount: connected.Tools?.Length ?? 0,
-                    Error: connected.Error);
-                status = connected.Connected
-                    ? $"Connected MCP server '{row.Title}' ({row.ToolCount} tool(s))."
-                    : $"MCP server '{row.Title}' is disconnected.";
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Log.LogWarning(error, "Failed to connect MCP server '{ServerName}' at {Url}.", name, url);
-                row = new McpServerRow(name, title, url, Connected: false, ToolCount: 0, Error: error.Message);
-                status = $"Failed to connect MCP server '{name}': {error.Message}";
-            }
-        }
-        else
-        {
-            row = new McpServerRow(name, title, url, Connected: false, ToolCount: 0, Error: "Brain context is unavailable.");
-            status = $"Brain context is unavailable for MCP server '{name}'.";
-        }
-
-        await UpdateAsync(State with
-        {
-            McpServers = UpsertMcpRow(State.McpServers, row),
-            Status = status,
-        });
+        return McpAddAsync(request.Name, request.Url, secretRefs: null, rawTitle: request.Title);
     }
 
     [On]
@@ -815,10 +771,15 @@ public sealed partial class SettingsApp
                 : row)
             .OrderBy(static r => r.Name, StringComparer.Ordinal)
             .ToArray();
+        var mcpKey = $"connection/mcp/{name}";
+        var updatedConnections = (State.ActiveConnections ?? [])
+            .Where(row => !string.Equals(row.Key, mcpKey, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
         await UpdateAsync(State with
         {
             McpServers = updatedRows,
+            ActiveConnections = updatedConnections,
             Status = $"Disconnected MCP server '{name}'.",
         });
     }

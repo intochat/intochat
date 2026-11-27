@@ -201,7 +201,8 @@ public sealed class InoAppFacts
         Assert.Contains("`studio_propose_change`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`engineer_runs_start_engineer_run`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`engineer_runs_inspect_engineer_run`", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("GitHub MCP tools", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`github_repository_dismiss_issue_draft`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`ai_memory_remember_preference`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`aspire_resources`", def.Instructions, StringComparison.Ordinal);

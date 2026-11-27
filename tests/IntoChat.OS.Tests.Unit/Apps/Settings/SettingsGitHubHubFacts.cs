@@ -1,46 +1,57 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Confirmation;
+using DigitalBrain.Capabilities.Connections.Catalog;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Invocation;
-using DigitalBrain.Limits;
-using DigitalBrain.Modules;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
 using DigitalBrain.Units;
+using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI;
+using IntoChat.OS.Modules.Identity.Contracts.Connections;
+using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Tools;
 using IntoChat.OS.Modules.UI.Controls;
-using DigitalBrain.Capabilities.Secrets;
-using DigitalBrain.UI.Commands;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Settings;
 
+[Neuron(IConnectionCatalog.TypeName)]
+public sealed class FakeSettingsConnectionCatalog : Neuron, IConnectionCatalog
+{
+    public static CatalogRow[] Rows { get; set; } = [];
+
+    public static void Reset() => Rows = [];
+
+    public Task Subscribed() => Task.CompletedTask;
+
+    public Task<ConnectionCatalog> Read()
+        => Task.FromResult(new ConnectionCatalog { Rows = Rows, Revision = 1 });
+}
+
 [Neuron("github")]
-public sealed class FakeGitHubHubNeuron : Neuron, IConnection, IConnectionInbound, IRepository
+public sealed class FakeGitHubConnectionNeuron : Neuron, IConnection, IConnectionInbound
 {
     public static OAuthGrant? LastGrant { get; set; }
     public static ConnectionStatus CurrentStatus { get; set; } = ConnectionStatus.Disconnected;
     public static string? CurrentAccount { get; set; }
-    public static DateTimeOffset? CurrentLastWebhookAt { get; set; }
-    public static PullRequestSnapshot[] CurrentPullRequests { get; set; } = [];
-    public static IssueSnapshot[] CurrentIssues { get; set; } = [];
-    public static IssueCommentPreview[] CurrentPendingDrafts { get; set; } = [];
+    public static int ProbeCount { get; set; }
+    public static int DisconnectCount { get; set; }
+    public static Exception? ThrowOnConnect { get; set; }
 
     public static void Reset()
     {
         LastGrant = null;
         CurrentStatus = ConnectionStatus.Disconnected;
         CurrentAccount = null;
-        CurrentLastWebhookAt = null;
-        CurrentPullRequests = [];
-        CurrentIssues = [];
-        CurrentPendingDrafts = [];
+        ProbeCount = 0;
+        DisconnectCount = 0;
+        ThrowOnConnect = null;
     }
 
     Task<ConnectionView> IConnection.Read()
@@ -51,36 +62,36 @@ public sealed class FakeGitHubHubNeuron : Neuron, IConnection, IConnectionInboun
             CurrentStatus,
             CurrentAccount,
             null,
-            CurrentLastWebhookAt,
+            DateTimeOffset.UtcNow,
             null));
 
     public Task<ConnectionView> Connect(string authMethodId, string value)
     {
+        if (ThrowOnConnect is not null)
+        {
+            throw ThrowOnConnect;
+        }
+
         CurrentStatus = ConnectionStatus.Connected;
         return ((IConnection)this).Read();
     }
 
-    public Task<ConnectionView> Probe() => ((IConnection)this).Read();
+    public Task<ConnectionView> Probe()
+    {
+        ProbeCount++;
+        return ((IConnection)this).Read();
+    }
 
     public Task Disconnect()
     {
+        DisconnectCount++;
         CurrentStatus = ConnectionStatus.Disconnected;
         return Task.CompletedTask;
     }
 
     public Task<ConnectionView> Adopt(string authMethodId, string? account) => ((IConnection)this).Read();
-
-    public Task<Dictionary<string, DigitalBrain.Capabilities.Secrets.SealedSecret>> ExportFor(string brainId)
-        => Task.FromResult(new Dictionary<string, DigitalBrain.Capabilities.Secrets.SealedSecret>(StringComparer.Ordinal));
-
-    public Task<ConnectionView> Import(
-        string authMethodId,
-        string? account,
-        Dictionary<string, DigitalBrain.Capabilities.Secrets.SealedSecret> secrets,
-        ConnectionStatus status,
-        string? detail)
-        => ((IConnection)this).Read();
-
+    public Task<Dictionary<string, SealedSecret>> ExportFor(string brainId) => Task.FromResult(new Dictionary<string, SealedSecret>());
+    public Task<ConnectionView> Import(string authMethodId, string? account, Dictionary<string, SealedSecret> secrets, ConnectionStatus status, string? detail) => ((IConnection)this).Read();
     public Task ShareInto(string brainId, string app) => Task.CompletedTask;
     public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(false);
     public Task UnshareFrom(string brainId, string app) => Task.CompletedTask;
@@ -90,75 +101,117 @@ public sealed class FakeGitHubHubNeuron : Neuron, IConnection, IConnectionInboun
 
     public Task<ConnectionView> AcceptGrant(OAuthGrant grant)
     {
+        if (ThrowOnConnect is not null)
+        {
+            throw ThrowOnConnect;
+        }
+
         LastGrant = grant;
         CurrentStatus = ConnectionStatus.Connected;
         CurrentAccount = grant.Target;
         return ((IConnection)this).Read();
     }
-
-    public Task<RepositoryView> Refresh(RefreshRepository request) => ((IRepository)this).Read();
-
-    Task<RepositoryView> IRepository.Read()
-        => Task.FromResult(new RepositoryView(
-            Id.Key,
-            CurrentStatus == ConnectionStatus.Connected,
-            CurrentPullRequests,
-            CurrentLastWebhookAt));
-
-    public Task<PullRequestRead> ReadPullRequest(ReadPullRequest query, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-
-    public Task<PullRequestsRead> ReadPullRequests()
-        => Task.FromResult(new PullRequestsRead(CurrentPullRequests, CurrentStatus == ConnectionStatus.Connected));
-
-    public Task<ReviewEvidenceRead> ReadReviewEvidence(ReadReviewEvidence query, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-
-    public Task<RequiredChecksRead> ReadRequiredChecks(CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-
-    public Task PushBranch(PushBranchRequest request) => Task.CompletedTask;
-
-    public Task<PullRequestView> CreatePullRequest(CreatePullRequest request) => throw new NotSupportedException();
-
-    public Task ReplyToReviewComment(ReplyReviewComment request) => Task.CompletedTask;
-
-    public Task MergePullRequest(MergePullRequest request) => Task.CompletedTask;
-
-    public Task<IssuesRead> ReadIssues()
-        => Task.FromResult(new IssuesRead(CurrentIssues, CurrentStatus == ConnectionStatus.Connected));
-
-    public Task<IssueCommentPreview[]> ReadPendingIssueDrafts()
-        => Task.FromResult(CurrentPendingDrafts);
 }
 
-[Neuron("ino.studio")]
-public sealed class FakeIssueTriageInoStudioNeuron : Neuron, IStudio
+[Neuron("mcp")]
+public sealed class FakeBearerMcpConnectionNeuron : Neuron, IConnection, IMcpToolConnection
 {
-    public static List<(string ConnectionKey, string Mode)> Calls { get; } = [];
+    public static string? LastConnectedKey { get; private set; }
+    public static string? LastAuthMethodId { get; private set; }
+    public static string? LastConnectPayload { get; private set; }
+    public static int ProbeCount { get; private set; }
+    public static bool Connected { get; private set; }
+    public static string CurrentUrl { get; private set; } = string.Empty;
+    public static string CurrentTitle { get; private set; } = string.Empty;
 
-    public static void Reset() => Calls.Clear();
-
-    public Task<InoToolResult> Make(string goal) => Task.FromResult(new InoToolResult(goal));
-
-    public Task<InoToolResult> Launch(string appId) => Task.FromResult(new InoToolResult(appId));
-
-    public Task<InoToolResult> List() => Task.FromResult(new InoToolResult("[]"));
-
-    public Task<InoToolResult> CreateIssueTriageSynapse(string connectionKey, string mode = "DraftForApproval", CancellationToken ct = default)
+    public static void Reset()
     {
-        Calls.Add((connectionKey, mode));
-        var slug = SettingsAppState.NormalizeGitHubSlug(connectionKey);
-        var alias = $"gh-triage-{slug}";
-        var card = new InoCard(
-            Id: alias,
-            Kind: "app-install",
-            Title: $"GitHub Issue Triage ({slug})",
-            Summary: $"Deployed {alias} in {mode} mode.",
-            SourceNeuronUri: $"neuron://local/{alias}/default",
-            Status: "deployed");
-        return Task.FromResult(new InoToolResult($"Deployed issue triage Synapse '{alias}' ({mode}) for {connectionKey}.", card, Ok: true));
+        LastConnectedKey = null;
+        LastAuthMethodId = null;
+        LastConnectPayload = null;
+        ProbeCount = 0;
+        Connected = false;
+        CurrentUrl = string.Empty;
+        CurrentTitle = string.Empty;
     }
+
+    Task<ConnectionView> IConnection.Read()
+        => Task.FromResult(new ConnectionView(
+            "mcp",
+            Id.Key.Split('/').Last(),
+            LastAuthMethodId ?? "bearer-token",
+            Connected ? ConnectionStatus.Connected : ConnectionStatus.Disconnected,
+            CurrentUrl,
+            null,
+            DateTimeOffset.UtcNow,
+            null));
+
+    public Task<ConnectionView> Connect(string authMethodId, string value)
+    {
+        LastConnectedKey = Id.Key;
+        LastAuthMethodId = authMethodId;
+        LastConnectPayload = value;
+        Connected = true;
+        using var doc = JsonDocument.Parse(value);
+        if (doc.RootElement.TryGetProperty("url", out var urlProp)) { CurrentUrl = urlProp.GetString() ?? ""; }
+        if (doc.RootElement.TryGetProperty("title", out var titleProp)) { CurrentTitle = titleProp.GetString() ?? ""; }
+        return ((IConnection)this).Read();
+    }
+
+    public Task<ConnectionView> Probe()
+    {
+        ProbeCount++;
+        return ((IConnection)this).Read();
+    }
+
+    public Task Disconnect()
+    {
+        Connected = false;
+        return Task.CompletedTask;
+    }
+
+    public Task<ConnectionView> Adopt(string authMethodId, string? account) => ((IConnection)this).Read();
+    public Task<Dictionary<string, SealedSecret>> ExportFor(string brainId) => Task.FromResult(new Dictionary<string, SealedSecret>());
+    public Task<ConnectionView> Import(string authMethodId, string? account, Dictionary<string, SealedSecret> secrets, ConnectionStatus status, string? detail) => ((IConnection)this).Read();
+    public Task ShareInto(string brainId, string app) => Task.CompletedTask;
+    public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(false);
+    public Task UnshareFrom(string brainId, string app) => Task.CompletedTask;
+    public Task ShareWith(string principalId) => Task.CompletedTask;
+    public Task<bool> IsSharedWith(string principalId) => Task.FromResult(false);
+    public Task UnshareWith(string principalId) => Task.CompletedTask;
+
+    public Task<McpServerState> ConnectServer(McpConnectionConfig config, CancellationToken ct = default)
+    {
+        LastConnectedKey = Id.Key;
+        CurrentUrl = config.Url;
+        CurrentTitle = config.Title ?? "";
+        Connected = true;
+        return ReadState(ct);
+    }
+
+    public Task<McpServerState> Configure(McpConnectionConfig config, CancellationToken ct = default) => ConnectServer(config, ct);
+
+    public Task DisconnectServer(CancellationToken ct = default)
+    {
+        Connected = false;
+        return Task.CompletedTask;
+    }
+
+    public Task<McpServerState> ReadState(CancellationToken ct = default)
+        => Task.FromResult(new McpServerState(
+            CurrentTitle,
+            CurrentUrl,
+            Connected,
+            Connected ? [new ToolDescriptor("crm_list", "List", "List records", "{}", true)] : [],
+            null,
+            DateTimeOffset.UtcNow));
+
+    public Task<IReadOnlyList<string>> List() => Task.FromResult<IReadOnlyList<string>>([]);
+    public Task<ToolSet> Tools(CancellationToken ct = default) => Task.FromResult(new ToolSet(CurrentTitle, []));
+    public Task<IReadOnlyList<ToolDescriptor>> Search(string query, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ToolDescriptor>>([]);
+    public Task<bool> Validate(string tool, JsonElement args, CancellationToken ct = default) => Task.FromResult(true);
+    public Task<JsonElement> Run(string tool, JsonElement args, CancellationToken ct = default) => Task.FromResult(JsonDocument.Parse("{}").RootElement.Clone());
+    public Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default) => Task.FromResult(new ToolResult(false, "{}", []));
 }
 
 [CollectionDefinition(nameof(SettingsGitHubHubFacts), DisableParallelization = true)]
@@ -170,42 +223,17 @@ public sealed class SettingsGitHubHubFacts
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task NavigatedTo_ConnectionsGitHub_OpensGitHubHubDirectlyWithActiveTransitionAndGuardsUnsavedDeparture()
+    public async Task ConnectionsHub_RendersLiveCatalogRows_RealPort5080Webhook_AndProbeDisconnectActions()
     {
-        FakeGitHubHubNeuron.Reset();
-        FakeGitHubHubNeuron.CurrentStatus = ConnectionStatus.Connected;
-        FakeGitHubHubNeuron.CurrentAccount = "intochat/os";
-        FakeGitHubHubNeuron.CurrentLastWebhookAt = new DateTimeOffset(2026, 11, 20, 12, 30, 0, TimeSpan.Zero);
-        var observedAt = FakeGitHubHubNeuron.CurrentLastWebhookAt.Value;
-        FakeGitHubHubNeuron.CurrentPullRequests =
+        FakeSettingsConnectionCatalog.Reset();
+        FakeGitHubConnectionNeuron.Reset();
+        FakeGitHubConnectionNeuron.CurrentStatus = ConnectionStatus.Connected;
+        FakeGitHubConnectionNeuron.CurrentAccount = "intochat/os";
+        FakeSettingsConnectionCatalog.Rows =
         [
-            new PullRequestSnapshot(
-                Number: 42,
-                Title: "Add GitHub hub",
-                Url: "https://github.com/intochat/os/pull/42",
-                IsOpen: true,
-                IsDraft: false,
-                HeadSha: "1111111111111111111111111111111111111111",
-                BaseSha: "2222222222222222222222222222222222222222",
-                MergeSha: null,
-                CiSha: "1111111111111111111111111111111111111111",
-                Checks: [],
-                ChecksComplete: true,
-                ObservedAt: observedAt,
-                CreatedAt: observedAt,
-                Revision: "rev-1",
-                CiRevision: "ci-1",
-                RepositoryId: 12345,
-                BaseBranch: "main"),
-        ];
-        FakeGitHubHubNeuron.CurrentIssues =
-        [
-            new IssueSnapshot(101, "Triage webhook issue", "Body", "https://github.com/intochat/os/issues/101", true, "ada", ["bug"], 1, observedAt, observedAt, observedAt, "irev-1", 12345),
-            new IssueSnapshot(102, "Follow-up feature", "Body", "https://github.com/intochat/os/issues/102", true, "grace", ["enhancement"], 0, observedAt, observedAt, observedAt, "irev-2", 12345),
-        ];
-        FakeGitHubHubNeuron.CurrentPendingDrafts =
-        [
-            new IssueCommentPreview("prev-1", 101, "Draft comment", ["triage", "bug"], observedAt.AddMinutes(10), "intochat/os", observedAt),
+            new CatalogRow(ConnectionKeys.For("local", "github", "main"), "github", "main", ConnectionStatus.Connected, "intochat/os", DateTimeOffset.UtcNow),
+            new CatalogRow(ConnectionKeys.For("local", "google-drive", "primary"), "google-drive", "primary", ConnectionStatus.Expired, "ada@example.com", DateTimeOffset.UtcNow),
+            new CatalogRow(ConnectionKeys.For("local", "mcp", "muncly-crm"), "mcp", "muncly-crm", ConnectionStatus.Connected, "https://mcpdemo-crm.munc.ly/api/mcp", DateTimeOffset.UtcNow),
         ];
 
         try
@@ -214,87 +242,67 @@ public sealed class SettingsGitHubHubFacts
             using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
             await using var os = TestOS.Local()
                 .RegisterCatalog()
-                .Register<FakeGitHubHubNeuron>();
-            var settings = await os.Install<SettingsApp>();
-            var screen = settings.Screen;
+                .Register<FakeSettingsConnectionCatalog>()
+                .Register<FakeGitHubConnectionNeuron>();
 
-            // 1. Plain-input UiNavigateTo ("connections/github") coerces to SettingsNavArgs("connections", "github") and stamps ActiveTransition!
-            var navSignal = RuntimeProtocol.SerializeToElement(
-                new UiNavigateTo(
-                    ArgsJson: null,
-                    FromNeuron: "app.engineer",
-                    Transition: ViewTransition.SharedAxisX,
-                    CorrelationId: "corr-gh-1",
-                    Input: "connections/github"),
-                typeof(UiNavigateTo));
-            await screen.Dispatch(new Command(".", UiNavigateTo.SignalAlias, navSignal));
+            var settings = await os.Install<SettingsApp>();
+            settings.App.Connectors =
+            [
+                new ConnectorDefinition("github", "GitHub", ["device-flow", "oauth", "pat"], []),
+                new ConnectorDefinition("muncly", "Muncly CRM", ["bearer-token"], []),
+                new ConnectorDefinition("google-drive", "Google Drive", ["oauth"], []),
+                new ConnectorDefinition("gmail", "Gmail", ["oauth"], []),
+                new ConnectorDefinition("salesforce", "Salesforce", ["oauth"], []),
+            ];
+
+            await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), transition: ViewTransition.SharedAxisX, cancellationToken: Ct);
             await os.Idle();
 
             Assert.Equal("connections", settings.App.State.Section);
-            Assert.Equal("github", settings.App.State.SubPage);
             Assert.Equal(ViewTransition.SharedAxisX, settings.App.ActiveTransition);
-            Assert.Equal(ViewTransition.SharedAxisX, settings.App.State.ActiveTransition);
-            Assert.True(settings.App.State.GitHubConnected);
-            Assert.Equal("intochat/os", settings.App.State.GitHubRepository);
-            Assert.Equal(1, settings.App.State.GitHubPullRequestCount);
-            Assert.Equal(2, settings.App.State.GitHubIssueCount);
-            Assert.Equal(1, settings.App.State.GitHubPendingDraftCount);
+            Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main" && c.Status == ConnectionStatus.Connected);
+            Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/google-drive/primary" && c.Status == ConnectionStatus.Expired);
+            Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/mcp/muncly-crm" && c.Status == ConnectionStatus.Connected);
+            Assert.DoesNotContain(settings.App.State.ActiveConnections, c => c.Key.StartsWith("local/", StringComparison.Ordinal));
 
-            var shell = Assert.IsType<AppShellNode>(settings.App.Render().Root);
-            Assert.Equal(ViewTransition.SharedAxisX, shell.Transition);
+            // 4-part MCP CatalogRow deduplicates cleanly with MCP server rows and removes cleanly on McpRemove
+            await settings.App.McpRemove(new SettingsMcpRemove("muncly-crm"));
+            Assert.DoesNotContain(settings.App.State.ActiveConnections, c => c.Key == "connection/mcp/muncly-crm");
 
             var wire = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
-            Assert.Contains("Connected", wire, StringComparison.Ordinal);
-            Assert.Contains("2026-11-20 12:30:00Z", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github:copy-webhook-url", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github:copy-gh-forward", wire, StringComparison.Ordinal);
-            Assert.Contains("/integrations/github/webhook", wire, StringComparison.Ordinal);
-            Assert.Contains("gh webhook forward --repo intochat/os --events=issues,issue_comment,pull_request,check_run,check_suite --url=http://localhost:5000/integrations/github/webhook", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github-policy:auto-10", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github-policy:draft-only", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github-policy:reset", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github-synapse:draft", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github-synapse:auto", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github:open-tasks", wire, StringComparison.Ordinal);
-            Assert.Contains("settings:github:open-creator", wire, StringComparison.Ordinal);
+            Assert.Contains("http://localhost:5080/integrations/github/webhook", wire, StringComparison.Ordinal);
+            Assert.DoesNotContain("localhost:5000", wire, StringComparison.Ordinal);
+            Assert.Contains("conn:probe:github:main", wire, StringComparison.Ordinal);
+            Assert.Contains("conn:disconnect:github:main", wire, StringComparison.Ordinal);
+            Assert.Contains("conn:oauth:google-drive", wire, StringComparison.Ordinal);
+            Assert.Contains("conn:oauth:gmail", wire, StringComparison.Ordinal);
+            Assert.Contains("conn:oauth:salesforce", wire, StringComparison.Ordinal);
 
-            // 2. Typed NavigationArrival<SettingsNavArgs> also supports Sheet & SearchQuery
-            await settings.App.NavigateToAsync(
-                new SettingsNavArgs(Section: "connections", SubPage: "github", Sheet: "add-connection", SearchQuery: "github"),
-                fromNeuron: "app.tasks",
-                transition: ViewTransition.FadeThrough,
-                cancellationToken: Ct);
-            Assert.Equal(ViewTransition.FadeThrough, settings.App.ActiveTransition);
-            Assert.Equal("add-connection", settings.App.State.Sheet);
-            Assert.Equal("github", settings.App.State.SearchQuery);
+            // Probe and Disconnect actions
+            await settings.Screen.Click("conn:probe:github:main");
+            await os.Idle();
+            Assert.Equal(1, FakeGitHubConnectionNeuron.ProbeCount);
 
-            // 3. INavigatedFrom: clean state allows departure; HasUnsavedChanges blocks unforced departure, passes when Force == true
-            Assert.True(await settings.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer", Force: false), Ct));
+            await settings.Screen.Click("conn:disconnect:github:main");
+            await os.Idle();
+            Assert.Equal(1, FakeGitHubConnectionNeuron.DisconnectCount);
 
-            // No command marks Settings dirty (the method-name back door that reached MarkUnsavedChanges is deleted), so the
-            // departure rule is judged on the state.
+            // INavigatedFrom departure guard still enforced
             var dirty = new SettingsAppState().MarkUnsavedChanges();
             Assert.True(dirty.CanDepart().Broken);
-            Assert.Equal("settings_unsaved_changes", dirty.CanDepart().Name);
             Assert.False(dirty.CanDepart(force: true).Broken);
-
-            var forcedLeave = RuntimeProtocol.SerializeToElement(
-                new UiNavigateFrom(ToNeuron: "app.engineer", Route: "flow", Force: true),
-                typeof(UiNavigateFrom));
-            await screen.Dispatch(new Command(".", UiNavigateFrom.SignalAlias, forcedLeave));
-            await os.Idle();
-            Assert.False(settings.App.State.HasUnsavedChanges);
         }
         finally
         {
-            FakeGitHubHubNeuron.Reset();
+            FakeSettingsConnectionCatalog.Reset();
+            FakeGitHubConnectionNeuron.Reset();
         }
     }
 
     [Fact]
-    public async Task GitHubPatFormSubmission_ValidatesRepoSealsGrantAndPersistsZeroRawSecrets()
+    public async Task GitHubPatFormSubmission_SealsPatAndWebhookSecretWithoutLeakingRawSecrets()
     {
-        FakeGitHubHubNeuron.Reset();
+        FakeGitHubConnectionNeuron.Reset();
         var pat = "github_pat_" + new string('a', 32);
         var webhookSecret = "whsec_" + new string('w', 24);
         var patRef = SecretReferences.For("local", "app.settings/default/github-pat/PersonalAccessToken", "Personal access token", isSet: true).Reference;
@@ -305,7 +313,7 @@ public sealed class SettingsGitHubHubFacts
             var brain = new BrainId("local");
             await using var os = TestOS.Local()
                 .RegisterCatalog()
-                .Register<FakeGitHubHubNeuron>();
+                .Register<FakeGitHubConnectionNeuron>();
             using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
 
             var settings = await os.Install<SettingsApp>();
@@ -314,61 +322,49 @@ public sealed class SettingsGitHubHubFacts
             vault.SetSecret(webhookRef, webhookSecret);
             settings.App.SecretVault = vault;
 
-            await settings.App.NavigateToAsync(new SettingsNavArgs("connections", "github"), cancellationToken: Ct);
+            await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
             await os.Idle();
 
-            // The PAT form is a control.form child of Settings; its two secret fields are drawn from props.
-            var view = await settings.Screen.Read();
-            var form = Children(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith("/" + SettingsControls.GitHubPat, StringComparison.Ordinal));
-            Assert.Contains("/control.form/", form.GetProperty("neuronUri").GetString()!, StringComparison.Ordinal);
-            var kinds = form.GetProperty("props").GetProperty("fields").EnumerateArray()
-                .ToDictionary(field => field.GetProperty("key").GetString()!, field => field.GetProperty("kind").GetString()!);
-            Assert.Equal(
-                new Dictionary<string, string> { ["Repository"] = "Text", ["PersonalAccessToken"] = "Secret", ["WebhookSecret"] = "Secret", ["ConnectionSlug"] = "Text" },
-                kinds);
             var secretRefs = new Dictionary<string, string> { ["PersonalAccessToken"] = patRef, ["WebhookSecret"] = webhookRef };
 
-            // 1. A raw token typed into values is refused at the gate and never reaches the form, the app or the journal.
-            var raw = await Assert.ThrowsAsync<ActivationRefusedException>(() => SubmitPat(settings, new Dictionary<string, string>
+            // 1. Raw secret in values is refused at FormControl gate
+            var raw = await Assert.ThrowsAsync<ActivationRefusedException>(() => SubmitForm(settings, SettingsControls.GitHubPat, new Dictionary<string, string>
             {
                 ["Repository"] = "intochat/os",
                 ["PersonalAccessToken"] = pat,
             }));
             Assert.Equal(FormRefusals.SecretInValues, raw.Reason);
-            Assert.Null(FakeGitHubHubNeuron.LastGrant);
+            Assert.Null(FakeGitHubConnectionNeuron.LastGrant);
 
-            // 2. Invalid repository format is refused by domain rule
-            await SubmitPat(settings, new Dictionary<string, string> { ["Repository"] = "invalid-repo-without-slash" }, secretRefs);
-
+            // 2. Invalid repository format refused by domain rule
+            await SubmitForm(settings, SettingsControls.GitHubPat, new Dictionary<string, string> { ["Repository"] = "invalid-repo" }, secretRefs);
             Assert.NotNull(settings.App.LastRejection);
             Assert.Contains("invalid_github_repository", settings.App.LastRejection!.Rules);
-            Assert.Null(FakeGitHubHubNeuron.LastGrant);
 
-            // 3. Valid "owner/repo" seals PAT grant on {brain}/connection/github/main and refreshes live status
-            await SubmitPat(settings, new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" }, secretRefs);
+            // 3. Valid "owner/repo" seals BOTH PAT and WebhookSecret!
+            await SubmitForm(settings, SettingsControls.GitHubPat, new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" }, secretRefs);
 
             Assert.Null(settings.App.LastRejection);
-            Assert.NotNull(FakeGitHubHubNeuron.LastGrant);
-            Assert.Equal("pat", FakeGitHubHubNeuron.LastGrant!.AuthMethodId);
-            Assert.Equal("intochat/os", FakeGitHubHubNeuron.LastGrant.Target);
-            Assert.Equal(pat, FakeGitHubHubNeuron.LastGrant.AccessToken);
+            Assert.NotNull(FakeGitHubConnectionNeuron.LastGrant);
+            Assert.Equal("pat", FakeGitHubConnectionNeuron.LastGrant!.AuthMethodId);
+            Assert.Equal("intochat/os", FakeGitHubConnectionNeuron.LastGrant.Target);
+            Assert.Equal(pat, FakeGitHubConnectionNeuron.LastGrant.AccessToken);
+            Assert.Contains(webhookSecret, FakeGitHubConnectionNeuron.LastGrant.Response, StringComparison.Ordinal);
 
-            Assert.True(settings.App.State.GitHubConnected);
-            Assert.Equal("intochat/os", settings.App.State.GitHubRepository);
-            Assert.True(settings.App.State.GitHubWebhookSecretConfigured);
-            Assert.Contains("connection/github/main", settings.App.State.ConnectionKeys!);
+            Assert.Contains(settings.App.State.ActiveConnections, c =>
+                c.Key == "connection/github/main"
+                && c.Status == ConnectionStatus.Connected
+                && c.Account == "intochat/os");
 
-            // 4. Prove ZERO raw secrets in SettingsAppState, the rendered View, or the TestOS journal of Settings and its form (state and view changes included)!
-            var settingsId = new NeuronId(brain, "app.settings", "default");
-            var formId = new NeuronId(brain, "control.form", ScreenExtensions.ChildAddress(settingsId, SettingsControls.GitHubPat));
+            // 4. Prove ZERO raw secrets in state, view, or journal
             var serializedState = JsonSerializer.Serialize(settings.App.State);
             var serializedView = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
-            var journalSignals = os.Journal(brain).Signals(formId)
+            var settingsId = new NeuronId(brain, "app.settings", "default");
+            var formId = new NeuronId(brain, "control.form", ScreenExtensions.ChildAddress(settingsId, SettingsControls.GitHubPat));
+            var journalDump = string.Join("\n", os.Journal(brain).Signals(formId)
                 .Concat(os.Journal(brain).Signals(settingsId))
-                .Select(e => JsonSerializer.Serialize(e.Signal, e.Signal.GetType()));
-            var journalDump = string.Join("\n", journalSignals);
+                .Select(e => JsonSerializer.Serialize(e.Signal, e.Signal.GetType())));
 
-            Assert.Contains(patRef, journalDump, StringComparison.Ordinal);
             foreach (var secret in new[] { pat, webhookSecret })
             {
                 Assert.DoesNotContain(secret, serializedState, StringComparison.Ordinal);
@@ -378,153 +374,347 @@ public sealed class SettingsGitHubHubFacts
         }
         finally
         {
-            FakeGitHubHubNeuron.Reset();
+            FakeGitHubConnectionNeuron.Reset();
         }
     }
 
-    private static async Task SubmitPat(InstalledApp<SettingsApp> settings, Dictionary<string, string> values, Dictionary<string, string>? secretRefs = null)
-    {
-        var submit = new Submit(values, secretRefs);
-        await settings.Screen.Dispatch(new Command(SettingsControls.GitHubPat, "control.submit", JsonSerializer.SerializeToElement(submit, JsonSerializerOptions.Web)));
-        await settings.OS.Idle();
-    }
-
-    private static IEnumerable<JsonElement> Children(JsonElement json) => json.ValueKind switch
-    {
-        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "child" ? [json] : Enumerable.Empty<JsonElement>())
-            .Concat(json.EnumerateObject().SelectMany(property => Children(property.Value))),
-        JsonValueKind.Array => json.EnumerateArray().SelectMany(Children),
-        _ => [],
-    };
-
     [Fact]
-    public async Task SetGitHubTriagePolicy_AdoptsAuto10DraftOnlyAndResetRulesOnIPolicies()
+    public async Task MunclyAndAuthenticatedMcpForms_SealBearerTokenAndConnectViaIConnection()
     {
-        var brain = new BrainId("local");
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
-        await using var os = TestOS.Local()
-            .Register(typeof(GitHubModule).Assembly)
-            .Register<UserSettingsNeuron>();
+        FakeBearerMcpConnectionNeuron.Reset();
+        var munclyToken = "crm_test_" + new string('m', 16);
+        var customToken = "mcp_test_" + new string('c', 16);
+        var munclyRef = SecretReferences.For("local", "app.settings/default/muncly-connect/BearerToken", "MCP Bearer Token", isSet: true).Reference;
+        var customRef = SecretReferences.For("local", "app.settings/default/mcp-add/token", "Bearer token", isSet: true).Reference;
 
-        var settings = await os.Install<SettingsApp>();
-        var screen = settings.Screen;
-        var policies = os.Get<IPolicies>(NeuronId.Parse(IPolicies.Key(brain.Value)));
-        await settings.App.NavigateToAsync(new SettingsNavArgs("connections", "github"), cancellationToken: Ct);
-        await os.Idle();
-
-        // 1. Click settings:github-policy:auto-10 -> 10m per rolling 1-hour window
-        var open1 = await screen.Open();
-        await screen.Click("settings:github-policy:auto-10");
-        await os.Idle();
-
-        Assert.Equal("auto-10", settings.App.State.GitHubTriagePolicyPreset);
-        Assert.False(string.IsNullOrWhiteSpace(settings.App.State.GitHubTriagePolicyPlanId));
-        await os.Confirmations.Approve(settings.App.State.GitHubTriagePolicyPlanId!);
-        await os.Idle();
-
-        var autoRule = Assert.Single(await policies.List(Ct));
-        Assert.Equal("github.issue.comment", autoRule.Action);
-        Assert.Equal(PolicyMeasure.Count, autoRule.Measure);
-        Assert.Equal(PolicyWindowKind.Rolling, autoRule.Window.Kind);
-        Assert.Equal(TimeSpan.FromHours(1), autoRule.Window.Span);
-        Assert.Equal(10m, autoRule.Limit);
-
-        // 2. Click settings:github-policy:draft-only -> 0m per PolicyWindowKind.None
-        var open2 = await screen.Open();
-        await screen.Click("settings:github-policy:draft-only");
-        await os.Idle();
-
-        Assert.Equal("draft-only", settings.App.State.GitHubTriagePolicyPreset);
-        Assert.False(string.IsNullOrWhiteSpace(settings.App.State.GitHubTriagePolicyPlanId));
-        await os.Confirmations.Approve(settings.App.State.GitHubTriagePolicyPlanId!);
-        await os.Idle();
-
-        var draftRule = Assert.Single(await policies.List(Ct));
-        Assert.Equal("github.issue.comment", draftRule.Action);
-        Assert.Equal(PolicyWindowKind.None, draftRule.Window.Kind);
-        Assert.Equal(0m, draftRule.Limit);
-        Assert.False((await policies.Allow("github.issue.comment", 1m, null, Ct)).Allowed);
-
-        // 3. Click settings:github-policy:reset -> retires rule
-        var open3 = await screen.Open();
-        await screen.Click("settings:github-policy:reset");
-        await os.Idle();
-
-        Assert.Equal("reset", settings.App.State.GitHubTriagePolicyPreset);
-        Assert.Empty(await policies.List(Ct));
-        Assert.True((await policies.Allow("github.issue.comment", 1m, null, Ct)).Allowed);
-    }
-
-    [Fact]
-    public async Task InstallIssueTriageSynapse_InvokesInoStudioAndUpdatesCreatorAndTasksDeepLinks()
-    {
-        FakeIssueTriageInoStudioNeuron.Reset();
         try
         {
             var brain = new BrainId("local");
-            using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
             await using var os = TestOS.Local()
-                .Register<UserSettingsNeuron>()
-                .Register<FakeIssueTriageInoStudioNeuron>();
+                .RegisterCatalog()
+                .Register<FakeBearerMcpConnectionNeuron>();
+            using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
 
             var settings = await os.Install<SettingsApp>();
-            var screen = settings.Screen;
-            await settings.App.NavigateToAsync(new SettingsNavArgs("connections", "github"), cancellationToken: Ct);
+            var vault = new MemorySecretVault();
+            vault.SetSecret(munclyRef, munclyToken);
+            vault.SetSecret(customRef, customToken);
+            settings.App.SecretVault = vault;
+
+            await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
             await os.Idle();
 
-            // 1. Install Draft mode via button activation
-            var openDraft = await screen.Open();
-            await screen.Click("settings:github-synapse:draft");
-            await os.Idle();
+            // 1. Connect Muncly CRM from Settings -> Connections
+            await SubmitForm(
+                settings,
+                SettingsControls.MunclyConnect,
+                new Dictionary<string, string> { ["Url"] = "https://mcpdemo-crm.munc.ly" },
+                new Dictionary<string, string> { ["BearerToken"] = munclyRef });
 
-            Assert.Single(FakeIssueTriageInoStudioNeuron.Calls);
-            Assert.Equal(("connection/github/main", "DraftForApproval"), FakeIssueTriageInoStudioNeuron.Calls[0]);
-            Assert.Equal("gh-triage-main", settings.App.State.GitHubInstalledSynapseAlias);
-            Assert.Equal("DraftForApproval", settings.App.State.GitHubSynapseMode);
+            Assert.Equal("connection/mcp/muncly-crm", FakeBearerMcpConnectionNeuron.LastConnectedKey);
+            Assert.Equal("bearer-token", FakeBearerMcpConnectionNeuron.LastAuthMethodId);
+            Assert.Contains(munclyToken, FakeBearerMcpConnectionNeuron.LastConnectPayload!, StringComparison.Ordinal);
+            Assert.Contains("https://mcpdemo-crm.munc.ly/api/mcp", FakeBearerMcpConnectionNeuron.LastConnectPayload!, StringComparison.Ordinal);
+            Assert.Contains(settings.App.State.ActiveConnections, c => c.Key == "connection/mcp/muncly-crm" && c.Status == ConnectionStatus.Connected && c.ToolCount == 1);
 
-            var wireAfterDraft = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
-            Assert.Contains("gh-triage-main", wireAfterDraft, StringComparison.Ordinal);
-            Assert.Contains("os://window/open?app=tasks\\u0026input=approvals", wireAfterDraft, StringComparison.Ordinal);
-            Assert.Contains("os://window/open?app=creator\\u0026input=gh-triage-main", wireAfterDraft, StringComparison.Ordinal);
+            // 2. Connect authenticated custom MCP server via McpAddFormControl
+            await SubmitForm(
+                settings,
+                SettingsControls.McpAddForm,
+                new Dictionary<string, string> { ["name"] = "corp-mcp", ["url"] = "https://mcp.corp.example/api" },
+                new Dictionary<string, string> { ["token"] = customRef });
 
-            // 2. Install AutoComment mode via button activation
-            var openAuto = await screen.Open();
-            await screen.Click("settings:github-synapse:auto");
-            await os.Idle();
+            Assert.Equal("connection/mcp/corp-mcp", FakeBearerMcpConnectionNeuron.LastConnectedKey);
+            Assert.Equal("bearer-token", FakeBearerMcpConnectionNeuron.LastAuthMethodId);
+            Assert.Contains(customToken, FakeBearerMcpConnectionNeuron.LastConnectPayload!, StringComparison.Ordinal);
+            Assert.Contains(settings.App.State.McpServers, m => m.Name == "corp-mcp" && m.Connected && m.ToolCount == 1);
+            Assert.Contains(settings.App.State.ActiveConnections, c => c.Key == "connection/mcp/corp-mcp" && c.Status == ConnectionStatus.Connected);
 
-            Assert.Equal(2, FakeIssueTriageInoStudioNeuron.Calls.Count);
-            Assert.Equal(("connection/github/main", "AutoComment"), FakeIssueTriageInoStudioNeuron.Calls[1]);
-            Assert.Equal("AutoComment", settings.App.State.GitHubSynapseMode);
+            // 3. Prove ZERO raw tokens in state or rendered view
+            var serializedState = JsonSerializer.Serialize(settings.App.State);
+            var serializedView = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
+            foreach (var secret in new[] { munclyToken, customToken })
+            {
+                Assert.DoesNotContain(secret, serializedState, StringComparison.Ordinal);
+                Assert.DoesNotContain(secret, serializedView, StringComparison.Ordinal);
+            }
         }
         finally
         {
-            FakeIssueTriageInoStudioNeuron.Reset();
+            FakeBearerMcpConnectionNeuron.Reset();
         }
     }
 
     [Fact]
-    public void GitHubHubStates_PassAggregateExplorerPreviewWithZeroViolationsAndZeroMonospace()
+    public void InoAgentDefinition_ReferencesGitHubMcpTools_WithoutRetiredSynapseHint()
+    {
+        var def = InoAgentDefinition.For(new UserSettingsState("Ada", "dark", "qwen3.5:4b", []));
+        Assert.Contains("GitHub MCP tools", def.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("studio_create_issue_triage_synapse", def.Instructions, StringComparison.Ordinal);
+        if (typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).GetMethod("CreateIssue") is not null)
+        {
+            Assert.Contains("github_repository_create_issue", def.Instructions, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ConnectionsHubStates_PassAggregateExplorerPreviewWithZeroViolationsAndZeroMonospace()
     {
         var hubState = new SettingsAppState()
-            .ApplyArrival(new SettingsNavArgs("connections", "github"), ViewTransition.FadeThrough) with
+            .ApplyArrival(new SettingsNavArgs("connections"), ViewTransition.FadeThrough) with
         {
-            GitHubConnected = true,
-            GitHubRepository = "intochat/os",
-            GitHubLastWebhookAt = "2026-11-20 12:00:00Z",
-            GitHubPullRequestCount = 3,
-            GitHubIssueCount = 5,
-            GitHubPendingDraftCount = 2,
-            GitHubWebhookSecretConfigured = true,
-            GitHubTriagePolicyPreset = "draft-only",
-            GitHubInstalledSynapseAlias = "gh-triage-main",
-            GitHubSynapseInstallStatus = "Deployed gh-triage-main (DraftForApproval).",
-            GitHubSynapseMode = "DraftForApproval",
+            ActiveConnections =
+            [
+                new SettingsConnectionRow("connection/github/main", "github", "main", "GitHub · main", ConnectionStatus.Connected, "intochat/os"),
+                new SettingsConnectionRow("connection/mcp/muncly-crm", "mcp", "muncly-crm", "Muncly CRM", ConnectionStatus.Connected, "https://mcpdemo-crm.munc.ly/api/mcp", ToolCount: 5),
+            ],
         };
 
-        Assert.True(hubState.ValidGitHubHubProjectionInvariant);
+        Assert.True(hubState.ValidConnectionsInvariant);
+        Assert.True(hubState.ValidTransitionInvariant);
         var node = AggregateExplorer<SettingsAppState>.PreviewNode<SettingsApp>(hubState);
         var wire = JsonSerializer.Serialize(node, RuntimeProtocol.OptionsFor(typeof(Node)));
         Assert.DoesNotContain("\"mono\":true", wire, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("GitHub Hub \\u00B7 main", wire, StringComparison.Ordinal);
+        Assert.Contains("Active Connections", wire, StringComparison.Ordinal);
+        Assert.Contains("Connected \\u00B7 5 tools", wire, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GitHubDeviceFlow_StartAndComplete_RendersUserCodeExternalLinkAndConnects()
+    {
+        var flow = new FakeOAuthDeviceFlow();
+        var brain = new BrainId("local");
+        await using var os = TestOS.Local().RegisterCatalog();
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+
+        var settings = await os.Install<SettingsApp>();
+        settings.App.OAuthDeviceFlow = flow;
+        settings.App.Connectors =
+        [
+            new ConnectorDefinition("github", "GitHub", ["device", "oauth", "pat"], [])
+            {
+                DeviceMethods =
+                [
+                    new OAuthDeviceMethod(
+                        "device",
+                        "https://github.com/login/device/code",
+                        "https://github.com/login/oauth/access_token",
+                        ["repo"],
+                        DefaultClientId: "test-client-id"),
+                ],
+            },
+        ];
+        await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
+        await os.Idle();
+
+        await settings.Screen.Click("settings:github:device-flow-start");
+        await os.Idle();
+
+        Assert.Equal("flow-gh-1", settings.App.State.DeviceFlowId);
+        Assert.Equal("ABCD-1234", settings.App.State.DeviceFlowUserCode);
+        Assert.Equal("device", flow.LastAuthMethodId);
+        Assert.NotNull(flow.LastConnectionKey);
+        var parsedDeviceKey = ConnectionKeys.Parse(flow.LastConnectionKey!);
+        Assert.Equal("local", parsedDeviceKey.BrainId);
+        Assert.Equal("github", parsedDeviceKey.ConnectorId);
+        Assert.Equal("main", parsedDeviceKey.ConnectionId);
+
+        var startedWire = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
+        Assert.Contains("ABCD-1234", startedWire, StringComparison.Ordinal);
+        Assert.Contains("https://github.com/login/device", startedWire, StringComparison.Ordinal);
+        Assert.Contains("settings:github:device-flow-open", startedWire, StringComparison.Ordinal);
+        Assert.Contains("settings:github:device-flow-complete", startedWire, StringComparison.Ordinal);
+
+        await settings.Screen.Click("settings:github:device-flow-complete");
+        await os.Idle();
+
+        Assert.Null(settings.App.State.DeviceFlowId);
+        Assert.Null(settings.App.State.DeviceFlowUserCode);
+        Assert.Contains(settings.App.State.ActiveConnections, c =>
+            c.Key == "connection/github/main"
+            && c.Status == ConnectionStatus.Connected
+            && c.Account == "octocat");
+    }
+
+    [Fact]
+    public async Task GitHubPatFormSubmission_FailsClosedOnVaultUnsealFailureAndConnectFailure()
+    {
+        FakeGitHubConnectionNeuron.Reset();
+        var pat = "github_pat_" + new string('b', 32);
+        var patRef = SecretReferences.For("local", "app.settings/default/github-pat/PersonalAccessToken", "Personal access token", isSet: true).Reference;
+        var webhookRef = SecretReferences.For("local", "app.settings/default/github-pat/WebhookSecret", "Webhook secret", isSet: true).Reference;
+
+        try
+        {
+            var brain = new BrainId("local");
+            await using var os = TestOS.Local()
+                .RegisterCatalog()
+                .Register<FakeGitHubConnectionNeuron>();
+            using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+
+            var settings = await os.Install<SettingsApp>();
+            var vault = new MemorySecretVault();
+            settings.App.SecretVault = vault;
+            await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
+            await os.Idle();
+
+            // 1. Unopenable PAT ref fails closed: never passes secret:// URI as token, marks Failing
+            await SubmitForm(
+                settings,
+                SettingsControls.GitHubPat,
+                new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" },
+                new Dictionary<string, string> { ["PersonalAccessToken"] = patRef });
+
+            Assert.Null(FakeGitHubConnectionNeuron.LastGrant);
+            var patFailRow = Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main");
+            Assert.Equal(ConnectionStatus.Failing, patFailRow.Status);
+            Assert.Contains("unseal", patFailRow.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+
+            // 2. Valid PAT + unopenable WebhookSecret fails closed: never claims "Webhook secret sealed"
+            vault.SetSecret(patRef, pat);
+            await SubmitForm(
+                settings,
+                SettingsControls.GitHubPat,
+                new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" },
+                new Dictionary<string, string> { ["PersonalAccessToken"] = patRef, ["WebhookSecret"] = webhookRef });
+
+            Assert.Null(FakeGitHubConnectionNeuron.LastGrant);
+            var webhookFailRow = Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main");
+            Assert.Equal(ConnectionStatus.Failing, webhookFailRow.Status);
+            Assert.DoesNotContain("Webhook secret sealed", webhookFailRow.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+
+            // 3. Valid PAT when AcceptGrant & Connect fail marks Failing (never Connected)
+            FakeGitHubConnectionNeuron.ThrowOnConnect = new InvalidOperationException("Bad credentials");
+            await SubmitForm(
+                settings,
+                SettingsControls.GitHubPat,
+                new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" },
+                new Dictionary<string, string> { ["PersonalAccessToken"] = patRef });
+
+            var connectFailRow = Assert.Single(settings.App.State.ActiveConnections, c => c.Key == "connection/github/main");
+            Assert.Equal(ConnectionStatus.Failing, connectFailRow.Status);
+            Assert.Contains("Bad credentials", connectFailRow.Detail ?? "", StringComparison.Ordinal);
+            Assert.Contains("Bad credentials", settings.App.State.Status, StringComparison.Ordinal);
+        }
+        finally
+        {
+            FakeGitHubConnectionNeuron.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task McpAddWithConnectionSecretBinder_UsesCanonicalConnectionKeyWithoutEagerUnseal()
+    {
+        var binder = new RecordingConnectionSecretBinder();
+        var throwingVault = new ThrowingSecretVault();
+        var tokenRef = SecretReferences.For("local", "app.settings/default/mcp-add/token", "Bearer token", isSet: true).Reference;
+
+        var brain = new BrainId("local");
+        await using var os = TestOS.Local()
+            .RegisterCatalog()
+            .Register<FakeBearerMcpConnectionNeuron>();
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
+
+        var settings = await os.Install<SettingsApp>();
+        settings.App.SecretVault = throwingVault;
+        settings.App.ConnectionSecretBinder = binder;
+        await settings.App.NavigateToAsync(new SettingsNavArgs("connections"), cancellationToken: Ct);
+        await os.Idle();
+
+        await SubmitForm(
+            settings,
+            SettingsControls.McpAddForm,
+            new Dictionary<string, string> { ["name"] = "corp-mcp", ["url"] = "https://mcp.corp.example/api" },
+            new Dictionary<string, string> { ["token"] = tokenRef });
+
+        Assert.Equal(0, throwingVault.OpenCalls);
+        Assert.NotNull(binder.LastConnectionKey);
+        var parsed = ConnectionKeys.Parse(binder.LastConnectionKey!);
+        Assert.Equal("local", parsed.BrainId);
+        Assert.Equal("mcp", parsed.ConnectorId);
+        Assert.Equal("corp-mcp", parsed.ConnectionId);
+        Assert.Equal(tokenRef, binder.LastSecretRef);
+        Assert.Equal("bearer-token", binder.LastAuthMethodId);
+    }
+
+    private sealed class ThrowingSecretVault : ISecretVault
+    {
+        public int OpenCalls { get; private set; }
+        public Task<bool> HasSecretAsync(string secretName, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<string> GetSecretStatusAsync(string secretName, CancellationToken cancellationToken = default) => Task.FromResult("Not set");
+        public Task<string?> TryOpenSecretAsync(string secretName, CancellationToken cancellationToken = default)
+        {
+            OpenCalls++;
+            throw new InvalidOperationException("Vault must not be eagerly unsealed when IConnectionSecretBinder is present.");
+        }
+    }
+
+    private sealed class RecordingConnectionSecretBinder : IConnectionSecretBinder
+    {
+        public string? LastConnectionKey { get; private set; }
+        public string? LastSecretRef { get; private set; }
+        public string? LastAuthMethodId { get; private set; }
+
+        public Task<ConnectionView> BindAsync(
+            BrainId brain,
+            string connectorId,
+            string connectionKey,
+            string authMethodId,
+            string secretRef,
+            Func<string, string>? formatValue = null,
+            bool probe = true,
+            CancellationToken ct = default)
+        {
+            LastConnectionKey = connectionKey;
+            LastSecretRef = secretRef;
+            LastAuthMethodId = authMethodId;
+            return Task.FromResult(new ConnectionView(connectorId, ConnectionKeys.Parse(connectionKey).ConnectionId, authMethodId, ConnectionStatus.Connected, null, null, DateTimeOffset.UtcNow, null));
+        }
+
+        public Task<ConnectionView> BindGrantAsync(
+            BrainId brain,
+            string connectorId,
+            string connectionKey,
+            string authMethodId,
+            string secretRef,
+            string? target,
+            string? scopes = null,
+            Func<string, string>? formatValue = null,
+            bool probe = true,
+            CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class FakeOAuthDeviceFlow : IOAuthDeviceFlow
+    {
+        public string? LastConnectionKey { get; private set; }
+        public string? LastAuthMethodId { get; private set; }
+
+        public Task<OAuthDeviceStartResult> StartAsync(BrainId brainId, string connectionKey, string authMethodId, string? target = null, CancellationToken ct = default)
+        {
+            LastConnectionKey = connectionKey;
+            LastAuthMethodId = authMethodId;
+            return Task.FromResult(new OAuthDeviceStartResult(
+                FlowId: "flow-gh-1",
+                UserCode: "ABCD-1234",
+                VerificationUri: "https://github.com/login/device",
+                VerificationUriComplete: "https://github.com/login/device?user_code=ABCD-1234",
+                ExpiresInSeconds: 900,
+                IntervalSeconds: 5));
+        }
+
+        public Task<OAuthDevicePollResult> PollOnceAsync(BrainId brainId, string flowId, CancellationToken ct = default)
+            => Task.FromResult(new OAuthDevicePollResult(
+                Status: OAuthDevicePollStatus.Connected,
+                IntervalSeconds: 5,
+                Connection: new ConnectionView("github", "main", "device", ConnectionStatus.Connected, "octocat", null, DateTimeOffset.UtcNow, null),
+                Error: null));
+    }
+
+    private static async Task SubmitForm(InstalledApp<SettingsApp> settings, string formKey, Dictionary<string, string> values, Dictionary<string, string>? secretRefs = null)
+    {
+        var submit = new Submit(values, secretRefs);
+        await settings.Screen.Dispatch(new Command(formKey, "control.submit", JsonSerializer.SerializeToElement(submit, JsonSerializerOptions.Web)));
+        await settings.OS.Idle();
     }
 }
