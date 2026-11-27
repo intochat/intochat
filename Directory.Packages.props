@@ -65,7 +65,7 @@
     <PackageVersion Include="Azure.ResourceManager.ContainerRegistry" Version="1.4.0" />
     <PackageVersion Include="Azure.ResourceManager.PostgreSql" Version="2.0.0" />
     <PackageVersion Include="Azure.ResourceManager.Resources" Version="1.12.0" />
-    <PackageVersion Include="Azure.ResourceManager.Storage" Version="1.8.0" />
+    <PackageVersion Include="Azure.ResourceManager.Storage" Version="1.9.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.1" />
