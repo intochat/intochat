@@ -451,6 +451,7 @@ public sealed record TasksWorkspaceState(
         {
             Tasks = [.. list],
             SelectedTaskId = nextSelected,
+            NextTaskSequence = Math.Max(NextTaskSequence, list.Count + 1),
         };
     }
 
@@ -492,6 +493,7 @@ public sealed record TasksWorkspaceState(
         {
             Tasks = [.. list],
             SelectedTaskId = nextSelected,
+            NextTaskSequence = Math.Max(NextTaskSequence, list.Count + 1),
         };
     }
 
