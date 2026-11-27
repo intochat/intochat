@@ -686,7 +686,7 @@ internal sealed class ConversationNeuron(
         {
             using (OwnModuleIfForeign())
             {
-                if (await directory.GetPinnedKeysAsync(peerBrain) is { } pinned)
+                if (await directory.GetPinnedKeysForAsync(Id.Brain, peerBrain) is { } pinned)
                 {
                     return pinned;
                 }

@@ -243,6 +243,18 @@ public sealed class KernelBrainKeyDirectory(
         return dir.PinAsync(remoteBrain, publicKeys, ct);
     }
 
+    /// <inheritdoc />
+    public ValueTask<IDisposable> BeginTransientHandshakeKeyAsync(
+        BrainId localBrain,
+        BrainId remoteBrain,
+        BrainPublicKeys candidateKeys,
+        CancellationToken ct = default)
+    {
+        var scopeBrain = ResolveScopeBrain(localBrain);
+        var dir = _scopedPins.GetOrAdd(ScopeKey(scopeBrain), static _ => new InMemoryPinnedBrainKeyDirectory());
+        return dir.BeginTransientHandshakeKeyAsync(localBrain, remoteBrain, candidateKeys, ct);
+    }
+
     /// <summary>Rotates pinned keys for <see cref="BrainKeyRotationProof.BrainId"/> scoped to <paramref name="localBrain"/>.</summary>
     public ValueTask RotateForAsync(BrainId? localBrain, BrainKeyRotationProof proof, CancellationToken ct = default)
     {
@@ -683,11 +695,32 @@ public static class BrainRelayTransportHosting
         BrainEnvelope envelope,
         RemoteInvocationRequest request,
         BrainPublicKeys senderPublicKeys)
-        => request.Target == FriendsDefaults.Id(envelope.To.Value)
-            && string.Equals(request.Call.Method, nameof(IFriends.Accepted), StringComparison.Ordinal)
-            && request.ViaProvenance is { } viaProof
-            && viaProof.Via == FriendsDefaults.Id(envelope.From.Value)
-            && senderPublicKeys is { SigningKey.Length: > 0, ExchangeKey.Length: > 0 };
+    {
+        if (request.Target != FriendsDefaults.Id(envelope.To.Value)
+            || !string.Equals(request.Call.Method, nameof(IFriends.Accepted), StringComparison.Ordinal)
+            || request.ViaProvenance is not { } viaProof
+            || viaProof.Via != FriendsDefaults.Id(envelope.From.Value)
+            || request.Call.Arguments is not { Length: >= 3 })
+        {
+            return false;
+        }
+
+        try
+        {
+            var argPublicKeys = JsonSerializer.Deserialize<BrainPublicKeys>(request.Call.Arguments[2], RuntimeProtocol.Json);
+            if (argPublicKeys is null)
+            {
+                return false;
+            }
+
+            BrainPublicKeyValidation.ValidateNistP256(argPublicKeys);
+            return senderPublicKeys.Matches(argPublicKeys);
+        }
+        catch (Exception error) when (error is JsonException or CryptographicException or NotSupportedException)
+        {
+            return false;
+        }
+    }
 
     private static async Task<JsonElement?> InvokeLocalOrleansAsync(
         IServiceProvider services,

@@ -180,11 +180,6 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             acceptedHash = cloudHash;
             bundlePublicKeys = bundle.ToPublicKeys();
             bundleRelayHint = string.IsNullOrWhiteSpace(bundle.RelayOrigin) ? null : bundle.RelayOrigin.Trim();
-
-            if (services.GetService<IBrainKeyDirectory>() is { } directory)
-            {
-                await directory.PinAsync(targetBrain, bundlePublicKeys).ConfigureAwait(true);
-            }
         }
         else
         {
@@ -198,6 +193,14 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var myPublicKeys = await EnsurePublicKeys();
         var myRelayHint = ResolveRelayHint();
 
+        // Use a transient, rollbackable handshake key scoped to Id.Brain so a rejected/forged bundle
+        // never poisons IBrainKeyDirectory with an immutable pin before Accepted() succeeds and matches.
+        IDisposable? transientKeyScope = null;
+        if (bundlePublicKeys is not null && services.GetService<IBrainKeyDirectory>() is { } directory)
+        {
+            transientKeyScope = await directory.BeginTransientHandshakeKeyAsync(Id.Brain, targetBrain, bundlePublicKeys).ConfigureAwait(true);
+        }
+
         Friend theirs;
         try
         {
@@ -208,6 +211,10 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         {
             await Store(With(misses: misses + 1, missesSince: missesSince));
             throw;
+        }
+        finally
+        {
+            transientKeyScope?.Dispose();
         }
 
         if (theirs.PublicKeys is not null)
@@ -237,7 +244,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
         if (persistedKeys is not null && services.GetService<IBrainKeyDirectory>() is { } keyDir)
         {
-            await keyDir.PinAsync(targetBrain, persistedKeys).ConfigureAwait(true);
+            await keyDir.PinForAsync(Id.Brain, targetBrain, persistedKeys).ConfigureAwait(true);
         }
 
         return added;
@@ -332,7 +339,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         {
             using (PersonActs.AsFilesModule(services, Id.Brain))
             {
-                await keyDir.PinAsync(brain, publicKeys).ConfigureAwait(true);
+                await keyDir.PinForAsync(Id.Brain, brain, publicKeys).ConfigureAwait(true);
             }
         }
 

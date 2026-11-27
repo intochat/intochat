@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.AI.Voice;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
 
 namespace IntoChat.OS.Modules.AI.Attachments;
@@ -195,6 +196,7 @@ internal static class AttachmentEndpoints
 
         try
         {
+            using var callerScope = http.RequestServices.GetService<DigitalBrain.Access.EdgeAuthority>()?.Enter(caller);
             var (materialized, plaintext) = await sharedRelay.DownloadAndUnsealAsync(
                 caller.Brain,
                 reference,

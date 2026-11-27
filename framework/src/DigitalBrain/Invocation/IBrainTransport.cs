@@ -624,17 +624,19 @@ public sealed class BrainEnvelopeReceiver
         }
 
         var plaintext = await BrainEnvelopeSealer.OpenAsync(envelope, _signer, senderKeys, cancellationToken).ConfigureAwait(false);
-        if (!_replayCache.TryAccept(envelope.From, envelope.MessageId, now))
-        {
-            throw new CryptographicException($"Duplicate BrainEnvelope message '{envelope.MessageId}' from '{envelope.From.Value}' rejected as replay.");
-        }
-
         var request = JsonSerializer.Deserialize<RemoteInvocationRequest>(plaintext, RuntimeProtocol.Json)
             ?? throw new InvalidDataException("Remote invocation payload was null.");
 
+        // Validate unpinned handshake eligibility BEFORE recording in the replay cache so rejected
+        // unpinned spoofed envelopes can never pollute replay defense state.
         if (isUnpinnedHandshake && !_allowUnpinnedHandshake!(envelope, request, senderKeys))
         {
             throw new CryptographicException($"Unpinned sender brain '{envelope.From.Value}' is not permitted to invoke '{request.Target}.{request.Call.Method}'.");
+        }
+
+        if (!_replayCache.TryAccept(envelope.From, envelope.MessageId, now))
+        {
+            throw new CryptographicException($"Duplicate BrainEnvelope message '{envelope.MessageId}' from '{envelope.From.Value}' rejected as replay.");
         }
 
         RemoteInvocationResponse response;

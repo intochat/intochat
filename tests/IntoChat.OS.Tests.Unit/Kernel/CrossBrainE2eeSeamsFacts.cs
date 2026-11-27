@@ -21,6 +21,8 @@ using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
 using IntoChat.OS.Modules.Identity.Keys;
 using IntoChat.OS.Tests.Support.Fakes;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -734,6 +736,257 @@ public sealed class CrossBrainE2eeSeamsFacts
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
                 bob.Os.Get<IConversation>(roomId).Say("steal", attachments: [aliceLocalDoc]));
+        }
+    }
+
+    [Fact]
+    public async Task B1_UnpinnedHandshakeRejectsSwappedExchangeKeyAndMismatchedOrNullArgPublicKeysWithoutPollutingReplayCache()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 18, 0, 0, TimeSpan.Zero));
+        var cloud = new MockCloudRelay();
+        await using var alice = CreateCluster("alice", "alice", cloud, clock);
+        await using var bob = CreateCluster("bob", "bob", cloud, clock);
+
+        Code code;
+        using (alice.AsOwner())
+        {
+            code = await alice.Os.Get<IFriends>(FriendsDefaults.Id("alice")).Mint();
+        }
+        var cloudHash = FriendCodeBundleSigner.ComputeCodeHash(code.Value);
+
+        var aliceSigner = alice.Services.GetRequiredService<IBrainKeySigner>();
+        var alicePublicKeys = await aliceSigner.GetPublicKeysAsync(alice.Brain, ct);
+        var bobSigner = bob.Services.GetRequiredService<IBrainKeySigner>();
+        var bobPublicKeys = await bobSigner.GetPublicKeysAsync(bob.Brain, ct);
+        using var rogueKeyPair = BrainKeyPair.Generate();
+        var rogueKeys = rogueKeyPair.ExportPublicKeys();
+
+        var targetFriends = FriendsDefaults.Id("alice");
+        var bobVia = FriendsDefaults.Id("bob");
+        var viaProof = await RemoteViaProvenanceSigner.SignAsync(
+            bobVia,
+            bob.Brain,
+            targetFriends,
+            "bob",
+            clock.GetUtcNow(),
+            clock.GetUtcNow().AddMinutes(2),
+            bobSigner,
+            ct);
+
+        async Task<BrainEnvelope> BuildHandshakeEnvelopeAsync(string messageId, BrainPublicKeys? argKeys, BrainPublicKeys envelopeSenderKeys)
+        {
+            var call = new RuntimeInvocation(
+                string.Empty,
+                "friends",
+                targetFriends.ToString(),
+                nameof(IFriends.Accepted),
+                [
+                    JsonSerializer.SerializeToElement(cloudHash, RuntimeProtocol.Json),
+                    JsonSerializer.SerializeToElement("Bob", RuntimeProtocol.Json),
+                    JsonSerializer.SerializeToElement(argKeys, RuntimeProtocol.Json),
+                    JsonSerializer.SerializeToElement("https://cloud.intochat.test", RuntimeProtocol.Json),
+                ]);
+            var req = new RemoteInvocationRequest(targetFriends, call, "bob", "bob", bob.Brain, OneWay: false, ViaProvenance: viaProof);
+            var env = await BrainEnvelopeSealer.SealAsync(
+                bob.Brain,
+                alice.Brain,
+                messageId,
+                JsonSerializer.SerializeToUtf8Bytes(req, RuntimeProtocol.Json),
+                bobSigner,
+                alicePublicKeys,
+                sentAtUtc: clock.GetUtcNow(),
+                ct: ct);
+            return env with { SenderPublicKeys = envelopeSenderKeys };
+        }
+
+        // (a) Relay swaps envelope.SenderPublicKeys.ExchangeKey in transit -> MUST fail closed with CryptographicException!
+        var swappedExchangeEnvelope = await BuildHandshakeEnvelopeAsync(
+            "msg-b1-swap-exchange",
+            argKeys: bobPublicKeys,
+            envelopeSenderKeys: new BrainPublicKeys(bobPublicKeys.SigningKey, rogueKeys.ExchangeKey));
+        await Assert.ThrowsAsync<CryptographicException>(() => alice.Receiver.DeliverAsync(swappedExchangeEnvelope, ct));
+
+        // (b) Passing null publicKeys to IFriends.Accepted -> MUST fail closed with CryptographicException!
+        var nullArgEnvelope = await BuildHandshakeEnvelopeAsync(
+            "msg-b1-null-arg",
+            argKeys: null,
+            envelopeSenderKeys: bobPublicKeys);
+        await Assert.ThrowsAsync<CryptographicException>(() => alice.Receiver.DeliverAsync(nullArgEnvelope, ct));
+
+        // (c) Passing mismatched publicKeys to IFriends.Accepted -> MUST fail closed with CryptographicException!
+        const string reusedMessageId = "msg-b1-mismatched-arg";
+        var mismatchedArgEnvelope = await BuildHandshakeEnvelopeAsync(
+            reusedMessageId,
+            argKeys: rogueKeys,
+            envelopeSenderKeys: bobPublicKeys);
+        await Assert.ThrowsAsync<CryptographicException>(() => alice.Receiver.DeliverAsync(mismatchedArgEnvelope, ct));
+
+        // (d) Rejected unpinned handshake MUST NOT have polluted Alice's replay cache: a legitimate handshake
+        //     with the same MessageId still succeeds!
+        var validEnvelope = await BuildHandshakeEnvelopeAsync(
+            reusedMessageId,
+            argKeys: bobPublicKeys,
+            envelopeSenderKeys: bobPublicKeys);
+        var reply = await alice.Receiver.DeliverAsync(validEnvelope, ct);
+        var replyPlain = await BrainEnvelopeSealer.OpenAsync(reply, bobSigner, alicePublicKeys, ct);
+        var response = JsonSerializer.Deserialize<RemoteInvocationResponse>(replyPlain, RuntimeProtocol.Json)!;
+        Assert.Null(response.ErrorType);
+        Assert.NotNull(response.Result);
+    }
+
+    [Fact]
+    public async Task B2_DownloadSharedBlobEndpointEnforcesExplicitRecipientBrainScopeWhenAmbientCallerAndLocalBrainIdAreNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 18, 30, 0, TimeSpan.Zero));
+        var cloud = new MockCloudRelay();
+
+        var aliceBrain = new BrainId("alice");
+        var bobBrain = new BrainId("bob");
+        var eveBrain = new BrainId("eve");
+
+        using var aliceKeys = BrainKeyPair.Generate();
+        using var bobKeys = BrainKeyPair.Generate();
+        using var eveKeys = BrainKeyPair.Generate();
+
+        var multiBrainSigner = new MultiBrainKeySigner(new Dictionary<string, BrainKeyPair>(StringComparer.Ordinal)
+        {
+            [aliceBrain.Value] = aliceKeys,
+            [bobBrain.Value] = bobKeys,
+            [eveBrain.Value] = eveKeys,
+        });
+
+        // Multi-brain KernelBrainKeyDirectory with callers == null AND options == null (LocalBrainId == null).
+        await using var multiOs = TestOS.Local(o => o.Start = clock.GetUtcNow());
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<TimeProvider>(clock);
+        services.AddSingleton<IBrainRelayClient>(cloud);
+        services.AddSingleton<IBrainRelayClientProvider>(cloud);
+        services.AddSingleton<IBrainKeySigner>(multiBrainSigner);
+        services.AddSingleton(multiOs.Edge);
+        services.AddSingleton<KernelBrainKeyDirectory>(sp => new KernelBrainKeyDirectory(sp, callers: null, options: null));
+        services.AddSingleton<IBrainKeyDirectory>(static sp => sp.GetRequiredService<KernelBrainKeyDirectory>());
+        services.AddSingleton<SharedAttachmentRelay>();
+        await using var provider = services.BuildServiceProvider();
+
+        var keyDir = provider.GetRequiredService<KernelBrainKeyDirectory>();
+        var sharedRelay = provider.GetRequiredService<SharedAttachmentRelay>();
+
+        // Pin Bob's keys ONLY in Alice's scope (NOT in Eve's scope, NOT in DefaultScopeKey "*").
+        await keyDir.PinForAsync(aliceBrain, bobBrain, bobKeys.ExportPublicKeys(), ct);
+
+        // Bob seals a playable WAV voice note for [aliceBrain, bobBrain] and uploads to Cloud blob store.
+        var wavBytes = CreateMinimalValidWavBytes();
+        var sealedBytes = await BrainBlobSealer.SealAsync(
+            bobBrain,
+            multiBrainSigner,
+            wavBytes,
+            [(aliceBrain, aliceKeys.ExportPublicKeys()), (bobBrain, bobKeys.ExportPublicKeys())],
+            ct);
+        var uploaded = await cloud.UploadBlobAsync(sealedBytes, [aliceBrain, bobBrain], ct);
+        var contentSha = Convert.ToHexStringLower(SHA256.HashData(wavBytes));
+
+        DefaultHttpContext CreateRequestFor(string account, BrainId brain)
+        {
+            var reqServices = new ServiceCollection();
+            reqServices.AddSingleton<ICallerAmbient>(new FixedCallerAmbient(multiOs.Edge.Person(account, account, brain)));
+            reqServices.AddSingleton(multiOs.Edge);
+            var http = new DefaultHttpContext { RequestServices = reqServices.BuildServiceProvider() };
+            http.Request.QueryString = new QueryString(
+                $"?sender={Uri.EscapeDataString(bobBrain.Value)}&sha256={uploaded.Sha256}&fileName=voice.wav&mediaType=audio/wav&kind=voice-note&contentSha256={contentSha}");
+            return http;
+        }
+
+        // Ambient caller on multiOs is null; LocalBrainId is null.
+        Assert.Null(multiOs.Callers.Current);
+
+        // Alice unseals Bob's blob -> 200 OK with exact WAV audio bytes!
+        var aliceHttp = CreateRequestFor("alice", aliceBrain);
+        var aliceResult = await AttachmentEndpoints.DownloadSharedBlobAsync(aliceHttp, uploaded.BlobId, sharedRelay, ct);
+        var fileResult = Assert.IsType<FileContentHttpResult>(aliceResult);
+        Assert.Equal("audio/wav", fileResult.ContentType);
+        Assert.Equal(wavBytes, fileResult.FileContents.ToArray());
+
+        // Eve has neither Alice's pin nor recipient entry -> 404 Not Found!
+        var eveHttp = CreateRequestFor("eve", eveBrain);
+        var eveResult = await AttachmentEndpoints.DownloadSharedBlobAsync(eveHttp, uploaded.BlobId, sharedRelay, ct);
+        Assert.IsType<NotFound>(eveResult);
+    }
+
+    [Fact]
+    public async Task B3_RejectedRedeemWithForgedSelfSignedBundleDoesNotPoisonKeyDirectoryAgainstRealPeer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 19, 0, 0, TimeSpan.Zero));
+        var cloud = new MockCloudRelay();
+        await using var alice = CreateCluster("alice", "alice", cloud, clock);
+        await using var bob = CreateCluster("bob", "bob", cloud, clock);
+
+        // 1. Attacker publishes a valid self-signed FriendCodeBundle claiming BrainId = "alice" using rogue keys.
+        var forgedCode = Code.New();
+        var forgedHash = FriendCodeBundleSigner.ComputeCodeHash(forgedCode.Value);
+        using var rogueKeys = BrainKeyPair.Generate();
+        var forgedBundle = FriendCodeBundleSigner.Sign(
+            forgedHash,
+            alice.Brain,
+            rogueKeys,
+            clock.GetUtcNow().AddHours(1),
+            relayOrigin: "https://cloud.intochat.test");
+        await cloud.PublishFriendCodeAsync(forgedBundle, ct);
+
+        // 2. Bob attempts to redeem the forged code -> real Alice rejects decryption/handshake -> Redeem fails.
+        using (bob.AsOwner())
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                bob.Os.Get<IFriends>(FriendsDefaults.Id("bob")).Redeem(forgedCode));
+        }
+
+        // 3. Bob's IBrainKeyDirectory MUST NOT be poisoned with rogueKeys!
+        var pinnedAfterFailure = await bob.KeyDirectory.GetPinnedKeysForAsync(bob.Brain, alice.Brain, ct);
+        Assert.Null(pinnedAfterFailure);
+
+        // 4. Real Alice mints a legitimate code -> Bob redeems it cleanly and pins Alice's real keys!
+        Code realCode;
+        using (alice.AsOwner())
+        {
+            realCode = await alice.Os.Get<IFriends>(FriendsDefaults.Id("alice")).Mint();
+        }
+
+        Friend added;
+        using (bob.AsOwner())
+        {
+            added = await bob.Os.Get<IFriends>(FriendsDefaults.Id("bob")).Redeem(realCode);
+        }
+
+        var realAliceKeys = await alice.Services.GetRequiredService<IBrainKeySigner>().GetPublicKeysAsync(alice.Brain, ct);
+        Assert.NotNull(added.PublicKeys);
+        Assert.True(realAliceKeys.Matches(added.PublicKeys));
+
+        var pinnedAfterSuccess = await bob.KeyDirectory.GetPinnedKeysForAsync(bob.Brain, alice.Brain, ct);
+        Assert.NotNull(pinnedAfterSuccess);
+        Assert.True(realAliceKeys.Matches(pinnedAfterSuccess));
+    }
+
+    private sealed class FixedCallerAmbient(Caller caller) : ICallerAmbient
+    {
+        public Caller? Current => caller;
+    }
+
+    private sealed class MultiBrainKeySigner(IReadOnlyDictionary<string, BrainKeyPair> pairs) : IBrainKeySigner
+    {
+        public ValueTask<BrainPublicKeys> GetPublicKeysAsync(BrainId brainId, CancellationToken ct = default)
+            => ValueTask.FromResult(pairs[brainId.Value].ExportPublicKeys());
+
+        public ValueTask<byte[]> SignDataAsync(BrainId brainId, ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.FromResult(pairs[brainId.Value].SigningKey.SignData(data.Span, HashAlgorithmName.SHA256));
+
+        public ValueTask<byte[]> DeriveSharedSecretAsync(BrainId brainId, ReadOnlyMemory<byte> peerEphemeralPublicKeySpki, CancellationToken ct = default)
+        {
+            using var peer = ECDiffieHellman.Create();
+            peer.ImportSubjectPublicKeyInfo(peerEphemeralPublicKeySpki.Span, out _);
+            return ValueTask.FromResult(pairs[brainId.Value].ExchangeKey.DeriveRawSecretAgreement(peer.PublicKey));
         }
     }
 }

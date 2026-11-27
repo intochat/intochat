@@ -119,7 +119,7 @@ internal sealed class SharedAttachmentRelay(IServiceProvider services)
             }
             else if (services.GetService<IBrainKeyDirectory>() is { } directory)
             {
-                senderKeys = await directory.GetPinnedKeysAsync(senderBrain, ct).ConfigureAwait(false);
+                senderKeys = await directory.GetPinnedKeysForAsync(recipientBrain, senderBrain, ct).ConfigureAwait(false);
             }
         }
 
