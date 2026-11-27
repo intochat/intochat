@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using DigitalBrain.Access;
 using DigitalBrain.Components;
+using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Signals;
 using DigitalBrain.Testing;
@@ -18,6 +19,9 @@ public sealed class SignalTelemetryAndReactsFacts
     [Signal("probe.telemetry.pong")]
     public sealed record TelemetryPong(int Sequence, string SecretBody) : Signal;
 
+    [Signal("probe.telemetry.extra")]
+    public sealed record TelemetryExtra(int Sequence) : Signal;
+
     public interface IPingSource
     {
         Task Emit(int value, string secretBody);
@@ -28,9 +32,25 @@ public sealed class SignalTelemetryAndReactsFacts
         Task Emit(int value, string secretBody);
     }
 
+    public interface IExtraSource
+    {
+        Task EmitPing(int value);
+        Task EmitExtra(int value);
+    }
+
     public interface IPingReactor
     {
         Task<int[]> Received();
+    }
+
+    public interface IHybridReactor
+    {
+        Task SubscribeExtraBrainWide();
+        Task SubscribePingBrainWide();
+        Task FollowExtraFrom(NeuronId source);
+        Task DropBrainWide();
+        Task<int[]> ReceivedPings();
+        Task<int[]> ReceivedExtras();
     }
 
     public sealed record CounterRecord(int Last)
@@ -41,6 +61,11 @@ public sealed class SignalTelemetryAndReactsFacts
     public sealed record ReactorRecord(int[] Received)
     {
         public ReactorRecord() : this([]) { }
+    }
+
+    public sealed record HybridReactorRecord(int[] Pings, int[] Extras)
+    {
+        public HybridReactorRecord() : this([], []) { }
     }
 
     [Neuron("probe.os09.source")]
@@ -109,6 +134,47 @@ public sealed class SignalTelemetryAndReactsFacts
         {
             var next = (State?.Received ?? []).Append(signal.Sequence).ToArray();
             return Store(new ReactorRecord(next));
+        }
+    }
+
+    [Neuron("probe.os09.extra-source")]
+    public sealed class ExtraSourceNeuron : Neuron<CounterRecord>, IExtraSource
+    {
+        public Task EmitPing(int value)
+            => Save(new CounterRecord(value), new TelemetryPing(value, "extra"));
+
+        public Task EmitExtra(int value)
+            => Save(new CounterRecord(value), new TelemetryExtra(value));
+    }
+
+    [Neuron("probe.os09.hybrid-reactor")]
+    [Reacts(typeof(IPingSource), typeof(TelemetryPing))]
+    public sealed class HybridReactsAndImperativeNeuron : Neuron<HybridReactorRecord>, IHybridReactor
+    {
+        public Task SubscribeExtraBrainWide() => Context.Wires.EnsureBrainWide(typeof(TelemetryExtra));
+
+        public Task SubscribePingBrainWide() => Context.Wires.EnsureBrainWide(typeof(TelemetryPing));
+
+        public Task FollowExtraFrom(NeuronId source) => Context.Wires.Ensure<TelemetryExtra>(source);
+
+        public Task DropBrainWide() => Context.Wires.RemoveBrainWide();
+
+        public Task<int[]> ReceivedPings() => Task.FromResult(State?.Pings ?? []);
+
+        public Task<int[]> ReceivedExtras() => Task.FromResult(State?.Extras ?? []);
+
+        [On]
+        public Task On(TelemetryPing signal)
+        {
+            var current = State ?? new HybridReactorRecord();
+            return Store(current with { Pings = [.. current.Pings, signal.Sequence] });
+        }
+
+        [On]
+        public Task On(TelemetryExtra signal)
+        {
+            var current = State ?? new HybridReactorRecord();
+            return Store(current with { Extras = [.. current.Extras, signal.Sequence] });
         }
     }
 
@@ -308,5 +374,170 @@ public sealed class SignalTelemetryAndReactsFacts
             var received = await os.Get<IPingReactor>(reactorId).Received();
             Assert.Equal([11], received);
         }
+    }
+
+    [Fact]
+    public async Task DeclarativeReacts_WithImperativeEnsureBrainWideForOtherSignal_ReceivesOtherFromAnySourceWhileFilteringDeclarative()
+    {
+        await using var os = TestOS.Local();
+        os.Register<PingSourceNeuron>();
+        os.Register<ExtraSourceNeuron>();
+        os.Register<HybridReactsAndImperativeNeuron>();
+
+        var brain = new BrainId("b-reacts-imperative-other");
+        var pingSourceId = new NeuronId(brain, "probe.os09.source", "s1");
+        var extraSourceId = new NeuronId(brain, "probe.os09.extra-source", "e1");
+        var reactorId = new NeuronId(brain, "probe.os09.hybrid-reactor", "default");
+
+        using (((ICallerCarrier)os.Callers).Enter(Caller.OfKernel(brain)))
+        {
+            var reactor = os.Get<IHybridReactor>(reactorId);
+            await reactor.SubscribeExtraBrainWide();
+
+            // Imperative EnsureBrainWide(TelemetryExtra) must deliver from ANY publisher,
+            // while declarative [Reacts(IPingSource, TelemetryPing)] still filters out non-IPingSource.
+            await os.Get<IExtraSource>(extraSourceId).EmitExtra(10);
+            await os.Get<IExtraSource>(extraSourceId).EmitPing(99);
+            await os.Get<IPingSource>(pingSourceId).Emit(1, "allowed");
+            await os.Idle();
+
+            var extrasBefore = await reactor.ReceivedExtras();
+            var pingsBefore = await reactor.ReceivedPings();
+            Assert.Equal([10], extrasBefore);
+            Assert.Equal([1], pingsBefore);
+
+            // Must preserve the same split across restart/deactivation.
+            await os.Restart();
+
+            await os.Get<IExtraSource>(extraSourceId).EmitExtra(20);
+            await os.Get<IExtraSource>(extraSourceId).EmitPing(88);
+            await os.Get<IPingSource>(pingSourceId).Emit(2, "allowed-after-restart");
+            await os.Idle();
+
+            var extrasAfter = await reactor.ReceivedExtras();
+            var pingsAfter = await reactor.ReceivedPings();
+            Assert.Equal([10, 20], extrasAfter);
+            Assert.Equal([1, 2], pingsAfter);
+        }
+    }
+
+    [Fact]
+    public async Task DeclarativeReacts_WithImperativeEnsureBrainWideForSameSignal_ReceivesFromAnySource()
+    {
+        await using var os = TestOS.Local();
+        os.Register<PingSourceNeuron>();
+        os.Register<ExtraSourceNeuron>();
+        os.Register<HybridReactsAndImperativeNeuron>();
+
+        var brain = new BrainId("b-reacts-imperative-same");
+        var pingSourceId = new NeuronId(brain, "probe.os09.source", "s1");
+        var extraSourceId = new NeuronId(brain, "probe.os09.extra-source", "e1");
+        var reactorId = new NeuronId(brain, "probe.os09.hybrid-reactor", "default");
+
+        using (((ICallerCarrier)os.Callers).Enter(Caller.OfKernel(brain)))
+        {
+            var reactor = os.Get<IHybridReactor>(reactorId);
+            await reactor.SubscribePingBrainWide();
+
+            // Unfiltered imperative EnsureBrainWide(TelemetryPing) must allow signals from non-IPingSource too.
+            await os.Get<IExtraSource>(extraSourceId).EmitPing(77);
+            await os.Get<IPingSource>(pingSourceId).Emit(78, "matching");
+            await os.Idle();
+
+            var receivedPings = await reactor.ReceivedPings();
+            Assert.Equal([77, 78], receivedPings);
+        }
+    }
+
+    [Fact]
+    public async Task DeclarativeReacts_DueAndReconcile_IncludesSubscriberWithPersistedPointToPointFollow()
+    {
+        // Part 1: Direct unit test of DeclarativeReactsIndex.Due when the subscriber already holds
+        // a persisted point-to-point Follow subscription (no brain-wide entry covering the declarative alias).
+        var brain = new BrainId("b-reacts-due-direct");
+        var sourceId = new NeuronId(brain, "probe.os09.source", "s1");
+        var extraSourceId = new NeuronId(brain, "probe.os09.extra-source", "e1");
+        var reactorId = new NeuronId(brain, "probe.os09.hybrid-reactor", "default");
+
+        var index = new DeclarativeReactsIndex();
+        index.Register("probe.os09.hybrid-reactor", typeof(HybridReactsAndImperativeNeuron));
+
+        var subscriptions = new SubscriptionIndex();
+        var pointToPointOnly = Subscriptions.None(reactorId)
+            .Add(extraSourceId, [SignalAliases.Of(typeof(TelemetryExtra))], new Position(1), DateTimeOffset.UtcNow);
+        subscriptions.Fold(pointToPointOnly);
+
+        var pingAlias = SignalAliases.Of(typeof(TelemetryPing));
+        var stubView = new StubJournalView(
+            subscriptions,
+            [new AliasMark(sourceId, pingAlias, new Position(2))]);
+
+        static Type? ClassOf(string type) => type switch
+        {
+            "probe.os09.source" => typeof(PingSourceNeuron),
+            "probe.os09.extra-source" => typeof(ExtraSourceNeuron),
+            "probe.os09.hybrid-reactor" => typeof(HybridReactsAndImperativeNeuron),
+            _ => null,
+        };
+
+        static Type? SignalOf(string alias) => alias switch
+        {
+            "probe.telemetry.ping" => typeof(TelemetryPing),
+            "probe.telemetry.extra" => typeof(TelemetryExtra),
+            _ => null,
+        };
+
+        var dueWithPointToPointOnly = index.Due(brain, stubView, ClassOf, SignalOf);
+        Assert.Equal([reactorId], dueWithPointToPointOnly);
+
+        // Once a brain-wide subscription covering the declarative alias IS persisted,
+        // DeclarativeReactsIndex.Due no longer returns the subscriber (Subscriptions.Due owns cursor lag).
+        var withBrainWide = pointToPointOnly.AddBrainWide([pingAlias], new Position(2), DateTimeOffset.UtcNow);
+        subscriptions.Fold(withBrainWide);
+        var dueWithBrainWide = index.Due(brain, stubView, ClassOf, SignalOf);
+        Assert.Empty(dueWithBrainWide);
+
+        // Part 2: End-to-end TestOS reconciliation via Restart() when fanout was dropped after append.
+        await using var os = TestOS.Local();
+        os.Register<PingSourceNeuron>();
+        os.Register<ExtraSourceNeuron>();
+        os.Register<HybridReactsAndImperativeNeuron>();
+
+        var osBrain = new BrainId("b-reacts-reconcile-e2e");
+        var osPingSourceId = new NeuronId(osBrain, "probe.os09.source", "s1");
+        var osExtraSourceId = new NeuronId(osBrain, "probe.os09.extra-source", "e1");
+        var osReactorId = new NeuronId(osBrain, "probe.os09.hybrid-reactor", "default");
+
+        using (((ICallerCarrier)os.Callers).Enter(Caller.OfKernel(osBrain)))
+        {
+            var reactor = os.Get<IHybridReactor>(osReactorId);
+            await reactor.FollowExtraFrom(osExtraSourceId);
+            await reactor.DropBrainWide();
+            await os.Idle();
+
+            // Simulate a crash between durable journal append and fanout nudge.
+            os.FailNextPublishAfterAppend(osPingSourceId);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                os.Get<IPingSource>(osPingSourceId).Emit(55, "reconcile-me"));
+            await os.Idle();
+            Assert.Empty(await reactor.ReceivedPings());
+
+            // Restart runs TestDelivery.Behind() -> DeclarativeReactsIndex.Due and must wake & deliver.
+            await os.Restart();
+            var reconciledPings = await os.Get<IHybridReactor>(osReactorId).ReceivedPings();
+            Assert.Equal([55], reconciledPings);
+        }
+    }
+
+    private sealed class StubJournalView(SubscriptionIndex subscriptions, IReadOnlyList<AliasMark> marks) : IJournalView
+    {
+        public Position Last => marks.Count == 0 ? new Position(0) : marks.Max(m => m.Last);
+        public SubscriptionIndex Subscriptions { get; } = subscriptions;
+        public Position FloorOf(NeuronId? publisher) => new(0);
+        public Position LastOf(NeuronId publisher) => marks.Where(m => m.Publisher == publisher).Select(m => m.Last).DefaultIfEmpty(new Position(0)).Max();
+        public IEnumerable<AliasMark> Marks(NeuronId? publisher) => publisher is null ? marks : marks.Where(m => m.Publisher == publisher.Value);
+        public long SequenceAt(NeuronId publisher, Position position) => position.Value;
+        public Task<JournalPage> ReadAfter(Position after, NeuronId? publisher, int limit, CancellationToken ct)
+            => Task.FromResult(new JournalPage(new Position(0), Last, []));
     }
 }

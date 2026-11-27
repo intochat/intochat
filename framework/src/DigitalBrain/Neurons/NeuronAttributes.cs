@@ -35,7 +35,11 @@ public sealed class ReentrantAttribute : Attribute;
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class StatelessNeuronAttribute : Attribute;
 
-/// <summary>Declares that a component reacts to a signal from a source type (e.g., via <c>Follow</c>).</summary>
+/// <summary>
+/// Declares that a component reacts to a signal from a source type (e.g., via <c>Follow</c>).
+/// Declarative auto-wake targets singleton <c>"default"</c>-keyed neurons and applies to durable
+/// journaled signals (ephemeral offers are delivered only to active subscribers).
+/// </summary>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = true)]
 public sealed class ReactsAttribute(Type source, Type signal) : Attribute
 {

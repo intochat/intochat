@@ -155,8 +155,9 @@ internal sealed class DeclarativeReactsIndex
     }
 
     /// <summary>
-    /// Returns declarative subscribers in <paramref name="brain"/> that have no persisted subscription yet
-    /// but have matching signals in <paramref name="journal"/> (e.g., after a crash before fanout).
+    /// Returns declarative subscribers in <paramref name="brain"/> that have no persisted brain-wide
+    /// subscription covering a matching signal in <paramref name="journal"/> (e.g., never activated,
+    /// or holding only point-to-point <c>Follow</c> subscriptions before their first declarative signal).
     /// </summary>
     public IReadOnlyList<NeuronId> Due(
         BrainId brain,
@@ -180,7 +181,8 @@ internal sealed class DeclarativeReactsIndex
 
             foreach (var subscriber in Hearing(mark.Publisher, [mark.Alias], neuronClassOf, signalTypeOf))
             {
-                if (journal.Subscriptions.Of(subscriber) is null)
+                var wide = journal.Subscriptions.Of(subscriber)?.Of(null);
+                if (wide is null || !wide.Wants(subscriber, mark.Publisher, mark.Alias, signalTypeOf))
                 {
                     due ??= [];
                     due.Add(subscriber);
