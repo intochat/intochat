@@ -10,7 +10,7 @@ public sealed class OAuthConnectionsOptions
 
     public static string SectionName => ModuleConfiguration.ConnectionsSectionName;
 
-    // Where providers send browsers back; null means no OAuth login can start unless inferred from the HTTP request.
+    // Where external services send browsers back; null means no OAuth login can start unless inferred from the HTTP request.
     public Uri? PublicOrigin { get; set; }
 
     // Product display name rendered in browser callback pages.

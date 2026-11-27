@@ -14,8 +14,8 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Runtime.Http.Connections.OAuth;
 
-// Unified /integrations/{provider} edge for OAuth redirects (/integrations/oauth/callback, /integrations/{provider}/oauth/callback,
-// /integrations/{provider}/callback, and legacy /connections/oauth/{provider}/callback).
+// Unified /integrations/{connector} edge for OAuth redirects (/integrations/oauth/callback, /integrations/{connector}/oauth/callback,
+// /integrations/{connector}/callback, and legacy /connections/oauth/{connector}/callback).
 public sealed partial class OAuthCallback : IHttpSurface
 {
     public const string CanonicalCallbackPath = "/integrations/oauth/callback";
@@ -27,9 +27,9 @@ public sealed partial class OAuthCallback : IHttpSurface
     // ASP.NET Core's per-request Information log, which prints the full query string.
     public const string RequestLogCategory = "Microsoft.AspNetCore.Hosting.Diagnostics";
 
-    public static bool TryMatchCallbackPath(string? path, out string provider)
+    public static bool TryMatchCallbackPath(string? path, out string connector)
     {
-        provider = "";
+        connector = "";
         if (string.IsNullOrWhiteSpace(path)) { return false; }
 
         if (string.Equals(path, CanonicalCallbackPath, StringComparison.Ordinal))
@@ -45,8 +45,8 @@ public sealed partial class OAuthCallback : IHttpSurface
                 var segment = path[IntegrationsPrefix.Length..^OAuthCallbackSuffix.Length];
                 if (!segment.Contains('/', StringComparison.Ordinal))
                 {
-                    provider = Uri.UnescapeDataString(segment);
-                    return !string.IsNullOrWhiteSpace(provider);
+                    connector = Uri.UnescapeDataString(segment);
+                    return !string.IsNullOrWhiteSpace(connector);
                 }
             }
 
@@ -56,8 +56,8 @@ public sealed partial class OAuthCallback : IHttpSurface
                 var segment = path[IntegrationsPrefix.Length..^CallbackSuffix.Length];
                 if (!segment.Contains('/', StringComparison.Ordinal))
                 {
-                    provider = Uri.UnescapeDataString(segment);
-                    return !string.IsNullOrWhiteSpace(provider);
+                    connector = Uri.UnescapeDataString(segment);
+                    return !string.IsNullOrWhiteSpace(connector);
                 }
             }
         }
@@ -69,8 +69,8 @@ public sealed partial class OAuthCallback : IHttpSurface
             var segment = path[LegacyPrefix.Length..^CallbackSuffix.Length];
             if (!segment.Contains('/', StringComparison.Ordinal))
             {
-                provider = Uri.UnescapeDataString(segment);
-                return !string.IsNullOrWhiteSpace(provider);
+                connector = Uri.UnescapeDataString(segment);
+                return !string.IsNullOrWhiteSpace(connector);
             }
         }
 
@@ -133,7 +133,7 @@ public sealed partial class OAuthCallback : IHttpSurface
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                // Provider replies and tokens never reach the browser or the log: only the failure's type is kept.
+                // External replies and tokens never reach the browser or the log: only the failure's type is kept.
                 LogCallbackFailed(
                     context.RequestServices.GetRequiredService<ILogger<OAuthCallback>>(),
                     connector,

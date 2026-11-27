@@ -17,8 +17,8 @@ public static class OAuthConnectionsHosting
         ArgumentNullException.ThrowIfNull(services);
 
         var optionsBuilder = services.AddOptions<OAuthConnectionsOptions>()
-            .Configure<IServiceProvider>((options, provider) =>
-                provider.GetService<IConfiguration>()?.GetSection(OAuthConnectionsOptions.SectionName).Bind(options));
+            .Configure<IServiceProvider>((options, sp) =>
+                sp.GetService<IConfiguration>()?.GetSection(OAuthConnectionsOptions.SectionName).Bind(options));
         if (configure is not null)
         {
             optionsBuilder.Configure(configure);
@@ -30,7 +30,7 @@ public static class OAuthConnectionsHosting
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<OAuthLoginRequests>();
         services.TryAddSingleton<OAuthTokenExchange>();
-        services.TryAddSingleton<IOAuthTokenExchange>(provider => provider.GetRequiredService<OAuthTokenExchange>());
+        services.TryAddSingleton<IOAuthTokenExchange>(sp => sp.GetRequiredService<OAuthTokenExchange>());
         services.TryAddSingleton<OAuthLoginFlow>();
 
         services.AddHttpClient(resolved.ResolvedHttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
