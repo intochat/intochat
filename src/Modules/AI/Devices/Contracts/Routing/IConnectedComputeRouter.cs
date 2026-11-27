@@ -72,6 +72,12 @@ public static class ClientComputeConsentPolicy
     /// <summary>Persisted user settings variable key backing the Mode B [PersonOnly] shell toggle.</summary>
     public const string AllowConsoleVariableKey = "settings.toggle." + AllowConsoleToggleKey;
 
+    /// <summary>Settings toggle child key for Plane 2 Connected PC self-improving engineering (strictly separate from Plane 1 sandbox).</summary>
+    public const string AllowConnectedEngineeringToggleKey = "allow-connected-engineering";
+
+    /// <summary>Persisted user settings variable key backing the Plane 2 Connected PC engineering toggle.</summary>
+    public const string AllowConnectedEngineeringVariableKey = "settings.toggle." + AllowConnectedEngineeringToggleKey;
+
     /// <summary>Canonical capability identifier advertised over the paired P-256 relay.</summary>
     public const string CodeSandboxCapability = ICodeSandbox.CapabilityId;
 
@@ -80,6 +86,9 @@ public static class ClientComputeConsentPolicy
 
     /// <summary>Mode B capability identifier for [PersonOnly]-gated Windows console over the Circle relay.</summary>
     public const string ConsoleCapability = "IConsole";
+
+    /// <summary>Plane 2 capability identifier for self-improving engineering (<c>IEngineerRuns</c>) over the Circle relay.</summary>
+    public const string ConnectedEngineeringCapability = "IEngineerRuns";
 
     public static ClientDevicePlatform DetectCurrentPlatform()
     {
@@ -165,6 +174,24 @@ public static class ClientComputeConsentPolicy
     public static bool DefaultAllowClientCodeSandboxForCurrentPlatform()
         => DefaultAllowClientCodeSandbox(DetectCurrentPlatform());
 
+    /// <summary>
+    /// Plane 2 Connected PC engineering consent is strictly fail-closed (<see langword="false"/> by default on every platform)
+    /// and completely independent of <c>AllowClientCodeSandbox</c>.
+    /// </summary>
+    public static bool DefaultAllowConnectedEngineering(ClientDevicePlatform platform)
+        => platform switch
+        {
+            // Plane 2 Connected PC engineering accesses local git checkouts and AgentDevSlots;
+            // fail-closed false on every platform until explicitly opted in.
+            _ => false,
+        };
+
+    public static bool DefaultAllowConnectedEngineering(string? osDescription)
+        => DefaultAllowConnectedEngineering(ClassifyPlatform(osDescription));
+
+    public static bool DefaultAllowConnectedEngineeringForCurrentPlatform()
+        => DefaultAllowConnectedEngineering(DetectCurrentPlatform());
+
     public static bool HasCodeSandboxCapability(string[]? advertisedCapabilities)
         => advertisedCapabilities is { Length: > 0 }
             && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), CodeSandboxCapability, StringComparison.Ordinal));
@@ -177,15 +204,26 @@ public static class ClientComputeConsentPolicy
         => advertisedCapabilities is { Length: > 0 }
             && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), ConsoleCapability, StringComparison.Ordinal));
 
+    public static bool HasConnectedEngineeringCapability(string[]? advertisedCapabilities)
+        => advertisedCapabilities is { Length: > 0 }
+            && advertisedCapabilities.Any(static c => string.Equals(c?.Trim(), ConnectedEngineeringCapability, StringComparison.Ordinal));
+
     public static string[] CapabilitiesFor(bool advertiseCodeSandbox)
-        => CapabilitiesFor(advertiseCodeSandbox, advertiseWindowsFolderGateway: false, advertiseConsole: false);
+        => CapabilitiesFor(advertiseCodeSandbox, advertiseWindowsFolderGateway: false, advertiseConsole: false, advertiseConnectedEngineering: false);
 
     public static string[] CapabilitiesFor(
         bool advertiseCodeSandbox,
         bool advertiseWindowsFolderGateway,
         bool advertiseConsole)
+        => CapabilitiesFor(advertiseCodeSandbox, advertiseWindowsFolderGateway, advertiseConsole, advertiseConnectedEngineering: false);
+
+    public static string[] CapabilitiesFor(
+        bool advertiseCodeSandbox,
+        bool advertiseWindowsFolderGateway,
+        bool advertiseConsole,
+        bool advertiseConnectedEngineering)
     {
-        var list = new List<string>(3);
+        var list = new List<string>(4);
         if (advertiseCodeSandbox)
         {
             list.Add(CodeSandboxCapability);
@@ -199,6 +237,11 @@ public static class ClientComputeConsentPolicy
         if (advertiseConsole)
         {
             list.Add(ConsoleCapability);
+        }
+
+        if (advertiseConnectedEngineering)
+        {
+            list.Add(ConnectedEngineeringCapability);
         }
 
         return [.. list];
@@ -222,6 +265,17 @@ public static class ClientComputeConsentPolicy
             _ => false,
         };
     }
+
+    /// <summary>
+    /// Fail-closed eligibility check for Plane 2 Connected PC engineering.
+    /// Strictly requires explicit <paramref name="allowConnectedEngineering"/> == <see langword="true"/>
+    /// and advertised <see cref="ConnectedEngineeringCapability"/>; never falls back to <c>AllowClientCodeSandbox</c>
+    /// or <see cref="ComputeConsentMode.AutoAll"/>.
+    /// </summary>
+    public static bool IsEligibleForConnectedEngineering(
+        bool allowConnectedEngineering,
+        string[]? advertisedCapabilities)
+        => allowConnectedEngineering && HasConnectedEngineeringCapability(advertisedCapabilities);
 }
 
 /// <summary>Live reachability state of an enrolled compute node based on its compute heartbeat.</summary>
@@ -268,7 +322,8 @@ public sealed record ComputeCapabilityAdvertisement(
     [property: Id(11)] bool AllowWindowsFolderGateway = false,
     [property: Id(12)] bool AllowConsole = false,
     [property: Id(13)] string[]? ConsentedFolderLabels = null,
-    [property: Id(14)] bool ConsoleRequiresPersonApproval = true);
+    [property: Id(14)] bool ConsoleRequiresPersonApproval = true,
+    [property: Id(15)] bool AllowConnectedEngineering = false);
 
 /// <summary>Observed online/offline status and compute capability of an enrolled device belonging to a brain.</summary>
 [GenerateSerializer, Alias("devices.compute.node")]
@@ -287,7 +342,8 @@ public sealed record ConnectedComputeNode(
     [property: Id(11)] bool AllowWindowsFolderGateway = false,
     [property: Id(12)] bool AllowConsole = false,
     [property: Id(13)] string[]? ConsentedFolderLabels = null,
-    [property: Id(14)] bool ConsoleRequiresPersonApproval = true)
+    [property: Id(14)] bool ConsoleRequiresPersonApproval = true,
+    [property: Id(15)] bool AllowConnectedEngineering = false)
 {
     /// <summary>True when this node explicitly advertises the <see cref="ICodeSandbox"/> capability.</summary>
     public bool AdvertisesCodeSandbox =>
@@ -300,6 +356,10 @@ public sealed record ConnectedComputeNode(
     /// <summary>True when this node explicitly advertises <c>IConsole</c> ([PersonOnly]-gated).</summary>
     public bool AdvertisesConsole =>
         ClientComputeConsentPolicy.HasConsoleCapability(AdvertisedCapabilities);
+
+    /// <summary>True when this node explicitly advertises <c>IEngineerRuns</c> (Plane 2 Connected PC engineering).</summary>
+    public bool AdvertisesConnectedEngineering =>
+        ClientComputeConsentPolicy.HasConnectedEngineeringCapability(AdvertisedCapabilities);
 
     /// <summary>
     /// True only when the node is online, advertises local sandbox readiness, and satisfies RFC-2 consent enforcement
@@ -325,6 +385,17 @@ public sealed record ConnectedComputeNode(
         Status == ComputeNodeStatus.Online
         && AllowConsole
         && AdvertisesConsole;
+
+    /// <summary>
+    /// True only when the node is online and explicitly consents to Plane 2 Connected PC self-improving engineering
+    /// (<see cref="AllowConnectedEngineering"/> == <see langword="true"/> and <c>IEngineerRuns</c> advertised).
+    /// Strictly independent of <see cref="AllowClientCodeSandbox"/>.
+    /// </summary>
+    public bool IsEligibleForConnectedEngineering =>
+        Status == ComputeNodeStatus.Online
+        && ClientComputeConsentPolicy.IsEligibleForConnectedEngineering(
+            AllowConnectedEngineering,
+            AdvertisedCapabilities);
 }
 
 /// <summary>Routing decision produced by <see cref="IConnectedComputeRouter"/> for a brain's sandbox dispatch.</summary>
@@ -478,4 +549,29 @@ public interface IConnectedComputeRouter
         string? preferredMachineId = null,
         CancellationToken ct = default)
         => Task.FromResult<PcResourceResponse?>(null);
+
+    /// <summary>
+    /// Resolves whether a Plane 2 self-improving engineering run for <paramref name="brainId"/> should route to
+    /// an eligible online Paired PC advertising <c>AllowConnectedEngineering == true</c> (Tier 1, $0 Azure compute)
+    /// or fall back to local/cloud candidate hosts (Tier 2 / Tier 3).
+    /// </summary>
+    Task<ComputeRouteDecision> ResolveEngineeringRouteAsync(
+        BrainId brainId,
+        CancellationToken ct = default)
+        => Task.FromResult(new ComputeRouteDecision(
+            ComputeExecutionTarget.CloudSandbox,
+            null,
+            "Connected PC engineering relay is not configured; falling back to local or cloud candidate host."));
+
+    /// <summary>
+    /// Dispatches a Plane 2 self-improving engineering job (<c>pauseAtApprovalGate: true</c>) to an online Paired PC
+    /// advertising <c>AllowConnectedEngineering == true</c>. Returns <see langword="null"/> when no eligible PC is online,
+    /// consent is disabled, or the PC disconnects within the availability probe budget.
+    /// </summary>
+    Task<ConnectedEngineeringResponse?> TryExecuteEngineeringOnConnectedClientAsync(
+        BrainId brainId,
+        ConnectedEngineeringRequest request,
+        Func<EngineeringStreamChunk, Task>? onProgress = null,
+        CancellationToken ct = default)
+        => Task.FromResult<ConnectedEngineeringResponse?>(null);
 }

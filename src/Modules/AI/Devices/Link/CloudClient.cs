@@ -189,6 +189,60 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<ConnectedEngineeringRequest?> PollNextEngineeringAsync(CancellationToken ct = default)
+    {
+        using var response = await SendSignedAsync(
+            HttpMethod.Get,
+            DeviceRoutes.EngineeringNext,
+            createContent: null,
+            ct).ConfigureAwait(false);
+
+        if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedEngineeringRequest, ct).ConfigureAwait(false);
+    }
+
+    public async Task ReportEngineeringResultAsync(string jobId, ConnectedEngineeringResponse result, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        ArgumentNullException.ThrowIfNull(result);
+        using var response = await SendSignedAsync(
+            HttpMethod.Post,
+            DeviceRoutes.EngineeringResultFor(jobId),
+            () => JsonContent(result, DeviceWireJson.Default.ConnectedEngineeringResponse),
+            ct).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> StreamEngineeringAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        ArgumentNullException.ThrowIfNull(ndjsonContent);
+
+        var secrets = await EnsureFreshSecretsAsync(ct).ConfigureAwait(false);
+        var url = Combine(secrets.Server, DeviceRoutes.EngineeringStreamFor(jobId));
+        using var request = BuildSignedRequest(HttpMethod.Post, url, secrets, ndjsonContent);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            await credentials.Revoke(ct).ConfigureAwait(false);
+            throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
+        }
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
     public async Task StreamAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);

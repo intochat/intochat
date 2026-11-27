@@ -28,6 +28,7 @@ internal sealed class DeviceLinkRecord
     public string? CircleId { get; set; }
     public bool AllowWindowsFolderGateway { get; set; }
     public bool AllowConsole { get; set; }
+    public bool AllowConnectedEngineering { get; set; }
 }
 
 // Plain neuron at "{brain}/device-link" on the PC.
@@ -77,12 +78,14 @@ internal sealed class DeviceLinkNeuron(
             CircleId = enrolled.Circle?.Id,
             AllowWindowsFolderGateway = State.AllowWindowsFolderGateway,
             AllowConsole = State.AllowConsole,
+            AllowConnectedEngineering = State.AllowConnectedEngineering,
         };
         await Store(next);
         services.GetService<IClientCodeSandboxConsent>()?.Set(allowClientCodeSandbox);
         var resourceConsent = services.GetService<IClientResourceConsent>();
         resourceConsent?.SetAllowWindowsFolderGateway(next.AllowWindowsFolderGateway);
         resourceConsent?.SetAllowConsole(next.AllowConsole);
+        services.GetService<IClientEngineeringConsent>()?.SetAllowConnectedEngineering(next.AllowConnectedEngineering);
         await SyncLocalComputeRouterAsync(next, DeviceKeys.Thumbprint(spki), now).ConfigureAwait(true);
         services.GetService<DeviceWorker>()?.NotifyLinkChanged();
         return ToStatus(next);
@@ -164,21 +167,25 @@ internal sealed class DeviceLinkNeuron(
     }
 
     public Task<LinkStatus> SetAllowClientCodeSandbox(bool allow)
-        => UpdateConsentAsync(allowCodeSandbox: allow, allowFolders: null, allowConsole: null);
+        => UpdateConsentAsync(allowCodeSandbox: allow, allowFolders: null, allowConsole: null, allowEngineering: null);
 
     public Task<LinkStatus> SetAllowWindowsFolderGateway(bool allow)
-        => UpdateConsentAsync(allowCodeSandbox: null, allowFolders: allow, allowConsole: null);
+        => UpdateConsentAsync(allowCodeSandbox: null, allowFolders: allow, allowConsole: null, allowEngineering: null);
 
     public Task<LinkStatus> SetAllowConsole(bool allow)
-        => UpdateConsentAsync(allowCodeSandbox: null, allowFolders: null, allowConsole: allow);
+        => UpdateConsentAsync(allowCodeSandbox: null, allowFolders: null, allowConsole: allow, allowEngineering: null);
 
-    private async Task<LinkStatus> UpdateConsentAsync(bool? allowCodeSandbox, bool? allowFolders, bool? allowConsole)
+    public Task<LinkStatus> SetAllowConnectedEngineering(bool allow)
+        => UpdateConsentAsync(allowCodeSandbox: null, allowFolders: null, allowConsole: null, allowEngineering: allow);
+
+    private async Task<LinkStatus> UpdateConsentAsync(bool? allowCodeSandbox, bool? allowFolders, bool? allowConsole, bool? allowEngineering)
     {
         await RequireOwnerOrSettingsAsync();
 
         var effectiveSandbox = allowCodeSandbox ?? ResolveAllowClientCodeSandbox(State);
         var effectiveFolders = allowFolders ?? State.AllowWindowsFolderGateway;
         var effectiveConsole = allowConsole ?? State.AllowConsole;
+        var effectiveEngineering = allowEngineering ?? State.AllowConnectedEngineering;
 
         var next = new DeviceLinkRecord
         {
@@ -191,12 +198,14 @@ internal sealed class DeviceLinkNeuron(
             CircleId = State.CircleId,
             AllowWindowsFolderGateway = effectiveFolders,
             AllowConsole = effectiveConsole,
+            AllowConnectedEngineering = effectiveEngineering,
         };
         await Store(next);
         services.GetService<IClientCodeSandboxConsent>()?.Set(effectiveSandbox);
         var resourceConsent = services.GetService<IClientResourceConsent>();
         resourceConsent?.SetAllowWindowsFolderGateway(effectiveFolders);
         resourceConsent?.SetAllowConsole(effectiveConsole);
+        services.GetService<IClientEngineeringConsent>()?.SetAllowConnectedEngineering(effectiveEngineering);
         services.GetService<DeviceWorker>()?.NotifyLinkChanged();
 
         if (next.State != LinkState.Connected)
@@ -230,6 +239,7 @@ internal sealed class DeviceLinkNeuron(
                 CircleId = next.CircleId,
                 AllowWindowsFolderGateway = effectiveFolders,
                 AllowConsole = effectiveConsole,
+                AllowConnectedEngineering = effectiveEngineering,
             };
             await Store(next);
         }
@@ -248,6 +258,7 @@ internal sealed class DeviceLinkNeuron(
                 CircleId = next.CircleId,
                 AllowWindowsFolderGateway = effectiveFolders,
                 AllowConsole = effectiveConsole,
+                AllowConnectedEngineering = effectiveEngineering,
             };
             await Store(revoked);
             await MarkComputeOfflineBestEffortAsync().ConfigureAwait(true);
@@ -303,6 +314,7 @@ internal sealed class DeviceLinkNeuron(
             CircleId = null,
             AllowWindowsFolderGateway = State.AllowWindowsFolderGateway,
             AllowConsole = State.AllowConsole,
+            AllowConnectedEngineering = State.AllowConnectedEngineering,
         });
         services.GetService<DeviceWorker>()?.NotifyLinkChanged();
     }
@@ -317,6 +329,7 @@ internal sealed class DeviceLinkNeuron(
         var sandboxReady = record.State == LinkState.Connected && compute.IsClientCodeSandboxConsentedWith(allowClientCodeSandbox);
         var advertiseFolders = record.State == LinkState.Connected && record.AllowWindowsFolderGateway;
         var advertiseConsole = record.State == LinkState.Connected && record.AllowConsole;
+        var advertiseEngineering = record.State == LinkState.Connected && record.AllowConnectedEngineering;
         return new ComputeCapabilityAdvertisement(
             MachineId: thisMachine.Value,
             DeviceName: string.IsNullOrEmpty(record.DeviceName) ? DefaultDeviceName() : record.DeviceName,
@@ -328,11 +341,12 @@ internal sealed class DeviceLinkNeuron(
             HeartbeatAt: now,
             KeyThumbprint: thumbprint,
             AllowClientCodeSandbox: allowClientCodeSandbox,
-            AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(sandboxReady, advertiseFolders, advertiseConsole),
+            AdvertisedCapabilities: ClientComputeConsentPolicy.CapabilitiesFor(sandboxReady, advertiseFolders, advertiseConsole, advertiseEngineering),
             AllowWindowsFolderGateway: advertiseFolders,
             AllowConsole: advertiseConsole,
             ConsentedFolderLabels: null,
-            ConsoleRequiresPersonApproval: true);
+            ConsoleRequiresPersonApproval: true,
+            AllowConnectedEngineering: advertiseEngineering);
     }
 
     private async Task SyncLocalComputeRouterAsync(DeviceLinkRecord record, string? thumbprint, DateTimeOffset now)
@@ -345,7 +359,10 @@ internal sealed class DeviceLinkNeuron(
         var allow = ResolveAllowClientCodeSandbox(record);
         var advertisement = BuildComputeCapabilityAdvertisement(record, allow, thumbprint, now);
         await router.RecordHeartbeatAsync(Id.Brain, advertisement).ConfigureAwait(true);
-        if (!advertisement.SandboxReady && !advertisement.AllowWindowsFolderGateway && !advertisement.AllowConsole)
+        if (!advertisement.SandboxReady
+            && !advertisement.AllowWindowsFolderGateway
+            && !advertisement.AllowConsole
+            && !advertisement.AllowConnectedEngineering)
         {
             await router.MarkOfflineAsync(Id.Brain, thisMachine.Value).ConfigureAwait(true);
         }
@@ -385,6 +402,7 @@ internal sealed class DeviceLinkNeuron(
         CircleId = string.IsNullOrWhiteSpace(circleId) ? State.CircleId : circleId,
         AllowWindowsFolderGateway = State.AllowWindowsFolderGateway,
         AllowConsole = State.AllowConsole,
+        AllowConnectedEngineering = State.AllowConnectedEngineering,
     };
 
     private LinkStatus ToStatus(DeviceLinkRecord record)
@@ -394,16 +412,19 @@ internal sealed class DeviceLinkNeuron(
         var advertisesSandbox = record.State == LinkState.Connected && compute.IsClientCodeSandboxConsentedWith(allow);
         var advertisesFolders = record.State == LinkState.Connected && record.AllowWindowsFolderGateway;
         var advertisesConsole = record.State == LinkState.Connected && record.AllowConsole;
+        var advertisesEngineering = record.State == LinkState.Connected && record.AllowConnectedEngineering;
         return new(
             record.State,
             string.IsNullOrWhiteSpace(record.Server) ? null : new Uri(record.Server, UriKind.Absolute),
             string.IsNullOrEmpty(record.DeviceName) ? DefaultDeviceName() : record.DeviceName,
             record.LastContactedAt,
             allow,
-            ClientComputeConsentPolicy.CapabilitiesFor(advertisesSandbox, advertisesFolders, advertisesConsole),
+            ClientComputeConsentPolicy.CapabilitiesFor(advertisesSandbox, advertisesFolders, advertisesConsole, advertisesEngineering),
             record.CircleId,
             record.AllowWindowsFolderGateway,
-            record.AllowConsole);
+            record.AllowConsole,
+            ConsentedFolderRoots: null,
+            AllowConnectedEngineering: record.AllowConnectedEngineering);
     }
 
     private static string? ComputeKeyThumbprint(byte[]? pkcs8)

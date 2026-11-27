@@ -434,6 +434,7 @@ public sealed partial class SettingsApp
         var hasStoredSandbox = preserveStoredToggles && HasStoredVariable(state, ClientComputeConsentPolicy.SettingsVariableKey);
         var hasStoredFolders = preserveStoredToggles && HasStoredVariable(state, ClientComputeConsentPolicy.AllowWindowsFolderGatewayVariableKey);
         var hasStoredConsole = preserveStoredToggles && HasStoredVariable(state, ClientComputeConsentPolicy.AllowConsoleVariableKey);
+        var hasStoredEngineering = preserveStoredToggles && HasStoredVariable(state, ClientComputeConsentPolicy.AllowConnectedEngineeringVariableKey);
         return state with
         {
             DeviceLinkState = status.State,
@@ -444,6 +445,7 @@ public sealed partial class SettingsApp
             AllowClientCodeSandbox = hasStoredSandbox ? state.AllowClientCodeSandbox : status.AllowClientCodeSandbox,
             AllowWindowsFolderGateway = hasStoredFolders ? state.AllowWindowsFolderGateway : status.AllowWindowsFolderGateway,
             AllowConsole = hasStoredConsole ? state.AllowConsole : status.AllowConsole,
+            AllowConnectedEngineering = hasStoredEngineering ? state.AllowConnectedEngineering : status.AllowConnectedEngineering,
         };
     }
 

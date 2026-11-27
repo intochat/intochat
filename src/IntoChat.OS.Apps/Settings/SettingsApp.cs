@@ -298,6 +298,23 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             }
 #pragma warning restore CA1031
         }
+        else if (string.Equals(toggle.Key, SettingsControls.AllowConnectedEngineering, StringComparison.Ordinal))
+        {
+            Services.ClientEngineeringConsent?.SetAllowConnectedEngineering(toggled.IsOn);
+            try
+            {
+                if (DeviceLink is { } link)
+                {
+                    await link.SetAllowConnectedEngineering(toggled.IsOn);
+                }
+            }
+#pragma warning disable CA1031 // Device link neuron is optional in minimal test hosts.
+            catch (Exception ex)
+            {
+                IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping IDeviceLink.SetAllowConnectedEngineering in minimal test host.");
+            }
+#pragma warning restore CA1031
+        }
 
         await UpdateAsync(toggle.Set(State, toggled.IsOn));
     }

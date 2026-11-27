@@ -63,6 +63,12 @@ public static class DeviceRoutes
     public const string ResourceDispatch = CircleRoutes.Prefix + "/compute/resource/dispatch";
     public const string ResourceResult = CircleRoutes.Prefix + "/compute/resource/{jobId}/result";
 
+    // Plane 2 Connected PC self-improving engineering relay (requires explicit AllowConnectedEngineering == true).
+    public const string EngineeringNext = CircleRoutes.Prefix + "/compute/engineering/next";
+    public const string EngineeringDispatch = CircleRoutes.Prefix + "/compute/engineering/dispatch";
+    public const string EngineeringResult = CircleRoutes.Prefix + "/compute/engineering/{jobId}/result";
+    public const string EngineeringStream = CircleRoutes.Prefix + "/compute/engineering/{jobId}/stream";
+
     public static string StreamFor(string jobId)
         => CircleRoutes.Prefix + "/compute/" + Uri.EscapeDataString(jobId) + "/stream";
 
@@ -74,6 +80,12 @@ public static class DeviceRoutes
 
     public static string ResourceResultFor(string jobId)
         => CircleRoutes.Prefix + "/compute/resource/" + Uri.EscapeDataString(jobId) + "/result";
+
+    public static string EngineeringResultFor(string jobId)
+        => CircleRoutes.Prefix + "/compute/engineering/" + Uri.EscapeDataString(jobId) + "/result";
+
+    public static string EngineeringStreamFor(string jobId)
+        => CircleRoutes.Prefix + "/compute/engineering/" + Uri.EscapeDataString(jobId) + "/stream";
 }
 
 // MachinePublicKeySpki is the base64url SubjectPublicKeyInfo of the machine P-256 key.
@@ -166,6 +178,9 @@ public sealed record BrainSandboxDispatchRequest(string Brain, string MachineId,
 // Mode B PC resource dispatch targeted at one connected consented device of the credential's brain.
 public sealed record BrainResourceDispatchRequest(string Brain, string MachineId, PcResourceRequest Request);
 
+// Plane 2 Connected PC engineering dispatch targeted at one connected device advertising AllowConnectedEngineering == true.
+public sealed record BrainEngineeringDispatchRequest(string Brain, string MachineId, ConnectedEngineeringRequest Request);
+
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(BrainDeviceModels))]
 [JsonSerializable(typeof(BrainDevicesResponse))]
@@ -173,6 +188,11 @@ public sealed record BrainResourceDispatchRequest(string Brain, string MachineId
 [JsonSerializable(typeof(BrainComputeNodesResponse))]
 [JsonSerializable(typeof(BrainSandboxDispatchRequest))]
 [JsonSerializable(typeof(BrainResourceDispatchRequest))]
+[JsonSerializable(typeof(BrainEngineeringDispatchRequest))]
+[JsonSerializable(typeof(ConnectedEngineeringRequest))]
+[JsonSerializable(typeof(ConnectedEngineeringChangeSet))]
+[JsonSerializable(typeof(ConnectedEngineeringResponse))]
+[JsonSerializable(typeof(EngineeringStreamChunk))]
 [JsonSerializable(typeof(PcResourceRequest))]
 [JsonSerializable(typeof(PcResourceResponse))]
 [JsonSerializable(typeof(SandboxStreamChunk))]

@@ -72,6 +72,11 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
             case CandidateHostMode.AcaJob:
                 services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AcaJobCandidateHost>();
                 break;
+            case CandidateHostMode.ConnectedDevice:
+                services.TryAddSingleton<Candidates.AgentDevSlotsCandidateHost>();
+                services.TryAddSingleton<Candidates.ConnectedDeviceCandidateHost>();
+                services.TryAddSingleton<Candidates.ICandidateHost>(static sp => sp.GetRequiredService<Candidates.ConnectedDeviceCandidateHost>());
+                break;
             default:
                 services.TryAddSingleton<Candidates.ICandidateHost, Candidates.AgentDevSlotsCandidateHost>();
                 break;

@@ -30,6 +30,7 @@ internal sealed class SettingsHostServices
     public IOptions<McpModuleOptions>? McpOptions { get; set; }
     public IClientCodeSandboxConsent? ClientComputeConsent { get; set; }
     public IClientResourceConsent? ClientResourceConsent { get; set; }
+    public IClientEngineeringConsent? ClientEngineeringConsent { get; set; }
     public IConnectedComputeRouter? ConnectedComputeRouter { get; set; }
     public IConfiguration? Configuration { get; set; }
     public Action<Uri>? OpenBrowserAction { get; set; }
@@ -56,6 +57,7 @@ internal sealed class SettingsHostServices
             McpOptions = services.GetService<IOptions<McpModuleOptions>>(),
             ClientComputeConsent = services.GetService<IClientCodeSandboxConsent>(),
             ClientResourceConsent = services.GetService<IClientResourceConsent>(),
+            ClientEngineeringConsent = services.GetService<IClientEngineeringConsent>(),
             ConnectedComputeRouter = services.GetService<IConnectedComputeRouter>(),
             Configuration = services.GetService<IConfiguration>(),
             OpenBrowserAction = services.GetService<Action<Uri>>(),

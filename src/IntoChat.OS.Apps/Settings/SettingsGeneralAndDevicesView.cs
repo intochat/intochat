@@ -143,6 +143,7 @@ internal static class SettingsGeneralAndDevicesView
         var sandboxToggle = SettingsControls.Toggles.First(t => t.Key == SettingsControls.AllowClientCodeSandbox);
         var foldersToggle = SettingsControls.Toggles.First(t => t.Key == SettingsControls.AllowWindowsFolderGateway);
         var consoleToggle = SettingsControls.Toggles.First(t => t.Key == SettingsControls.AllowConsole);
+        var engineeringToggle = SettingsControls.Toggles.First(t => t.Key == SettingsControls.AllowConnectedEngineering);
 
         return Card("Connect this PC to IntoChat Cloud", "Link this Windows PC to your IntoChat Cloud brain for sandboxed code execution and consented PC access.")
             .Style(OsMixStyles.Card())[
@@ -214,6 +215,10 @@ internal static class SettingsGeneralAndDevicesView
                     HStack(Space.Sm)[
                         SettingsControls.ToggleSwitch(children, state, consoleToggle),
                         new TagPill("Person only", "accent", "shield-check")
+                    ],
+                    HStack(Space.Sm)[
+                        SettingsControls.ToggleSwitch(children, state, engineeringToggle),
+                        new TagPill("Desktop only", "accent", "git-branch")
                     ]
                 ]
             ]
@@ -311,6 +316,7 @@ internal static class SettingsGeneralAndDevicesView
         ClientComputeConsentPolicy.CodeSandboxCapability => "Run code on this PC",
         ClientComputeConsentPolicy.WindowsFolderGatewayCapability => "Shared folders",
         ClientComputeConsentPolicy.ConsoleCapability => "Interactive shell",
+        ClientComputeConsentPolicy.ConnectedEngineeringCapability => "Connected engineering",
         _ => capability,
     };
 
@@ -319,6 +325,7 @@ internal static class SettingsGeneralAndDevicesView
         ClientComputeConsentPolicy.CodeSandboxCapability => "cpu",
         ClientComputeConsentPolicy.WindowsFolderGatewayCapability => "folder-check",
         ClientComputeConsentPolicy.ConsoleCapability => "terminal",
+        ClientComputeConsentPolicy.ConnectedEngineeringCapability => "git-branch",
         _ => "monitor",
     };
 }

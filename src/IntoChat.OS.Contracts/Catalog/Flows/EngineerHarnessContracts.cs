@@ -141,3 +141,24 @@ public interface ILiveEnvironment
 {
     bool Configured { get; }
 }
+
+/// <summary>
+/// Result of probing Tier 1 Connected PC engineering availability (<c>AllowConnectedEngineering == true</c>)
+/// across module boundaries for <c>ConnectedDeviceCandidateHost</c>.
+/// </summary>
+public sealed record ConnectedCandidateTarget(
+    string MachineId,
+    string DeviceName,
+    string Reason);
+
+/// <summary>
+/// Cross-module DI bridge implemented by the Devices module over <c>IConnectedComputeRouter</c>
+/// so <c>IntoChat.Aspire</c>'s <c>ConnectedDeviceCandidateHost</c> can detect eligible online Paired PCs
+/// without referencing <c>IntoChat.OS.Modules.AI</c>.
+/// </summary>
+public interface IConnectedCandidateRelay
+{
+    Task<ConnectedCandidateTarget?> TrySelectEligibleDeviceAsync(
+        BrainId brainId,
+        CancellationToken ct = default);
+}

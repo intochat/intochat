@@ -5,21 +5,25 @@ namespace IntoChat.OS.Modules.Devices;
 /// Falls back to platform-aware <see cref="ComputeCapabilityOptions"/> defaults (Desktop: ON, Mobile: OFF)
 /// until explicitly toggled via Settings or <see cref="Link.IDeviceLink"/>.
 /// </summary>
-internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent, IClientResourceConsent
+internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent, IClientResourceConsent, IClientEngineeringConsent
 {
     private readonly Lock _gate = new();
     private bool _allowClientCodeSandbox;
     private bool _hasExplicitOverride;
     private bool _allowWindowsFolderGateway;
     private bool _allowConsole;
+    private bool _allowConnectedEngineering;
 
-    public ClientCodeSandboxConsentStore(bool initialAllow)
+    public ClientCodeSandboxConsentStore(bool initialAllow, bool initialAllowConnectedEngineering = false)
     {
         _allowClientCodeSandbox = initialAllow;
+        _allowConnectedEngineering = initialAllowConnectedEngineering;
     }
 
     public ClientCodeSandboxConsentStore()
-        : this(ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform())
+        : this(
+            ClientComputeConsentPolicy.DefaultAllowClientCodeSandboxForCurrentPlatform(),
+            ClientComputeConsentPolicy.DefaultAllowConnectedEngineeringForCurrentPlatform())
     {
     }
 
@@ -27,10 +31,18 @@ internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent,
 
     private event Action? ResourceChanged;
 
+    private event Action<bool>? EngineeringChanged;
+
     event Action? IClientResourceConsent.Changed
     {
         add => ResourceChanged += value;
         remove => ResourceChanged -= value;
+    }
+
+    event Action<bool>? IClientEngineeringConsent.Changed
+    {
+        add => EngineeringChanged += value;
+        remove => EngineeringChanged -= value;
     }
 
     public bool AllowClientCodeSandbox
@@ -73,6 +85,17 @@ internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent,
             lock (_gate)
             {
                 return _allowConsole;
+            }
+        }
+    }
+
+    public bool AllowConnectedEngineering
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _allowConnectedEngineering;
             }
         }
     }
@@ -128,6 +151,22 @@ internal sealed class ClientCodeSandboxConsentStore : IClientCodeSandboxConsent,
 
         if (changed)
         {
+            ResourceChanged?.Invoke();
+        }
+    }
+
+    public void SetAllowConnectedEngineering(bool allow)
+    {
+        bool changed;
+        lock (_gate)
+        {
+            changed = _allowConnectedEngineering != allow;
+            _allowConnectedEngineering = allow;
+        }
+
+        if (changed)
+        {
+            EngineeringChanged?.Invoke(allow);
             ResourceChanged?.Invoke();
         }
     }
