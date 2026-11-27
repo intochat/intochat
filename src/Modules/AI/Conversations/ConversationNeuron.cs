@@ -12,7 +12,6 @@ using IntoChat.OS.Host.Conversations;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Attachments;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -33,13 +32,17 @@ internal sealed class ConversationNeuron(
     : InterleavingRunHost<ConversationState>(redactor, clock, services, (ILogger?)logger ?? OsConsoleLog.For<ConversationNeuron>()), IConversation, IConversationDriver
 {
     private const int MaxSayCharacters = 32_000;
-    private const string ConversationsKeyPrefix = "conversations/";
+    private const int MaxActivityPreviewCharacters = 256;
+    private const string ConversationsKeyPrefix = ConversationMigrationService.ConversationsKeyPrefix;
 
     private Task? _importing;
+    private (long Revision, string Text)? _pendingActivity;
 
     private ConversationDefaults Defaults => Services.GetService<ConversationDefaults>() ?? ConversationDefaults.Generic;
     private string DefaultAgentId => Defaults.DefaultAgentId;
     private IOffers Offers => Context.Offers;
+    private IConversationMigrationService? MigrationService
+        => Services.GetService<IConversationMigrationService>();
 
     protected override string HostKind => "Conversation";
     protected override string BusyMessage => "This conversation already has an active run.";
@@ -58,9 +61,22 @@ internal sealed class ConversationNeuron(
 
     protected override async Task AfterCommit(ConversationState committed, bool announce)
     {
+        var activityText = _pendingActivity is { } pending && pending.Revision == committed.Revision ? pending.Text : null;
+        if (activityText is not null) { _pendingActivity = null; }
         if (!announce) { return; }
-        try { await Publish(new ConversationChanged(ConvId, committed.Revision)); }
+        try { await Publish(new ConversationChanged(ConvId, committed.Revision) { ActivityText = activityText }); }
         catch (Exception error) { Logger.LogWarning(error, "ConversationChanged signal delivery failed; consumers can reconcile through Read."); }
+    }
+
+    private async Task PersistWithActivityAsync(ConversationState next, string activityText)
+    {
+        var nextRevision = State.Revision + 1;
+        _pendingActivity = (nextRevision, activityText.Length <= MaxActivityPreviewCharacters ? activityText : activityText[..MaxActivityPreviewCharacters]);
+        try { await Persist(next); }
+        finally
+        {
+            if (_pendingActivity is { } pending && pending.Revision == nextRevision) { _pendingActivity = null; }
+        }
     }
 
     private ConversationId ConvId
@@ -126,66 +142,29 @@ internal sealed class ConversationNeuron(
         try
         {
             if (State.Imported) { return; }
-            if (!Id.Key.StartsWith(ConversationsKeyPrefix, StringComparison.Ordinal))
+            var migrationService = MigrationService;
+            if (migrationService is null)
             {
                 UpdateLocalState(static s => s with { Imported = true });
                 return;
             }
 
-            var legacyPrefix = Defaults.LegacyAgentKeyPrefix;
-            if (string.IsNullOrWhiteSpace(legacyPrefix))
-            {
-                UpdateLocalState(static s => s with { Imported = true });
-                return;
-            }
-
-            var rawId = Id.Key[ConversationsKeyPrefix.Length..];
-            var oldAgent = Context.Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, legacyPrefix + rawId));
-            var oldState = await oldAgent.Read();
-            if (oldState.Revision == 0 && oldState.Runs.Length == 0 && string.IsNullOrWhiteSpace(oldState.Summary))
-            {
-                UpdateLocalState(static s => s with { Imported = true });
-                return;
-            }
-
-            var transcript = oldState.Runs.Length > 0 ? await oldAgent.Transcript() : [];
             var ownerAccount = CallerAccount();
-            var (importedEntries, importedRuns) = LegacyImport.From(oldState, transcript, ownerAccount, DefaultAgentId);
-
-            var nextAgents = State.Agents.Any(a => string.Equals(a.AgentId, DefaultAgentId, StringComparison.Ordinal))
-                ? State.Agents
-                : [.. State.Agents, new SeatedAgent(DefaultAgentId, AgentDefinitionRules.Normalize(oldState.Definition))];
-
-            await EnsureContextWires([.. nextAgents.SelectMany(a => a.Definition.Contexts).Distinct(StringComparer.Ordinal)]);
-
-            var nextParticipants = WithParticipants(State.Participants, new Participant.Human(ownerAccount), new Participant.Assistant(DefaultAgentId));
-            var nextRevision = State.Revision + 1;
-            var nextLog = importedEntries.Length > 0
-                ? ConversationLog.Append(State.Log, nextRevision, importedEntries)
-                : State.Log;
-            var nextRuns = importedRuns.Length > KeptRuns
-                ? importedRuns[(importedRuns.Length - KeptRuns)..]
-                : importedRuns;
-
-            SetBlockedCache(oldState.Blocked);
-            await Persist(State with
+            var migrated = await migrationService.MigrateLegacyAgentAsync(Id, ownerAccount, Context.Get<IAgent>);
+            if (migrated.Status == ConversationMigrationStatus.Failed) { return; }
+            if (migrated.Status == ConversationMigrationStatus.NothingToMigrate)
             {
-                Participants = nextParticipants,
-                Agents = nextAgents,
-                Log = nextLog,
-                Runs = nextRuns,
-                Imported = true,
-            });
+                UpdateLocalState(static s => s with { Imported = true });
+                return;
+            }
+
+            var nextState = ConversationMigrationService.ApplyToState(State, migrated, ownerAccount, DefaultAgentId, KeptRuns);
+            await EnsureContextWires(AllContexts(nextState));
+            SetBlockedCache(migrated.Blocked);
+            await Persist(nextState);
             await Reconsider();
         }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Logger.LogWarning(error, "Legacy import for conversation {ConversationId} failed; will retry on next call.", Id.Key);
-        }
-        finally
-        {
-            _importing = null;
-        }
+        finally { _importing = null; }
     }
 
     public async Task Seat(string agentId, AgentDefinition definition)
@@ -274,7 +253,7 @@ internal sealed class ConversationNeuron(
             return;
         }
 
-        var maskedHeard = await Mutate(async () =>
+        await Mutate(async () =>
         {
             var masked = await Runner.Mask(heard);
             var maskedReply = await Runner.Mask(reply);
@@ -289,15 +268,14 @@ internal sealed class ConversationNeuron(
             var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, heardEntry, spokenEntry);
             var participants = WithParticipants(State.Participants, speaker, assistant);
 
-            await Persist(State with
-            {
-                Participants = participants,
-                Log = nextLog,
-            });
-            return masked;
+            await PersistWithActivityAsync(
+                State with
+                {
+                    Participants = participants,
+                    Log = nextLog,
+                },
+                masked);
         });
-
-        await TouchSessionListBestEffortAsync(maskedHeard);
     }
 
     public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
@@ -350,15 +328,15 @@ internal sealed class ConversationNeuron(
             TraceId = TraceContext.Current?.TraceId,
         };
 
-        await Persist(State with
-        {
-            Participants = participants,
-            Log = nextLog,
-            ActiveRun = activeRun,
-            Replacing = null,
-        });
-
-        await TouchSessionListBestEffortAsync(runSummaryText);
+        await PersistWithActivityAsync(
+            State with
+            {
+                Participants = participants,
+                Log = nextLog,
+                ActiveRun = activeRun,
+                Replacing = null,
+            },
+            runSummaryText);
 
         try
         {
@@ -773,20 +751,6 @@ internal sealed class ConversationNeuron(
                     "Run {RunId} streamed {Deltas} deltas in {Stores} stores; first token {FirstTokenMs} ms; masking {MaskMs} ms",
                     runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
             }
-        }
-    }
-
-    private async Task TouchSessionListBestEffortAsync(string text)
-    {
-        if (!Sessions.IsId(ConvId.Value)) { return; }
-        try
-        {
-            await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey))
-                .Touch(ConvId.Value, text);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Logger.LogDebug(error, "Session list could not be touched for conversation {ConversationId}.", ConvId);
         }
     }
 

@@ -18,6 +18,7 @@ public sealed class AiFixture : BothRuntimesFixture
     {
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
         services.AddSingleton<IntoChat.OS.Modules.AI.Memory.IMemoryEmbedder>(new IntoChat.OS.Modules.AI.Memory.HybridMemoryEmbedder());
+        services.AddSingleton<IntoChat.OS.Modules.AI.Conversations.IConversationMigrationService, IntoChat.OS.Modules.AI.Conversations.ConversationMigrationService>();
         services.AddSingleton<ISecretRedactor, NoSecrets>();
         services.AddSingleton(TimeProvider.System);
     }
@@ -32,6 +33,7 @@ public sealed class AiFixture : BothRuntimesFixture
         services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Identity.Contracts.Grants.GrantsChanged).Assembly);
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
         services.AddSingleton<IntoChat.OS.Modules.AI.Memory.IMemoryEmbedder>(new IntoChat.OS.Modules.AI.Memory.HybridMemoryEmbedder());
+        services.AddSingleton<IntoChat.OS.Modules.AI.Conversations.IConversationMigrationService, IntoChat.OS.Modules.AI.Conversations.ConversationMigrationService>();
         services.AddSingleton<ISecretRedactor, NoSecrets>();
     }
 
