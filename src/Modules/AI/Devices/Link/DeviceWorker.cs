@@ -702,6 +702,7 @@ internal sealed class DeviceWorker : BackgroundService
                     }
                     catch (Exception error)
                     {
+                        _logger.LogWarning(error, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
                         sandboxError = error;
                     }
 
@@ -723,6 +724,7 @@ internal sealed class DeviceWorker : BackgroundService
                         }
                         catch (Exception error)
                         {
+                            _logger.LogWarning(error, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
                             sandboxError = error;
                             break;
                         }
@@ -757,7 +759,6 @@ internal sealed class DeviceWorker : BackgroundService
 
                 if (sandboxError is not null)
                 {
-                    _logger.LogWarning(sandboxError, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, sandboxError.GetType().Name);
                     capturedResult = new ConnectedSandboxResponse(
                         Handled: false,
                         ResultJson: null,
