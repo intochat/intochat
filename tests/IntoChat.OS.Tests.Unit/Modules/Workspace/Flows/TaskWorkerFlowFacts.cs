@@ -41,7 +41,7 @@ public sealed class TaskWorkerFlowFacts
         public Task Seat(string agentId, AgentDefinition definition)
             => Save(State with { Seated = definition }, new ConversationChanged(ConvId, 0));
 
-        public Task Say(string text, ModelId? model = null)
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
         {
             var run = new AgentRun("run-1", AgentRunStatus.Completed, text, Context.Time.GetUtcNow())
             {

@@ -14,7 +14,7 @@ public interface IConversation
 
     static string KeyOf(ConversationId id) => "conversations/" + id.Value;
 
-    [Shared, Interleaves] Task Say(string text, ModelId? model = null);
+    [Shared, Interleaves] Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null);
 
     [Interleaves] Task Stop();
 

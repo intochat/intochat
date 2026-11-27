@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
@@ -25,7 +26,7 @@ internal sealed record PendingDeviceFlow(
 
 // Bounded, TTL-expiring in-memory tracker for active RFC 8628 device authorization flows.
 // Bound strictly to the owning BrainId so cross-brain polling is rejected.
-internal sealed class OAuthDeviceRequests(IOptions<ConnectionsOptions> options, TimeProvider clock)
+internal sealed class OAuthDeviceRequests(IOptions<OAuthConnectionsOptions> options, TimeProvider clock)
 {
     private readonly Dictionary<string, PendingDeviceFlow> _pending = new(StringComparer.Ordinal);
 
@@ -100,6 +101,49 @@ internal sealed class OAuthDeviceRequests(IOptions<ConnectionsOptions> options, 
             }
 
             flow = existing;
+            return true;
+        }
+    }
+
+    // Atomically checks throttle/expiry and advances NextAllowedPollUtc before an upstream token poll,
+    // preventing concurrent /device/poll calls from bursting the provider.
+    public bool TryReservePoll(string flowId, string brainId, out PendingDeviceFlow? flow, out bool expired)
+    {
+        flow = null;
+        expired = false;
+        if (string.IsNullOrWhiteSpace(flowId))
+        {
+            return false;
+        }
+
+        lock (_pending)
+        {
+            if (!_pending.TryGetValue(flowId, out var existing)
+                || !string.Equals(existing.BrainId, brainId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var now = clock.GetUtcNow();
+            if (existing.ExpiresAtUtc <= now)
+            {
+                _pending.Remove(flowId);
+                expired = true;
+                return false;
+            }
+
+            if (now < existing.NextAllowedPollUtc)
+            {
+                flow = existing;
+                return false;
+            }
+
+            var reserved = existing with
+            {
+                NextAllowedPollUtc = now.AddSeconds(existing.IntervalSeconds),
+            };
+            _pending[flowId] = reserved;
+            flow = reserved;
             return true;
         }
     }

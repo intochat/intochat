@@ -12,6 +12,7 @@ using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Attachments;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -319,16 +320,23 @@ internal sealed class ConversationNeuron(
         await TouchSessionListBestEffortAsync(maskedHeard);
     }
 
-    public async Task Say(string text, ModelId? model = null)
+    public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
     {
         // The owner's view, or a friend's; a call with no caller is neither.
         if (RequireCaller().Brain != Id.Brain)
         {
-            await SayAsFriendAsync(text);
+            await SayAsFriendAsync(text, attachments);
             return;
         }
 
-        if (string.IsNullOrEmpty(text) || text.Length > MaxSayCharacters)
+        var hasAttachments = attachments is { Length: > 0 };
+        if (hasAttachments)
+        {
+            AttachmentValidator.ValidateTurnAttachments(attachments);
+        }
+
+        var normalizedText = text ?? string.Empty;
+        if ((!hasAttachments && string.IsNullOrEmpty(normalizedText)) || normalizedText.Length > MaxSayCharacters)
         {
             throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
         }
@@ -339,14 +347,18 @@ internal sealed class ConversationNeuron(
         EnsureIdle();
         await EnforceTrialTurnPolicyAsync();
 
-        var masked = await Runner.Mask(text);
+        var sanitizedAttachments = hasAttachments
+            ? await SanitizeAndAuthorizeAttachmentsAsync(attachments!)
+            : null;
+        var masked = string.IsNullOrEmpty(normalizedText) ? string.Empty : await Runner.Mask(normalizedText);
         var runId = Guid.NewGuid().ToString("N");
         var now = Clock.GetUtcNow();
         var speaker = new Participant.Human(CallerAccount());
-        var said = new Said(EntryIds.Said(runId), speaker, now, masked);
+        var said = new Said(EntryIds.Said(runId), speaker, now, masked, Attachments: sanitizedAttachments);
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
         var participants = WithParticipants(State.Participants, speaker);
-        var activeRun = new AgentRun(runId, AgentRunStatus.Running, masked, now)
+        var runSummaryText = SummarizePromptText(masked, sanitizedAttachments);
+        var activeRun = new AgentRun(runId, AgentRunStatus.Running, runSummaryText, now)
         {
             TraceId = TraceContext.Current?.TraceId,
         };
@@ -359,7 +371,7 @@ internal sealed class ConversationNeuron(
             Replacing = null,
         });
 
-        await TouchSessionListBestEffortAsync(masked);
+        await TouchSessionListBestEffortAsync(runSummaryText);
 
         try
         {
@@ -372,7 +384,80 @@ internal sealed class ConversationNeuron(
         }
     }
 
-    private async Task SayAsFriendAsync(string text)
+    private async Task<AttachmentRef[]> SanitizeAndAuthorizeAttachmentsAsync(AttachmentRef[] attachments)
+    {
+        // Fail closed: never accept attachments without verifying ownership and reconstructing metadata from the brain's store.
+        var store = Services.GetService<FileAttachmentStore>()
+            ?? throw new InvalidOperationException("Attachment store is unavailable; attachments cannot be verified.");
+
+        var result = new AttachmentRef[attachments.Length];
+        long totalStoredBytes = 0;
+        for (var i = 0; i < attachments.Length; i++)
+        {
+            var item = attachments[i];
+            var meta = await store.TryReadMetadataAsync(Id.Brain, item.Id, CancellationToken.None)
+                ?? throw new UnauthorizedAccessException($"Attachment '{item.Id}' is not accessible from this brain.");
+
+            var maxForKind = AttachmentValidator.MaxBytesForKind(meta.Kind);
+            if (meta.SizeBytes <= 0 || meta.SizeBytes > maxForKind)
+            {
+                throw new ArgumentException($"Stored attachment '{meta.Id}' exceeds the {maxForKind} byte limit.", nameof(attachments));
+            }
+
+            totalStoredBytes += meta.SizeBytes;
+            if (totalStoredBytes > AttachmentValidator.MaxTotalTurnAttachmentBytes)
+            {
+                throw new ArgumentException(
+                    $"Combined stored attachments exceed the {AttachmentValidator.MaxTotalTurnAttachmentBytes / (1024 * 1024)} MiB per-turn limit.",
+                    nameof(attachments));
+            }
+
+            var safeFileName = AttachmentValidator.SanitizeFileName(meta.FileName);
+            var safeMime = AttachmentValidator.NormalizeMediaType(meta.MediaType);
+            var maskedTranscript = string.IsNullOrWhiteSpace(meta.Transcript)
+                ? null
+                : await Runner.Mask(meta.Transcript);
+
+            // Reconstruct strictly from server-stored metadata (never trust client-supplied sizes, MIME, URL, or transcripts).
+            result[i] = new AttachmentRef(
+                Id: meta.Id,
+                Kind: meta.Kind,
+                FileName: safeFileName,
+                MediaType: safeMime,
+                SizeBytes: meta.SizeBytes,
+                Url: $"/ai/attachments/{meta.Id}",
+                DurationMs: meta.DurationMs,
+                Transcript: maskedTranscript,
+                Sha256: meta.Sha256);
+        }
+
+        return result;
+    }
+
+    private static string SummarizePromptText(string maskedText, AttachmentRef[]? attachments)
+    {
+        if (!string.IsNullOrWhiteSpace(maskedText))
+        {
+            return maskedText;
+        }
+
+        if (attachments is { Length: > 0 })
+        {
+            var firstTranscript = attachments.FirstOrDefault(static a => !string.IsNullOrWhiteSpace(a.Transcript))?.Transcript;
+            if (!string.IsNullOrWhiteSpace(firstTranscript))
+            {
+                return firstTranscript;
+            }
+
+            return attachments.Length == 1
+                ? $"[{attachments[0].Kind}: {attachments[0].FileName}]"
+                : $"[{attachments.Length} attachments]";
+        }
+
+        return string.Empty;
+    }
+
+    private async Task SayAsFriendAsync(string text, AttachmentRef[]? attachments = null)
     {
         await Fresh();
         var account = Context.Caller?.For?.Account;
@@ -381,6 +466,10 @@ internal sealed class ConversationNeuron(
             throw FriendRelay.Refused();
         }
         var friend = new AccountId(account);
+        if (attachments is { Length: > 0 })
+        {
+            throw new UnauthorizedAccessException("Cross-brain friend messages cannot attach owner brain blobs directly.");
+        }
         if (string.IsNullOrEmpty(text) || text.Length > MaxSayCharacters)
         {
             throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
@@ -547,7 +636,10 @@ internal sealed class ConversationNeuron(
         {
             var priorLog = PriorLogForTurn(State.Log);
             var window = ModelContext.From(priorLog);
-            var input = new AiMessage("user", [new AiText(turnState.Run.UserText)]);
+            var latestHumanSaid = LatestHumanSaidForTurn(State.Log);
+            var input = latestHumanSaid is { Attachments.Length: > 0 }
+                ? await BuildMultimodalInputAsync(latestHumanSaid, activeRun.Token)
+                : new AiMessage("user", [new AiText(turnState.Run.UserText)]);
 
             if (AgentHistoryCompactor.TryParseCompactCommand(turnState.Run.UserText, out var compactFocus))
             {
@@ -751,6 +843,43 @@ internal sealed class ConversationNeuron(
             }
         }
         return log;
+    }
+
+    private static Said? LatestHumanSaidForTurn(LoggedEntry[] log)
+    {
+        for (var i = log.Length - 1; i >= 0; i--)
+        {
+            if (log[i].Entry is Said { By: Participant.Human } said)
+            {
+                return said;
+            }
+        }
+        return null;
+    }
+
+    private async Task<AiMessage> BuildMultimodalInputAsync(Said said, CancellationToken ct)
+    {
+        var store = Services.GetService<FileAttachmentStore>();
+        var resolvedImages = new Dictionary<string, AiImage>(StringComparer.Ordinal);
+        if (store is not null && said.Attachments is { Length: > 0 })
+        {
+            foreach (var attachment in said.Attachments)
+            {
+                if (string.Equals(attachment.Kind, AttachmentValidator.KindImage, StringComparison.Ordinal))
+                {
+                    var dataUri = await store.TryReadImageDataUriAsync(Id.Brain, attachment.Id, ct);
+                    if (!string.IsNullOrWhiteSpace(dataUri))
+                    {
+                        resolvedImages[attachment.Id] = new AiImage(dataUri, attachment.MediaType);
+                    }
+                }
+            }
+        }
+
+        var content = ModelContext.ProjectSaidContent(
+            said,
+            a => resolvedImages.TryGetValue(a.Id, out var img) ? img : null);
+        return new AiMessage("user", content);
     }
 
     private static EntryId UpToEntryId(ModelWindow window, int evictedCount, string runId)

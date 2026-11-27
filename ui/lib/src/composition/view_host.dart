@@ -683,6 +683,8 @@ class _ViewHostState extends State<ViewHost> {
       transcribe: _effectiveTranscribe,
       talk: _effectiveTalk,
       speak: _effectiveSpeak,
+      fetchAttachment: _session?.fetchAttachment,
+      uploadAttachment: _session?.uploadAttachment,
       storeSecret: _effectiveStoreSecret,
     );
     ViewHost.debugOnContext?.call(widget.name, ctx);

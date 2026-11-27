@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse, mcp-add, mcp-remove
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, connection-probe, connection-disconnect, device-flow-start, device-flow-complete, mcp-add, mcp-remove
 
 Declarative macOS Sonoma-style System Settings application for IntoChat OS (`UK-16` / `INT-1364`).
 Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, `ConnectionPage`,
@@ -11,14 +11,14 @@ Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, 
 */
 using IntoChat.OS.Host.Apps;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Catalog;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
-using DigitalBrain.Confirmation;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Kernel;
-using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
@@ -31,8 +31,8 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.Identity.Contracts.Connections;
 using IntoChat.OS.Modules.Mcp;
-using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Configuration;
@@ -93,11 +93,17 @@ public sealed record SettingsSetVariable(string? Key = null, string? Value = nul
 [Signal("settings.set-budget")]
 public sealed record SettingsSetBudget(long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros) : Signal;
 
-[Signal("settings.set-github-triage-policy")]
-public sealed record SettingsSetGitHubTriagePolicy(string Preset = "") : Signal;
+[Signal("settings.connection-probe")]
+public sealed record SettingsProbeConnection(string ConnectorId = "", string ConnectionId = "") : Signal;
 
-[Signal("settings.install-issue-triage-synapse")]
-public sealed record SettingsInstallIssueTriageSynapse(string ConnectionKey = "", string Mode = "DraftForApproval") : Signal;
+[Signal("settings.connection-disconnect")]
+public sealed record SettingsDisconnectConnection(string ConnectorId = "", string ConnectionId = "") : Signal;
+
+[Signal("settings.device-flow-start")]
+public sealed record SettingsStartDeviceFlow(string ConnectorId = "github", string ConnectionId = "main", string AuthMethodId = "", string? Target = null) : Signal;
+
+[Signal("settings.device-flow-complete")]
+public sealed record SettingsCompleteDeviceFlow(string FlowId = "") : Signal;
 
 [Signal("settings.mcp-add")]
 public sealed record SettingsMcpAdd(string? Name = null, string? Url = null, string? Title = null) : Signal;
@@ -133,18 +139,13 @@ public sealed record SettingsCancelPendingEnrollment : Signal;
 [Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 10)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
 {
-    public const string GitHubIssueCommentPolicyRuleId = "settings.github.issue.comment";
-    public const string GitHubIssueCommentAction = "github.issue.comment";
-
     [Slot(Key = "settings")] private partial IUserSettings UserSettings { get; }
     [Slot(Key = "profile")] private partial IProfile Profile { get; }
     [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Social.IPosts? Posts { get; }
     [Slot(Key = "ino/synapses")] private partial ISynapseStudio SynapseStudio { get; }
     [Slot(Key = "vault", Required = false)] private partial ISecretVault? Vault { get; }
-    [Slot(Key = "default", Required = false)] private partial IPolicies? Policies { get; }
-    [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
-    [Slot(Key = IStudio.DefaultKey, Required = false)] private partial IStudio? Studio { get; }
     [Slot(Key = "main", Required = false)] private partial IModelCatalog? ModelCatalog { get; }
+    [Slot(Key = "main", Required = false)] private partial IConnectionCatalog? ConnectionCatalog { get; }
     [Slot(Key = FriendsDefaults.KeyPart, Required = false)] private partial IFriends? Friends { get; }
     [Slot(Key = "approvals/index", Required = false)] private partial IApprovals? Approvals { get; }
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
@@ -152,16 +153,12 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Key = "device-enrollment", Required = false)] private partial IDeviceEnrollment? DeviceEnrollment { get; }
     [Slot(Required = false)] private partial SlotCollection<IConnectionInbound> ConnectionInbounds { get; }
     [Slot(Required = false)] private partial SlotCollection<IConnection> Connections { get; }
-    [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<IMcpToolConnection> McpServers { get; }
 
-    [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex SynapseAliasPattern();
-
     private MachineId? ThisMachine { get; }
 
-    public SettingsApp() : this(null, null, null, null, null, null, null, null, null, null, null, null) { }
+    public SettingsApp() : this(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
     public SettingsApp(
@@ -176,7 +173,11 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         IConnectedComputeRouter? connectedComputeRouter = null,
         IConfiguration? configuration = null,
         Action<Uri>? openBrowser = null,
-        IPendingDeviceEnrollmentStore? pendingEnrollmentStore = null)
+        IPendingDeviceEnrollmentStore? pendingEnrollmentStore = null,
+        IReadOnlyList<ConnectorDefinition>? connectors = null,
+        ISecretVaultPort? secretVaultPort = null,
+        IOAuthDeviceFlow? oauthDeviceFlow = null,
+        IConnectionSecretBinder? connectionSecretBinder = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
@@ -190,6 +191,10 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         Configuration = configuration;
         OpenBrowserAction = openBrowser;
         PendingEnrollmentStore = pendingEnrollmentStore;
+        Connectors = connectors;
+        SecretVaultPort = secretVaultPort;
+        OAuthDeviceFlow = oauthDeviceFlow;
+        ConnectionSecretBinder = connectionSecretBinder;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -219,9 +224,9 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             var secrets = await InspectSecretStatusesAsync(next.Variables ?? []);
             next = next with { SecretStatuses = secrets };
         }
-        else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
+        else if (string.Equals(next.Section, "connections", StringComparison.Ordinal))
         {
-            next = await RefreshGitHubHubProjectionAsync(next);
+            next = await RefreshConnectionsProjectionAsync(next);
         }
 
         await UpdateAsync(next);
@@ -256,6 +261,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         await FollowChild<IFormControl, Submitted>(SettingsControls.ApiKeys);
         await FollowChild<IFormControl, Submitted>(SettingsControls.GitHubPat);
         await FollowChild<IFormControl, Submitted>(SettingsControls.PairDevice);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.MunclyConnect);
         if (ThisMachine is { Value.Length: > 0 } machine)
         {
             try
@@ -397,10 +403,11 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
                 DisplayName: Value("displayName"), Language: Value("language"), TimeZone: Value("timeZone"), DateFormat: Value("dateFormat"))),
             SettingsControls.InstallModel => InstallModelAsync(Value("model")),
             SettingsControls.SearxngUrl => SetSearxngUrlAsync(Value("url") ?? ""),
-            SettingsControls.McpAddForm => McpAdd(new SettingsMcpAdd(Value("name"), Value("url"))),
+            SettingsControls.McpAddForm => McpAddAsync(Value("name"), Value("url"), submitted.SecretRefs),
             SettingsControls.ApiKeys => SealApiKeysAsync(submitted.SecretRefs),
             SettingsControls.GitHubPat => ConnectGitHubAsync(Value("Repository"), Value("ConnectionSlug"), submitted.SecretRefs),
             SettingsControls.PairDevice => PairDevice(new SettingsPairDevice(Value("server"), Value("code"))),
+            SettingsControls.MunclyConnect => ConnectMunclyAsync(Value("Url"), submitted.SecretRefs),
             _ => Task.CompletedTask,
         };
     }
@@ -434,6 +441,10 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public IConfiguration? Configuration { get; set; }
     public Action<Uri>? OpenBrowserAction { get; set; }
     public IPendingDeviceEnrollmentStore? PendingEnrollmentStore { get; set; }
+    public IReadOnlyList<ConnectorDefinition>? Connectors { get; set; }
+    public ISecretVaultPort? SecretVaultPort { get; set; }
+    public IOAuthDeviceFlow? OAuthDeviceFlow { get; set; }
+    public IConnectionSecretBinder? ConnectionSecretBinder { get; set; }
 
     private ILogger Log => GetLogger();
 
@@ -474,8 +485,10 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
             new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
             new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
-            new("set-github-triage-policy", "Adopt, update, or reset the github.issue.comment governance PolicyRule preset."),
-            new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IStudio."),
+            new("connection-probe", "Probe a connected integration's live health."),
+            new("connection-disconnect", "Disconnect a connected integration from this brain."),
+            new("device-flow-start", "Start an RFC 8628 OAuth 2.0 Device Flow authorization."),
+            new("device-flow-complete", "Complete a pending RFC 8628 OAuth 2.0 Device Flow authorization."),
             new("mcp-add", "Connect an MCP tool server to this brain."),
             new("mcp-remove", "Disconnect an MCP tool server from this brain."),
         ]);

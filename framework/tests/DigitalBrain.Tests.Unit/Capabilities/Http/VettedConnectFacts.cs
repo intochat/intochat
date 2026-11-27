@@ -48,6 +48,28 @@ public sealed class VettedConnectFacts
     [InlineData("2606:4700::1111")]
     public void PublicAddressesAre(string address) => Assert.True(HttpHosts.IsPublic(IPAddress.Parse(address)));
 
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("::1", true)]
+    [InlineData("::ffff:127.0.0.1", true)]
+    [InlineData("93.184.216.34", true)]
+    [InlineData("2606:4700::1111", true)]
+    [InlineData("10.0.0.1", false)]
+    [InlineData("169.254.169.254", false)]
+    [InlineData("172.16.0.1", false)]
+    [InlineData("192.168.1.1", false)]
+    [InlineData("0.0.0.0", false)]
+    [InlineData("224.0.0.1", false)]
+    [InlineData("100.64.0.1", false)]
+    [InlineData("::", false)]
+    [InlineData("fe80::1", false)]
+    [InlineData("fc00::1", false)]
+    [InlineData("fd00::1", false)]
+    [InlineData("ff02::1", false)]
+    [InlineData("::ffff:169.254.169.254", false)]
+    public void PublicOrLoopbackPermitsLoopbackAndPublicButBlocksPrivateAndLinkLocal(string address, bool expected)
+        => Assert.Equal(expected, HttpHosts.IsPublicOrLoopback(IPAddress.Parse(address)));
+
     [Fact]
     public void AHostResolvingOnlyInwardIsRefusedAndAMixedOneKeepsItsPublicAddresses()
     {

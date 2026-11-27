@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Rules;
 using IntoChat.OS.UI;
 
@@ -13,10 +14,13 @@ public sealed record MunclyAppState(
     string LastTransition,
     string Status)
 {
-    public const string DefaultBaseUrl = "https://crm.munc.ly";
+    public const string DefaultBaseUrl = "https://mcpdemo-crm.munc.ly";
     public const string ConfiguredUrlKey = "IntoChatOS:Modules:muncly:Options:BaseUrl";
-    public const string IntegrationUrlKey = "IntoChatOS:Integrations:muncly:BaseUrl";
-    public const string EnvUrlKey = "MUNCLY_CRM_URL";
+
+    public ConnectionStatus ConnectionStatus { get; init; } = ConnectionStatus.Disconnected;
+    public string[] DiscoveredTools { get; init; } = [];
+    public string? ConnectionDetail { get; init; }
+    public bool ShowToolsInspector { get; init; }
 
     public MunclyAppState() : this(
         BaseUrl: DefaultBaseUrl,
@@ -166,6 +170,17 @@ public sealed record MunclyAppState(
 
         var uri = new Uri(raw!.Trim(), UriKind.Absolute);
         return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+    }
+
+    public static string BuildMcpEndpointUrl(string rawBaseUrl)
+    {
+        var uri = new Uri(rawBaseUrl.Trim(), UriKind.Absolute);
+        if (string.IsNullOrEmpty(uri.AbsolutePath) || string.Equals(uri.AbsolutePath, "/", StringComparison.Ordinal))
+        {
+            return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/') + "/api/mcp";
+        }
+
+        return uri.ToString().TrimEnd('/');
     }
 
     public static string NormalizePath(string? raw)

@@ -26,6 +26,7 @@ public static class GrantRules
     {
         "IOsVault",
         "IBrainKeys",
+        "IBrainKeysCrypto",
         "IVault",
         "ISecretValueSource",
         "VaultSecretValueSource",

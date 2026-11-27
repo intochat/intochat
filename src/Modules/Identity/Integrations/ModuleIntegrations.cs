@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Callers;
@@ -9,6 +10,15 @@ using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Modules.Identity.Contracts.Integrations;
 
 namespace IntoChat.OS.Modules.Identity.Integrations;
+
+internal sealed class OsOAuthIntegrationResolver(
+    AuthorityNeurons neurons,
+    IReadOnlyList<IntegrationSchema> schemas,
+    EdgeAuthority edge) : IOAuthIntegrationResolver
+{
+    public IIntegrationHandle Get(string integrationId)
+        => new IntegrationHandle(integrationId, neurons, schemas, edge);
+}
 
 internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, ModuleInventory inventory) : IModuleIntegrations<TModule> where TModule : class
 {

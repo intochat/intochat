@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+using IntoChat.OS.Modules.AI.Attachments;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter.Conversations;
 
@@ -7,6 +10,93 @@ internal sealed record ModelWindow(AiMessage[] Messages, EntryId[] Sources, stri
 
 internal static class ModelContext
 {
+    public static AiContent[] ProjectSaidContent(Said said, Func<AttachmentRef, AiImage?>? resolveImage = null)
+    {
+        ArgumentNullException.ThrowIfNull(said);
+
+        if (said.Attachments is not { Length: > 0 })
+        {
+            return [new AiText(said.Text)];
+        }
+
+        var parts = new List<AiContent>(said.Attachments.Length + 1);
+        var textBuilder = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(said.Text))
+        {
+            textBuilder.Append(said.Text);
+        }
+
+        foreach (var attachment in said.Attachments)
+        {
+            if (textBuilder.Length > 0)
+            {
+                textBuilder.AppendLine();
+            }
+
+            if (string.Equals(attachment.Kind, AttachmentValidator.KindVoiceNote, StringComparison.Ordinal))
+            {
+                var duration = FormatDuration(attachment.DurationMs);
+                if (!string.IsNullOrWhiteSpace(attachment.Transcript))
+                {
+                    textBuilder.Append("[Voice note (")
+                        .Append(duration)
+                        .Append(", ")
+                        .Append(attachment.FileName)
+                        .Append(")]: ")
+                        .Append(attachment.Transcript);
+                }
+                else
+                {
+                    textBuilder.Append("[Voice note (")
+                        .Append(duration)
+                        .Append(", ")
+                        .Append(attachment.FileName)
+                        .Append(", ")
+                        .Append(attachment.MediaType)
+                        .Append(")]");
+                }
+            }
+            else if (string.Equals(attachment.Kind, AttachmentValidator.KindImage, StringComparison.Ordinal))
+            {
+                textBuilder.Append("[Attached image: ")
+                    .Append(attachment.FileName)
+                    .Append(" (")
+                    .Append(attachment.MediaType)
+                    .Append(", ")
+                    .Append(attachment.SizeBytes.ToString(CultureInfo.InvariantCulture))
+                    .Append(" bytes)]");
+                if (resolveImage?.Invoke(attachment) is { } image)
+                {
+                    parts.Add(image);
+                }
+            }
+            else
+            {
+                textBuilder.Append("[Attached file: ")
+                    .Append(attachment.FileName)
+                    .Append(" (")
+                    .Append(attachment.MediaType)
+                    .Append(", ")
+                    .Append(attachment.SizeBytes.ToString(CultureInfo.InvariantCulture))
+                    .Append(" bytes)]");
+            }
+        }
+
+        parts.Insert(0, new AiText(textBuilder.ToString()));
+        return [.. parts];
+    }
+
+    private static string FormatDuration(int? durationMs)
+    {
+        if (durationMs is not > 0)
+        {
+            return "0:00";
+        }
+
+        var totalSeconds = (int)Math.Round(durationMs.Value / 1000.0);
+        return string.Create(CultureInfo.InvariantCulture, $"{totalSeconds / 60}:{totalSeconds % 60:D2}");
+    }
+
     public static ModelWindow From(LoggedEntry[] log)
     {
         ArgumentNullException.ThrowIfNull(log);
@@ -83,7 +173,7 @@ internal static class ModelContext
                     }
                     FlushPendingCalls();
                     var role = said.By is Participant.Human ? "user" : "assistant";
-                    messages.Add(new AiMessage(role, [new AiText(said.Text)]));
+                    messages.Add(new AiMessage(role, ProjectSaidContent(said)));
                     sources.Add(said.Id);
                     break;
 

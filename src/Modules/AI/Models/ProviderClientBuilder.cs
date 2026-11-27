@@ -248,8 +248,9 @@ internal sealed class ProviderClientBuilder
         ISpeechToTextClient hear,
         IChatClient chat,
         ITextToSpeechClient speak,
-        IVoiceActivityDetector vad)
-        => new LocalTalk(hear, chat, speak, vad)
+        IVoiceActivityDetector vad,
+        LocalTalkToolRouter? toolRouter = null)
+        => new LocalTalk(hear, chat, speak, vad, toolRouter: toolRouter)
             .AsBuilder()
             .UseOpenTelemetry(LoggerFactory, sourceName: VoiceClients.TelemetrySource)
             .Build();

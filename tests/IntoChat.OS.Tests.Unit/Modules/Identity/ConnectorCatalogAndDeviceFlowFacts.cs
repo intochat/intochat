@@ -11,6 +11,7 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Connections;
@@ -362,7 +363,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
         builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority);
         builder.Services.AddSingleton<TimeProvider>(fakeClock);
-        builder.Services.AddSingleton(Options.Create(new ConnectionsOptions()));
+        builder.Services.AddSingleton(Options.Create(new OAuthConnectionsOptions()));
         builder.Services.AddSingleton<IHttpClientFactory>(new SingleHandlerHttpClientFactory(handler));
         builder.Services.AddSingleton(sp => new AuthorityNeurons(grains, sp, _ => connection, _ => connection));
         builder.Services.AddSingleton(sp => new ConnectorCatalog(definitions, sp.GetRequiredService<AuthorityNeurons>(), NullLogger<ConnectorCatalog>.Instance));
@@ -371,7 +372,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
             definitions,
             sp.GetRequiredService<AuthorityNeurons>(),
             sp.GetRequiredService<OAuthDeviceRequests>(),
-            sp.GetRequiredService<IOptions<ConnectionsOptions>>(),
+            sp.GetRequiredService<IOptions<OAuthConnectionsOptions>>(),
             fakeClock,
             sp.GetRequiredService<IHttpClientFactory>(),
             IntoChat.OS.Tests.TestEdge.Authority,
@@ -431,7 +432,14 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
             var crossResp = await client.SendAsync(crossReq, Ct);
             Assert.Equal(HttpStatusCode.Forbidden, crossResp.StatusCode);
 
-            // 4. Owning brain /device/poll receives access_token and returns Connected without leaking token.
+            // 3b. Mismatched route connectionId on /device/poll returns 404 Not Found without consuming the flow.
+            var mismatchResp = await client.PostAsJsonAsync(
+                "/brains/brain-alpha/connections/other-conn/device/poll",
+                new { flowId },
+                Ct);
+            Assert.Equal(HttpStatusCode.NotFound, mismatchResp.StatusCode);
+
+            // 4. Owning brain /device/poll with matching connectionId receives access_token and returns Connected without leaking token.
             handler.EnqueueJson(HttpStatusCode.OK, """{"access_token":"sample-http-access-888","scope":"repo"}""");
             var pollResp = await client.PostAsJsonAsync(
                 "/brains/brain-alpha/connections/main/device/poll",
@@ -464,6 +472,84 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         }
     }
 
+    [Fact]
+    public async Task OAuthDeviceFlowEnforcesStrictHttpsVerificationUrisPartialClientIdAndPreCallPollReservation()
+    {
+        var connector = new ConnectorDefinition("forge", "Forge", ["web-oauth", "device", "pat"], [])
+        {
+            OptionalIntegrations = ["forge-oauth"],
+            OAuthMethods =
+            [
+                new OAuthMethod("web-oauth", "https://forge.example.test/oauth/authorize", "https://forge.example.test/oauth/token", ["repo"], "forge-oauth"),
+            ],
+            DeviceMethods =
+            [
+                new OAuthDeviceMethod(
+                    "device",
+                    "https://forge.example.test/login/device/code",
+                    "https://forge.example.test/login/oauth/access_token",
+                    ["repo"],
+                    DefaultClientId: null,
+                    IntegrationId: "forge-oauth",
+                    ClientIdField: "ClientId"),
+            ],
+        };
+
+        // 1. Partial integration with non-secret ClientId (no confidential secrets) enables device flow while keeping confidential web-oauth unavailable.
+        var partialIntegration = new FakeIntegrationGrain("forge-oauth", IntegrationStatus.Partial);
+        partialIntegration.SetPartialSettings(new Dictionary<string, string>(StringComparer.Ordinal) { ["ClientId"] = "partial-public-client" });
+
+        var snapshotMap = new Dictionary<string, IntegrationSnapshot>(StringComparer.Ordinal)
+        {
+            ["forge-oauth"] = await partialIntegration.Read(),
+        };
+        Assert.False(ConnectorCatalog.IsMethodAvailable(connector, "web-oauth", snapshotMap));
+        Assert.True(ConnectorCatalog.IsMethodAvailable(connector, "pat", snapshotMap));
+        Assert.True(ConnectorCatalog.IsMethodAvailable(connector, "device", snapshotMap));
+
+        var fakeClock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gatedHandler = new GatedDeviceFlowHandler(entered, gate);
+        var inbound = new RecordingConnectionInbound();
+        var flow = BuildDeviceFlow([connector], partialIntegration, fakeClock, gatedHandler, inbound);
+
+        var brain = new BrainId("brain-alpha");
+        var key = ConnectionKeys.For(brain.Value, "forge", "main");
+
+        // 2. Non-loopback plain http:// verification_uri is rejected.
+        gatedHandler.EnqueueJson(HttpStatusCode.OK, """{"device_code":"dc-http","user_code":"BAD-1","verification_uri":"http://forge.example.test/device","expires_in":300,"interval":5}""");
+        var badVerify = await Assert.ThrowsAsync<OAuthTokenExchangeException>(() => flow.StartAsync(brain, key, "device", ct: Ct));
+        Assert.Equal(OAuthTokenFailure.InvalidResponse, badVerify.Failure);
+
+        // 3. Non-loopback plain http:// verification_uri_complete is rejected.
+        gatedHandler.EnqueueJson(HttpStatusCode.OK, """{"device_code":"dc-http2","user_code":"BAD-2","verification_uri":"https://forge.example.test/device","verification_uri_complete":"http://evil.example.test/phish","expires_in":300,"interval":5}""");
+        var badComplete = await Assert.ThrowsAsync<OAuthTokenExchangeException>(() => flow.StartAsync(brain, key, "device", ct: Ct));
+        Assert.Equal(OAuthTokenFailure.InvalidResponse, badComplete.Failure);
+
+        // 4. Loopback http:// verification_uri is allowed and uses partial integration ClientId.
+        gatedHandler.EnqueueJson(HttpStatusCode.OK, """{"device_code":"dc-ok","user_code":"GOOD-1","verification_uri":"http://127.0.0.1:8080/device","verification_uri_complete":"http://127.0.0.1:8080/device?code=GOOD-1","expires_in":300,"interval":5}""");
+        var started = await flow.StartAsync(brain, key, "device", ct: Ct);
+        Assert.Equal("partial-public-client", gatedHandler.CapturedForms[^1]["client_id"]);
+
+        // 5. Pre-call poll-schedule advancement prevents concurrent polls from bursting the upstream token endpoint.
+        gatedHandler.BlockNextRequest = true;
+        gatedHandler.EnqueueJson(HttpStatusCode.OK, """{"error":"authorization_pending"}""");
+
+        var firstPollTask = flow.PollOnceAsync(brain, started.FlowId, "main", Ct);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        // Second concurrent poll while first is still in-flight must return Pending without hitting the provider.
+        var concurrentPoll = await flow.PollOnceAsync(brain, started.FlowId, "main", Ct);
+        Assert.Equal(OAuthDevicePollStatus.Pending, concurrentPoll.Status);
+        Assert.Equal(1, gatedHandler.PollRequestCount);
+
+        gate.SetResult();
+        var firstPoll = await firstPollTask;
+        Assert.Equal(OAuthDevicePollStatus.Pending, firstPoll.Status);
+        Assert.Equal(1, gatedHandler.PollRequestCount);
+    }
+
     private static OAuthDeviceFlow BuildDeviceFlow(
         IReadOnlyList<ConnectorDefinition> connectors,
         FakeIntegrationGrain? integration,
@@ -484,7 +570,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         services.AddSingleton<IGrainFactory>(grains);
         var sp = services.BuildServiceProvider();
         var neurons = new AuthorityNeurons(grains, sp, connectionInboundOverride: _ => inbound);
-        var options = Options.Create(new ConnectionsOptions());
+        var options = Options.Create(new OAuthConnectionsOptions());
         var requests = new OAuthDeviceRequests(options, clock);
         return new OAuthDeviceFlow(
             connectors,
@@ -612,8 +698,16 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         private IntegrationStatus _status = status;
         private long _revision = 1;
         private Dictionary<string, string> _values = new(StringComparer.Ordinal);
+        private Dictionary<string, string> _settings = new(StringComparer.Ordinal);
 
         public string Id => id;
+
+        public void SetPartialSettings(Dictionary<string, string> settings)
+        {
+            _settings = new Dictionary<string, string>(settings, StringComparer.Ordinal);
+            _status = IntegrationStatus.Partial;
+            _revision++;
+        }
 
         public void SetReady(Dictionary<string, string> values)
         {
@@ -628,6 +722,7 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
                 IntegrationId = id,
                 Status = _status,
                 MissingFields = _status == IntegrationStatus.Ready ? [] : ["ClientId"],
+                Settings = new Dictionary<string, string>(_settings, StringComparer.Ordinal),
                 Revision = _revision,
             });
 
@@ -713,5 +808,49 @@ public sealed class ConnectorCatalogAndDeviceFlowFacts
         public Task UnshareWith(string principalId) => Task.CompletedTask;
 
         private ConnectionView View() => new(connectorId, connectionId, LastAuthMethodId ?? "pat", ConnectionStatus.Connected, "ada", null, null, "Connected");
+    }
+
+    private sealed class GatedDeviceFlowHandler(TaskCompletionSource entered, TaskCompletionSource gate) : HttpMessageHandler
+    {
+        private readonly Queue<(HttpStatusCode Status, string Body)> _responses = new();
+        private int _pollRequestCount;
+        public bool BlockNextRequest { get; set; }
+        public int PollRequestCount => Volatile.Read(ref _pollRequestCount);
+        public List<Dictionary<string, string>> CapturedForms { get; } = [];
+
+        public void EnqueueJson(HttpStatusCode status, string json) => _responses.Enqueue((status, json));
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.Content is not null ? await request.Content.ReadAsStringAsync(cancellationToken) : "";
+            var form = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in body.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var idx = pair.IndexOf('=', StringComparison.Ordinal);
+                if (idx > 0)
+                {
+                    form[Uri.UnescapeDataString(pair[..idx])] = Uri.UnescapeDataString(pair[(idx + 1)..].Replace('+', ' '));
+                }
+            }
+            CapturedForms.Add(form);
+
+            if (form.ContainsKey("device_code"))
+            {
+                Interlocked.Increment(ref _pollRequestCount);
+            }
+
+            if (BlockNextRequest)
+            {
+                BlockNextRequest = false;
+                entered.TrySetResult();
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
+            var next = _responses.Dequeue();
+            return new HttpResponseMessage(next.Status)
+            {
+                Content = new StringContent(next.Body, Encoding.UTF8, "application/json"),
+            };
+        }
     }
 }

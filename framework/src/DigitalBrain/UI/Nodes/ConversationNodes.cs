@@ -47,7 +47,8 @@ public sealed record MessageNode(
     Button? Retry = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelLabel = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AttachmentNode>? Attachments = null)
 {
     /// <inheritdoc />
     public bool Equals(MessageNode? other) =>
@@ -62,7 +63,8 @@ public sealed record MessageNode(
         && ModelLabel == other.ModelLabel
         && ProviderIcon == other.ProviderIcon
         && Equals(Retry, other.Retry)
-        && Equals(Error, other.Error);
+        && Equals(Error, other.Error)
+        && SequenceEquals(Attachments, other.Attachments);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status);
@@ -70,6 +72,17 @@ public sealed record MessageNode(
     private static bool SequenceEquals<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b) =>
         ReferenceEquals(a, b) || (a is not null && b is not null && a.SequenceEqual(b));
 }
+
+/// <summary>One structured attachment or playable voice-note clip carried by a <see cref="MessageNode"/>.</summary>
+public sealed record AttachmentNode(
+    string Id,
+    string Kind,
+    string FileName,
+    string MediaType,
+    int SizeBytes,
+    string Url,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? DurationMs = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Transcript = null);
 
 /// <summary>One tool / activity step inside a <see cref="MessageNode"/>.</summary>
 public sealed record ActivityNode(

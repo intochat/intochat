@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Neurons;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Host.Primitives;
@@ -14,7 +15,10 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Voice;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Tests.Unit.Modules.AI.Voice;
 
@@ -271,6 +275,74 @@ public sealed class GeminiVoiceFacts
         Assert.Equal(new TalkTool("c1", "web_search", "done", "Web search"), emitted[1]);
     }
 
+    [Fact]
+    public async Task GeminiLivePropagatesUpstreamInterruptFrameOnTapToInterrupt()
+    {
+        using var fakeSocket = new InMemoryWebSocket();
+        using var client = new GeminiLiveRealtimeClient(
+            KnownModels.Gemini38Live.Id.Value,
+            "AIza-test-key",
+            socketFactory: (_, _, _) => Task.FromResult<WebSocket>(fakeSocket));
+
+        await using var session = await client.CreateSessionAsync(cancellationToken: Ct);
+        _ = await fakeSocket.ReadSentTextAsync(Ct); // setup frame
+
+#pragma warning disable OPENAI002
+        await session.SendAsync(
+            new RealtimeClientMessage { RawRepresentation = new OpenAI.Realtime.RealtimeClientCommandResponseCancel() },
+            Ct);
+#pragma warning restore OPENAI002
+
+        var interruptFrame = await fakeSocket.ReadSentTextAsync(Ct);
+        using var doc = JsonDocument.Parse(interruptFrame);
+        Assert.True(doc.RootElement.TryGetProperty("clientContent", out var clientContent));
+        Assert.True(clientContent.GetProperty("turnComplete").GetBoolean());
+
+        await foreach (var msg in session.GetStreamingResponseAsync(Ct))
+        {
+            Assert.Equal(LocalTalk.Interrupted, msg.Type);
+            break;
+        }
+    }
+
+    [Fact]
+    public void TalkTicketStoreEnforcesSingleUseStrict30sTtlAndConversationBinding()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+        var store = new TalkTicketStore(time);
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice-acct", new BrainId("alice"));
+        var convA = ConversationId.Parse("main");
+        var convB = ConversationId.Parse("other");
+
+        var (ticket1, ttl) = store.Issue(caller, convA);
+        Assert.Equal(30, ttl);
+        Assert.True(ticket1.Length >= 32);
+
+        // First redemption succeeds and returns the bound caller.
+        Assert.True(store.TryRedeem(ticket1, convA, out var redeemed));
+        Assert.Equal(caller.Brain, redeemed!.Brain);
+        Assert.Equal(caller.For?.Principal, redeemed.For?.Principal);
+
+        // Replay of the same ticket fails immediately (single-use).
+        Assert.False(store.TryRedeem(ticket1, convA, out _));
+
+        // Mismatched conversation fails and invalidates the ticket.
+        var (ticket2, _) = store.Issue(caller, convA);
+        Assert.False(store.TryRedeem(ticket2, convB, out _));
+        Assert.False(store.TryRedeem(ticket2, convA, out _));
+
+        // Expired after 30s fails.
+        var (ticket3, _) = store.Issue(caller, convA);
+        time.Advance(TimeSpan.FromSeconds(30));
+        Assert.False(store.TryRedeem(ticket3, convA, out _));
+
+        // Forbidden query-string bearer tokens are always rejected.
+        Assert.True(TalkEndpoint.HasForbiddenQueryAuthToken(new QueryCollection(new Dictionary<string, StringValues> { ["access_token"] = "secret" })));
+        Assert.True(TalkEndpoint.HasForbiddenQueryAuthToken(new QueryCollection(new Dictionary<string, StringValues> { ["token"] = "secret" })));
+        Assert.True(TalkEndpoint.HasForbiddenQueryAuthToken(new QueryCollection(new Dictionary<string, StringValues> { ["bearer"] = "secret" })));
+        Assert.False(TalkEndpoint.HasForbiddenQueryAuthToken(new QueryCollection(new Dictionary<string, StringValues> { ["ticket"] = ticket1, ["conversation"] = "main" })));
+    }
+
     private sealed class StubHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -399,7 +471,7 @@ public sealed class GeminiVoiceFacts
                 []));
         }
 
-        public Task Say(string text, ModelId? model = null)
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
         {
             _revision = 1;
             OnSay?.Invoke();

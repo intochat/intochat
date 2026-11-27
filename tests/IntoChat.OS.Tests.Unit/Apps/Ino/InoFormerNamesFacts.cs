@@ -76,7 +76,7 @@ public sealed class InoFormerNamesFacts
             return Task.CompletedTask;
         }
 
-        public Task Say(string text, ModelId? model = null) => throw new NotSupportedException();
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) => throw new NotSupportedException();
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
         public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;

@@ -201,7 +201,8 @@ public sealed class InoAppFacts
         Assert.Contains("`studio_propose_change`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`engineer_runs_start_engineer_run`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`engineer_runs_inspect_engineer_run`", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("GitHub MCP tools", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`github_repository_dismiss_issue_draft`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`ai_memory_remember_preference`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`aspire_resources`", def.Instructions, StringComparison.Ordinal);
@@ -1509,7 +1510,7 @@ public sealed class InoAppFacts
         }
 
         public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
-        public Task Say(string text, ModelId? model = null) { Says++; throw new NotSupportedException(); }
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) { Says++; throw new NotSupportedException(); }
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
 
@@ -1618,7 +1619,7 @@ public sealed class InoAppFacts
             return Task.CompletedTask;
         }
 
-        public Task Say(string text, ModelId? model = null)
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
         {
             OnSay?.Invoke();
             Says++;
