@@ -4,16 +4,28 @@ using System.Text;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-public sealed record LoopFinding(string Key, string Source, string Title, string Detail);
+[GenerateSerializer, Alias("loop.finding")]
+public sealed record LoopFinding(
+    [property: Id(0)] string Key,
+    [property: Id(1)] string Source,
+    [property: Id(2)] string Title,
+    [property: Id(3)] string Detail)
+{
+    public LoopFinding() : this("", "", "", "") { }
+}
 
+[GenerateSerializer, Alias("loop.trace-span")]
 public sealed record LoopTraceSpan(
-    string TraceId,
-    string SpanId,
-    string Resource,
-    string Name,
-    string Status,
-    long DurationMicroseconds,
-    string? Error = null);
+    [property: Id(0)] string TraceId,
+    [property: Id(1)] string SpanId,
+    [property: Id(2)] string Resource,
+    [property: Id(3)] string Name,
+    [property: Id(4)] string Status,
+    [property: Id(5)] long DurationMicroseconds,
+    [property: Id(6)] string? Error = null)
+{
+    public LoopTraceSpan() : this("", "", "", "", "", 0, null) { }
+}
 
 public static class LoopFindingSources
 {

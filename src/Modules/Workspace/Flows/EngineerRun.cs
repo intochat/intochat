@@ -24,7 +24,9 @@ internal sealed record EngineerInstance(
     EngineerCandidateScore? Score = null,
     EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
     EngineerTaskSlice[]? Slices = null,
-    string[]? DeletedFiles = null)
+    string[]? DeletedFiles = null,
+    SelfReviewReport? SelfReview = null,
+    int SelfReviewRepairAttempts = 0)
 {
     [JsonIgnore]
     public string EffectiveStrategy => string.IsNullOrWhiteSpace(Strategy)
@@ -363,7 +365,8 @@ internal sealed record EngineerRun
                         FailureDetail: inst.FailureDetail,
                         Harness: inst.Harness,
                         Slices: inst.Slices,
-                        DeletedFiles: inst.DeletedFiles);
+                        DeletedFiles: inst.DeletedFiles,
+                        SelfReview: inst.SelfReview);
                 }),
         ];
     }
