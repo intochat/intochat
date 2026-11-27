@@ -4,11 +4,14 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
-using IntoChat.OS.Host.Configuration;
 
-namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
+namespace DigitalBrain.Runtime.Http.Connections.OAuth;
 
-internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExchange exchange, IOptions<ConnectionsOptions> options, ICallerAmbient? callers = null)
+public sealed class OAuthLoginFlow(
+    OAuthLoginRequests requests,
+    OAuthTokenExchange exchange,
+    IOptions<OAuthConnectionsOptions> options,
+    ICallerAmbient? callers = null)
 {
     public Uri CallbackUri(string connectorId, HttpRequest? request = null)
         => new(Origin(request), $"integrations/{Uri.EscapeDataString(connectorId)}/oauth/callback");
@@ -17,7 +20,7 @@ internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExch
         => options.Value.PublicOrigin
             ?? (request is { Host.HasValue: true } && !string.IsNullOrWhiteSpace(request.Scheme)
                 ? new Uri($"{request.Scheme}://{request.Host}")
-                : throw new InvalidOperationException("Configure IntoChatOS:Connections:PublicOrigin before starting a browser login."));
+                : throw new InvalidOperationException($"Configure {options.Value.ResolvedConfigHint} before starting a browser login."));
 
     public Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CancellationToken ct)
         => StartAsync(connectionKey, authMethodId, target, request: null, ct);
@@ -30,7 +33,7 @@ internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExch
         var (_, connector, _) = ConnectionKeys.Parse(connectionKey);
         var method = exchange.Method(connector, authMethodId);
         var callback = CallbackUri(connector, request);
-        var (clientId, _) = await exchange.ClientAsync(method, ct);
+        var (clientId, _) = await exchange.ClientAsync(method, ct).ConfigureAwait(false);
         var (state, verifier) = requests.Begin(connectionKey, authMethodId, target, owner, caller.Brain.Value);
         var query = new Dictionary<string, string>(method.AuthorizationParameters, StringComparer.Ordinal)
         {

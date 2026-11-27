@@ -1,10 +1,10 @@
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Runtime.Http.Connections.OAuth;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Modules.Identity.Connections.OAuth;
 using IntoChat.OS.Modules.Identity.Integrations;
 
 namespace IntoChat.OS.Modules.Identity.Connections;
