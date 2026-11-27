@@ -421,6 +421,23 @@
             "automationName": "Ino"
           },
           {
+            "kind": "navItem",
+            "key": "app:owner/apps/lightcraft",
+            "label": "LightCraft",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/lightcraft",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "creator.select",
+              "args": {
+                "key": "node:owner/apps/lightcraft"
+              }
+            },
+            "automationName": "LightCraft"
+          },
+          {
             "kind": "heading",
             "value": "Units",
             "level": 6,
