@@ -1,117 +1,237 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.Json;
 using DigitalBrain.UI;
+using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32.SafeHandles;
-using IntoChat.OS.Host.Execution;
 
 namespace IntoChat.OS.Kernel.Sandbox;
 
 internal sealed partial class HttpSandboxRuntimeBridge
 {
+    internal static ConfinementSpec BuildUnitHostConfinementSpec(
+        UnitHostLaunchCommand command,
+        string assemblyPath,
+        string contractsDirectory,
+        string sessionWorkingDirectory,
+        string? sandboxId = null)
+        => UnitHostChildSession.BuildConfinementSpec(command, assemblyPath, contractsDirectory, sessionWorkingDirectory, sandboxId);
+
     private sealed class UnitHostChildSession : IAsyncDisposable
     {
-        private readonly Process _process;
-        private readonly WindowsJobObject? _job;
+        private readonly ConfinedProcessSession _session;
+        private readonly string _workingDirectory;
         private readonly Func<UnitHostFrameResponse, CancellationToken, Task<UnitHostFrameRequest>> _callbackHandler;
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _writeLock = new(1, 1);
         private readonly ConcurrentDictionary<string, TaskCompletionSource<UnitHostFrameResponse>> _pending = new(StringComparer.Ordinal);
+        private readonly ConcurrentQueue<string> _recentStderr = new();
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _stdoutTask;
         private readonly Task _stderrTask;
         private int _disposed;
 
         private UnitHostChildSession(
-            Process process,
-            WindowsJobObject? job,
+            ConfinedProcessSession session,
+            string workingDirectory,
             Func<UnitHostFrameResponse, CancellationToken, Task<UnitHostFrameRequest>> callbackHandler,
             ILogger logger)
         {
-            _process = process;
-            _job = job;
+            _session = session;
+            _workingDirectory = workingDirectory;
             _callbackHandler = callbackHandler;
             _logger = logger;
             _stdoutTask = Task.Run(() => ReadStdoutLoopAsync(_cts.Token));
             _stderrTask = Task.Run(() => ReadStderrLoopAsync(_cts.Token));
         }
 
-        public bool HasExited
-        {
-            get
-            {
-                try
-                {
-                    return _process.HasExited;
-                }
-                catch (InvalidOperationException)
-                {
-                    return true;
-                }
-            }
-        }
+        public ConfinementMode EffectiveMode => _session.EffectiveMode;
 
-        public static UnitHostChildSession Start(
+        public string TempDirectory => _session.TempDirectory;
+
+        public string WorkingDirectory => _workingDirectory;
+
+        public bool HasExited => _session.HasExited;
+
+        internal static ConfinementSpec BuildConfinementSpec(
+            UnitHostLaunchCommand command,
             string assemblyPath,
             string contractsDirectory,
-            Func<UnitHostFrameResponse, CancellationToken, Task<UnitHostFrameRequest>> callbackHandler,
-            ILogger logger)
+            string sessionWorkingDirectory,
+            string? sandboxId = null)
         {
-            var launch = ResolveUnitHostLaunchCommand(assemblyPath, contractsDirectory);
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = launch.FileName,
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                WorkingDirectory = Path.GetDirectoryName(assemblyPath) ?? Environment.CurrentDirectory,
-                StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8,
-            };
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionWorkingDirectory);
 
-            foreach (var argument in launch.Arguments)
+            var readOnlyPaths = new List<string>();
+            var assemblyDir = Path.GetDirectoryName(Path.GetFullPath(assemblyPath));
+            if (!string.IsNullOrWhiteSpace(assemblyDir) && Directory.Exists(assemblyDir))
             {
-                startInfo.ArgumentList.Add(argument);
+                readOnlyPaths.Add(assemblyDir);
             }
 
-            ChildEnvironmentPolicy.Scrub(startInfo);
-            startInfo.Environment["SPIKE_WINDOWS"] = "0";
-
-            var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException($"Failed to launch sandbox worker '{assemblyPath}'.");
-
-            WindowsJobObject? job = null;
-            if (OperatingSystem.IsWindows())
+            if (!string.IsNullOrWhiteSpace(contractsDirectory))
             {
+                var fullContractsDir = Path.GetFullPath(contractsDirectory);
+                if (Directory.Exists(fullContractsDir)
+                    && !readOnlyPaths.Contains(fullContractsDir, StringComparer.OrdinalIgnoreCase))
+                {
+                    readOnlyPaths.Add(fullContractsDir);
+                }
+            }
+
+            var cleanEnvironment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["SPIKE_WINDOWS"] = "0",
+            };
+
+            var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+            if (!string.IsNullOrWhiteSpace(dotnetRoot) && Directory.Exists(dotnetRoot))
+            {
+                var fullDotnetRoot = Path.GetFullPath(dotnetRoot);
+                cleanEnvironment["DOTNET_ROOT"] = fullDotnetRoot;
+                if (!readOnlyPaths.Contains(fullDotnetRoot, StringComparer.OrdinalIgnoreCase))
+                {
+                    readOnlyPaths.Add(fullDotnetRoot);
+                }
+            }
+
+            return new ConfinementSpec(
+                SandboxId: string.IsNullOrWhiteSpace(sandboxId)
+                    ? "unithost-" + Guid.NewGuid().ToString("N")[..12]
+                    : sandboxId,
+                ExecutablePath: command.FileName,
+                Arguments: command.Arguments,
+                WorkingDirectory: sessionWorkingDirectory,
+                ReadOnlyPaths: readOnlyPaths,
+                ReadWritePaths: [],
+                CleanEnvironment: cleanEnvironment,
+                Network: NetworkPolicy.None,
+                MaxMemoryBytes: 1024L * 1024 * 1024,
+                MaxProcesses: 16,
+                PreferAppContainer: true,
+                UseLessPrivilegedAppContainer: false);
+        }
+
+        public static async Task<UnitHostChildSession> StartAsync(
+            string assemblyPath,
+            string contractsDirectory,
+            IConfinedProcessRunner confinedProcessRunner,
+            Func<UnitHostFrameResponse, CancellationToken, Task<UnitHostFrameRequest>> callbackHandler,
+            ILogger logger,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(confinedProcessRunner);
+            ArgumentNullException.ThrowIfNull(callbackHandler);
+            ArgumentNullException.ThrowIfNull(logger);
+
+            var launchCommand = ResolveUnitHostLaunchCommand(assemblyPath, contractsDirectory);
+            var session = StartCore(
+                launchCommand,
+                assemblyPath,
+                contractsDirectory,
+                confinedProcessRunner,
+                callbackHandler,
+                logger,
+                preferAppContainer: true);
+
+            try
+            {
+                await VerifyStartupHandshakeAsync(session, cancellationToken).ConfigureAwait(false);
+                return session;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException
+                && session.EffectiveMode is ConfinementMode.AppContainer or ConfinementMode.LessPrivilegedAppContainer)
+            {
+                var failedMode = session.EffectiveMode;
+                await session.DisposeAsync().ConfigureAwait(false);
+
+                logger.LogWarning(
+                    ex,
+                    "Sandbox --unit-host failed startup handshake under {ConfinementMode} (e.g. CoreCLR user32/desktop initialization restriction); falling back to degraded JobObject confinement while unconditionally enforcing Win32 Job Object limits (1 GiB memory, 16 active processes, 0xFF UI restrictions, KILL_ON_JOB_CLOSE), 3-handle stdio allowlist, sanitized environment, and temp-dir purge.",
+                    failedMode);
+
+                var fallback = StartCore(
+                    launchCommand,
+                    assemblyPath,
+                    contractsDirectory,
+                    confinedProcessRunner,
+                    callbackHandler,
+                    logger,
+                    preferAppContainer: false);
                 try
                 {
-                    job = WindowsJobObject.Attach(process, logger);
+                    await VerifyStartupHandshakeAsync(fallback, cancellationToken).ConfigureAwait(false);
+                    return fallback;
                 }
-                catch (Exception error) when (error is not OutOfMemoryException)
+                catch
                 {
-                    try
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                    catch (Exception killError)
-                    {
-                        logger.LogDebug(killError, "Cleanup kill after failed Windows Job assignment.");
-                    }
-
-                    process.Dispose();
+                    await fallback.DisposeAsync().ConfigureAwait(false);
                     throw;
                 }
             }
+            catch
+            {
+                await session.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
 
-            return new UnitHostChildSession(process, job, callbackHandler, logger);
+        private static UnitHostChildSession StartCore(
+            UnitHostLaunchCommand launchCommand,
+            string assemblyPath,
+            string contractsDirectory,
+            IConfinedProcessRunner confinedProcessRunner,
+            Func<UnitHostFrameResponse, CancellationToken, Task<UnitHostFrameRequest>> callbackHandler,
+            ILogger logger,
+            bool preferAppContainer)
+        {
+            var sandboxId = "unithost-" + Guid.NewGuid().ToString("N")[..12];
+            var sessionWorkingDirectory = Path.Combine(Path.GetTempPath(), "intochat-unithost", sandboxId);
+            Directory.CreateDirectory(sessionWorkingDirectory);
+
+            try
+            {
+                var spec = BuildConfinementSpec(
+                    launchCommand,
+                    assemblyPath,
+                    contractsDirectory,
+                    sessionWorkingDirectory,
+                    sandboxId);
+                if (!preferAppContainer)
+                {
+                    spec = spec with { PreferAppContainer = false, UseLessPrivilegedAppContainer = false };
+                }
+
+                var session = confinedProcessRunner.StartSession(spec);
+                logger.LogInformation(
+                    "Started confined sandbox --unit-host (PID={ProcessId}, Mode={ConfinementMode}, SandboxId={SandboxId}).",
+                    session.ProcessId,
+                    session.EffectiveMode,
+                    sandboxId);
+
+                return new UnitHostChildSession(session, sessionWorkingDirectory, callbackHandler, logger);
+            }
+            catch
+            {
+                TryDeleteWorkingDirectory(sessionWorkingDirectory, logger);
+                throw;
+            }
+        }
+
+        private static async Task VerifyStartupHandshakeAsync(UnitHostChildSession session, CancellationToken cancellationToken)
+        {
+            using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            handshakeCts.CancelAfter(TimeSpan.FromSeconds(15));
+            var ping = await session.SendAsync(new UnitHostFrameRequest(NewFrameId(), "ping"), handshakeCts.Token)
+                .ConfigureAwait(false);
+            if (!ping.Ok)
+            {
+                throw new InvalidOperationException(
+                    $"Sandbox --unit-host startup ping failed (mode={session.EffectiveMode}): {ping.Error ?? "Unknown error."}");
+            }
         }
 
         public async Task<UnitHostFrameResponse> SendAsync(UnitHostFrameRequest request, CancellationToken cancellationToken)
@@ -119,7 +239,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (HasExited)
             {
-                throw new InvalidOperationException($"Sandbox --unit-host process exited unexpectedly (exit code {_process.ExitCode}).");
+                throw new InvalidOperationException($"Sandbox --unit-host process exited unexpectedly (exit code {_session.ExitCode}).");
             }
 
             var tcs = new TaskCompletionSource<UnitHostFrameResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -142,8 +262,8 @@ internal sealed partial class HttpSandboxRuntimeBridge
             await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await _process.StandardInput.WriteLineAsync(line).ConfigureAwait(false);
-                await _process.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+                await _session.StandardInput.WriteLineAsync(line).ConfigureAwait(false);
+                await _session.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -157,7 +277,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var line = await _process.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                    var line = await _session.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false);
                     if (line is null)
                     {
                         break;
@@ -232,9 +352,13 @@ internal sealed partial class HttpSandboxRuntimeBridge
             }
             finally
             {
+                var stderrTail = string.Join(" | ", _recentStderr);
+                var message = string.IsNullOrWhiteSpace(stderrTail)
+                    ? $"Sandbox --unit-host stream closed (mode={_session.EffectiveMode}, exitCode={_session.ExitCode})."
+                    : $"Sandbox --unit-host stream closed (mode={_session.EffectiveMode}, exitCode={_session.ExitCode}): {stderrTail}";
                 foreach (var waiter in _pending.Values)
                 {
-                    waiter.TrySetException(new InvalidOperationException("Sandbox --unit-host stream closed."));
+                    waiter.TrySetException(new InvalidOperationException(message));
                 }
 
                 _pending.Clear();
@@ -247,7 +371,7 @@ internal sealed partial class HttpSandboxRuntimeBridge
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var line = await _process.StandardError.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                    var line = await _session.StandardError.ReadLineAsync(cancellationToken).ConfigureAwait(false);
                     if (line is null)
                     {
                         break;
@@ -255,6 +379,12 @@ internal sealed partial class HttpSandboxRuntimeBridge
 
                     if (!string.IsNullOrWhiteSpace(line))
                     {
+                        _recentStderr.Enqueue(line);
+                        while (_recentStderr.Count > 8)
+                        {
+                            _recentStderr.TryDequeue(out _);
+                        }
+
                         _logger.LogDebug("[UnitHost stderr] {Line}", line);
                     }
                 }
@@ -296,13 +426,13 @@ internal sealed partial class HttpSandboxRuntimeBridge
                 try
                 {
                     using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                    await _process.WaitForExitAsync(waitCts.Token).ConfigureAwait(false);
+                    await _session.WaitForExitAsync(waitCts.Token).ConfigureAwait(false);
                 }
                 catch (Exception error) when (error is OperationCanceledException or InvalidOperationException)
                 {
                     try
                     {
-                        _process.Kill(entireProcessTree: true);
+                        _session.Kill();
                     }
                     catch (Exception killError)
                     {
@@ -320,10 +450,42 @@ internal sealed partial class HttpSandboxRuntimeBridge
                 _logger.LogDebug(error, "Waiting on --unit-host stream readers during dispose.");
             }
 
-            _job?.Dispose();
-            _process.Dispose();
+            await _session.DisposeAsync().ConfigureAwait(false);
+            TryDeleteWorkingDirectory(_workingDirectory, _logger);
             _writeLock.Dispose();
             _cts.Dispose();
+        }
+
+        private static void TryDeleteWorkingDirectory(string directory, ILogger logger)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return;
+            }
+
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    if (!Directory.Exists(directory))
+                    {
+                        return;
+                    }
+
+                    Directory.Delete(directory, recursive: true);
+                    return;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (attempt == 4)
+                    {
+                        logger.LogWarning(ex, "Could not recursively delete --unit-host working directory {WorkingDirectory}.", directory);
+                        return;
+                    }
+
+                    Thread.Sleep(25 * (attempt + 1));
+                }
+            }
         }
 
         private static string ResolveDotNetExecutable()
@@ -421,146 +583,6 @@ internal sealed partial class HttpSandboxRuntimeBridge
         }
 
         return "dotnet";
-    }
-
-    private sealed class WindowsJobObject : IDisposable
-    {
-        private readonly SafeJobHandle _handle;
-
-        private WindowsJobObject(SafeJobHandle handle)
-        {
-            _handle = handle;
-        }
-
-        public static WindowsJobObject Attach(Process process, ILogger logger)
-        {
-            var rawJob = Native.CreateJobObjectW(IntPtr.Zero, null);
-            var jobHandle = new SafeJobHandle(rawJob);
-            if (jobHandle.IsInvalid)
-            {
-                var err = Marshal.GetLastWin32Error();
-                jobHandle.Dispose();
-                throw new InvalidOperationException($"CreateJobObjectW failed with Win32 error {err}.");
-            }
-
-            try
-            {
-                var info = new Native.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
-                {
-                    BasicLimitInformation = new Native.JOBOBJECT_BASIC_LIMIT_INFORMATION
-                    {
-                        LimitFlags = Native.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-                            | Native.JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION,
-                    },
-                };
-
-                var size = Marshal.SizeOf<Native.JOBOBJECT_EXTENDED_LIMIT_INFORMATION>();
-                var ptr = Marshal.AllocHGlobal(size);
-                try
-                {
-                    Marshal.StructureToPtr(info, ptr, fDeleteOld: false);
-                    if (!Native.SetInformationJobObject(jobHandle, Native.JobObjectExtendedLimitInformation, ptr, size))
-                    {
-                        var err = Marshal.GetLastWin32Error();
-                        throw new InvalidOperationException($"SetInformationJobObject failed with Win32 error {err}.");
-                    }
-                }
-                finally
-                {
-                    Marshal.FreeHGlobal(ptr);
-                }
-
-                if (!Native.AssignProcessToJobObject(jobHandle, process.Handle))
-                {
-                    var err = Marshal.GetLastWin32Error();
-                    logger.LogDebug("AssignProcessToJobObject returned Win32 error {ErrorCode}; continuing under OS handle ownership.", err);
-                }
-
-                return new WindowsJobObject(jobHandle);
-            }
-            catch
-            {
-                jobHandle.Dispose();
-                throw;
-            }
-        }
-
-        public void Dispose() => _handle.Dispose();
-
-        private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
-        {
-            public SafeJobHandle()
-                : base(ownsHandle: true)
-            {
-            }
-
-            public SafeJobHandle(IntPtr handle)
-                : base(ownsHandle: true)
-            {
-                SetHandle(handle);
-            }
-
-            protected override bool ReleaseHandle() => Native.CloseHandle(handle);
-        }
-
-        private static class Native
-        {
-            public const int JobObjectExtendedLimitInformation = 9;
-            public const uint JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION = 0x00000400;
-            public const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
-
-            [StructLayout(LayoutKind.Sequential)]
-            public struct JOBOBJECT_BASIC_LIMIT_INFORMATION
-            {
-                public long PerProcessUserTimeLimit;
-                public long PerJobUserTimeLimit;
-                public uint LimitFlags;
-                public UIntPtr MinimumWorkingSetSize;
-                public UIntPtr MaximumWorkingSetSize;
-                public uint ActiveProcessLimit;
-                public UIntPtr Affinity;
-                public uint PriorityClass;
-                public uint SchedulingClass;
-            }
-
-            [StructLayout(LayoutKind.Sequential)]
-            public struct IO_COUNTERS
-            {
-                public ulong ReadOps;
-                public ulong WriteOps;
-                public ulong OtherOps;
-                public ulong ReadBytes;
-                public ulong WriteBytes;
-                public ulong OtherBytes;
-            }
-
-            [StructLayout(LayoutKind.Sequential)]
-            public struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
-            {
-                public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
-                public IO_COUNTERS IoInfo;
-                public UIntPtr ProcessMemoryLimit;
-                public UIntPtr JobMemoryLimit;
-                public UIntPtr PeakProcessMemoryUsed;
-                public UIntPtr PeakJobMemoryUsed;
-            }
-
-            [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-            [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-            public static extern IntPtr CreateJobObjectW(IntPtr lpJobAttributes, string? lpName);
-
-            [DllImport("kernel32.dll", SetLastError = true)]
-            [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-            public static extern bool SetInformationJobObject(SafeJobHandle hJob, int JobObjectInformationClass, IntPtr lpJobObjectInformation, int cbJobObjectInformationLength);
-
-            [DllImport("kernel32.dll", SetLastError = true)]
-            [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-            public static extern bool AssignProcessToJobObject(SafeJobHandle hJob, IntPtr hProcess);
-
-            [DllImport("kernel32.dll", SetLastError = true)]
-            [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-            public static extern bool CloseHandle(IntPtr hObject);
-        }
     }
 
     private sealed class DeployedAppEntry(

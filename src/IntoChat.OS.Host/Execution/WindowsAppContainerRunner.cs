@@ -36,13 +36,36 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         "ProgramData",
     ];
 
+    internal delegate int CreateAppContainerProfileDelegate(
+        string pszAppContainerName,
+        string pszDisplayName,
+        string pszDescription,
+        IntPtr pCapabilities,
+        uint dwCapabilityCount,
+        out IntPtr ppSidAppContainerSid);
+
+    internal readonly record struct WindowsJobLimitSummary(
+        uint LimitFlags,
+        uint ActiveProcessLimit,
+        ulong JobMemoryLimitBytes,
+        uint UiRestrictionFlags);
+
     // Instance-scoped cache (never static, respecting StaticCacheFacts) to skip redundant ReadAndExecute grants.
     private readonly ConcurrentDictionary<string, byte> _aclCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger<WindowsAppContainerRunner>? _logger;
+    private readonly CreateAppContainerProfileDelegate _createAppContainerProfile;
 
     public WindowsAppContainerRunner(ILogger<WindowsAppContainerRunner>? logger = null)
+        : this(logger, Native.CreateAppContainerProfile)
+    {
+    }
+
+    internal WindowsAppContainerRunner(
+        ILogger<WindowsAppContainerRunner>? logger,
+        CreateAppContainerProfileDelegate createAppContainerProfile)
     {
         _logger = logger;
+        _createAppContainerProfile = createAppContainerProfile ?? Native.CreateAppContainerProfile;
     }
 
     public static IReadOnlyDictionary<string, string> BuildCleanEnvironmentDictionary(ConfinementSpec spec, string tempDirectory)
@@ -82,6 +105,10 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         variables["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         variables["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
         variables["DOTNET_NOLOGO"] = "1";
+        // AppContainer tokens cannot call CreateFileMapping(PAGE_EXECUTE_READWRITE) used by CoreCLR W^X double-mapping
+        // (causes coreclr.dll DllMain ERROR_DLL_INIT_FAILED 0x8007045A); disable W^X double-mapping for confined .NET hosts.
+        variables["DOTNET_EnableWriteXorExecute"] = "0";
+        variables["DOTNET_EnableDiagnostics"] = "0";
         variables["SPIKE_WINDOWS"] = "0";
 
         foreach (var (key, value) in spec.CleanEnvironment)
@@ -133,6 +160,116 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         return sb.ToString();
     }
 
+    public ConfinedProcessSession StartSession(ConfinementSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        ArgumentException.ThrowIfNullOrWhiteSpace(spec.ExecutablePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(spec.WorkingDirectory);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            var posix = new PosixConfinedProcessRunner();
+            return posix.StartSession(spec);
+        }
+
+        var workDir = Path.GetFullPath(spec.WorkingDirectory);
+        var tempDir = CreateSessionTempDirectory(spec.SandboxId);
+        Directory.CreateDirectory(workDir);
+
+        var cleanDict = BuildCleanEnvironmentDictionary(spec, tempDir);
+        var unicodeEnvBlock = BuildUnicodeEnvironmentBlock(cleanDict);
+        var commandLineText = FormatCommandLine(spec.ExecutablePath, spec.Arguments);
+
+        var job = CreateConfiguredJobObject(spec, out var iocp);
+        var grantedWorkDirs = new List<(string Folder, SecurityIdentifier Sid)>();
+
+        IntPtr outRead = IntPtr.Zero, outWrite = IntPtr.Zero;
+        IntPtr errRead = IntPtr.Zero, errWrite = IntPtr.Zero;
+        IntPtr inRead = IntPtr.Zero, inWrite = IntPtr.Zero;
+
+        try
+        {
+            var sa = new Native.SECURITY_ATTRIBUTES
+            {
+                nLength = Marshal.SizeOf<Native.SECURITY_ATTRIBUTES>(),
+                bInheritHandle = 1,
+            };
+
+            CreateInheritableChildPipe(ref sa, childReads: false, out outRead, out outWrite);
+            CreateInheritableChildPipe(ref sa, childReads: false, out errRead, out errWrite);
+            CreateInheritableChildPipe(ref sa, childReads: true, out inRead, out inWrite);
+
+            var procInfo = LaunchWithFallback(
+                spec,
+                workDir,
+                tempDir,
+                commandLineText,
+                unicodeEnvBlock,
+                job,
+                inRead,
+                outWrite,
+                errWrite,
+                grantedWorkDirs,
+                out var effectiveMode);
+
+            // Parent must close child ends of stdio pipes immediately so EOF propagates cleanly when child exits.
+            _ = Native.CloseHandle(inRead);
+            inRead = IntPtr.Zero;
+            _ = Native.CloseHandle(outWrite);
+            outWrite = IntPtr.Zero;
+            _ = Native.CloseHandle(errWrite);
+            errWrite = IntPtr.Zero;
+            _ = Native.CloseHandle(procInfo.hThread);
+
+            var processHandle = new SafeProcessHandle(procInfo.hProcess, ownsHandle: true);
+            var stdinWriter = new StreamWriter(
+                new FileStream(new SafeFileHandle(inWrite, ownsHandle: true), FileAccess.Write),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+            {
+                AutoFlush = false,
+            };
+            inWrite = IntPtr.Zero;
+            var stdoutReader = new StreamReader(
+                new FileStream(new SafeFileHandle(outRead, ownsHandle: true), FileAccess.Read),
+                Encoding.UTF8);
+            outRead = IntPtr.Zero;
+            var stderrReader = new StreamReader(
+                new FileStream(new SafeFileHandle(errRead, ownsHandle: true), FileAccess.Read),
+                Encoding.UTF8);
+            errRead = IntPtr.Zero;
+
+            return new WindowsConfinedProcessSession(
+                this,
+                procInfo.dwProcessId,
+                processHandle,
+                job,
+                iocp,
+                effectiveMode,
+                tempDir,
+                stdinWriter,
+                stdoutReader,
+                stderrReader,
+                grantedWorkDirs);
+        }
+        catch
+        {
+            if (inRead != IntPtr.Zero) { _ = Native.CloseHandle(inRead); }
+            if (inWrite != IntPtr.Zero) { _ = Native.CloseHandle(inWrite); }
+            if (outRead != IntPtr.Zero) { _ = Native.CloseHandle(outRead); }
+            if (outWrite != IntPtr.Zero) { _ = Native.CloseHandle(outWrite); }
+            if (errRead != IntPtr.Zero) { _ = Native.CloseHandle(errRead); }
+            if (errWrite != IntPtr.Zero) { _ = Native.CloseHandle(errWrite); }
+
+            TerminateAndDrainJob(job, iocp);
+            if (job != IntPtr.Zero) { _ = Native.CloseHandle(job); }
+            if (iocp != IntPtr.Zero) { _ = Native.CloseHandle(iocp); }
+
+            RevokeGrantedAccess(grantedWorkDirs);
+            TryPurgeDirectory(tempDir, _logger);
+            throw;
+        }
+    }
+
     public async Task<ConfinedProcessResult> RunAsync(ConfinementSpec spec, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(spec);
@@ -146,11 +283,8 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         }
 
         var workDir = Path.GetFullPath(spec.WorkingDirectory);
-        var tempDir = Path.Combine(workDir, ".sandbox-tmp");
+        var tempDir = CreateSessionTempDirectory(spec.SandboxId);
         Directory.CreateDirectory(workDir);
-        Directory.CreateDirectory(tempDir);
-        Directory.CreateDirectory(Path.Combine(tempDir, "appdata"));
-        Directory.CreateDirectory(Path.Combine(tempDir, "localappdata"));
 
         var cleanDict = BuildCleanEnvironmentDictionary(spec, tempDir);
         var unicodeEnvBlock = BuildUnicodeEnvironmentBlock(cleanDict);
@@ -180,63 +314,18 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             _ = Native.CloseHandle(inWrite);
             inWrite = IntPtr.Zero;
 
-            var wantAppContainer = spec.PreferAppContainer || spec.UseLessPrivilegedAppContainer;
-            var effectiveMode = ConfinementMode.JobObject;
-            Native.PROCESS_INFORMATION procInfo = default;
-            var launched = false;
-
-            if (wantAppContainer)
-            {
-                try
-                {
-                    procInfo = LaunchNativeProcess(
-                        spec,
-                        workDir,
-                        commandLineText,
-                        unicodeEnvBlock,
-                        job,
-                        inRead,
-                        outWrite,
-                        errWrite,
-                        useAppContainer: true,
-                        grantedWorkDirs,
-                        out effectiveMode);
-                    launched = true;
-                }
-                catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or UnauthorizedAccessException)
-                {
-                    if (_logger is not null)
-                    {
-                        _logger.LogWarning(
-                            ex,
-                            "AppContainer spawn could not be applied for sandbox {SandboxId}; falling back to JobObject + handle allowlist confinement.",
-                            spec.SandboxId);
-                    }
-                    else
-                    {
-                        Trace.TraceWarning(
-                            "AppContainer spawn could not be applied for sandbox '{0}'; falling back to JobObject + handle allowlist confinement: {1}",
-                            spec.SandboxId,
-                            ex.Message);
-                    }
-                }
-            }
-
-            if (!launched)
-            {
-                procInfo = LaunchNativeProcess(
-                    spec,
-                    workDir,
-                    commandLineText,
-                    unicodeEnvBlock,
-                    job,
-                    inRead,
-                    outWrite,
-                    errWrite,
-                    useAppContainer: false,
-                    grantedWorkDirs,
-                    out effectiveMode);
-            }
+            var procInfo = LaunchWithFallback(
+                spec,
+                workDir,
+                tempDir,
+                commandLineText,
+                unicodeEnvBlock,
+                job,
+                inRead,
+                outWrite,
+                errWrite,
+                grantedWorkDirs,
+                out var effectiveMode);
 
             // Parent must close child ends of stdio pipes immediately so EOF propagates cleanly when child exits.
             _ = Native.CloseHandle(inRead);
@@ -304,16 +393,96 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             if (job != IntPtr.Zero) { _ = Native.CloseHandle(job); }
             if (iocp != IntPtr.Zero) { _ = Native.CloseHandle(iocp); }
 
-            foreach (var (folder, sid) in grantedWorkDirs)
+            RevokeGrantedAccess(grantedWorkDirs);
+            TryPurgeDirectory(tempDir, _logger);
+        }
+    }
+
+    private Native.PROCESS_INFORMATION LaunchWithFallback(
+        ConfinementSpec spec,
+        string workDir,
+        string tempDir,
+        string commandLineText,
+        string unicodeEnvBlock,
+        IntPtr job,
+        IntPtr inRead,
+        IntPtr outWrite,
+        IntPtr errWrite,
+        List<(string Folder, SecurityIdentifier Sid)> grantedWorkDirs,
+        out ConfinementMode effectiveMode)
+    {
+        var wantAppContainer = spec.PreferAppContainer || spec.UseLessPrivilegedAppContainer;
+        effectiveMode = ConfinementMode.JobObject;
+
+        if (wantAppContainer)
+        {
+            try
             {
-                TryRevokeAccess(folder, sid);
+                return LaunchNativeProcess(
+                    spec,
+                    workDir,
+                    tempDir,
+                    commandLineText,
+                    unicodeEnvBlock,
+                    job,
+                    inRead,
+                    outWrite,
+                    errWrite,
+                    useAppContainer: true,
+                    grantedWorkDirs,
+                    out effectiveMode);
+            }
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or UnauthorizedAccessException)
+            {
+                // Revoke any partial ACLs granted during the failed AppContainer attempt before falling back.
+                RevokeGrantedAccess(grantedWorkDirs);
+                grantedWorkDirs.Clear();
+
+                var limits = ComputeJobLimits(spec);
+                if (_logger is not null)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "AppContainer isolation unavailable for sandbox {SandboxId} (LPAC={UseLpac}); falling back to degraded JobObject confinement while unconditionally enforcing Win32 Job Object limits (MemoryBytes={MaxMemoryBytes}, ActiveProcesses={MaxProcesses}, UIRestrictions=0x{UiRestrictions:X}, KillOnClose=true), 3-handle stdio allowlist, sanitized environment, and temp-dir purge.",
+                        spec.SandboxId,
+                        spec.UseLessPrivilegedAppContainer,
+                        limits.JobMemoryLimitBytes,
+                        limits.ActiveProcessLimit,
+                        limits.UiRestrictionFlags);
+                }
+                else
+                {
+                    Trace.TraceWarning(
+                        "AppContainer isolation unavailable for sandbox '{0}' (LPAC={1}); falling back to degraded JobObject confinement with unconditional Win32 Job Object limits (MemoryBytes={2}, ActiveProcesses={3}, UIRestrictions=0x{4:X}): {5}",
+                        spec.SandboxId,
+                        spec.UseLessPrivilegedAppContainer,
+                        limits.JobMemoryLimitBytes,
+                        limits.ActiveProcessLimit,
+                        limits.UiRestrictionFlags,
+                        ex.Message);
+                }
             }
         }
+
+        return LaunchNativeProcess(
+            spec,
+            workDir,
+            tempDir,
+            commandLineText,
+            unicodeEnvBlock,
+            job,
+            inRead,
+            outWrite,
+            errWrite,
+            useAppContainer: false,
+            grantedWorkDirs,
+            out effectiveMode);
     }
 
     private Native.PROCESS_INFORMATION LaunchNativeProcess(
         ConfinementSpec spec,
         string workDir,
+        string tempDir,
         string commandLineText,
         string unicodeEnvBlock,
         IntPtr job,
@@ -377,7 +546,7 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             {
                 var hashHex = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(spec.SandboxId + "|" + workDir.ToLowerInvariant())))[..16];
                 var profileName = "intochat.sbx." + hashHex.ToLowerInvariant();
-                var hr = Native.CreateAppContainerProfile(
+                var hr = _createAppContainerProfile(
                     profileName,
                     "IntoChat OS Sandbox",
                     "Confined IntoChat OS child process",
@@ -396,13 +565,21 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
                 }
 
                 var securityId = new SecurityIdentifier(appContainerSid);
-                GrantDirectoryAccess(workDir, securityId, FileSystemRights.Modify, cacheable: false);
-                grantedWorkDirs.Add((workDir, securityId));
+                GrantDirectoryAccess(tempDir, securityId, FileSystemRights.Modify, cacheable: false);
+                grantedWorkDirs.Add((tempDir, securityId));
+
+                if (!string.Equals(workDir, tempDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    GrantDirectoryAccess(workDir, securityId, FileSystemRights.Modify, cacheable: false);
+                    grantedWorkDirs.Add((workDir, securityId));
+                }
 
                 foreach (var rw in spec.ReadWritePaths)
                 {
                     var fullRw = Path.GetFullPath(rw);
-                    if (Directory.Exists(fullRw) && !string.Equals(fullRw, workDir, StringComparison.OrdinalIgnoreCase))
+                    if (Directory.Exists(fullRw)
+                        && !string.Equals(fullRw, workDir, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(fullRw, tempDir, StringComparison.OrdinalIgnoreCase))
                     {
                         GrantDirectoryAccess(fullRw, securityId, FileSystemRights.Modify, cacheable: false);
                         grantedWorkDirs.Add((fullRw, securityId));
@@ -600,6 +777,52 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
             || (!string.IsNullOrEmpty(programFilesX86) && path.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase));
     }
 
+    internal static WindowsJobLimitSummary ComputeJobLimits(ConfinementSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        var maxProcesses = spec.MaxProcesses > 0 ? (uint)spec.MaxProcesses : 16u;
+        var maxMemoryBytes = spec.MaxMemoryBytes > 0 ? (ulong)spec.MaxMemoryBytes : 1024UL * 1024UL * 1024UL;
+        var limitFlags =
+            Native.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            | Native.JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION
+            | Native.JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+            | Native.JOB_OBJECT_LIMIT_JOB_MEMORY;
+
+        return new WindowsJobLimitSummary(
+            LimitFlags: limitFlags,
+            ActiveProcessLimit: maxProcesses,
+            JobMemoryLimitBytes: maxMemoryBytes,
+            UiRestrictionFlags: Native.JOB_OBJECT_UILIMIT_ALL);
+    }
+
+    internal static WindowsJobLimitSummary QueryJobLimits(IntPtr job)
+    {
+        var limitSize = Marshal.SizeOf<Native.JOBOBJECT_EXTENDED_LIMIT_INFORMATION>();
+        var buffer = Marshal.AllocHGlobal(limitSize);
+        try
+        {
+            CheckWin32(
+                Native.QueryInformationJobObject(job, Native.JobObjectExtendedLimitInformation, buffer, limitSize, out _),
+                "QueryInformationJobObject(ExtendedLimits)");
+            var extended = Marshal.PtrToStructure<Native.JOBOBJECT_EXTENDED_LIMIT_INFORMATION>(buffer);
+
+            CheckWin32(
+                Native.QueryInformationJobObject(job, Native.JobObjectBasicUIRestrictions, buffer, sizeof(int), out _),
+                "QueryInformationJobObject(BasicUIRestrictions)");
+            var uiRestrictions = unchecked((uint)Marshal.ReadInt32(buffer));
+
+            return new WindowsJobLimitSummary(
+                LimitFlags: extended.BasicLimitInformation.LimitFlags,
+                ActiveProcessLimit: extended.BasicLimitInformation.ActiveProcessLimit,
+                JobMemoryLimitBytes: extended.JobMemoryLimit.ToUInt64(),
+                UiRestrictionFlags: uiRestrictions);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
     private static IntPtr CreateConfiguredJobObject(ConfinementSpec spec, out IntPtr iocp)
     {
         var job = Native.CreateJobObjectW(IntPtr.Zero, null);
@@ -609,18 +832,15 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         }
 
         iocp = IntPtr.Zero;
+        var computed = ComputeJobLimits(spec);
         var limitSize = Marshal.SizeOf<Native.JOBOBJECT_EXTENDED_LIMIT_INFORMATION>();
         var buffer = Marshal.AllocHGlobal(limitSize);
         try
         {
             var limits = new Native.JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
-            limits.BasicLimitInformation.LimitFlags =
-                Native.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-                | Native.JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION
-                | (spec.MaxProcesses > 0 ? Native.JOB_OBJECT_LIMIT_ACTIVE_PROCESS : 0u)
-                | (spec.MaxMemoryBytes > 0 ? Native.JOB_OBJECT_LIMIT_JOB_MEMORY : 0u);
-            limits.BasicLimitInformation.ActiveProcessLimit = spec.MaxProcesses > 0 ? (uint)spec.MaxProcesses : 16u;
-            limits.JobMemoryLimit = spec.MaxMemoryBytes > 0 ? (UIntPtr)(ulong)spec.MaxMemoryBytes : (UIntPtr)(1024UL * 1024UL * 1024UL);
+            limits.BasicLimitInformation.LimitFlags = computed.LimitFlags;
+            limits.BasicLimitInformation.ActiveProcessLimit = computed.ActiveProcessLimit;
+            limits.JobMemoryLimit = (UIntPtr)computed.JobMemoryLimitBytes;
 
             Marshal.StructureToPtr(limits, buffer, fDeleteOld: false);
             CheckWin32(
@@ -628,7 +848,7 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
                 "SetInformationJobObject(ExtendedLimits)");
 
             // 0xFF = all JOB_OBJECT_UILIMIT_* flags (clipboard read/write, handles, desktop, display, system params, atoms, exit windows).
-            Marshal.WriteInt32(buffer, 0xFF);
+            Marshal.WriteInt32(buffer, unchecked((int)computed.UiRestrictionFlags));
             CheckWin32(
                 Native.SetInformationJobObject(job, Native.JobObjectBasicUIRestrictions, buffer, sizeof(int)),
                 "SetInformationJobObject(BasicUIRestrictions)");
@@ -789,12 +1009,217 @@ public sealed partial class WindowsAppContainerRunner : IConfinedProcessRunner
         sb.Append('"');
     }
 
+    private void RevokeGrantedAccess(List<(string Folder, SecurityIdentifier Sid)> grantedWorkDirs)
+    {
+        foreach (var (folder, sid) in grantedWorkDirs)
+        {
+            TryRevokeAccess(folder, sid);
+        }
+    }
+
+    internal static string CreateSessionTempDirectory(string sandboxId)
+    {
+        var sanitized = SanitizeSandboxId(sandboxId);
+        var tempDir = Path.Combine(Path.GetTempPath(), "intochat-sandbox", $"{sanitized}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        Directory.CreateDirectory(Path.Combine(tempDir, "appdata"));
+        Directory.CreateDirectory(Path.Combine(tempDir, "localappdata"));
+        return tempDir;
+    }
+
+    internal static void TryPurgeDirectory(string directory, ILogger? logger)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                if (!Directory.Exists(directory))
+                {
+                    return;
+                }
+
+                Directory.Delete(directory, recursive: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == 4)
+                {
+                    if (logger is not null)
+                    {
+                        logger.LogWarning(ex, "Could not recursively purge sandbox temp directory {TempDirectory}.", directory);
+                    }
+                    else
+                    {
+                        Trace.TraceWarning("Could not recursively purge sandbox temp directory '{0}': {1}", directory, ex.Message);
+                    }
+
+                    return;
+                }
+
+                Thread.Sleep(25 * (attempt + 1));
+            }
+        }
+    }
+
+    private static string SanitizeSandboxId(string sandboxId)
+    {
+        if (string.IsNullOrWhiteSpace(sandboxId))
+        {
+            return "sbx";
+        }
+
+        var sb = new StringBuilder(Math.Min(sandboxId.Length, 32));
+        foreach (var ch in sandboxId)
+        {
+            if (sb.Length >= 32)
+            {
+                break;
+            }
+
+            sb.Append(char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_');
+        }
+
+        return sb.Length > 0 ? sb.ToString() : "sbx";
+    }
+
     private static void CheckWin32(bool ok, string operation)
     {
         if (!ok)
         {
             var err = Marshal.GetLastWin32Error();
             throw new Win32Exception(err, $"{operation} failed with Win32 error {err}.");
+        }
+    }
+
+    internal sealed class WindowsConfinedProcessSession : ConfinedProcessSession
+    {
+        private readonly WindowsAppContainerRunner _owner;
+        private readonly SafeProcessHandle _processHandle;
+        private readonly List<(string Folder, SecurityIdentifier Sid)> _grantedWorkDirs;
+        private IntPtr _job;
+        private IntPtr _iocp;
+        private int _disposed;
+
+        public WindowsConfinedProcessSession(
+            WindowsAppContainerRunner owner,
+            int processId,
+            SafeProcessHandle processHandle,
+            IntPtr job,
+            IntPtr iocp,
+            ConfinementMode effectiveMode,
+            string tempDirectory,
+            StreamWriter standardInput,
+            StreamReader standardOutput,
+            StreamReader standardError,
+            List<(string Folder, SecurityIdentifier Sid)> grantedWorkDirs)
+        {
+            _owner = owner;
+            ProcessId = processId;
+            _processHandle = processHandle;
+            _job = job;
+            _iocp = iocp;
+            EffectiveMode = effectiveMode;
+            TempDirectory = tempDirectory;
+            StandardInput = standardInput;
+            StandardOutput = standardOutput;
+            StandardError = standardError;
+            _grantedWorkDirs = grantedWorkDirs;
+        }
+
+        public override int ProcessId { get; }
+
+        public override ConfinementMode EffectiveMode { get; }
+
+        public override string TempDirectory { get; }
+
+        public override StreamWriter StandardInput { get; }
+
+        public override StreamReader StandardOutput { get; }
+
+        public override StreamReader StandardError { get; }
+
+        public override bool HasExited
+        {
+            get
+            {
+                if (Volatile.Read(ref _disposed) != 0 || _processHandle.IsClosed || _processHandle.IsInvalid)
+                {
+                    return true;
+                }
+
+                return Native.WaitForSingleObject(_processHandle.DangerousGetHandle(), 0) == Native.WAIT_OBJECT_0;
+            }
+        }
+
+        public override int ExitCode
+        {
+            get
+            {
+                if (_processHandle.IsClosed || _processHandle.IsInvalid)
+                {
+                    return -1;
+                }
+
+                return Native.GetExitCodeProcess(_processHandle.DangerousGetHandle(), out var raw)
+                    ? unchecked((int)raw)
+                    : -1;
+            }
+        }
+
+        internal WindowsJobLimitSummary QueryJobLimits()
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0 || _job == IntPtr.Zero, this);
+            return WindowsAppContainerRunner.QueryJobLimits(_job);
+        }
+
+        public override Task WaitForExitAsync(CancellationToken cancellationToken = default)
+        {
+            if (HasExited)
+            {
+                return Task.CompletedTask;
+            }
+
+            return WaitForProcessHandleAsync(_processHandle, cancellationToken);
+        }
+
+        public override void Kill()
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
+
+            TerminateAndDrainJob(_job, _iocp);
+        }
+
+        public override ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            try { StandardInput.Dispose(); } catch (ObjectDisposedException) { } catch (IOException) { }
+            try { StandardOutput.Dispose(); } catch (ObjectDisposedException) { } catch (IOException) { }
+            try { StandardError.Dispose(); } catch (ObjectDisposedException) { } catch (IOException) { }
+
+            var job = Interlocked.Exchange(ref _job, IntPtr.Zero);
+            var iocp = Interlocked.Exchange(ref _iocp, IntPtr.Zero);
+
+            TerminateAndDrainJob(job, iocp);
+            if (job != IntPtr.Zero) { _ = Native.CloseHandle(job); }
+            if (iocp != IntPtr.Zero) { _ = Native.CloseHandle(iocp); }
+            _processHandle.Dispose();
+
+            _owner.RevokeGrantedAccess(_grantedWorkDirs);
+            TryPurgeDirectory(TempDirectory, _owner._logger);
+            return ValueTask.CompletedTask;
         }
     }
 }

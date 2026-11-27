@@ -39,7 +39,9 @@ public sealed partial class WindowsAppContainerRunner
         public const uint JOB_OBJECT_LIMIT_JOB_MEMORY = 0x00000200;
         public const uint JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION = 0x00000400;
         public const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+        public const uint JOB_OBJECT_UILIMIT_ALL = 0x000000FF;
         public const uint JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO = 4;
+        public const uint WAIT_OBJECT_0 = 0x00000000;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct SECURITY_ATTRIBUTES
@@ -204,11 +206,22 @@ public sealed partial class WindowsAppContainerRunner
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern IntPtr CreateJobObjectW(IntPtr lpJobAttributes, string? lpName);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool SetInformationJobObject(IntPtr hJob, int JobObjectInformationClass, IntPtr lpJobObjectInformation, int cbJobObjectInformationLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool QueryInformationJobObject(
+            IntPtr hJob,
+            int JobObjectInformationClass,
+            IntPtr lpJobObjectInformation,
+            int cbJobObjectInformationLength,
+            out uint lpReturnLength);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool TerminateJobObject(IntPtr hJob, uint uExitCode);

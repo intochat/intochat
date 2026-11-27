@@ -42,7 +42,8 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     IServiceProvider services,
     ILogger<HttpSandboxRuntimeBridge> logger,
     IConnectedComputeRouter? connectedComputeRouter = null,
-    AcaDynamicSessionsSandbox? acaDynamicSessionsFallback = null) : ISandboxRuntimeBridge, ILocalSandboxExecutor, IAsyncDisposable
+    AcaDynamicSessionsSandbox? acaDynamicSessionsFallback = null,
+    IConfinedProcessRunner? confinedProcessRunner = null) : ISandboxRuntimeBridge, ILocalSandboxExecutor, IAsyncDisposable
 {
     private const int MaxWorkerAttempts = 20;
 
@@ -52,9 +53,30 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     };
 
     private readonly ConcurrentDictionary<string, DeployedAppEntry> _deployments = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string> _remoteCallbackUrls = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _unitHostLock = new(1, 1);
     private UnitHostChildSession? _unitHost;
     private int _disposed;
+
+    internal ConfinementMode? ActiveUnitHostConfinementMode => _unitHost?.EffectiveMode;
+
+    internal string? ActiveUnitHostTempDirectory => _unitHost?.TempDirectory;
+
+    internal string? ActiveUnitHostWorkingDirectory => _unitHost?.WorkingDirectory;
+
+    internal async Task<IReadOnlyDictionary<string, string>> ProbeUnitHostEnvironmentAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await SendToUnitHostAsync(
+            new UnitHostFrameRequest(Id: NewFrameId(), Op: "env"),
+            cancellationToken).ConfigureAwait(false);
+        if (!response.Ok || response.EnvironmentSnapshot is null)
+        {
+            throw new InvalidOperationException(
+                $"Sandbox --unit-host env probe failed: {response.Error ?? "Empty environment snapshot."}");
+        }
+
+        return response.EnvironmentSnapshot;
+    }
 
     public Task<SandboxDeploymentResult> DeployPackageAsync(
         string brainId,
@@ -225,84 +247,106 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         ct.ThrowIfCancellationRequested();
 
         var machineId = services.GetService<MachineId>()?.Value;
-        var deployFrame = await SendToUnitHostAsync(
-            new UnitHostFrameRequest(
-                Id: NewFrameId(),
-                Op: "deploy",
-                Deploy: new DeployWorkerRequest(
-                    request.BrainId,
-                    request.AppKey,
-                    request.Version,
-                    request.Digest,
-                    request.AssemblyBase64,
-                    request.StateJson,
-                    request.SettingsJson,
-                    request.KernelCallbackUrl,
-                    request.AppToken)),
-            ct).ConfigureAwait(false);
-
-        if (!deployFrame.Ok || deployFrame.Deploy is null)
+        var deploymentKey = DeploymentKey(request.BrainId, request.AppKey);
+        var hasRemoteHttpCallback = !string.IsNullOrWhiteSpace(request.KernelCallbackUrl)
+            && Uri.TryCreate(request.KernelCallbackUrl, UriKind.Absolute, out var callbackUri)
+            && (callbackUri.Scheme == Uri.UriSchemeHttp || callbackUri.Scheme == Uri.UriSchemeHttps);
+        if (hasRemoteHttpCallback)
         {
-            return new ConnectedSandboxResponse(
-                Handled: false,
-                ResultJson: null,
-                UpdatedStateJson: null,
-                Error: deployFrame.Error ?? "Local --unit-host deploy failed.",
-                ExecutedByMachineId: machineId);
+            _remoteCallbackUrls[deploymentKey] = request.KernelCallbackUrl!.TrimEnd('/');
         }
 
+        // Always route callbacks from the confined --unit-host child over its stdio pipe so the
+        // child process runs with NetworkPolicy.None (zero sockets); parent Kernel forwards HTTP when remote.
+        const string unitHostCallbackUrl = "pipe://edge";
         try
         {
-            var dispatchFrame = await SendToUnitHostAsync(
+            var deployFrame = await SendToUnitHostAsync(
                 new UnitHostFrameRequest(
                     Id: NewFrameId(),
-                    Op: "dispatch",
-                    Dispatch: new DispatchWorkerRequest(
+                    Op: "deploy",
+                    Deploy: new DeployWorkerRequest(
                         request.BrainId,
                         request.AppKey,
-                        Kind: "command",
-                        Name: request.Command,
-                        PayloadJson: request.PayloadJson,
-                        StateJson: deployFrame.Deploy.StateJson ?? request.StateJson,
-                        SettingsJson: request.SettingsJson,
-                        KernelUrl: request.KernelCallbackUrl,
-                        AppToken: request.AppToken)),
+                        request.Version,
+                        request.Digest,
+                        request.AssemblyBase64,
+                        request.StateJson,
+                        request.SettingsJson,
+                        unitHostCallbackUrl,
+                        request.AppToken)),
                 ct).ConfigureAwait(false);
 
-            if (!dispatchFrame.Ok || dispatchFrame.Dispatch is null)
+            if (!deployFrame.Ok || deployFrame.Deploy is null)
             {
                 return new ConnectedSandboxResponse(
                     Handled: false,
                     ResultJson: null,
                     UpdatedStateJson: null,
-                    Error: dispatchFrame.Error ?? "Local --unit-host dispatch failed.",
+                    Error: deployFrame.Error ?? "Local --unit-host deploy failed.",
                     ExecutedByMachineId: machineId);
             }
 
-            return new ConnectedSandboxResponse(
-                Handled: dispatchFrame.Dispatch.Handled,
-                ResultJson: dispatchFrame.Dispatch.ResultJson,
-                UpdatedStateJson: dispatchFrame.Dispatch.UpdatedStateJson,
-                Error: dispatchFrame.Dispatch.Error,
-                ExecutedByMachineId: machineId);
+            try
+            {
+                var dispatchFrame = await SendToUnitHostAsync(
+                    new UnitHostFrameRequest(
+                        Id: NewFrameId(),
+                        Op: "dispatch",
+                        Dispatch: new DispatchWorkerRequest(
+                            request.BrainId,
+                            request.AppKey,
+                            Kind: "command",
+                            Name: request.Command,
+                            PayloadJson: request.PayloadJson,
+                            StateJson: deployFrame.Deploy.StateJson ?? request.StateJson,
+                            SettingsJson: request.SettingsJson,
+                            KernelUrl: unitHostCallbackUrl,
+                            AppToken: request.AppToken)),
+                    ct).ConfigureAwait(false);
+
+                if (!dispatchFrame.Ok || dispatchFrame.Dispatch is null)
+                {
+                    return new ConnectedSandboxResponse(
+                        Handled: false,
+                        ResultJson: null,
+                        UpdatedStateJson: null,
+                        Error: dispatchFrame.Error ?? "Local --unit-host dispatch failed.",
+                        ExecutedByMachineId: machineId);
+                }
+
+                return new ConnectedSandboxResponse(
+                    Handled: dispatchFrame.Dispatch.Handled,
+                    ResultJson: dispatchFrame.Dispatch.ResultJson,
+                    UpdatedStateJson: dispatchFrame.Dispatch.UpdatedStateJson,
+                    Error: dispatchFrame.Dispatch.Error,
+                    ExecutedByMachineId: machineId);
+            }
+            finally
+            {
+                if (_unitHost is { } activeHost && !activeHost.HasExited)
+                {
+                    try
+                    {
+                        _ = await activeHost.SendAsync(
+                            new UnitHostFrameRequest(
+                                Id: NewFrameId(),
+                                Op: "unload",
+                                Unload: new UnloadWorkerRequest(request.BrainId, request.AppKey)),
+                            CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (Exception error) when (error is not OperationCanceledException)
+                    {
+                        logger.LogSwallowed(error, $"Local --unit-host unload failed for connected sandbox job '{request.JobId}'.");
+                    }
+                }
+            }
         }
         finally
         {
-            if (_unitHost is { } activeHost && !activeHost.HasExited)
+            if (hasRemoteHttpCallback)
             {
-                try
-                {
-                    _ = await activeHost.SendAsync(
-                        new UnitHostFrameRequest(
-                            Id: NewFrameId(),
-                            Op: "unload",
-                            Unload: new UnloadWorkerRequest(request.BrainId, request.AppKey)),
-                        CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    logger.LogSwallowed(error, $"Local --unit-host unload failed for connected sandbox job '{request.JobId}'.");
-                }
+                _remoteCallbackUrls.TryRemove(deploymentKey, out _);
             }
         }
     }
@@ -335,7 +379,8 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         var token = normalizedScope is null
             ? tokens.Issue(brainValue, package.Key)
             : tokens.IssueScoped(brainId, package.Key, normalizedScope);
-        var kernelUrl = ResolveKernelCallbackUrl();
+        var workerUrl = options.Value.Url;
+        var kernelUrl = string.IsNullOrWhiteSpace(workerUrl) ? "pipe://edge" : ResolveKernelCallbackUrl();
         var request = new DeployWorkerRequest(
             brainValue,
             package.Key,
@@ -348,7 +393,6 @@ internal sealed partial class HttpSandboxRuntimeBridge(
             token);
 
         DeployWorkerResponse response;
-        var workerUrl = options.Value.Url;
         if (string.IsNullOrWhiteSpace(workerUrl))
         {
             var frame = await SendToUnitHostAsync(
@@ -558,7 +602,8 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         var token = existing?.AllowedContracts is { } scopedContracts
             ? tokens.IssueScoped(ParseBrain(brainId), appKey, scopedContracts)
             : tokens.Issue(brainId, appKey);
-        var kernelUrl = ResolveKernelCallbackUrl();
+        var workerUrl = options.Value.Url;
+        var kernelUrl = string.IsNullOrWhiteSpace(workerUrl) ? "pipe://edge" : ResolveKernelCallbackUrl();
         var request = new DispatchWorkerRequest(
             brainId,
             appKey,
@@ -571,7 +616,6 @@ internal sealed partial class HttpSandboxRuntimeBridge(
             token);
 
         DispatchWorkerResponse response;
-        var workerUrl = options.Value.Url;
         if (string.IsNullOrWhiteSpace(workerUrl))
         {
             var frame = await SendToUnitHostAsync(
@@ -653,11 +697,14 @@ internal sealed partial class HttpSandboxRuntimeBridge(
 
             var assemblyPath = ResolveUnitHostAssemblyPath(options.Value.UnitHostAssemblyPath);
             var contractsDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var session = UnitHostChildSession.Start(
+            var runner = ResolveConfinedProcessRunner();
+            var session = await UnitHostChildSession.StartAsync(
                 assemblyPath,
                 contractsDir,
+                runner,
                 HandlePipeCallbackAsync,
-                logger);
+                logger,
+                cancellationToken).ConfigureAwait(false);
             _unitHost = session;
             return session;
         }
@@ -667,9 +714,33 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         }
     }
 
+    internal IConfinedProcessRunner ResolveConfinedProcessRunner()
+    {
+        if (confinedProcessRunner is not null)
+        {
+            return confinedProcessRunner;
+        }
+
+        if (services.GetService<IConfinedProcessRunner>() is { } registered)
+        {
+            return registered;
+        }
+
+        var loggerFactory = services.GetService<ILoggerFactory>();
+        return OperatingSystem.IsWindows()
+            ? new WindowsAppContainerRunner(loggerFactory?.CreateLogger<WindowsAppContainerRunner>())
+            : new PosixConfinedProcessRunner(loggerFactory?.CreateLogger<PosixConfinedProcessRunner>());
+    }
+
     private async Task<UnitHostFrameRequest> HandlePipeCallbackAsync(UnitHostFrameResponse frame, CancellationToken cancellationToken)
     {
         var kind = frame.CallbackKind ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(frame.BrainId)
+            && !string.IsNullOrWhiteSpace(frame.AppKey)
+            && _remoteCallbackUrls.TryGetValue(DeploymentKey(frame.BrainId, frame.AppKey), out var remoteBaseUrl))
+        {
+            return await ForwardPipeCallbackToRemoteEdgeAsync(remoteBaseUrl, kind, frame, cancellationToken).ConfigureAwait(false);
+        }
         if (string.Equals(kind, "log", StringComparison.OrdinalIgnoreCase))
         {
             if (SandboxEdgeEndpoints.TryAuthenticateToken(frame.AppToken, frame.BrainId, frame.AppKey, tokens, out var logIdentity)
@@ -738,6 +809,110 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         }
 
         return new UnitHostFrameRequest(frame.Id, "callback-reply", Ok: false, StatusCode: StatusCodes.Status404NotFound, Error: $"Unsupported callback '{kind}'.");
+    }
+
+    private async Task<UnitHostFrameRequest> ForwardPipeCallbackToRemoteEdgeAsync(
+        string remoteBaseUrl,
+        string kind,
+        UnitHostFrameResponse frame,
+        CancellationToken cancellationToken)
+    {
+        string path;
+        object? payload;
+        if (string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase))
+        {
+            path = "/edge/sandbox/invoke";
+            payload = frame.Invoke;
+        }
+        else if (string.Equals(kind, "signal", StringComparison.OrdinalIgnoreCase))
+        {
+            path = "/edge/sandbox/signals";
+            payload = frame.Signal;
+        }
+        else if (string.Equals(kind, "log", StringComparison.OrdinalIgnoreCase))
+        {
+            path = "/edge/sandbox/logs";
+            payload = frame.Log;
+        }
+        else
+        {
+            return new UnitHostFrameRequest(
+                frame.Id,
+                "callback-reply",
+                Ok: false,
+                StatusCode: StatusCodes.Status404NotFound,
+                Error: $"Unsupported callback '{kind}'.");
+        }
+
+        if (payload is null)
+        {
+            return new UnitHostFrameRequest(
+                frame.Id,
+                "callback-reply",
+                Ok: false,
+                StatusCode: StatusCodes.Status422UnprocessableEntity,
+                Error: $"Callback '{kind}' payload is required.");
+        }
+
+        var endpoint = new Uri(remoteBaseUrl.TrimEnd('/') + path, UriKind.Absolute);
+        var client = httpClientFactory.CreateClient("SandboxWorker");
+        using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = JsonContent.Create(payload, options: JsonSerializerOptions.Web),
+        };
+        if (!string.IsNullOrWhiteSpace(frame.AppToken))
+        {
+            message.Headers.TryAddWithoutValidation("X-App-Token", frame.AppToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(frame.BrainId))
+        {
+            message.Headers.TryAddWithoutValidation("X-Brain-Id", frame.BrainId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(frame.AppKey))
+        {
+            message.Headers.TryAddWithoutValidation("X-App-Key", frame.AppKey);
+        }
+
+        using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        var statusCode = (int)response.StatusCode;
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+        if (string.Equals(kind, "invoke", StringComparison.OrdinalIgnoreCase))
+        {
+            SandboxEdgeEndpoints.EdgeInvokeResponse? invokeResult = null;
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                try
+                {
+                    invokeResult = JsonSerializer.Deserialize<SandboxEdgeEndpoints.EdgeInvokeResponse>(body, JsonSerializerOptions.Web);
+                }
+                catch (JsonException)
+                {
+                    invokeResult = new SandboxEdgeEndpoints.EdgeInvokeResponse(null, body);
+                }
+            }
+
+            invokeResult ??= new SandboxEdgeEndpoints.EdgeInvokeResponse(
+                null,
+                response.IsSuccessStatusCode ? null : $"Remote edge returned HTTP {statusCode}.");
+
+            return new UnitHostFrameRequest(
+                frame.Id,
+                "callback-reply",
+                Ok: response.IsSuccessStatusCode,
+                StatusCode: statusCode,
+                InvokeResult: invokeResult,
+                Error: response.IsSuccessStatusCode ? null : invokeResult.Error);
+        }
+
+        return new UnitHostFrameRequest(
+            frame.Id,
+            "callback-reply",
+            Ok: response.IsSuccessStatusCode,
+            StatusCode: statusCode,
+            Error: response.IsSuccessStatusCode ? null : (string.IsNullOrWhiteSpace(body) ? $"Remote edge returned HTTP {statusCode}." : body));
     }
 
     internal string? ResolveKernelCallbackUrl()

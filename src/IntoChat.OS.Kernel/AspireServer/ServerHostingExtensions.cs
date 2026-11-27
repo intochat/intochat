@@ -171,6 +171,12 @@ public static class ServerHostingExtensions
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.AppTokenService>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkAiAdapter>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkTablesAdapter>();
+        builder.Services.TryAddSingleton<IntoChat.OS.Host.Execution.IConfinedProcessRunner>(static sp =>
+            OperatingSystem.IsWindows()
+                ? new IntoChat.OS.Host.Execution.WindowsAppContainerRunner(
+                    sp.GetService<ILogger<IntoChat.OS.Host.Execution.WindowsAppContainerRunner>>())
+                : new IntoChat.OS.Host.Execution.PosixConfinedProcessRunner(
+                    sp.GetService<ILogger<IntoChat.OS.Host.Execution.PosixConfinedProcessRunner>>()));
         builder.Services.TryAddSingleton<IntoChat.OS.Host.Execution.IAcaDynamicSessionsTokenProvider, IntoChat.OS.Host.Execution.ManagedIdentityAcaTokenProvider>();
         builder.Services.TryAddSingleton<IntoChat.OS.Kernel.Sandbox.AcaDynamicSessionsSandbox>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>();

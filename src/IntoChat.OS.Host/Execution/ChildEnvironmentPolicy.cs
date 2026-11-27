@@ -41,6 +41,7 @@ public static class ChildEnvironmentPolicy
         "ACCESS_KEY",
         "AUTH_TOKEN",
         "CREDENTIAL",
+        "SERVICE_ASSERTION",
     ];
 
     private static readonly string[] BlockedSuffixes =
