@@ -60,7 +60,7 @@
     <PackageVersion Include="Azure.ResourceManager.Authorization" Version="1.1.7" />
     <PackageVersion Include="Azure.ResourceManager.KeyVault" Version="1.5.0" />
     <PackageVersion Include="Azure.ResourceManager.ManagedServiceIdentities" Version="1.4.1" />
-    <PackageVersion Include="Azure.ResourceManager.Network" Version="1.17.0" />
+    <PackageVersion Include="Azure.ResourceManager.Network" Version="1.18.0" />
     <PackageVersion Include="Azure.ResourceManager.OperationalInsights" Version="1.4.0" />
     <PackageVersion Include="Azure.ResourceManager.ContainerRegistry" Version="1.4.0" />
     <PackageVersion Include="Azure.ResourceManager.PostgreSql" Version="1.4.2" />
