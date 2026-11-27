@@ -27,13 +27,8 @@ abstract final class NodeContracts {
     ),
   };
 
-  // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.
+  // The shell's own watches (Ino's presence, the user settings); not UI kinds a view may reference.
   static const _shellSources = <String, NodeContract>{
-    // A friend's profile, posts and post cards change with the brain's space scene.
-    'friends.space': NodeContract.source(
-      'IntoChat.OS.Modules.Flame.Scene.IScene',
-      'SceneChanged',
-    ),
     'ino.presence': NodeContract.source(
       'IntoChat.OS.Modules.Apps.IPresence',
       'PresenceChanged',

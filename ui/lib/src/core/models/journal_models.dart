@@ -78,21 +78,3 @@ final class JournalTailSignal {
           .map((item) => JournalTailSignal.fromJson((item as Map).cast()))
           .toList(growable: false);
 }
-
-/// A unit's published view (`GET /brains/{id}/view?alias=`): the view as wire JSON and its generation.
-final class UnitView {
-  const UnitView({
-    required this.alias,
-    required this.generation,
-    required this.view,
-  });
-  final String alias;
-  final int generation;
-  final Map<String, dynamic> view;
-
-  factory UnitView.fromJson(Map<String, dynamic> json) => UnitView(
-    alias: json['alias'] as String,
-    generation: (json['generation'] as num).toInt(),
-    view: (json['view'] as Map).cast<String, dynamic>(),
-  );
-}

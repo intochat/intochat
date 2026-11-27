@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -154,29 +154,6 @@ void main() {
       const Duration(seconds: 30),
     );
   });
-
-  test('the ui client reads a unit state and view, null on 404', () async {
-    final ui = IntoChatOSUiClient(
-      baseUri: base,
-      httpClient: _Reads({
-        '/brains/b1/state': (200, {'bumps': 3}),
-        '/brains/b1/view': (
-          200,
-          {
-            'alias': 'ctr',
-            'generation': 2,
-            'view': {'kind': 'Row'},
-          },
-        ),
-      }),
-    );
-
-    expect(await ui.readUnitState('b1', 'ctr'), {'bumps': 3});
-    final view = await ui.readUnitView('b1', 'ctr');
-    expect(view!.generation, 2);
-    expect(view.view['kind'], 'Row');
-    expect(await ui.readUnitState('b2', 'ctr'), isNull);
-  });
 }
 
 /// Answers every connection with a frame whose data is not JSON.
@@ -189,22 +166,6 @@ class _Malformed extends http.BaseClient {
     return http.StreamedResponse(
       Stream.value(utf8.encode('event: journaled-signal\ndata: {not json\n\n')),
       200,
-    );
-  }
-}
-
-class _Reads extends http.BaseClient {
-  _Reads(this.routes);
-  final Map<String, (int, Object)> routes;
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final route = routes[request.url.path];
-    if (route == null) return http.StreamedResponse(const Stream.empty(), 404);
-    return http.StreamedResponse(
-      Stream.value(utf8.encode(jsonEncode(route.$2))),
-      route.$1,
-      headers: {'content-type': 'application/json'},
     );
   }
 }
