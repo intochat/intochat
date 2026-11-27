@@ -109,6 +109,9 @@ public static class VisualCatalog
     private static readonly VisualDescriptor FoundryProvider =
         new("Foundry Local", "provider:foundry", "#0078D4", "Foundry Local");
 
+    private static readonly VisualDescriptor AzureFoundryProvider =
+        new("Azure AI Foundry", "provider:foundry", "#0078D4", "Azure AI Foundry");
+
     private static readonly VisualDescriptor OpenAICompatibleProvider =
         new("OpenAI-Compatible", "provider:openaicompatible", "#10A37F", "OpenAI-Compatible");
 
@@ -243,6 +246,7 @@ public static class VisualCatalog
             "xai" or "grok" or "provider:xai" => XaiProvider,
             "openrouter" or "provider:openrouter" => OpenRouterProvider,
             "foundry" or "foundrylocal" or "foundry-local" or "provider:foundry" or "provider:foundrylocal" => FoundryProvider,
+            "azurefoundry" or "azure-foundry" or "provider:azurefoundry" or "provider:azure-foundry" => AzureFoundryProvider,
             "openaicompatible" or "openai-compatible" or "openai-compat" or "provider:openaicompatible" => OpenAICompatibleProvider,
             "sherpaonnx" or "sherpa-onnx" or "provider:sherpaonnx" => SherpaOnnxProvider,
             _ => new(provider.Trim(), "brand:intochat", "#6366F1", provider.Trim()),
@@ -376,6 +380,7 @@ public static class VisualCatalog
         Add(OpenRouterProvider, "provider:openrouter");
         Add(FoundryProvider, "provider:foundry");
         entries.Add(new("provider:foundrylocal", FoundryProvider with { IconKey = "provider:foundrylocal" }));
+        Add(AzureFoundryProvider, "provider:azurefoundry", "provider:azure-foundry");
         Add(OpenAICompatibleProvider, "provider:openaicompatible");
         Add(SherpaOnnxProvider, "provider:sherpaonnx");
 

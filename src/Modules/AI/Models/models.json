@@ -462,6 +462,83 @@
       "can": ["Text"],
       "tier": "Fast",
       "aliases": ["ILocalJev", "LocalJev"]
+    },
+    {
+      "id": "DeepSeek-V3.2",
+      "member": "FoundryDeepSeekV32",
+      "provider": "AzureFoundry",
+      "family": "DeepSeek V3",
+      "name": "DeepSeek-V3.2 (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Text", "Tools"],
+      "tier": "Balanced",
+      "aliases": ["FoundryDeepSeekV32", "foundry/DeepSeek-V3.2", "deepseek-v3.2"]
+    },
+    {
+      "id": "DeepSeek-R1",
+      "member": "FoundryDeepSeekR1",
+      "provider": "AzureFoundry",
+      "family": "DeepSeek R1",
+      "name": "DeepSeek-R1 (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Text", "Tools", "Reasoning"],
+      "tier": "Deep",
+      "aliases": ["FoundryDeepSeekR1", "foundry/DeepSeek-R1", "deepseek-r1"]
+    },
+    {
+      "id": "foundry/gpt-4o-transcribe",
+      "member": "FoundryGpt4oTranscribe",
+      "provider": "AzureFoundry",
+      "family": "GPT-4o Transcribe",
+      "name": "GPT-4o Transcribe (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Hear"],
+      "tier": "Balanced",
+      "aliases": ["FoundryGpt4oTranscribe"]
+    },
+    {
+      "id": "foundry/gpt-4o-mini-tts",
+      "member": "FoundryGpt4oMiniTts",
+      "provider": "AzureFoundry",
+      "family": "GPT-4o TTS",
+      "name": "GPT-4o Mini TTS (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Speak"],
+      "tier": "Fast",
+      "aliases": ["FoundryGpt4oMiniTts"]
+    },
+    {
+      "id": "foundry/gpt-realtime",
+      "member": "FoundryGptRealtime",
+      "provider": "AzureFoundry",
+      "family": "GPT Realtime",
+      "name": "GPT Realtime (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Talk"],
+      "tier": "Balanced",
+      "aliases": ["FoundryGptRealtime"]
+    },
+    {
+      "id": "foundry/text-embedding-3-small",
+      "member": "FoundryTextEmbedding3Small",
+      "provider": "AzureFoundry",
+      "family": "Text Embedding 3",
+      "name": "Text Embedding 3 Small (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Embed"],
+      "tier": "Fast",
+      "aliases": ["FoundryTextEmbedding3Small"]
+    },
+    {
+      "id": "foundry/gpt-image-1",
+      "member": "FoundryGptImage1",
+      "provider": "AzureFoundry",
+      "family": "GPT Image",
+      "name": "GPT Image 1 (Azure AI Foundry)",
+      "where": "Cloud",
+      "can": ["Image"],
+      "tier": "Balanced",
+      "aliases": ["FoundryGptImage1"]
     }
   ]
 }

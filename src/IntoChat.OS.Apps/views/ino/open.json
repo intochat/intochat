@@ -424,6 +424,31 @@
                 "available": false,
                 "note": "Ollama is not running",
                 "progress": null
+              },
+              {
+                "id": "DeepSeek-V3.2",
+                "label": "DeepSeek-V3.2 (Azure AI Foundry)",
+                "section": "cloud",
+                "icon": "provider:foundry",
+                "abilities": [
+                  "tools"
+                ],
+                "available": false,
+                "note": "Not configured",
+                "progress": null
+              },
+              {
+                "id": "DeepSeek-R1",
+                "label": "DeepSeek-R1 (Azure AI Foundry)",
+                "section": "cloud",
+                "icon": "provider:foundry",
+                "abilities": [
+                  "tools",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Not configured",
+                "progress": null
               }
             ],
             "activeModelId": "gemma4:12b",

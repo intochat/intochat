@@ -43,6 +43,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
     public static IntegrationSchema[] Integrations => AiIntegrations.All;
     public static IntegrationSchema OpenAIIntegration => AiIntegrations.OpenAI;
     public static IntegrationSchema OpenRouterIntegration => AiIntegrations.OpenRouter;
+    public static IntegrationSchema AzureFoundryIntegration => AiIntegrations.AzureFoundry;
     public static IntegrationSchema TypeSafeIntegration => AiIntegrations.TypeSafe;
     public static ConnectorDefinition[] Connectors => ModelConnectors.All;
 

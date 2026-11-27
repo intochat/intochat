@@ -27,6 +27,7 @@ public static partial class AIHostingExtensions
 
         internal bool EnableSensitiveData { get; set; }
         internal string? Reasoning { get; set; }
+        internal string? AzureFoundryEndpoint { get; set; }
 
         internal void AddModel(ModelCard card)
         {
@@ -87,6 +88,13 @@ public static partial class AIHostingExtensions
                 builder.WithEnvironment(
                     ModuleConfiguration.EnvironmentName(ModuleConfiguration.ModuleOptionsSection("ai"), nameof(AIOptions.Reasoning)),
                     Reasoning.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(AzureFoundryEndpoint))
+            {
+                builder.WithEnvironment(
+                    ModuleConfiguration.EnvironmentName(AIKeys.AzureFoundryEndpoint),
+                    AzureFoundryEndpoint.Trim());
             }
 
             foreach (var ((where, role), modelId) in _roles)

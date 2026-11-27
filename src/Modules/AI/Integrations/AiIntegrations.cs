@@ -11,6 +11,7 @@ internal static class AiIntegrations
 
     internal static IntegrationSchema OpenAI { get; } = Provider("openai", "OpenAI");
     internal static IntegrationSchema OpenRouter { get; } = Provider("openrouter", "OpenRouter");
+    internal static IntegrationSchema AzureFoundry { get; } = Provider("azure-foundry", "Azure AI Foundry");
 
     internal static IntegrationSchema[] Definitions { get; } =
     [
@@ -19,6 +20,7 @@ internal static class AiIntegrations
         Provider("google", "Google"),
         Provider("xai", "xAI"),
         OpenRouter,
+        AzureFoundry,
     ];
 
     // The System One (Jev) integration is not a chat provider and ships no model connectors;
@@ -34,6 +36,7 @@ internal static class AiIntegrations
         AiProvider.Google => "google",
         AiProvider.XAI => "xai",
         AiProvider.OpenRouter => "openrouter",
+        AiProvider.AzureFoundry => "azure-foundry",
         _ => throw new NotSupportedException($"{provider} is not a key-based provider."),
     };
 
@@ -56,6 +59,7 @@ internal static class AiIntegrations
         "google" => AiProvider.Google,
         "xai" => AiProvider.XAI,
         "openrouter" => AiProvider.OpenRouter,
+        "azure-foundry" => AiProvider.AzureFoundry,
         _ => throw new NotSupportedException($"'{id}' has no AI provider."),
     })];
 

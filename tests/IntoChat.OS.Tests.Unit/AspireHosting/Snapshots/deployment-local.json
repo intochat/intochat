@@ -8,7 +8,6 @@
   ],
   "Resources": [
     "Modules-intochat-os-master-key",
-    "Modules-searxng-secret",
     "__dotnet-project-build",
     "ai",
     "aspire",
@@ -19,8 +18,7 @@
     "os-rebuilder",
     "sandbox",
     "sandbox-worker",
-    "web",
-    "web-searxng"
+    "web"
   ],
   "Settings": {
     "IntoChatOS:Modules:ai:Options:ollama:endpoint": "http://localhost:11434",

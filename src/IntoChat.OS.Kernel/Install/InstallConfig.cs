@@ -1,10 +1,11 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using IntoChat.OS.Modules.Microsoft.Azure;
 
 namespace IntoChat.OS.Kernel.Install;
 
 // deployment/<env>.json: what the OS foundation needs that the code cannot know.
-public sealed record InstallConfig
+public sealed partial record InstallConfig
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { ReadCommentHandling = JsonCommentHandling.Skip };
 
@@ -240,13 +241,16 @@ public sealed record InstallConfig
         }
         if (Foundry.Enabled)
         {
-            if (string.IsNullOrWhiteSpace(Foundry.Sku))
-            {
-                throw new InvalidOperationException("The foundry config needs a non-empty sku.");
-            }
+            ValidateFoundryIdentifier("names.foundry", FoundryName, required: true);
+            ValidateFoundryIdentifier("foundry.sku", Foundry.Sku, required: true);
             foreach (var deployment in Foundry.Deployments)
             {
-                if (string.IsNullOrWhiteSpace(deployment.Name) || string.IsNullOrWhiteSpace(deployment.ModelName) || deployment.Capacity <= 0)
+                ValidateFoundryIdentifier("foundry.deployments[].name", deployment.Name, required: true);
+                ValidateFoundryIdentifier("foundry.deployments[].modelName", deployment.ModelName, required: true);
+                ValidateFoundryIdentifier("foundry.deployments[].modelFormat", deployment.ModelFormat, required: true);
+                ValidateFoundryIdentifier("foundry.deployments[].modelVersion", deployment.ModelVersion, required: false);
+                ValidateFoundryIdentifier("foundry.deployments[].skuName", deployment.SkuName, required: true);
+                if (deployment.Capacity <= 0)
                 {
                     throw new InvalidOperationException("Each foundry deployment needs a name, modelName, and positive capacity.");
                 }
@@ -259,6 +263,27 @@ public sealed record InstallConfig
             Postgres = Postgres with { AdminLogin = Postgres.AdminLogin.Length > 0 ? Postgres.AdminLogin : "dbadmin" },
         };
     }
+
+    private static void ValidateFoundryIdentifier(string field, string value, bool required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (required)
+            {
+                throw new InvalidOperationException($"The foundry config needs a non-empty '{field}'.");
+            }
+            return;
+        }
+
+        if (!FoundryIdentifierPattern().IsMatch(value))
+        {
+            throw new InvalidOperationException(
+                $"The foundry config field '{field}' contains invalid characters; only letters, digits, '.', '_' and '-' (1-128 chars) are allowed.");
+        }
+    }
+
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex FoundryIdentifierPattern();
 }
 
 // registry: { "enabled": true, "sku": "Basic" }. Enabled by default.

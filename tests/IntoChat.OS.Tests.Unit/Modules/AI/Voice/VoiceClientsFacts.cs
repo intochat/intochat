@@ -1,4 +1,7 @@
 #pragma warning disable MEAI001 // Unit tests for MEAI speech and realtime voice client resolution.
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Neurons;
@@ -7,6 +10,7 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.AzureFoundry;
 using IntoChat.OS.Modules.AI.Voice;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Devices.Voice;
@@ -160,6 +164,78 @@ public sealed class VoiceClientsFacts
         Assert.Equal(48, wav.Length);
     }
 
+    [Fact]
+    public async Task FoundryHearSpeakAndTalkWorkWithKeylessEntraId()
+    {
+        var foundryRoles = new RoleMap(
+            ImmutableDictionary<ModelRole, ModelId>.Empty,
+            ImmutableDictionary<ModelRole, ModelId>.Empty
+                .Add(ModelRole.Chat, KnownModels.FoundryDeepSeekV32.Id)
+                .Add(ModelRole.Hear, KnownModels.FoundryGpt4oTranscribe.Id)
+                .Add(ModelRole.Speak, KnownModels.FoundryGpt4oMiniTts.Id)
+                .Add(ModelRole.Talk, KnownModels.FoundryGptRealtime.Id));
+
+        using var caller = EnterPerson();
+        var (os, clients) = CreateClients(
+            topology: IntoChatOSNames.TopologyLocal,
+            runtimes: [],
+            roles: foundryRoles,
+            pickedHear: KnownModels.FoundryGpt4oTranscribe.Id,
+            pickedSpeak: KnownModels.FoundryGpt4oMiniTts.Id,
+            foundryEndpoint: "https://intochat-dev.services.ai.azure.com",
+            foundryFactory: new AzureFoundryProviderFactory(static () => new StubTokenProvider()));
+        await using var _ = os;
+
+        var hear = await clients.Hear(Brain, Ct);
+        Assert.Null(hear.Unavailable);
+        Assert.Equal(KnownModels.FoundryGpt4oTranscribe.Id, hear.Model);
+        Assert.NotNull(hear.Client!.GetService<AudioClient>());
+
+        var speak = await clients.Speak(Brain, Ct);
+        Assert.Null(speak.Unavailable);
+        Assert.Equal(KnownModels.FoundryGpt4oMiniTts.Id, speak.Model);
+        Assert.NotNull(speak.Client!.GetService<AudioClient>());
+
+        var talk = await clients.Talk(Brain, Conversation, Ct);
+        Assert.Null(talk.Unavailable);
+        Assert.Equal(KnownModels.FoundryGptRealtime.Id, talk.Model);
+        Assert.False(talk.RecordsItself);
+        Assert.Equal(24_000, talk.InputRate);
+        Assert.IsType<OpenAIRealtimeClient>(talk.Client!.GetService<OpenAIRealtimeClient>());
+    }
+
+    [Fact]
+    public async Task CloudSteppedTalkFallsBackToEnergyVadWithoutSileroOnnx()
+    {
+        var cloudSteppedRoles = new RoleMap(
+            ImmutableDictionary<ModelRole, ModelId>.Empty,
+            ImmutableDictionary<ModelRole, ModelId>.Empty
+                .Add(ModelRole.Chat, KnownModels.FoundryDeepSeekV32.Id)
+                .Add(ModelRole.Hear, KnownModels.FoundryGpt4oTranscribe.Id)
+                .Add(ModelRole.Speak, KnownModels.FoundryGpt4oMiniTts.Id));
+
+        using var caller = EnterPerson();
+        var (os, clients) = CreateClients(
+            topology: IntoChatOSNames.TopologyLocal,
+            runtimes: [],
+            roles: cloudSteppedRoles,
+            pickedHear: KnownModels.FoundryGpt4oTranscribe.Id,
+            pickedSpeak: KnownModels.FoundryGpt4oMiniTts.Id,
+            vad: null,
+            chatClient: new StubChatClient(),
+            foundryEndpoint: "https://intochat-dev.services.ai.azure.com",
+            foundryFactory: new AzureFoundryProviderFactory(static () => new StubTokenProvider()));
+        await using var _ = os;
+
+        var talk = await clients.Talk(Brain, Conversation, Ct);
+
+        Assert.Null(talk.Unavailable);
+        Assert.NotNull(talk.Client);
+        Assert.IsType<LocalTalk>(talk.Client!.GetService<LocalTalk>());
+        Assert.True(talk.RecordsItself);
+        Assert.Equal(16_000, talk.InputRate);
+    }
+
     private static (TestOS Os, VoiceClients Clients) CreateClients(
         string topology,
         IReadOnlyList<ILocalRuntime> runtimes,
@@ -169,7 +245,9 @@ public sealed class VoiceClientsFacts
         ModelId? pickedChat = null,
         IAiCredentials? credentials = null,
         IVoiceActivityDetector? vad = null,
-        IChatClient? chatClient = null)
+        IChatClient? chatClient = null,
+        string? foundryEndpoint = null,
+        AzureFoundryProviderFactory? foundryFactory = null)
     {
         StubCatalogNeuron.ConfiguredRoles = roles;
         StubCatalogNeuron.Picked = new Dictionary<ModelRole, ModelId?>
@@ -180,11 +258,17 @@ public sealed class VoiceClientsFacts
         };
 
         var os = TestOS.Local().Register<StubCatalogNeuron>();
+        var settings = new Dictionary<string, string?>
+        {
+            [IntoChatOSNames.TopologyKey] = topology,
+        };
+        if (foundryEndpoint is not null)
+        {
+            settings[AIKeys.AzureFoundryEndpoint] = foundryEndpoint;
+        }
+
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [IntoChatOSNames.TopologyKey] = topology,
-            })
+            .AddInMemoryCollection(settings)
             .Build();
 
         var clients = new VoiceClients(
@@ -195,7 +279,8 @@ public sealed class VoiceClientsFacts
             vad: vad,
             chatFactory: chatClient is null
                 ? null
-                : (_, _, _) => Task.FromResult<IChatClient?>(chatClient));
+                : (_, _, _) => Task.FromResult<IChatClient?>(chatClient),
+            foundryFactory: foundryFactory);
 
         return (os, clients);
     }
@@ -354,5 +439,17 @@ public sealed class VoiceClientsFacts
             public VoiceActivity Push(ReadOnlySpan<byte> pcm16) => new(false, TimeSpan.Zero, []);
             public void Dispose() { }
         }
+    }
+
+    private sealed class StubTokenProvider : AuthenticationTokenProvider
+    {
+        public override GetTokenOptions? CreateTokenOptions(IReadOnlyDictionary<string, object> properties)
+            => new(properties);
+
+        public override AuthenticationToken GetToken(GetTokenOptions options, CancellationToken cancellationToken)
+            => new("stub-bearer-token", "Bearer", DateTimeOffset.UtcNow.AddHours(1));
+
+        public override ValueTask<AuthenticationToken> GetTokenAsync(GetTokenOptions options, CancellationToken cancellationToken)
+            => ValueTask.FromResult(GetToken(options, cancellationToken));
     }
 }

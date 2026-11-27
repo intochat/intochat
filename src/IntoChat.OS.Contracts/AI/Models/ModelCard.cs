@@ -81,7 +81,7 @@ public static class ModelCards
         ArgumentNullException.ThrowIfNull(card);
         return card.Provider switch
         {
-            AiProvider.FoundryLocal => "provider:foundry",
+            AiProvider.FoundryLocal or AiProvider.AzureFoundry => "provider:foundry",
             AiProvider.TypeSafe or AiProvider.Host => "brand:intochat",
             _ => "provider:" + card.Provider.ToString().ToLowerInvariant(),
         };
