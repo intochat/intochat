@@ -10,11 +10,8 @@ public interface IEngineerRuns
 {
     const string DefaultKey = "engineer/runs";
 
-    // The flow type of an engineering run across 1..N worktrees (EngineerFlow): the one flow type new engineering work starts.
+    // The flow type of an engineering run across 1..N worktrees (EngineerFlow): the one flow type engineering work runs on.
     const string EngineerFlow = "flow.engineer";
-
-    // The retired single-worktree flow type (FeatureToPrFlow). Nothing starts it; it stays hosted so a run already in flight finishes.
-    const string ChangeFlow = "flow.change";
 
     // The durable PR review pipeline flow type (PrReviewFlow).
     const string PrReviewFlow = "flow.pr-review";

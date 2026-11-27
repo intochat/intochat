@@ -267,10 +267,10 @@ public static class CreatorView
             children.Add(MutedText("No runtime units installed yet."));
         }
 
-        // 3. Active Flows (Vertical list covering EngineerFlow, ChangeFlow, and BuildFlow)
+        // 3. Active Flows (Vertical list covering EngineerFlow and BuildFlow)
         children.Add(SectionHeader("Active Flows"));
         var activeFlows = flows
-            .Where(f => f.Type is IEngineerRuns.EngineerFlow or IEngineerRuns.ChangeFlow or BuildInner.Flow)
+            .Where(f => f.Type is IEngineerRuns.EngineerFlow or BuildInner.Flow)
             .OrderByDescending(f => f.Started)
             .Take(10)
             .ToArray();

@@ -59,9 +59,8 @@ public sealed class InoProposeChangeFacts : IDisposable
             v => v.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed);
         Assert.True(waiting is { Status: FlowStatus.Waiting, WaitingStep: "approval-gate" }, $"{waiting.Status} at {waiting.WaitingStep}: {waiting.Detail}");
 
-        // The one flow: an engineering run, and no flow.change beside it.
+        // The one flow: an engineering run.
         Assert.Equal(IEngineerRuns.EngineerFlow, waiting.Type);
-        Assert.Empty(await flows.List(new FlowQuery(Type: IEngineerRuns.ChangeFlow), Ct));
         Assert.StartsWith("app:engineer:", waiting.ConfirmationPlanId!, StringComparison.Ordinal);
 
         // The gates ran: build-and-test and live-verify, once each, and the run records that none was switched off.

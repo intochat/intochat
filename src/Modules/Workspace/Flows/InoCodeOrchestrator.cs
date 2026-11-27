@@ -119,58 +119,6 @@ internal sealed class InoCodeOrchestrator(
             Summaries: [.. summaries]);
     }
 
-    public Task<IReadOnlyList<WorktreeSymbolInfo>> FindSymbolsAsync(
-        string worktreePath,
-        string? relativeFilter = null,
-        CancellationToken ct = default)
-        => _roslyn.InspectSymbolsAsync(worktreePath, relativeFilter, ct);
-
-    public Task<WorktreeEditSummary> AddOrReplaceMemberAsync(
-        string worktreePath,
-        string relativePath,
-        string typeName,
-        string memberName,
-        string memberSource,
-        IReadOnlyList<string>? sliceOwnedPaths = null,
-        CancellationToken ct = default)
-        => ApplyAstEditsAsync(
-            worktreePath,
-            [
-                new WorktreeCSharpEdit(
-                    Kind: WorktreeCSharpEditKind.AddOrReplaceMember,
-                    RelativePath: relativePath,
-                    TypeName: typeName,
-                    MemberName: memberName,
-                    Source: memberSource),
-            ],
-            sliceOwnedPaths,
-            ct);
-
-    public Task<WorktreeEditSummary> CreateTypeFileAsync(
-        string worktreePath,
-        string relativePath,
-        string namespaceName,
-        string typeName,
-        string? typeKind,
-        string? baseTypes,
-        string bodySource,
-        IReadOnlyList<string>? sliceOwnedPaths = null,
-        CancellationToken ct = default)
-        => ApplyAstEditsAsync(
-            worktreePath,
-            [
-                new WorktreeCSharpEdit(
-                    Kind: WorktreeCSharpEditKind.CreateTypeFile,
-                    RelativePath: relativePath,
-                    TypeName: typeName,
-                    NamespaceName: namespaceName,
-                    Source: bodySource,
-                    TypeKind: typeKind,
-                    BaseTypes: baseTypes),
-            ],
-            sliceOwnedPaths,
-            ct);
-
     public async Task<WorktreeEditSummary> ApplyAstEditsAsync(
         string worktreePath,
         IReadOnlyList<WorktreeCSharpEdit> edits,
@@ -192,22 +140,10 @@ internal sealed class InoCodeOrchestrator(
         return await _roslyn.ApplyEditsAsync(normalizedRoot, normalizedEdits, ct).ConfigureAwait(false);
     }
 
-    public Task<IReadOnlyList<WorktreeDiagnostic>> GetSemanticDiagnosticsAsync(
-        string worktreePath,
-        IReadOnlyList<string>? relativePaths = null,
-        CancellationToken ct = default)
-        => _roslyn.AnalyzeAsync(worktreePath, relativePaths, ct);
-
-    public Task<IReadOnlyList<WorktreeDiagnostic>> GetSliceDiagnosticsAsync(
-        string worktreePath,
-        IReadOnlyList<string> touchedFiles,
-        CancellationToken ct = default)
-        => GetSliceDiagnosticsAsync(worktreePath, touchedFiles, sliceOwnedPaths: null, ct);
-
     public async Task<IReadOnlyList<WorktreeDiagnostic>> GetSliceDiagnosticsAsync(
         string worktreePath,
         IReadOnlyList<string> touchedFiles,
-        IReadOnlyList<string>? sliceOwnedPaths,
+        IReadOnlyList<string>? sliceOwnedPaths = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);

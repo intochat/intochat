@@ -204,8 +204,8 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
     {
         const string sampleFile = "Flows/EngineerFlow.cs";
 
-        // 1. Unconfigured CandidateHostLiveVerifier fails closed (never placebo green).
-        var unconfiguredBridge = new CandidateHostLiveVerifier(candidateHost: null);
+        // 1. Unconfigured CandidateLiveVerifier fails closed (never placebo green).
+        var unconfiguredBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(candidateHost: null);
         Assert.False(unconfiguredBridge.IsConfigured);
 
         var unconfiguredReport = await unconfiguredBridge.VerifyCandidateAsync(
@@ -215,10 +215,12 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         Assert.False(unconfiguredReport.HostHealthy);
         Assert.Contains(unconfiguredReport.Probes, static p => p.Name == "candidate-host-required" && !p.Passed);
 
-        // 2. Wired ICandidateHost via DI configures EngineerLiveVerifier and runs Publish -> Run -> WaitHealthy -> Remove.
+        // 2. Wired ICandidateHost via DI configures EngineerLiveVerifier, boots directly from CommitSha (no double-Prepare),
+        //    and runs real /brains/{brainId}/mcp JSON-RPC checks (neurons_context + neurons_list).
         var fakeHost = new RecordingCandidateHost(healthy: true);
-        var okHttp = new HttpClient(new StubHttpHandler(HttpStatusCode.OK, "{\"status\":\"Healthy\"}"));
-        var hostBridge = new CandidateHostLiveVerifier(fakeHost, httpClientFactory: null, httpClient: okHttp, TimeSpan.FromSeconds(5));
+        var mcpHandler = new StubHttpHandler(HttpStatusCode.OK, "{\"status\":\"Healthy\"}");
+        var okHttp = new HttpClient(mcpHandler);
+        var hostBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(fakeHost, httpClient: okHttp, healthBudget: TimeSpan.FromSeconds(5));
         Assert.True(hostBridge.IsConfigured);
 
         await using var sp = new ServiceCollection()
@@ -232,16 +234,29 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
             Path.GetTempPath(),
             "Verify candidate host path",
             [sampleFile],
-            new EngineerLiveContext(CommitSha: "0123456789abcdef"),
+            new EngineerLiveContext(CommitSha: "0123456789abcdef", BrainId: "owner"),
             Ct);
 
         Assert.True(passReport.Succeeded, passReport.Summary);
         Assert.True(passReport.HostHealthy);
+        Assert.True(passReport.McpProbesPassed);
         Assert.Equal(["publish:0123456789ab", "run:0123456789ab", "healthy:0123456789ab", "remove:0123456789ab"], fakeHost.Calls);
+        Assert.Contains(mcpHandler.PostPaths, static p => p.EndsWith("/brains/owner/mcp", StringComparison.Ordinal));
+
+        // 2b. MCP JSON-RPC error fails closed even when /health returns 200.
+        var errorMcpHost = new RecordingCandidateHost(healthy: true);
+        var errorMcpHttp = new HttpClient(new StubHttpHandler(HttpStatusCode.OK, "{\"status\":\"Healthy\"}", mcpJsonRpcError: true));
+        var errorMcpBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(errorMcpHost, httpClient: errorMcpHttp, healthBudget: TimeSpan.FromSeconds(5));
+        var errorMcpReport = await errorMcpBridge.VerifyCandidateAsync(
+            new CandidateLiveVerificationRequest(Path.GetTempPath(), "MCP error fails closed", [sampleFile], CommitSha: "3334567890ab", BrainId: "owner"),
+            Ct);
+        Assert.False(errorMcpReport.Succeeded);
+        Assert.False(errorMcpReport.McpProbesPassed);
+        Assert.Contains("remove:3334567890ab", errorMcpHost.Calls);
 
         // 3. Failing candidate host fails closed and still cleans up the candidate.
         var failingHost = new RecordingCandidateHost(healthy: false);
-        var failingBridge = new CandidateHostLiveVerifier(failingHost, httpClientFactory: null, httpClient: okHttp, TimeSpan.FromSeconds(5));
+        var failingBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(failingHost, httpClient: okHttp, healthBudget: TimeSpan.FromSeconds(5));
         using var failingVerifier = new EngineerLiveVerifier(candidateHostVerifier: failingBridge);
 
         var failReport = await failingVerifier.VerifyLiveAsync(
@@ -257,7 +272,7 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
 
         // 3b. Null HttpClient / IHttpClientFactory fails closed, and invalid HealthPath is rejected fail-closed.
         var noHttpHost = new RecordingCandidateHost(healthy: true);
-        var noHttpBridge = new CandidateHostLiveVerifier(noHttpHost, httpClientFactory: null, httpClient: null, TimeSpan.FromSeconds(5));
+        var noHttpBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(noHttpHost, httpClient: null, healthBudget: TimeSpan.FromSeconds(5));
         var noHttpReport = await noHttpBridge.VerifyCandidateAsync(
             new CandidateLiveVerificationRequest(Path.GetTempPath(), "No http client", [sampleFile], CommitSha: "1234567890ab"),
             Ct);
@@ -268,13 +283,13 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         Assert.Contains("remove:1234567890ab", noHttpHost.Calls);
 
         var badPathHost = new RecordingCandidateHost(healthy: true);
-        var badPathBridge = new CandidateHostLiveVerifier(badPathHost, httpClientFactory: null, httpClient: okHttp, TimeSpan.FromSeconds(5));
+        var badPathBridge = new IntoChat.Aspire.Verification.CandidateLiveVerifier(badPathHost, httpClient: okHttp, healthBudget: TimeSpan.FromSeconds(5));
         var badPathReport = await badPathBridge.VerifyCandidateAsync(
             new CandidateLiveVerificationRequest(Path.GetTempPath(), "Bad health path", [sampleFile], CommitSha: "2234567890ab", HealthPath: "//evil.example/health"),
             Ct);
         Assert.False(badPathReport.Succeeded);
         Assert.False(badPathReport.HostHealthy);
-        Assert.Contains("remove:2234567890ab", badPathHost.Calls);
+        Assert.Empty(badPathHost.Calls);
 
         // 4. ProcessCandidateHost scrubs host custody keys and presence tokens before spawning candidate process.
         ProcessStartInfo? capturedStartInfo = null;
@@ -431,13 +446,29 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         public Task<string[]> Orphans(string[] known, CancellationToken ct) => Task.FromResult<string[]>([]);
     }
 
-    private sealed class StubHttpHandler(HttpStatusCode status, string body) : HttpMessageHandler
+    private sealed class StubHttpHandler(HttpStatusCode status, string body, bool mcpJsonRpcError = false) : HttpMessageHandler
     {
+        public List<string> PostPaths { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(new HttpResponseMessage(status)
+        {
+            if (request.Method == HttpMethod.Post && request.RequestUri is { } uri)
+            {
+                PostPaths.Add(uri.AbsolutePath);
+                var mcpBody = mcpJsonRpcError
+                    ? """{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[{"type":"text","text":"tool failed"}]}}"""
+                    : """{"jsonrpc":"2.0","id":1,"result":{"isError":false,"content":[{"type":"text","text":"{\"brainId\":\"owner\"}"}]}}""";
+                return Task.FromResult(new HttpResponseMessage(status)
+                {
+                    Content = new StringContent(mcpBody, Encoding.UTF8, "application/json"),
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });
+        }
     }
 
     private sealed class NoOpProcessRunner : IProcessRunner

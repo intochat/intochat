@@ -18,8 +18,7 @@ internal sealed record EngineerPullRequestContext(
     EngineerVerificationPolicy? Verification = null);
 
 /// <summary>
-/// The pipeline stages of <see cref="EngineerFlow"/> (<c>flow.engineer</c>): worktrees, the approval gate, push, pull request,
-/// cleanup. The retired <see cref="FeatureToPrFlow"/> (<c>flow.change</c>) finishes its in-flight runs through the same code.
+/// The pipeline stages of <see cref="EngineerFlow"/> (<c>flow.engineer</c>): worktrees, the approval gate, push, pull request, cleanup.
 /// </summary>
 internal static class EngineerPipelineStages
 {

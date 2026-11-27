@@ -138,8 +138,8 @@ public sealed class ChangeFacts
             .WithPushed("owner-1", Sha, "refs/heads/ino/test-run1")
             .WithPullRequest("https://github.com/intochat/os/pull/42")
             .WithCleaned();
-        var json = JsonSerializer.Serialize(full, FeatureToPrFlow.Json);
-        var restored = JsonSerializer.Deserialize<Change>(json, FeatureToPrFlow.Json);
+        var json = JsonSerializer.Serialize(full, EngineerPipelineStages.Json);
+        var restored = JsonSerializer.Deserialize<Change>(json, EngineerPipelineStages.Json);
         Assert.NotNull(restored);
         Assert.Equal(full.RunId, restored.RunId);
         Assert.Equal(full.Repository, restored.Repository);
