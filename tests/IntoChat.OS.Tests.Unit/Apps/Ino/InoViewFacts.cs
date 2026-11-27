@@ -562,10 +562,10 @@ public sealed class InoViewFacts
     [Fact]
     public void SessionsSectionDrawsNewestConversationsFirstAboveTheThread()
     {
-        var page = new SessionPage(
+        var page = new ThreadPage(
         [
-            new ConversationSession("main", "Current chat", At, false),
-            new ConversationSession("c-6c8edd77", "Bergen trip", At.AddMinutes(-5), false),
+            new ThreadEntry("main", "Current chat", At, false),
+            new ThreadEntry("c-6c8edd77", "Bergen trip", At.AddMinutes(-5), false),
         ], 2);
         var state = new InoAppState() with { ActiveSection = "chats" };
 

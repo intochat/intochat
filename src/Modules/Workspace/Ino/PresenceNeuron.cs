@@ -62,7 +62,7 @@ internal sealed class PresenceNeuron(
         await Context.Wires.EnsureBrainWide([
             .. AgentSignals.All,
             typeof(ConversationChanged),
-            typeof(SessionsChanged),
+            typeof(ThreadDirectoryChanged),
             typeof(ContextUpdated),
             typeof(ContextRemoved),
             typeof(ConfirmationRequested),
@@ -71,7 +71,7 @@ internal sealed class PresenceNeuron(
             typeof(FlowWaiting),
             typeof(FlowDone),
         ]);
-        await Quietly(async () => _conversationId = await Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current(), "sessions");
+        await Quietly(async () => _conversationId = await Get<IThreadDirectory>(new NeuronId(Id.Brain, Threads.Type, IThreadDirectory.DefaultKey)).Current(), "sessions");
         await Rebuild();
     }
 
@@ -125,11 +125,11 @@ internal sealed class PresenceNeuron(
     public Task<Presence> Read(CancellationToken ct = default) => Task.FromResult(State);
 
     [On]
-    public async Task OnSessionsChanged(SessionsChanged changed)
+    public async Task OnSessionsChanged(ThreadDirectoryChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
         string? next = _conversationId;
-        await Quietly(async () => next = await Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current(), "sessions");
+        await Quietly(async () => next = await Get<IThreadDirectory>(new NeuronId(Id.Brain, Threads.Type, IThreadDirectory.DefaultKey)).Current(), "sessions");
         if (string.Equals(next, _conversationId, StringComparison.Ordinal)) { return; }
         _conversationId = next;
         await Rebuild();

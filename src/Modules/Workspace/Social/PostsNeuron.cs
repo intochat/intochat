@@ -244,11 +244,19 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
         if (IsSameBrainCaller()) { return new(caller.For?.Account ?? Id.Brain.Value, OwnSide: true); }
 
         var account = caller.For?.Account;
-        if (string.IsNullOrEmpty(account) || !await RoomFriends.IsFriend(services, Id.Brain, new AccountId(account)).ConfigureAwait(true))
+        if (string.IsNullOrEmpty(account) || !await IsFriendAsync(new AccountId(account)).ConfigureAwait(true))
         {
             throw Refused();
         }
         return new(account, OwnSide: false);
+    }
+
+    private async Task<bool> IsFriendAsync(AccountId account)
+    {
+        if (services?.GetService(typeof(IFriendCheck)) is not IFriendCheck roster) { return false; }
+        var edge = services.GetService(typeof(EdgeAuthority)) as EdgeAuthority;
+        using var module = edge?.Enter(edge.Module("social.posts", Id.Brain));
+        return await roster.IsFriend(Id.Brain, account.Value).ConfigureAwait(true);
     }
 
     private Reader RequireOwnSide()

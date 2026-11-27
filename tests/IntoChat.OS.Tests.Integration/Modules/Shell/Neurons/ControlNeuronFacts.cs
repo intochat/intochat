@@ -21,18 +21,18 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
         using var person = runtime.As(Who.Person);
-        var id = runtime.Id(Sessions.Type, "apps/ino-data/chats");
-        var index = runtime.Get<ISessionList>(id);
+        var id = runtime.Id(Threads.Type, "apps/ino-data/chats");
+        var index = runtime.Get<IThreadDirectory>(id);
 
-        await index.Create("main", Sessions.NewChat);
+        await index.Create("main", Threads.NewChat);
         await index.Touch("main", "  plan   the week  ");
         await index.Archive("main");
-        await Assert.ThrowsAsync<ArgumentException>(() => index.Archive("not-an-id"));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => index.Archive("not-an-id"));
 
         Assert.Equal("plan the week", (await index.Get("main"))!.Title);
         Assert.Empty((await index.List(archived: false)).Entries);
         Assert.Equal("main", Assert.Single((await index.List(archived: true)).Entries).Id);
-        var changes = await runtime.WaitForSignals<SessionsChanged>(id, 3, Within, ct);
+        var changes = await runtime.WaitForSignals<ThreadDirectoryChanged>(id, 3, Within, ct);
         Assert.All(changes, change => Assert.Equal($"{id.Brain.Value}/apps/ino-data/chats", change.Name));
         Assert.Equal([1L, 2L, 3L], changes.Select(change => change.Revision));
     }

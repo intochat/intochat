@@ -34,7 +34,8 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.UI.StatusKind>(services);
         AddEnum<IntoChat.OS.Modules.AI.Agents.AgentFailure>(services);
         AddEnum<IntoChat.OS.Modules.AI.Agents.AgentRunStatus>(services);
-        AddEnum<IntoChat.OS.Modules.AI.GroupChat.GroupChatStatus>(services);
+        AddEnum<IntoChat.OS.Modules.Flutter.Conversations.ThreadTrustPosture>(services);
+        AddEnum<IntoChat.OS.Modules.Flutter.Conversations.ThreadKind>(services);
         AddEnum<IntoChat.OS.Modules.AI.Inference.CapabilitySupport>(services);
         AddEnum<IntoChat.OS.Modules.AI.Media.MediaOperation>(services);
         AddEnum<IntoChat.OS.Modules.AI.Memory.EdgeDirection>(services);

@@ -42,7 +42,9 @@ public sealed class AgentAppScreenFacts
             return Task.CompletedTask;
         }
 
-        public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
+        public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
+
+        public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null)
         {
             SaidTexts.Add(text);
             var runId = $"r{_runs.Count + 1}";
@@ -58,7 +60,14 @@ public sealed class AgentAppScreenFacts
 
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => Task.CompletedTask;
-        public Task Invite(AccountId friend) => Task.CompletedTask;
+        public Task Invite(AccountId friend, BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => Task.CompletedTask;
+        public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+        public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+        public Task Here() => Task.CompletedTask;
+        public Task Leave() => Task.CompletedTask;
+        public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+        public Task Edit(EntryId target, string text) => Task.CompletedTask;
+        public Task Delete(EntryId target) => Task.CompletedTask;
         public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
         public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
 

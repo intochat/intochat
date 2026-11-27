@@ -183,7 +183,7 @@ internal static class ModelContext
                     continue;
 
                 case Said said:
-                    if (supersededReplies.Contains(said.Id))
+                    if (said.Deleted || supersededReplies.Contains(said.Id))
                     {
                         continue;
                     }

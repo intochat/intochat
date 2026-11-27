@@ -61,8 +61,8 @@ public sealed class OsAppsMixStyleFacts
                 ActiveSection = "chats",
                 Error = new InoError("no-provider", "Connect a model"),
             },
-            sessions: new IntoChat.OS.Modules.Flutter.Conversations.SessionPage(
-                [new IntoChat.OS.Modules.Flutter.Conversations.ConversationSession("main", "Welcome", DateTimeOffset.UtcNow, false)],
+            sessions: new IntoChat.OS.Modules.Flutter.Conversations.ThreadPage(
+                [new IntoChat.OS.Modules.Flutter.Conversations.ThreadEntry("main", "Welcome", DateTimeOffset.UtcNow, false)],
                 1)).Root;
         AssertStructuredMixStyles("Ino", inoNode, expectedMinStyles: 3);
 

@@ -8,7 +8,6 @@ using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Host.Logging;
-using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
@@ -51,10 +50,10 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
     private IBrainKeys Keys => Context.Get<IBrainKeys>(IBrainKeys.Id(Id.Brain));
-    private IRooms Rooms => Context.Get<IRooms>(new NeuronId(Id.Brain, "social.rooms", IRooms.DefaultKey));
+    private IThreadDirectory Rooms => Context.Get<IThreadDirectory>(new NeuronId(Id.Brain, Threads.Type, IThreadDirectory.DefaultKey));
 
-    // A host that carries the roster without the rooms index keeps the invitations in the roster, as before.
-    private bool RoomsHosted => Context.ClassOf("social.rooms") is not null;
+    // A host that carries the roster without the thread directory keeps the invitations in the roster, as before.
+    private bool RoomsHosted => Context.ClassOf(Threads.Type) is not null;
     private IOffers Offers => Context.Offers;
 
     public async Task<Code> Mint()

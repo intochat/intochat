@@ -136,7 +136,13 @@ internal abstract class InterleavingRunHost<TState>(
         await Resume();
     }
 
-    protected Task AwaitPendingWrite() => _write is { } pending ? pending.Task : Task.CompletedTask;
+    protected async Task AwaitPendingWrite()
+    {
+        while (_write is { } pending)
+        {
+            await pending.Task;
+        }
+    }
 
     protected async Task<TState> ReadCommittedAsync()
     {
@@ -392,6 +398,8 @@ internal abstract class InterleavingRunHost<TState>(
         CancellationToken callerToken,
         string timedOutMessage) : IDisposable
     {
+        private bool _disposed;
+
         public CancellationToken Token => lifetime.Token;
         public string TimedOutMessage => timedOutMessage;
         // Only the run's own time limit is a timeout; the caller's token and Cancel are cancellations.
@@ -405,7 +413,12 @@ internal abstract class InterleavingRunHost<TState>(
 
         public void Dispose()
         {
-            host._active = null;
+            if (_disposed) { return; }
+            _disposed = true;
+            if (ReferenceEquals(host._active, lifetime))
+            {
+                host._active = null;
+            }
             lifetime.Dispose();
             timeout.Dispose();
         }
