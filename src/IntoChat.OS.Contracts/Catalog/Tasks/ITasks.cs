@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Signals;
-using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Modules.Apps.Tasks;
 
@@ -139,7 +138,7 @@ public interface ITasks
     /// <summary>
     /// Answers a pending multi-option question on a task. Enforces person-only authority: agents and apps are refused.
     /// </summary>
-    [PersonOnly]
+    [RequiresPerson]
     Task<TaskRecord> AnswerAsk(
         string taskId,
         string selectedOption);
