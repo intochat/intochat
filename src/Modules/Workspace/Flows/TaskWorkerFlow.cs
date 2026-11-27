@@ -135,45 +135,45 @@ public sealed class TaskWorkerFlow(AgentStepOptions? options = null) : AgentFlow
                     return await Ask(step, inner, BuildPrompt(inner)).ConfigureAwait(true);
 
                 case "ask":
-                {
-                    var parsed = ParseWorkerReply(inner.Reply);
-                    if (parsed.Artifacts.Length > 0)
                     {
-                        inner.Artifacts = parsed.Artifacts;
-                    }
-                    if (!string.IsNullOrWhiteSpace(parsed.Summary))
-                    {
-                        inner.Summary = parsed.Summary;
-                    }
+                        var parsed = ParseWorkerReply(inner.Reply);
+                        if (parsed.Artifacts.Length > 0)
+                        {
+                            inner.Artifacts = parsed.Artifacts;
+                        }
+                        if (!string.IsNullOrWhiteSpace(parsed.Summary))
+                        {
+                            inner.Summary = parsed.Summary;
+                        }
 
-                    if (parsed.Ask is null)
-                    {
-                        return new StepResult<TaskWorkerInner>(inner, Disposition: StepDisposition.Skip, Reason: "No human decision needed.");
-                    }
+                        if (parsed.Ask is null)
+                        {
+                            return new StepResult<TaskWorkerInner>(inner, Disposition: StepDisposition.Skip, Reason: "No human decision needed.");
+                        }
 
-                    inner.PendingAsk = parsed.Ask;
-                    inner.AskPlanId ??= $"task-ask:{Id.Key}";
-                    inner.AskExpires = Context.Time.GetUtcNow() + AskWindow;
-                    await TryAskTaskAsync(inner.TaskId, parsed.Ask, inner.AskPlanId).ConfigureAwait(true);
-                    return inner.WaitApproval(step, inner.AskExpires);
-                }
+                        inner.PendingAsk = parsed.Ask;
+                        inner.AskPlanId ??= $"task-ask:{Id.Key}";
+                        inner.AskExpires = Context.Time.GetUtcNow() + AskWindow;
+                        await TryAskTaskAsync(inner.TaskId, parsed.Ask, inner.AskPlanId).ConfigureAwait(true);
+                        return inner.WaitApproval(step, inner.AskExpires);
+                    }
 
                 case "finalize":
-                {
-                    var summary = !string.IsNullOrWhiteSpace(inner.Summary)
-                        ? inner.Summary!
-                        : !string.IsNullOrWhiteSpace(inner.SelectedOption)
-                            ? $"Completed with human choice: {inner.SelectedOption}"
-                            : (!string.IsNullOrWhiteSpace(inner.Reply) ? inner.Reply!.Trim() : $"Completed {State.Title}");
-                    inner.Summary = summary;
-
-                    foreach (var artifact in inner.Artifacts)
                     {
-                        await TryLinkArtifactAsync(inner.TaskId, artifact).ConfigureAwait(true);
+                        var summary = !string.IsNullOrWhiteSpace(inner.Summary)
+                            ? inner.Summary!
+                            : !string.IsNullOrWhiteSpace(inner.SelectedOption)
+                                ? $"Completed with human choice: {inner.SelectedOption}"
+                                : (!string.IsNullOrWhiteSpace(inner.Reply) ? inner.Reply!.Trim() : $"Completed {State.Title}");
+                        inner.Summary = summary;
+
+                        foreach (var artifact in inner.Artifacts)
+                        {
+                            await TryLinkArtifactAsync(inner.TaskId, artifact).ConfigureAwait(true);
+                        }
+                        await TryTransitionTaskAsync(inner.TaskId, TaskStatus.Completed, summary, Id.ToString()).ConfigureAwait(true);
+                        return inner.Advance();
                     }
-                    await TryTransitionTaskAsync(inner.TaskId, TaskStatus.Completed, summary, Id.ToString()).ConfigureAwait(true);
-                    return inner.Advance();
-                }
 
                 default:
                     throw new FlowFailed(step, $"Unknown step {step}.");
