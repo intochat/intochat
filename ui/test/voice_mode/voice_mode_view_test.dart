@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:stream_channel/stream_channel.dart';
@@ -149,44 +150,64 @@ class _FakeOut implements AudioOut {
   }
 }
 
-Widget _host(Widget child) =>
-    MaterialApp(theme: UiTheme.intochat(Brightness.light), home: child);
+Widget _host(Widget child, {Brightness brightness = Brightness.light}) =>
+    MaterialApp(
+      theme: UiTheme.intochat(brightness),
+      home: Scaffold(body: Center(child: child)),
+    );
 
-Future<({_FakeServer server, _FakeMic mic, _FakeOut out})> _pumpOrbRoute(
-  WidgetTester tester,
-) async {
+Future<
+  ({
+    _FakeServer server,
+    _FakeMic mic,
+    _FakeOut out,
+    ValueNotifier<bool> open,
+    int Function() connectCount,
+  })
+>
+_pumpDockedHud(
+  WidgetTester tester, {
+  Key? hudKey,
+  bool initialExpanded = false,
+  Brightness brightness = Brightness.light,
+}) async {
   final server = _FakeServer();
   final socket = server.createSocket();
   final mic = _FakeMic();
   final out = _FakeOut();
+  final open = ValueNotifier<bool>(true);
+  var connects = 0;
 
   await tester.pumpWidget(
     _host(
-      Scaffold(
-        body: Builder(
-          builder: (context) => TextButton(
-            onPressed: () {
-              Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  fullscreenDialog: true,
-                  builder: (_) => VoiceModeView(
-                    connect: () async => socket,
-                    mic: mic,
-                    out: out,
-                  ),
-                ),
-              );
+      ValueListenableBuilder<bool>(
+        valueListenable: open,
+        builder: (context, isOpen, _) {
+          if (!isOpen) return const Text('Closed');
+          return VoiceModeView(
+            key: hudKey,
+            connect: () async {
+              connects++;
+              return socket;
             },
-            child: const Text('Open'),
-          ),
-        ),
+            mic: mic,
+            out: out,
+            initialExpanded: initialExpanded,
+            onClose: () => open.value = false,
+          );
+        },
       ),
+      brightness: brightness,
     ),
   );
-  await tester.tap(find.text('Open'));
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 350));
-  return (server: server, mic: mic, out: out);
+  return (
+    server: server,
+    mic: mic,
+    out: out,
+    open: open,
+    connectCount: () => connects,
+  );
 }
 
 void main() {
@@ -199,7 +220,10 @@ void main() {
       final out = _FakeOut();
 
       await t.pumpWidget(
-        _host(VoiceModeView(connect: () async => socket, mic: mic, out: out)),
+        MaterialApp(
+          theme: UiTheme.intochat(Brightness.light),
+          home: VoiceModeView(connect: () async => socket, mic: mic, out: out),
+        ),
       );
       mic.emit(Uint8List(640));
       server.audio(Uint8List(960));
@@ -212,34 +236,179 @@ void main() {
   );
 
   testWidgets('cancel from the Kernel drops queued audio', (t) async {
-    final h = await _pumpOrbRoute(t);
+    final h = await _pumpDockedHud(t);
     h.server.event({'type': 'cancel'});
     await t.pump();
     expect(h.out.flushes, 1);
   });
 
   testWidgets('tapping the orb interrupts', (t) async {
-    final h = await _pumpOrbRoute(t);
+    final h = await _pumpDockedHud(t);
     await t.tap(find.byKey(const ValueKey('voice-orb')));
     await t.pump();
     expect(h.server.sentJson.last, {'type': 'interrupt'});
     expect(h.out.flushes, 1);
   });
 
-  testWidgets('close ends the session', (t) async {
-    final h = await _pumpOrbRoute(t);
+  testWidgets('close button and Escape key end the session cleanly', (t) async {
+    final h = await _pumpDockedHud(t);
     await t.tap(find.byKey(const ValueKey('voice-close')));
-    await t.pumpAndSettle();
+    await t.pump();
     expect(h.server.sentJson.last, {'type': 'end'});
     expect(h.mic.stopped, isTrue);
     expect(h.out.stops, greaterThanOrEqualTo(1));
     expect(find.byType(VoiceModeView), findsNothing);
+
+    final h2 = await _pumpDockedHud(t);
+    await t.sendKeyEvent(LogicalKeyboardKey.escape);
+    await t.pump();
+    expect(h2.server.sentJson.last, {'type': 'end'});
+    expect(h2.mic.stopped, isTrue);
+    expect(find.byType(VoiceModeView), findsNothing);
+  });
+
+  testWidgets(
+    'expand/compact toggle switches layout smoothly without reconnecting WebSocket',
+    (t) async {
+      final h = await _pumpDockedHud(t);
+      expect(h.connectCount(), 1);
+      expect(find.byKey(const ValueKey('voice-hud-compact')), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-hud-expanded')), findsNothing);
+
+      h.server.event({'type': 'heard', 'text': 'Show quarterly sales'});
+      h.server.event({'type': 'reply', 'text': 'Opening the sales report.'});
+      await t.pump();
+
+      await t.tap(find.byKey(const ValueKey('voice-expand-toggle')));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 250));
+
+      expect(find.byKey(const ValueKey('voice-hud-expanded')), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-hud-compact')), findsNothing);
+      expect(h.connectCount(), 1);
+      expect(h.server.sentJson.where((e) => e['type'] == 'end'), isEmpty);
+      expect(find.text('Show quarterly sales'), findsOneWidget);
+      expect(find.text('Opening the sales report.'), findsOneWidget);
+
+      // Audio/mic still flow on the same socket after expanding.
+      h.mic.emit(Uint8List(320));
+      await t.pump();
+      expect(h.server.sentBinary, hasLength(1));
+
+      // Collapse back to compact without reconnecting.
+      await t.tap(find.byKey(const ValueKey('voice-expand-toggle')));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 250));
+      expect(find.byKey(const ValueKey('voice-hud-compact')), findsOneWidget);
+      expect(h.connectCount(), 1);
+    },
+  );
+
+  testWidgets(
+    'live tool chips render and transition running -> done / failed and reset on new turn',
+    (t) async {
+      final h = await _pumpDockedHud(t);
+
+      h.server.event({
+        'type': 'tool',
+        'callId': 'tc-1',
+        'name': 'web_search',
+        'status': 'running',
+        'label': 'Searching web',
+      });
+      h.server.event({
+        'type': 'tool',
+        'callId': 'tc-2',
+        'name': 'data_query',
+        'status': 'running',
+      });
+      await t.pump();
+
+      final chip1 = find.byKey(const ValueKey('voice-tool-chip:tc-1'));
+      final chip2 = find.byKey(const ValueKey('voice-tool-chip:tc-2'));
+      expect(chip1, findsOneWidget);
+      expect(chip2, findsOneWidget);
+      expect(find.text('Searching web'), findsOneWidget);
+      expect(find.text('data_query'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: chip1,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+
+      // Transition tc-1 -> done and tc-2 -> failed in place.
+      h.server.event({
+        'type': 'tool',
+        'callId': 'tc-1',
+        'name': 'web_search',
+        'status': 'done',
+        'label': 'Web search complete',
+      });
+      h.server.event({
+        'type': 'tool',
+        'callId': 'tc-2',
+        'name': 'data_query',
+        'status': 'failed',
+      });
+      await t.pump();
+
+      expect(find.text('Web search complete'), findsOneWidget);
+      expect(
+        find.descendant(of: chip1, matching: find.byIcon(LucideIcons.check)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: chip2,
+          matching: find.byIcon(LucideIcons.circleAlert),
+        ),
+        findsOneWidget,
+      );
+
+      // New user utterance resets previous turn's tool chips.
+      h.server.event({'type': 'heard', 'text': 'Next question'});
+      await t.pump();
+      expect(chip1, findsNothing);
+      expect(chip2, findsNothing);
+    },
+  );
+
+  testWidgets('PTT toggle and Speaker safe toggle gate mic frames', (t) async {
+    final h = await _pumpDockedHud(t);
+
+    // Enable PTT -> frames gated until orb is long-pressed.
+    await t.tap(find.byKey(const ValueKey('voice-ptt-toggle')));
+    await t.pump();
+    expect(find.text('Push-to-talk'), findsOneWidget);
+    expect(find.text('Hold orb to speak'), findsOneWidget);
+
+    h.mic.emit(Uint8List(320));
+    await t.pump();
+    expect(h.server.sentBinary, isEmpty);
+
+    // Disable PTT and enable Speaker safe -> gated while speaking.
+    await t.tap(find.byKey(const ValueKey('voice-ptt-toggle')));
+    await t.tap(find.byKey(const ValueKey('voice-echo-gate-toggle')));
+    h.server.event({'type': 'state', 'state': 'speaking'});
+    await t.pump();
+
+    h.mic.emit(Uint8List(320));
+    await t.pump();
+    expect(h.server.sentBinary, isEmpty);
+
+    h.server.event({'type': 'state', 'state': 'listening'});
+    await t.pump();
+    h.mic.emit(Uint8List(320));
+    await t.pump();
+    expect(h.server.sentBinary, hasLength(1));
   });
 
   testWidgets(
     'orb shows state text, last heard line, streaming reply, and scales with mic level',
     (t) async {
-      final h = await _pumpOrbRoute(t);
+      final h = await _pumpDockedHud(t);
       expect(find.text('Listening'), findsOneWidget);
 
       h.server.event({'type': 'state', 'state': 'thinking'});
@@ -275,11 +444,64 @@ void main() {
   testWidgets('error event shows the error message and Close button', (
     t,
   ) async {
-    final h = await _pumpOrbRoute(t);
+    final h = await _pumpDockedHud(t);
     h.server.event({'type': 'error', 'message': 'Voice is not configured.'});
     await t.pump();
 
     expect(find.text('Voice is not configured.'), findsOneWidget);
     expect(find.byKey(const ValueKey('voice-close')), findsOneWidget);
   });
+
+  testWidgets(
+    'responsive without overflow across desktop, narrow, and mobile in light and dark modes',
+    (t) async {
+      final viewports = <Size>[
+        const Size(1280, 800),
+        const Size(380, 700),
+        const Size(320, 640),
+      ];
+      for (final brightness in Brightness.values) {
+        for (final size in viewports) {
+          t.view.physicalSize = size;
+          t.view.devicePixelRatio = 1.0;
+          addTearDown(t.view.resetPhysicalSize);
+          addTearDown(t.view.resetDevicePixelRatio);
+
+          await t.pumpWidget(const SizedBox.shrink());
+          await t.pump();
+
+          final h = await _pumpDockedHud(
+            t,
+            hudKey: ValueKey('hud-$brightness-${size.width}x${size.height}'),
+            brightness: brightness,
+          );
+          h.server.event({
+            'type': 'heard',
+            'text': 'Compare Q3 and Q4 revenue across all regions',
+          });
+          h.server.event({
+            'type': 'tool',
+            'callId': 't1',
+            'name': 'data_query',
+            'status': 'running',
+            'label': 'Querying revenue table',
+          });
+          h.server.event({
+            'type': 'tool',
+            'callId': 't2',
+            'name': 'focus_show',
+            'status': 'done',
+            'label': 'Showing chart',
+          });
+          await t.pump();
+          expect(t.takeException(), isNull);
+
+          await t.tap(find.byKey(const ValueKey('voice-expand-toggle')));
+          await t.pump();
+          await t.pump(const Duration(milliseconds: 250));
+          expect(t.takeException(), isNull);
+        }
+      }
+    },
+  );
 }

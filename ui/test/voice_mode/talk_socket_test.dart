@@ -68,17 +68,21 @@ class _FakeWebSocketChannel extends StreamChannelMixin<dynamic>
 
 void main() {
   test('TalkEvent parses every kind', () {
-    final types = ['state', 'heard', 'reply', 'cancel', 'error']
+    final types = ['state', 'heard', 'reply', 'tool', 'cancel', 'error']
         .map(
           (k) => TalkEvent.fromJson({
             'type': k,
             'state': 'listening',
             'text': 'x',
             'message': 'm',
+            'callId': 'tc-1',
+            'name': 'web_search',
+            'status': 'running',
+            'label': 'Searching the web',
           }).runtimeType,
         )
         .toSet();
-    expect(types.length, 5);
+    expect(types.length, 6);
 
     expect(
       (TalkEvent.fromJson({
@@ -116,6 +120,81 @@ void main() {
       }) as TalkErrorEvent).message,
       'unavailable',
     );
+  });
+
+  test('TalkToolEvent parses running/done/failed, optional label, missing fields, and unknown extras', () {
+    final running = TalkEvent.fromJson({
+      'type': 'tool',
+      'callId': 'call-1',
+      'name': 'web_search',
+      'status': 'running',
+      'label': 'Searching docs',
+      'futureField': {'nested': 42},
+    }) as TalkToolEvent;
+    expect(running.callId, 'call-1');
+    expect(running.name, 'web_search');
+    expect(running.status, TalkToolStatus.running);
+    expect(running.label, 'Searching docs');
+    expect(running.displayLabel, 'Searching docs');
+
+    final done = TalkEvent.fromJson({
+      'type': 'tool',
+      'callId': 'call-1',
+      'name': 'data_query',
+      'status': 'done',
+    }) as TalkToolEvent;
+    expect(done.status, TalkToolStatus.done);
+    expect(done.label, isNull);
+    expect(done.displayLabel, 'data_query');
+
+    final failed = TalkEvent.fromJson({
+      'type': 'tool',
+      'callId': 'call-2',
+      'name': 'files_write',
+      'status': 'failed',
+      'label': '   ',
+    }) as TalkToolEvent;
+    expect(failed.status, TalkToolStatus.failed);
+    expect(failed.label, isNull);
+    expect(failed.displayLabel, 'files_write');
+
+    // Missing optional fields and unknown future status do not crash.
+    final minimal = TalkEvent.fromJson({
+      'type': 'tool',
+      'status': 'streaming_partial',
+    }) as TalkToolEvent;
+    expect(minimal.callId, '');
+    expect(minimal.name, '');
+    expect(minimal.status, TalkToolStatus.running);
+    expect(minimal.label, isNull);
+  });
+
+  test('TalkSocket ignores unknown future event types without interrupting valid frames', () async {
+    final pair = StreamChannelController<dynamic>(sync: true);
+    final socket = TalkSocket(_FakeWebSocketChannel(pair.local));
+    final events = <TalkEvent>[];
+    socket.events.listen(events.add);
+
+    pair.foreign.sink.add(
+      jsonEncode({'type': 'future_telemetry', 'latencyMs': 12}),
+    );
+    pair.foreign.sink.add(
+      jsonEncode({
+        'type': 'tool',
+        'callId': 'c-7',
+        'name': 'focus_show',
+        'status': 'done',
+        'label': 'Showing chart',
+      }),
+    );
+
+    await socket.close();
+    expect(events, hasLength(1));
+    final tool = events.single as TalkToolEvent;
+    expect(tool.callId, 'c-7');
+    expect(tool.name, 'focus_show');
+    expect(tool.status, TalkToolStatus.done);
+    expect(tool.displayLabel, 'Showing chart');
   });
 
   test(

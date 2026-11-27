@@ -22,6 +22,7 @@ import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
 import '../widgets/voice/audio_out.dart';
 import '../widgets/voice/mic_stream.dart';
+import '../widgets/voice/talk_socket.dart';
 import '../widgets/voice/ui_voice_input.dart';
 import '../widgets/voice/voice_mode_view.dart';
 import 'model_label.dart';
@@ -110,6 +111,8 @@ class _ConversationViewState extends State<ConversationView> {
   String? _readingMessageId;
   int _readAloudEpoch = 0;
 
+  _VoiceSession? _voiceSession;
+
   @override
   void initState() {
     super.initState();
@@ -152,6 +155,15 @@ class _ConversationViewState extends State<ConversationView> {
       _suppressWaitingDefault = false;
     }
     _hadWaiting = hasWaiting;
+
+    final nextTalkConversation = widget.talkConversation?.trim();
+    if (_voiceSession != null &&
+        (widget.ctx.talk == null ||
+            nextTalkConversation == null ||
+            nextTalkConversation.isEmpty ||
+            _voiceSession!.conversation != nextTalkConversation)) {
+      _voiceSession = null;
+    }
 
     final addedMessage =
         widget.node.messages.length > oldWidget.node.messages.length ||
@@ -412,24 +424,33 @@ class _ConversationViewState extends State<ConversationView> {
     }
   }
 
-  void _openVoiceMode(String conversation) {
+  void _toggleVoiceMode(String conversation) {
+    if (_voiceSession != null) {
+      _closeVoiceMode();
+      return;
+    }
     final talk = widget.ctx.talk;
     if (talk == null) return;
     unawaited(_stopReadAloud());
     final mic = (widget.ctx.createMicStream ?? RecordMicStream.new)();
     final out = (widget.ctx.createAudioOut ?? SoLoudAudioOut.new)();
-    unawaited(
-      Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          fullscreenDialog: true,
-          builder: (_) => VoiceModeView(
-            connect: () => talk(conversation),
-            mic: mic,
-            out: out,
-          ),
-        ),
-      ),
-    );
+    setState(() {
+      _voiceSession = _VoiceSession(
+        conversation: conversation,
+        connect: () => talk(conversation),
+        mic: mic,
+        out: out,
+      );
+    });
+  }
+
+  void _closeVoiceMode() {
+    if (_voiceSession == null) return;
+    if (mounted) {
+      setState(() => _voiceSession = null);
+    } else {
+      _voiceSession = null;
+    }
   }
 
   // Sends the picker's command with the model id as its value.
@@ -450,6 +471,10 @@ class _ConversationViewState extends State<ConversationView> {
       final stop = widget.node.stop;
       if (stop != null && stop.enabled && widget.ctx.interactive) {
         _activateStop();
+        return KeyEventResult.handled;
+      }
+      if (_voiceSession != null) {
+        _closeVoiceMode();
         return KeyEventResult.handled;
       }
     }
@@ -641,8 +666,23 @@ class _ConversationViewState extends State<ConversationView> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
-          child: waiting != null
-              ? ConstrainedBox(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_voiceSession case final voice?)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: VoiceModeView(
+                    key: ValueKey('voice-hud:${voice.conversation}'),
+                    connect: voice.connect,
+                    mic: voice.mic,
+                    out: voice.out,
+                    onClose: _closeVoiceMode,
+                  ),
+                ),
+              if (waiting != null)
+                ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 380),
                   child: SingleChildScrollView(
                     child: Semantics(
@@ -664,7 +704,8 @@ class _ConversationViewState extends State<ConversationView> {
                     ),
                   ),
                 )
-              : Column(
+              else
+                Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -771,7 +812,8 @@ class _ConversationViewState extends State<ConversationView> {
                             _VoiceModeIconButton(
                               key: const ValueKey('composer-voice-mode'),
                               enabled: widget.ctx.enabled,
-                              onTap: () => _openVoiceMode(talkConversation),
+                              active: _voiceSession != null,
+                              onTap: () => _toggleVoiceMode(talkConversation),
                             ),
                           ],
                           const SizedBox(width: 8),
@@ -786,6 +828,8 @@ class _ConversationViewState extends State<ConversationView> {
                     ),
                   ],
                 ),
+            ],
+          ),
         ),
       ),
     );
@@ -1217,14 +1261,30 @@ class _ReadAloudActionButton extends StatelessWidget {
   }
 }
 
+final class _VoiceSession {
+  const _VoiceSession({
+    required this.conversation,
+    required this.connect,
+    required this.mic,
+    required this.out,
+  });
+
+  final String conversation;
+  final Future<TalkSocket> Function() connect;
+  final MicStream mic;
+  final AudioOut out;
+}
+
 class _VoiceModeIconButton extends StatelessWidget {
   const _VoiceModeIconButton({
     super.key,
     required this.enabled,
     required this.onTap,
+    this.active = false,
   });
 
   final bool enabled;
+  final bool active;
   final VoidCallback onTap;
 
   @override
@@ -1234,9 +1294,10 @@ class _VoiceModeIconButton extends StatelessWidget {
       container: true,
       button: true,
       enabled: enabled,
-      label: 'Voice mode',
+      toggled: active,
+      label: active ? 'Close voice mode' : 'Voice mode',
       child: Tooltip(
-        message: 'Voice mode',
+        message: active ? 'Close voice mode' : 'Voice mode',
         child: MouseRegion(
           cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
           child: GestureDetector(
@@ -1246,17 +1307,21 @@ class _VoiceModeIconButton extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: c.surfaceSunk,
+                color: active ? c.accentTint : c.surfaceSunk,
                 borderRadius: BorderRadius.circular(
                   UiTokens.of(context).button,
                 ),
-                border: Border.all(color: c.borderHairline),
+                border: Border.all(
+                  color: active ? c.accentBorder : c.borderHairline,
+                ),
               ),
               child: Center(
                 child: Icon(
                   LucideIcons.audioLines,
                   size: 16,
-                  color: enabled ? c.textStrong : c.textSubtle,
+                  color: active
+                      ? c.accent
+                      : (enabled ? c.textStrong : c.textSubtle),
                 ),
               ),
             ),
