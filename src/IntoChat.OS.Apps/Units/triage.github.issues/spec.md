@@ -1,9 +1,9 @@
 # GitHub Issue Triager
 
-Monitors open repository issues on GitHub every 10 minutes, detects high-priority issues (marked 'p0', 'crash', or 'bug'), and publishes triaged status.
+Reacts to `github.issue-changed` (`IssueChanged`) signals from connected GitHub repositories and tracks triaged issue counts and attention alerts.
 
-- Every `10m`, fetches open issues from GitHub API via `github` slot.
-- Computes `OpenCount`, `P0Count`, and saves `LatestTitle`.
-- Publishes `issues.triaged(int OpenCount, int P0Count)`.
-- Reacts to `triage.reset` by clearing alert flags.
-- The view renders KPI summary badges and high-priority alerts.
+- Reacts to `github.issue-changed` (`IssueChanged`) via `[Synapse(typeof(IssueChanged), "triage.github.issues")]`.
+- Tracks `TriagedCount`, `P0Count`, `LastIssueNumber`, `LastAction`, and `LastSubject`.
+- Publishes `issues.triaged(int IssueNumber, string Action, int TriagedCount, int P0Count)`.
+- Reacts to `triage.reset` by clearing pending attention alerts.
+- The view renders KPI summary badges and the latest triaged issue.

@@ -21,7 +21,7 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         Needs:
         [
             DigitalBrain.Modules.Need.HttpClient("github", requestsPerMinute: 120),
-            DigitalBrain.Modules.Need.Webhook("/github/webhook", "github.repository"),
+            DigitalBrain.Modules.Need.Webhook("/integrations/github/webhook", "github.repository"),
         ],
         Settings: [DigitalBrain.Modules.Setting.Of<GitHubModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: [DigitalBrain.Modules.Secret.Named("private-key-pem"), DigitalBrain.Modules.Secret.Named("client-secret"), DigitalBrain.Modules.Secret.Named("webhook-secret")])
@@ -34,6 +34,7 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
             new("github.review.reply", "reply to a GitHub review comment", null),
             new("github.review.submit", "submit a GitHub pull request review", null),
             new("github.pull-request.merge", "merge a GitHub pull request", null),
+            new("github.issue.create", "create a GitHub issue", null),
             new("github.issue.comment", "comment on a GitHub issue", null),
             new("github.issue.label", "add labels to a GitHub issue", null),
         ],
@@ -50,8 +51,9 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         .OffersSecret("WebhookSecret");
 
     // GitHub App permissions belong to the installation, so the user authorization asks for no scopes; Fine-Grained PAT is offered alongside OAuth.
-    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth", "pat"], ["github"])
+    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth", "pat"], [])
     {
+        OptionalIntegrations = ["github"],
         Neurons = [typeof(IRepository)],
         Signals = [typeof(Signals.PullRequestChanged), typeof(Signals.IssueChanged)],
         OAuthMethods = [new("oauth", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", [], "github", "ClientId", "ClientSecret")],

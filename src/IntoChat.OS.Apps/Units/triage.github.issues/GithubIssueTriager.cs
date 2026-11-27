@@ -1,47 +1,56 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Capabilities.Http;
-using DigitalBrain.Time;
 using DigitalBrain.UI;
 
 namespace Units.GithubTriager;
 
+[Signal("github.issue-changed")]
+public sealed record IssueChanged(int Number, string Action, string Version, string SubjectKey) : Signal;
+
 [Signal("issues.triaged")]
-public sealed record IssuesTriaged(int OpenCount, int P0Count) : Signal;
+public sealed record IssuesTriaged(int IssueNumber, string Action, int TriagedCount, int P0Count) : Signal;
 
 [State("triage.github.issues")]
-public sealed record IssueState(int OpenCount = 0, int P0Count = 0, string LatestTitle = "", string Repo = "dotnet/orleans")
+public sealed record IssueState(
+    int TriagedCount = 0,
+    int P0Count = 0,
+    int LastIssueNumber = 0,
+    string LastAction = "",
+    string LastSubject = "")
 {
-    public IssueState() : this(0, 0, "", "dotnet/orleans") { }
+    public IssueState() : this(0, 0, 0, "", "") { }
 }
 
 public static class GithubIssueTriagerUnit
 {
-    [Synapse(typeof(Tick), "triage.github.issues", Every = "every 10m")]
-    public static async Task<Reaction<IssueState>> Poll(Tick tick, IssueState state, [Slot] IHttpRead github, CancellationToken ct)
+    [Synapse(typeof(IssueChanged), "triage.github.issues")]
+    public static Reaction<IssueState> OnIssueChanged(IssueChanged changed, IssueState state)
     {
-        var feed = await github.GetJson($"https://api.github.com/repos/{state.Repo}/issues?state=open", ct);
-        var items = feed.ValueKind == JsonValueKind.Array ? feed : default;
-        var open = items.ValueKind == JsonValueKind.Array ? items.GetArrayLength() : 0;
-        var p0 = 0;
-        var latest = state.LatestTitle;
-
-        if (open > 0)
+        var needsAttention = string.Equals(changed.Action, "opened", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(changed.Action, "reopened", StringComparison.OrdinalIgnoreCase);
+        var nextTriaged = state.TriagedCount + 1;
+        var nextP0 = needsAttention ? state.P0Count + 1 : state.P0Count;
+        var next = state with
         {
-            latest = items[0].TryGetProperty("title", out var t) ? t.GetString() ?? "" : latest;
-            foreach (var item in items.EnumerateArray())
-            {
-                var title = item.TryGetProperty("title", out var ti) ? ti.GetString() ?? "" : "";
-                if (title.Contains("crash", StringComparison.OrdinalIgnoreCase) || title.Contains("p0", StringComparison.OrdinalIgnoreCase))
-                {
-                    p0++;
-                }
-            }
-        }
+            TriagedCount = nextTriaged,
+            P0Count = nextP0,
+            LastIssueNumber = changed.Number,
+            LastAction = changed.Action,
+            LastSubject = changed.SubjectKey,
+        };
 
-        return Reaction<IssueState>.Of(
-            state with { OpenCount = open, P0Count = p0, LatestTitle = latest },
-            new IssuesTriaged(open, p0));
+        return Reaction<IssueState>.Of(next, new IssuesTriaged(changed.Number, changed.Action, nextTriaged, nextP0));
+    }
+
+    [Synapse("github.issue-changed", "triage.github.issues")]
+    public static Reaction<IssueState> OnIssueEnvelope(SignalEnvelope env, IssueState state)
+    {
+        var p = env.Payload;
+        var number = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("Number", out var n) && n.TryGetInt32(out var num) ? num : 0;
+        var action = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("Action", out var a) ? a.GetString() ?? "updated" : "updated";
+        var version = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("Version", out var v) ? v.GetString() ?? "" : "";
+        var subject = p.ValueKind == JsonValueKind.Object && p.TryGetProperty("SubjectKey", out var s) ? s.GetString() ?? "" : "";
+        return OnIssueChanged(new IssueChanged(number, action, version, subject), state);
     }
 
     [Synapse("triage.reset", "triage.github.issues")]
@@ -50,13 +59,17 @@ public static class GithubIssueTriagerUnit
     [Synapse("triage.github.issues")]
     public static View Show(IssueState state) => new("GitHub Issue Triager", new Column(
     [
-        new Heading($"Triage: {state.Repo}", Subtitle: state.LatestTitle.Length == 0 ? "No issues loaded." : state.LatestTitle),
+        new Heading(
+            "GitHub Issue Triage",
+            Subtitle: state.LastIssueNumber == 0
+                ? "Waiting for IssueChanged signals."
+                : $"#{state.LastIssueNumber} ({state.LastAction}) · {state.LastSubject}"),
         new Row(
         [
-            new Badge($"{state.OpenCount} open", Tone: "neutral"),
-            new Badge($"{state.P0Count} P0 / crash", Tone: state.P0Count > 0 ? "error" : "accent"),
+            new Badge($"{state.TriagedCount} triaged", Tone: "neutral"),
+            new Badge($"{state.P0Count} attention", Tone: state.P0Count > 0 ? "error" : "accent"),
         ]) { Gap = 8 },
-        new Button("reset-alerts", "Acknowledge P0", new Command(".", "triage.reset"))
+        new Button("reset-alerts", "Acknowledge", new Command(".", "triage.reset"))
         {
             Style = Mix.Style()
                 .Tone(state.P0Count > 0 ? UiTone.Danger : UiTone.Secondary)

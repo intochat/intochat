@@ -123,6 +123,69 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         return result;
     }
 
+    public async Task<ConditionalPollResult<PullRequestSnapshot>> ListOpenPullRequestsConditionalAsync(GitHubRepository repository, string? etag, CancellationToken cancellationToken)
+    {
+        var page = await GetConditionalAsync(
+            repository,
+            $"{repository.RepositoryPath}/pulls?state=open&sort=updated&direction=desc&per_page=100&page=1",
+            etag,
+            cancellationToken).ConfigureAwait(false);
+        if (page.NotModified)
+        {
+            return new ConditionalPollResult<PullRequestSnapshot>(NotModified: true, [], page.ETag ?? etag);
+        }
+
+        if (page.Json.ValueKind != JsonValueKind.Array)
+        {
+            throw InvalidEvidence();
+        }
+
+        var result = new List<PullRequestSnapshot>();
+        foreach (var item in page.Json.EnumerateArray())
+        {
+            result.Add(await GetPullRequestAsync(repository, item.GetProperty("number").GetInt32(), cancellationToken).ConfigureAwait(false));
+        }
+
+        return new ConditionalPollResult<PullRequestSnapshot>(NotModified: false, result, page.ETag);
+    }
+
+    public async Task<ConditionalPollResult<IssueSnapshot>> ListOpenIssuesConditionalAsync(GitHubRepository repository, string? etag, CancellationToken cancellationToken)
+    {
+        var page = await GetConditionalAsync(
+            repository,
+            $"{repository.RepositoryPath}/issues?state=open&sort=updated&direction=desc&per_page=100&page=1",
+            etag,
+            cancellationToken).ConfigureAwait(false);
+        if (page.NotModified)
+        {
+            return new ConditionalPollResult<IssueSnapshot>(NotModified: true, [], page.ETag ?? etag);
+        }
+
+        if (page.Json.ValueKind != JsonValueKind.Array)
+        {
+            throw InvalidEvidence();
+        }
+
+        var result = new List<IssueSnapshot>();
+        foreach (var item in page.Json.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            if (item.TryGetProperty("pull_request", out var prProp) && prProp.ValueKind != JsonValueKind.Null)
+            {
+                continue;
+            }
+
+            var number = item.GetProperty("number").GetInt32();
+            result.Add(ParseIssueSnapshot(repository, item, number));
+        }
+
+        return new ConditionalPollResult<IssueSnapshot>(NotModified: false, result, page.ETag);
+    }
+
     public async Task<IssueSnapshot> GetIssueAsync(GitHubRepository repository, int number, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(number, 1);
@@ -147,6 +210,11 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
             throw InvalidEvidence();
         }
 
+        return ParseIssueSnapshot(repository, json, number);
+    }
+
+    private IssueSnapshot ParseIssueSnapshot(GitHubRepository repository, JsonElement json, int number)
+    {
         if (OptionalString(json, "repository_url") is { Length: > 0 } repositoryUrl
             && !repositoryUrl.EndsWith($"/{repository.Owner}/{repository.Name}", StringComparison.OrdinalIgnoreCase))
         {
@@ -174,17 +242,9 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
             : 0;
         var createdAt = Timestamp(json, "created_at") ?? _time.GetUtcNow();
         var updatedAt = Timestamp(json, "updated_at");
-        var revision = Hash(JsonSerializer.Serialize(new
-        {
-            repository.RepositoryId,
-            number,
-            title,
-            body,
-            isOpen,
-            labels,
-            commentCount,
-            updatedAt,
-        }));
+        var revision = Hash(JsonSerializer.Serialize(
+            new IssueRevisionPayload(repository.RepositoryId, number, title, body, isOpen, labels, commentCount, updatedAt),
+            GitHubAotJsonContext.Default.IssueRevisionPayload));
 
         return new IssueSnapshot(
             number,
@@ -200,6 +260,79 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
             updatedAt,
             revision,
             repository.RepositoryId);
+    }
+
+    public async Task<IssueCreated> CreateIssueAsync(GitHubRepository repository, CreateIssueRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Title);
+        using var activity = Activities.StartActivity("github.create_issue");
+        activity?.SetTag("github.repository.id", repository.RepositoryId);
+
+        var bearer = repository.IsDirectToken
+            ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
+            : await _tokens.GetWriteTokenAsync(repository, GitHubWriteScope.IssuesWrite, cancellationToken).ConfigureAwait(false);
+
+        var labels = request.Labels is { Length: > 0 }
+            ? request.Labels.Where(static l => !string.IsNullOrWhiteSpace(l)).Select(static l => l.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : null;
+        var assignees = request.Assignees is { Length: > 0 }
+            ? request.Assignees.Where(static a => !string.IsNullOrWhiteSpace(a)).Select(static a => a.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : null;
+        var payloadJson = JsonSerializer.Serialize(
+            new CreateIssuePayload(
+                request.Title.Trim(),
+                string.IsNullOrWhiteSpace(request.Body) ? null : request.Body,
+                labels is { Length: > 0 } ? labels : null,
+                assignees is { Length: > 0 } ? assignees : null),
+            GitHubAotJsonContext.Default.CreateIssuePayload);
+
+        var httpRequest = new Octokit.Internal.Request
+        {
+            Method = HttpMethod.Post,
+            BaseAddress = repository.ApiHost,
+            Endpoint = new Uri($"{repository.RepositoryPath}/issues", UriKind.Relative),
+            ContentType = "application/json",
+            Body = payloadJson,
+            Timeout = TimeSpan.FromSeconds(20),
+        };
+        httpRequest.Headers["Authorization"] = $"Bearer {bearer}";
+        httpRequest.Headers["User-Agent"] = "IntoChatOS/1.0";
+        httpRequest.Headers["Accept"] = "application/vnd.github+json";
+        httpRequest.Headers["X-GitHub-Api-Version"] = "2022-11-28";
+
+        Octokit.IResponse response;
+        try
+        {
+            response = await _http.Send(httpRequest, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException)
+        {
+            throw new GitHubUnavailableException("GitHub issue could not be created.");
+        }
+
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+        {
+            throw new GitHubAccessDeniedException("GitHub refused issue creation. Verify repository write access.");
+        }
+
+        if ((int)response.StatusCode < 200 || (int)response.StatusCode >= 300)
+        {
+            throw new GitHubUnavailableException("GitHub issue could not be created.");
+        }
+
+        var responseBody = response.Body as string ?? throw InvalidEvidence();
+        using var doc = JsonDocument.Parse(responseBody);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw InvalidEvidence();
+        }
+
+        var number = root.GetProperty("number").GetInt32();
+        var title = BoundedString(root, "title", 1024);
+        var htmlUrl = OptionalString(root, "html_url") ?? $"https://github.com/{repository.Owner}/{repository.Name}/issues/{number}";
+        return new IssueCreated(number, htmlUrl, title);
     }
 
     public async Task<IssueCommentResult> CommentOnIssueAsync(
@@ -671,7 +804,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
                 {
                     response = await connection.Get<JsonElement>(new Uri(path, UriKind.Relative), new Dictionary<string, string>(), "application/vnd.github+json", token).ConfigureAwait(false);
                 }
-                catch (Octokit.AuthorizationException) when (attempt == 0 && !repository.IsPersonalAccessToken)
+                catch (Octokit.AuthorizationException) when (attempt == 0 && !repository.IsDirectToken)
                 {
                     continue;
                 }
@@ -716,13 +849,80 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     private static GitHubUnavailableException InvalidEvidence() => new("GitHub returned incomplete or incompatible repository evidence.");
     public void Dispose() => _http.Dispose();
 
+    private async Task<ConditionalApiPage> GetConditionalAsync(GitHubRepository repository, string path, string? etag, CancellationToken token)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var bearer = repository.IsDirectToken
+                    ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
+                    : await _tokens.GetTokenAsync(repository, attempt > 0, token).ConfigureAwait(false);
+                var request = new Octokit.Internal.Request
+                {
+                    Method = HttpMethod.Get,
+                    BaseAddress = repository.ApiHost,
+                    Endpoint = new Uri(path, UriKind.Relative),
+                    Timeout = TimeSpan.FromSeconds(20),
+                };
+                request.Headers["Authorization"] = $"Bearer {bearer}";
+                request.Headers["User-Agent"] = "IntoChatOS/1.0";
+                request.Headers["Accept"] = "application/vnd.github+json";
+                request.Headers["X-GitHub-Api-Version"] = "2022-11-28";
+                if (!string.IsNullOrWhiteSpace(etag))
+                {
+                    request.Headers["If-None-Match"] = etag;
+                }
+
+                var response = await _http.Send(request, token).ConfigureAwait(false);
+                if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0 && !repository.IsDirectToken)
+                {
+                    continue;
+                }
+
+                var responseEtag = response.Headers.FirstOrDefault(static h => string.Equals(h.Key, "ETag", StringComparison.OrdinalIgnoreCase)).Value;
+                if (response.StatusCode == HttpStatusCode.NotModified)
+                {
+                    return new ConditionalApiPage(NotModified: true, default, responseEtag ?? etag);
+                }
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests
+                    || (response.StatusCode == HttpStatusCode.Forbidden
+                        && response.Headers.Any(static h => string.Equals(h.Key, "X-RateLimit-Remaining", StringComparison.OrdinalIgnoreCase) && h.Value == "0")))
+                {
+                    throw new GitHubUnavailableException("GitHub repository evidence is unavailable. Retry after rate limiting clears.");
+                }
+
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+                {
+                    throw new GitHubAccessDeniedException("GitHub repository evidence is unavailable. Verify repository access or retry after rate limiting clears.");
+                }
+
+                if ((int)response.StatusCode < 200 || (int)response.StatusCode >= 300)
+                {
+                    throw new GitHubUnavailableException("GitHub repository evidence is unavailable. Verify repository access or retry after rate limiting clears.");
+                }
+
+                var bodyText = response.Body as string ?? throw InvalidEvidence();
+                using var doc = JsonDocument.Parse(bodyText);
+                return new ConditionalApiPage(NotModified: false, doc.RootElement.Clone(), responseEtag);
+            }
+        }
+        catch (Exception error) when (error is HttpRequestException or JsonException)
+        {
+            throw new GitHubUnavailableException("GitHub repository evidence could not be read.");
+        }
+
+        throw new GitHubAccessDeniedException("GitHub rejected the refreshed installation credentials.");
+    }
+
     private async Task<Octokit.Connection> ConnectionAsync(GitHubRepository repository, bool refresh, CancellationToken token) =>
-        Connect(repository, repository.IsPersonalAccessToken
+        Connect(repository, repository.IsDirectToken
             ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
             : await _tokens.GetTokenAsync(repository, refresh, token).ConfigureAwait(false));
 
     private async Task<Octokit.Connection> WriteConnectionAsync(GitHubRepository repository, GitHubWriteScope scope, CancellationToken token) =>
-        Connect(repository, repository.IsPersonalAccessToken
+        Connect(repository, repository.IsDirectToken
             ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
             : await _tokens.GetWriteTokenAsync(repository, scope, token).ConfigureAwait(false));
 
@@ -763,6 +963,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     }
 
     private sealed record ApiPage(JsonElement Json, bool HasNext);
+    private sealed record ConditionalApiPage(bool NotModified, JsonElement Json, string? ETag);
     private sealed record PageItems(List<JsonElement> Items, bool Complete);
     private sealed record CheckEvidence(GitHubCheck[] Checks, bool Complete, string SourceRevision);
 }

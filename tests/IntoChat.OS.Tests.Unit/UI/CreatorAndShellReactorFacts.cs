@@ -91,6 +91,20 @@ public sealed class CreatorAndShellReactorFacts
     }
 
     [Fact]
+    public void CreatorStateSpaceInspector_ExtractsGitHubTriagerSynapseWithoutHardcodedIssueChangedSniffing()
+    {
+        var files = IntoChat.OS.Apps.ShippedUnits.Files("triage.github.issues");
+        var summary = CreatorStateSpaceInspector.AnalyzeUnitSource("triage.github.issues", files);
+
+        Assert.Equal("IssueState", summary.StateType);
+        Assert.Contains("IssueChanged", summary.Triggers);
+        Assert.Contains(summary.Commands, c => c.Contains("OnIssueChanged", StringComparison.Ordinal));
+        Assert.DoesNotContain("untrusted_evidence", summary.Rules);
+        Assert.DoesNotContain("policy_guard", summary.Rules);
+        Assert.Empty(summary.Candidates);
+    }
+
+    [Fact]
     public void TasksState_AggregateExplorer_VerifiesViewModeInvariantsAndKitRenderer()
     {
         var graph = AggregateExplorer<TasksWorkspaceState>.ExploreScreen<TasksApp>(maxStates: 24).EnsureHealthy();

@@ -14,6 +14,7 @@ public sealed class GitHubModuleOptions : IModuleOptions
     [Setting] public string ClientId { get; set; } = "";
     [Setting] public Uri? PublicOrigin { get; set; }
     [Setting] public string PublicWebhookUrl { get; set; } = "";
+    [Setting] public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(60);
 
     public void Validate()
     {
