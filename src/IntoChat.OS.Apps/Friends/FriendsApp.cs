@@ -96,6 +96,14 @@ public sealed record LeaveRoom(string RoomOwnerBrain = "", string RoomKey = "") 
 [Signal("friends.pin-room-app")]
 public sealed record PinRoomApp(string ScreenType = "room.checklist", string ScreenKey = "") : Signal;
 
+[Signal("friends.act-room-app")]
+public sealed record ActRoomApp(
+    string RoomOwnerBrain = "",
+    string RoomKey = "",
+    string ScreenType = "",
+    string ScreenKey = "",
+    Command? Command = null) : Signal;
+
 /// <summary>Keeps what a person types into one Friends field (one of the constants below); the text is the value.</summary>
 [Signal("friends.edit-draft")]
 public sealed record FriendsEditDraft(string? Field = null, string? Value = null) : Signal
@@ -712,8 +720,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             NeuronId roomId;
             if (RoomIndex is { } index)
             {
-                var existing = (await index.List()).FirstOrDefault(r =>
-                    r.Kind == RoomKind.Direct && string.Equals(r.Room.Key, dmKey, StringComparison.Ordinal));
+                var listed = await index.List();
+                var existing = listed.FirstOrDefault(r =>
+                    r.Kind == RoomKind.Direct
+                    && ((r.Room.Brain == ownBrain && string.Equals(r.Room.Key, dmKey, StringComparison.Ordinal))
+                        || r.Room.Brain == friend.Brain));
                 roomId = existing is not null
                     ? existing.Room
                     : await index.Create(friend.Name, RoomKind.Direct, dmKey);
@@ -842,8 +853,15 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 return State with { Status = $"Friend '{request.FriendAccount.Trim()}' not found." };
             }
 
-            var role = string.Equals(request.Role?.Trim(), "viewer", StringComparison.OrdinalIgnoreCase) ? Role.Viewer : Role.Editor;
             var ownBrain = CurrentBrainId();
+            if (State.ActiveRoom is { } active
+                && (string.IsNullOrWhiteSpace(request.RoomKey) || string.Equals(active.RoomKey, roomKey, StringComparison.Ordinal))
+                && !string.Equals(active.OwnerBrain, ownBrain.Value, StringComparison.Ordinal))
+            {
+                return State with { Status = "Only the room host can invite friends to this room." };
+            }
+
+            var role = string.Equals(request.Role?.Trim(), "viewer", StringComparison.OrdinalIgnoreCase) ? Role.Viewer : Role.Editor;
             var roomId = new NeuronId(ownBrain, "social.room", roomKey);
             var room = ResolveRoom(ownBrain.Value, roomKey, isOwnRoom: true);
             if (room is not null)
@@ -947,6 +965,42 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             {
                 ActiveRoom = ToActiveRoom(active.OwnerBrain, active.RoomKey, view),
                 Status = $"Pinned {screenType} into room '{active.RoomKey}'.",
+            };
+        });
+    }
+
+    [On, Description("Send a command to a pinned mini-app in the active room through IRoom.Act.")]
+    public Task ActPinnedApp(ActRoomApp request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("act on pinned mini-app", async () =>
+        {
+            var ownerBrain = string.IsNullOrWhiteSpace(request.RoomOwnerBrain)
+                ? State.ActiveRoom?.OwnerBrain ?? ""
+                : request.RoomOwnerBrain.Trim();
+            var roomKey = string.IsNullOrWhiteSpace(request.RoomKey)
+                ? State.ActiveRoom?.RoomKey ?? ""
+                : request.RoomKey.Trim();
+            if (string.IsNullOrWhiteSpace(ownerBrain) || string.IsNullOrWhiteSpace(roomKey)
+                || string.IsNullOrWhiteSpace(request.ScreenType) || string.IsNullOrWhiteSpace(request.ScreenKey)
+                || request.Command is null)
+            {
+                return State with { Status = "Room, pinned mini-app, and command are required." };
+            }
+
+            var isOwnRoom = string.Equals(ownerBrain, CurrentBrainId().Value, StringComparison.Ordinal);
+            var room = ResolveRoom(ownerBrain, roomKey, isOwnRoom);
+            if (room is null)
+            {
+                return State with { Status = "Social rooms are unavailable." };
+            }
+
+            await room.Act(request.ScreenType.Trim(), request.ScreenKey.Trim(), request.Command);
+            var view = await room.Read();
+            return State with
+            {
+                ActiveRoom = ToActiveRoom(ownerBrain, roomKey, view),
+                Status = $"Updated {request.ScreenType.Trim()} in room '{roomKey}'.",
             };
         });
     }
@@ -1338,9 +1392,21 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 
         var isOwnActiveRoom = room is not null && string.Equals(room.OwnerBrain, ownBrain, StringComparison.Ordinal);
         var pinnedNodes = room is { PinnedScreens.Length: > 0 }
-            ? room.PinnedScreens.Select(p => (Node)Card($"Pinned Mini-App · {p.ScreenType}", p.ScreenKey)[
-                Kit.Embed($"{room.OwnerBrain}/{p.ScreenType}/{p.ScreenKey}")
-            ]).ToArray()
+            ? room.PinnedScreens.Select(p => isOwnActiveRoom
+                ? (Node)Card($"Pinned Mini-App · {p.ScreenType}", p.ScreenKey)[
+                    Kit.Embed($"{room.OwnerBrain}/{p.ScreenType}/{p.ScreenKey}")
+                ]
+                : (Node)Card($"Pinned Mini-App · {p.ScreenType}", $"{p.ScreenKey} (room-mediated via IRoom.Act)")[
+                    HStack(Space.Sm)[
+                        MutedText($"Hosted by {room.OwnerBrain} · actions route through IRoom.Act with your Editor seat."),
+                        string.Equals(p.ScreenType, "room.checklist", StringComparison.Ordinal)
+                            ? (Node)Button("Clear done", Icons.Trash2)
+                                .Key($"btn:act-room-app:{p.ScreenType}:{p.ScreenKey}:clear")
+                                .Small()
+                                .Sends(Sends(new ActRoomApp(room.OwnerBrain, room.RoomKey, p.ScreenType, p.ScreenKey, Sends(new IntoChat.OS.Apps.Social.ClearCompletedChecklistItems()))))
+                            : null
+                    ]
+                ]).ToArray()
             : Array.Empty<Node>();
 
         var inviteButtons = isOwnActiveRoom && room!.Kind == RoomKind.Group
@@ -1384,6 +1450,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     ]
                     : [],
                 .. pinnedNodes,
+                room is { PresentAccounts.Length: > 0 }
+                    ? (Node)MutedText($"Present: {string.Join(", ", room.PresentAccounts)}")
+                    : null,
                 room is not null
                     ? new Conversation(
                         $"room-thread:{room.OwnerBrain}:{room.RoomKey}",

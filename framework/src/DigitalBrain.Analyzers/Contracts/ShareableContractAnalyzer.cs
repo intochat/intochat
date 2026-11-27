@@ -40,6 +40,7 @@ public sealed class ShareableContractAnalyzer : DiagnosticAnalyzer
         if (type.TypeKind != TypeKind.Interface)
         {
             var isScreen = type.TypeKind == TypeKind.Class
+                && !type.IsAbstract
                 && type.AllInterfaces.Any(iface => string.Equals(Rules.FullName(iface), "DigitalBrain.IScreen", StringComparison.Ordinal));
             if (isScreen)
             {

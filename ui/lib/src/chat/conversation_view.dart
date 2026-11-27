@@ -1094,9 +1094,7 @@ class _AssistantMessageItem extends StatelessWidget {
     final retry = message.retry;
     final sender = message.sender;
     final showRoomAgentBadge =
-        sender != null &&
-        sender.kind == SenderKind.agent &&
-        sender.displayName.trim().isNotEmpty;
+        sender != null && sender.kind == SenderKind.agent && sender.roomScoped;
     final agentBadgeLabel =
         sender != null && sender.displayName.trim().isNotEmpty
         ? sender.displayName.trim()

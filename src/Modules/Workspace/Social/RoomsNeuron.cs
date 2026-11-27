@@ -93,11 +93,13 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
         await Save(State with { Rooms = next }, new RoomsIndexChanged(Id.Brain, room, "left")).ConfigureAwait(true);
     }
 
-    public async Task Invited(NeuronId room, CancellationToken ct = default)
+    public async Task Invited(NeuronId room, CancellationToken ct = default, string? title = null, RoomKind? kind = null)
     {
         await RequireNoticeOf(room).ConfigureAwait(true);
         var existing = State.Rooms.FirstOrDefault(r => r.Room == room);
-        var entry = new RoomEntry(room, existing?.LastRevision ?? 0, Context.Time.GetUtcNow(), existing?.Title, existing?.Kind);
+        var cleanTitle = !string.IsNullOrWhiteSpace(title) ? title.Trim() : existing?.Title;
+        var resolvedKind = kind ?? existing?.Kind;
+        var entry = new RoomEntry(room, existing?.LastRevision ?? 0, Context.Time.GetUtcNow(), cleanTitle, resolvedKind);
         var next = State.Rooms.Where(r => r.Room != room).Append(entry).ToArray();
         using var scope = OwnModuleIfForeign();
         await Save(State with { Rooms = next }, new RoomsIndexChanged(Id.Brain, room, "invited")).ConfigureAwait(true);

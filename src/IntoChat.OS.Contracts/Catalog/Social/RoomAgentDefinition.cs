@@ -16,7 +16,7 @@ public static partial class RoomAgentDefinition
     public const string AgentId = "room-ino";
     public const string DisplayName = "@Ino · Room only";
 
-    public static readonly SenderIdentity AgentSender = new(AgentId, DisplayName, SenderKind.Agent);
+    public static readonly SenderIdentity AgentSender = new(AgentId, DisplayName, SenderKind.Agent, RoomScoped: true);
 
     /// <summary>Room-safe contracts only: strictly zero access to host personal brain, files, memory, secrets, or */* capabilities.</summary>
     public static readonly string[] RoomSafeContracts =

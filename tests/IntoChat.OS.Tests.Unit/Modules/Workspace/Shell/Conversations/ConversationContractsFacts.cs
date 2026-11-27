@@ -26,7 +26,7 @@ public sealed class ConversationContractsFacts
     {
         Assert.Equal(Visibility.Agents, new Called(EntryIds.Call("r", "c"), new Participant.Assistant("ino"), At, "t", "{}").Visible);
         Assert.Equal(Visibility.Everyone, new Said(EntryIds.Reply("r"), new Participant.Assistant("ino"), At, "x").Visible);
-        Assert.Equal(Visibility.Owner, new Returned(EntryIds.Result("r", "c"), new Participant.Assistant("ino"), At, "t", "{}", true, null).Visible);
+        Assert.Equal(Visibility.Everyone, new Returned(EntryIds.Result("r", "c"), new Participant.Assistant("ino"), At, "t", "{}", true, null).Visible);
         Assert.Equal(Visibility.Agents, new Summarized(EntryIds.Summary("r"), new Participant.Assistant("ino"), At, "sum", EntryIds.Reply("r0")).Visible);
     }
 

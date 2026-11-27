@@ -22,6 +22,8 @@ public interface IConversation
 
     [Shared, ReadOnlyCall, Interleaves] Task<ConversationView> Read(long? sinceRevision = null);
 
+    Task Invite(AccountId friend);
+
     [Interleaves] Task Seat(string agentId, AgentDefinition definition);
 
     [Interleaves] Task Post(string text, string id);

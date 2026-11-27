@@ -73,6 +73,13 @@ public interface IRoom
     Task Leave(CancellationToken ct = default);
 }
 
+[Internal, NeuronAlias("room-driver"), DefaultNeuronType("social.room")]
+public interface IRoomDriver
+{
+    [OneWayCall, Interleaves]
+    Task RespondAsRoomIno(long triggerRevision);
+}
+
 // A friend's conversation this person sits in as a guest: where it is, what it is called and who invited them.
 public sealed record ConversationInvite(BrainId Brain, ConversationId Conversation, string Title, AccountId By);
 
@@ -100,7 +107,7 @@ public interface IRooms
     Task<ConversationInvite[]> Conversations(CancellationToken ct = default);
 
     [Shared]
-    Task Invited(NeuronId room, CancellationToken ct = default);
+    Task Invited(NeuronId room, CancellationToken ct = default, string? title = null, RoomKind? kind = null);
 
     [Shared]
     Task Changed(NeuronId room, long revision, CancellationToken ct = default);

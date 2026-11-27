@@ -42,6 +42,18 @@ void main() {
               'accountId': 'room-ino',
               'displayName': '@Ino · Room only',
               'kind': 'agent',
+              'roomScoped': true,
+            },
+          },
+          {
+            'id': 'personal-msg-4',
+            'role': 'assistant',
+            'text': 'Personal 1:1 reply without room badge.',
+            'status': 'completed',
+            'sender': {
+              'accountId': 'ino',
+              'displayName': 'Ino',
+              'kind': 'agent',
             },
           },
         ],
@@ -105,6 +117,16 @@ void main() {
       expect(find.text('@Ino · Room only'), findsOneWidget);
       expect(
         find.text('Here is a quick packing checklist for the room.'),
+        findsOneWidget,
+      );
+
+      // Personal 1:1 Ino reply (roomScoped: false/omitted) must NOT show the room badge.
+      expect(
+        find.byKey(const ValueKey('msg-agent-badge:personal-msg-4')),
+        findsNothing,
+      );
+      expect(
+        find.text('Personal 1:1 reply without room badge.'),
         findsOneWidget,
       );
     },

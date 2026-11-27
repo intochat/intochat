@@ -45,6 +45,11 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     protected Task FollowChild<TChild, TSignal>(string key) where TChild : class where TSignal : Signal
         => Follow<TChild, TSignal>(ScreenExtensions.ChildAddress(Id, key));
 
+    /// <summary>Removes every signal wire from this screen's child <paramref name="key"/> (a <typeparamref name="TChild"/>).</summary>
+    /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
+    protected Task UnfollowChild<TChild>(string key) where TChild : class
+        => Context.Wires.Remove(IdOf(typeof(TChild), ScreenExtensions.ChildAddress(Id, key)));
+
     /// <summary>
     /// The key of the child that published the signal the running reaction handles (one <see cref="FollowChild{TChild, TSignal}"/>
     /// wired), or null when the signal came from elsewhere or the reaction runs for a command. It tells two children of one control kind apart.

@@ -50,6 +50,15 @@ public sealed class MultiRoomAndRoomInoFacts
         var bobRooms = await bobIndex.List(Ct);
         Assert.Equal(2, bobRooms.Length);
         Assert.All(bobRooms, r => Assert.False(r.IsHost));
+        // Blocker 5: invited guests receive Title and Kind, not raw room key as Group.
+        Assert.Contains(bobRooms, r => r.Room == dmId && r.Kind == RoomKind.Direct && r.Title == "Bob");
+        Assert.Contains(bobRooms, r => r.Room == groupId && r.Kind == RoomKind.Group && r.Title == "Weekend Trip");
+
+        // Blocker 5: Bob clicking OpenDirect for Alice reuses Alice's DM instead of creating a duplicate DM.
+        await using var bobFriends = await bob.Open<FriendsApp>("default", Ct);
+        await bobFriends.Send(new OpenDirectRoom(alice.Account), Ct);
+        var bobRoomsAfterOpenDirect = await bobIndex.List(Ct);
+        Assert.Equal(2, bobRoomsAfterOpenDirect.Length);
 
         // Bob leaves the group room; it disappears from Bob's index and Bob loses his seat.
         await bob.Get<IRoom>(groupId).Leave(Ct);
@@ -58,6 +67,20 @@ public sealed class MultiRoomAndRoomInoFacts
         Assert.Single(bobRoomsAfterLeave);
         Assert.DoesNotContain(bobRoomsAfterLeave, r => r.Room == groupId);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.Get<IRoom>(groupId).Say("after leaving", Ct));
+
+        // Blocker 6: RoomChecklistApp clear + add produces monotonic non-colliding IDs.
+        await using var checklist = await alice.Open<RoomChecklistApp>("collision-check", Ct);
+        await checklist.Send(new AddChecklistItem("First"), Ct);
+        await checklist.Send(new AddChecklistItem("Second"), Ct);
+        await checklist.Send(new ToggleChecklistItem("i1", true), Ct);
+        await checklist.Send(new ClearCompletedChecklistItems(), Ct);
+        await checklist.Send(new AddChecklistItem("Third"), Ct);
+        var checklistView = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", "collision-check")).Read();
+        Assert.NotNull(checklistView);
+        var raw = checklistView!.View.GetRawText();
+        Assert.Contains("chk-i2", raw, StringComparison.Ordinal);
+        Assert.Contains("chk-i3", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain("chk-i1", raw, StringComparison.Ordinal);
     }
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
@@ -79,10 +102,15 @@ public sealed class MultiRoomAndRoomInoFacts
         // 1. Normal human-to-human messages trigger ZERO agent turns.
         await alice.Get<IRoom>(roomId).Say("Hey Bob, ready to review?", Ct);
         await bob.Get<IRoom>(roomId).Say("Yep, let's go!", Ct);
+        await os.Idle();
         Assert.Equal(0, recording.CallCount);
 
-        // 2. Explicit @Ino mention triggers room-scoped agent turn with authenticated speaker attribution.
+        // Over-length room message is rejected by MaxSayCharacters cap.
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => alice.Get<IRoom>(roomId).Say(new string('a', 32_001), Ct));
+
+        // 2. Explicit @Ino mention triggers room-scoped agent turn asynchronously off the Say critical path.
         await bob.Get<IRoom>(roomId).Say("@Ino summarize our plan", Ct);
+        await WaitUntilAsync(async () => recording.CallCount == 1 && (await alice.Get<IRoom>(roomId).Read(null, Ct)).Messages.Length == 4, os.Idle, Ct);
         Assert.Equal(1, recording.CallCount);
         var lastRequest = Assert.Single(recording.Requests);
         Assert.Contains(lastRequest.Messages, m => m.Role == "system" && m.Content.OfType<AiText>().Any(t => t.Text.Contains("@Ino · Room only", StringComparison.Ordinal)));
@@ -150,6 +178,17 @@ public sealed class MultiRoomAndRoomInoFacts
         var latestView = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
         Assert.NotNull(latestView);
         Assert.Contains("1/2 done", latestView!.View.GetRawText(), StringComparison.Ordinal);
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, Func<Task> idle, CancellationToken ct)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await idle();
+            if (await condition()) { return; }
+            await Task.Delay(25, ct);
+        }
     }
 
     private sealed class RecordingInference(string reply) : IModelInference

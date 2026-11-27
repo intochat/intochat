@@ -101,7 +101,7 @@ internal static class ModelContext
                     var sender = ResolveSender(said);
                     var role = said.By is Participant.Human ? "user" : "assistant";
                     var contentText = multiHuman && said.By is Participant.Human
-                        ? $"[{sender.DisplayName} ({sender.AccountId})]: {said.Text}"
+                        ? FormatSpeakerAttributedText(sender, said.Text)
                         : said.Text;
                     messages.Add(new AiMessage(role, [new AiText(contentText)]) { Sender = sender });
                     sources.Add(said.Id);
@@ -156,5 +156,23 @@ internal static class ModelContext
             Participant.Assistant assistant => new SenderIdentity(assistant.AgentId, assistant.AgentId, SenderKind.Agent),
             _ => new SenderIdentity("unknown", "Unknown", SenderKind.Human),
         };
+    }
+
+    private static string FormatSpeakerAttributedText(SenderIdentity sender, string text)
+    {
+        var safeName = sender.DisplayName.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
+        var safeId = sender.AccountId.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
+        var framedBody = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Replace("\n", "\n  ", StringComparison.Ordinal);
+        return $"[{safeName} ({safeId})]: {framedBody}";
     }
 }

@@ -38,6 +38,8 @@ internal sealed class ConversationNeuron(
 
     private ConversationDefaults Defaults => Services.GetService<ConversationDefaults>() ?? ConversationDefaults.Generic;
     private string DefaultAgentId => Defaults.DefaultAgentId;
+    private IBrainOwners Owners => Services.GetService<IBrainOwners>() ?? throw FriendRelay.Refused();
+    private IFriends Friends => Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
     private IOffers Offers => Context.Offers;
 
     protected override string HostKind => "Conversation";
@@ -104,6 +106,28 @@ internal sealed class ConversationNeuron(
     }
 
     private void AuthorizeOwnerOnly() => RequireSameBrain(FriendRelay.Refused);
+
+    private async Task<AccountId> RequireOwnerAsPersonAsync()
+    {
+        var caller = Context.Caller;
+        if (caller is not { Actor: Actor.Person person }
+            || string.IsNullOrEmpty(person.Account)
+            || caller.Brain != Id.Brain)
+        {
+            throw FriendRelay.Refused();
+        }
+        var allowedSurfaces = Defaults.AllowedInviteSurfaces;
+        if (caller.Via is { } via && (via.Brain != Id.Brain || allowedSurfaces is null || !allowedSurfaces.Contains(via.Type, StringComparer.Ordinal)))
+        {
+            throw FriendRelay.Refused();
+        }
+        var owner = await Owners.OwnerAccount(Id.Brain);
+        if (!string.Equals(owner, person.Account, StringComparison.Ordinal))
+        {
+            throw FriendRelay.Refused();
+        }
+        return new AccountId(person.Account);
+    }
 
     private AccountId CallerAccount()
     {
@@ -467,6 +491,31 @@ internal sealed class ConversationNeuron(
         };
     }
 
+    public async Task Invite(AccountId friend)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
+        var owner = await RequireOwnerAsPersonAsync();
+        await Fresh();
+        await EnsureImportedAsync();
+
+        var friends = Friends;
+        if (!await friends.IsFriend(friend))
+        {
+            throw FriendRelay.Refused();
+        }
+        var roster = await friends.List();
+        var target = roster.FirstOrDefault(row => row.Account == friend)
+            ?? throw FriendRelay.Refused();
+
+        var participants = WithParticipants(State.Participants, new Participant.Human(owner), new Participant.Human(friend));
+        await Persist(State with { Participants = participants });
+        await Offers.Offer(Id, friend.Value, DigitalBrain.Components.Role.Editor);
+
+        var title = await ReadTitleBestEffortAsync();
+        var invite = new GroupInvite(Id.Brain, ConvId, title, owner);
+        await SiloNeurons.Get<IFriends>(Services, FriendsDefaults.Id(target.Brain.Value)).Invited(invite);
+    }
+
     public async Task Drive(string runId, string? model, string? replaces)
     {
         if (State.ActiveRun?.RunId != runId || IsActive)
@@ -683,6 +732,22 @@ internal sealed class ConversationNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Logger.LogDebug(error, "Session list could not be touched for conversation {ConversationId}.", ConvId);
+        }
+    }
+
+    private async Task<string> ReadTitleBestEffortAsync()
+    {
+        if (!Sessions.IsId(ConvId.Value)) { return ConvId.Value; }
+        try
+        {
+            var session = await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey))
+                .Get(ConvId.Value);
+            return !string.IsNullOrWhiteSpace(session?.Title) ? session.Title : Sessions.NewChat;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Logger.LogDebug(error, "Session list could not be read for conversation {ConversationId}.", ConvId);
+            return Sessions.NewChat;
         }
     }
 

@@ -20,10 +20,18 @@ namespace IntoChat.OS.Apps.Social;
 
 public sealed record ChecklistItem(string Id, string Label, bool Checked, string UpdatedBy = "");
 
-public sealed record RoomChecklistState(string Title, ChecklistItem[] Items, string LastUpdatedBy = "")
+public sealed record RoomChecklistState(
+    string Title,
+    ChecklistItem[] Items,
+    string LastUpdatedBy = "",
+    int NextItemNumber = 1,
+    string DraftLabel = "")
 {
-    public RoomChecklistState() : this("Shared Checklist", [], "") { }
+    public RoomChecklistState() : this("Shared Checklist", [], "", 1, "") { }
 }
+
+[Signal("room-checklist.edit-draft")]
+public sealed record EditChecklistDraft(string Value = "") : Signal;
 
 [Signal("room-checklist.add")]
 public sealed record AddChecklistItem(string Label = "") : Signal;
@@ -57,22 +65,37 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
     private string CallerAccount() => Context.Caller?.For?.Account ?? Id.Brain.Value;
 
     [On]
+    public Task EditDraft(EditChecklistDraft request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Store(State with { DraftLabel = request.Value ?? "" });
+    }
+
+    [On]
     public async Task Add(AddChecklistItem request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Label))
+        var label = !string.IsNullOrWhiteSpace(request.Label) ? request.Label.Trim() : State.DraftLabel.Trim();
+        if (string.IsNullOrWhiteSpace(label))
         {
             return;
         }
 
-        var id = $"i{State.Items.Length + 1}";
+        var nextNumber = Math.Max(State.NextItemNumber, State.Items.Length + 1);
+        var id = $"i{nextNumber}";
         var actor = CallerAccount();
-        var item = new ChecklistItem(id, request.Label.Trim(), Checked: false, UpdatedBy: actor);
+        var item = new ChecklistItem(id, label, Checked: false, UpdatedBy: actor);
         if (Context.Caller is null || Context.Caller.Brain == Id.Brain)
         {
             await FollowChild<ICheckBoxControl, Toggled>(CheckKey(id));
         }
-        await Show(State with { Items = [.. State.Items, item], LastUpdatedBy = actor });
+        await Show(State with
+        {
+            Items = [.. State.Items, item],
+            LastUpdatedBy = actor,
+            NextItemNumber = nextNumber + 1,
+            DraftLabel = "",
+        });
     }
 
     [On]
@@ -108,12 +131,20 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
     }
 
     [On]
-    public Task ClearCompleted(ClearCompletedChecklistItems request)
+    public async Task ClearCompleted(ClearCompletedChecklistItems request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var actor = CallerAccount();
+        var removed = State.Items.Where(static item => item.Checked).ToArray();
         var remaining = State.Items.Where(static item => !item.Checked).ToArray();
-        return Show(State with { Items = remaining, LastUpdatedBy = actor });
+        if (Context.Caller is null || Context.Caller.Brain == Id.Brain)
+        {
+            foreach (var item in removed)
+            {
+                await UnfollowChild<ICheckBoxControl>(CheckKey(item.Id));
+            }
+        }
+        await Show(State with { Items = remaining, LastUpdatedBy = actor });
     }
 
     protected override Node Render(RoomChecklistState state)
@@ -131,6 +162,16 @@ public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
         return Card(state.Title, subtitle)[
             VStack(Space.Sm,
             [
+                HStack(Space.Sm)[
+                    TextField("New item", "Add checklist item")
+                        .Key("input:checklist-item")
+                        .Value(state.DraftLabel)
+                        .SendsOnChange(new EditChecklistDraft()),
+                    PrimaryButton("Add", Icons.Plus)
+                        .Key("btn:add-item")
+                        .Small()
+                        .Sends(Sends(new AddChecklistItem(state.DraftLabel)))
+                ],
                 .. rows.Length == 0
                     ? [Empty("No items yet", "Add an item to collaborate in this room.")]
                     : rows,

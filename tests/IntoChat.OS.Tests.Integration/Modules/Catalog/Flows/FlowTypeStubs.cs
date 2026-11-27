@@ -85,6 +85,8 @@ public sealed class ScriptedConversation : DigitalBrain.Neurons.Neuron<ScriptedC
         return Task.FromResult(new ConversationView(ConvId, State.Revision, [], [], State.Active, [.. runs], false, []));
     }
 
+    public Task Invite(AccountId friend) => Task.CompletedTask;
+
     public Task Post(string text, string id) => Task.CompletedTask;
 
     public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;

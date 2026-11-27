@@ -2361,16 +2361,19 @@ final class SenderIdentity {
     required this.accountId,
     required this.displayName,
     required this.kind,
+    required this.roomScoped,
   });
 
   final String accountId;
   final String displayName;
   final SenderKind kind;
+  final bool roomScoped;
 
   factory SenderIdentity.fromJson(Map<String, dynamic> json) => SenderIdentity(
     accountId: _string(json['accountId']),
     displayName: _string(json['displayName']),
     kind: _enum(SenderKind.values, json['kind']),
+    roomScoped: _bool(json['roomScoped']),
   );
 }
 

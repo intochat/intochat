@@ -7,19 +7,11 @@ using static IntoChat.OS.Modules.Apps.Tests.Integration.Files.FileSharesDoorFact
 
 namespace IntoChat.OS.Modules.Shell.Tests.Integration;
 
-// Group chat moved exclusively onto IRoom (social.room). Personal conversations (IConversation) no longer expose
-// Invite, IFriends no longer exposes GroupSay/GroupRead, and Returned tool outputs default to Visibility.Owner.
+// Group chat for new rooms uses IRoom (social.room). Personal conversations keep legacy Invite/GroupSay/GroupRead
+// only during the phased OWED.md removal window, and Returned tool outputs default to Visibility.Owner.
 public sealed class GroupConversationFacts
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 21, 12, 0, 0, TimeSpan.Zero);
-
-    [Fact]
-    public void LegacyPersonalChatGroupMethodsAreRetired()
-    {
-        Assert.Null(typeof(IConversation).GetMethod("Invite"));
-        Assert.Null(typeof(IFriends).GetMethod("GroupSay"));
-        Assert.Null(typeof(IFriends).GetMethod("GroupRead"));
-    }
 
     [Fact]
     public void ReturnedToolResultDefaultsToOwnerVisibility()
