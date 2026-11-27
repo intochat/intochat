@@ -12,6 +12,8 @@ public sealed class EnrollmentEdgeFacts(CloudEdgeHost os) : IClassFixture<CloudE
 {
     private static byte[] Body(RedeemRequest request) => JsonSerializer.SerializeToUtf8Bytes(request, EnrollmentEdgeJson.Default.RedeemRequest);
 
+    private static byte[] Body(MintRequest request) => JsonSerializer.SerializeToUtf8Bytes(request, EnrollmentEdgeJson.Default.MintRequest);
+
     private static async Task<T> Read<T>(HttpResponseMessage response, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> type)
         => JsonSerializer.Deserialize(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), type)!;
 
@@ -108,6 +110,33 @@ public sealed class EnrollmentEdgeFacts(CloudEdgeHost os) : IClassFixture<CloudE
             using var response = await os.SendAsync(HttpMethod.Get, target, null, authorization);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task TheCloudMintsACodeForABrain_ThenRedeemsIt_AndRefusesUnauthorizedOrMalformedMintRequests()
+    {
+        var mintBody = Body(new MintRequest(os.Brain));
+        using var unauthenticated = await os.SendAsync(HttpMethod.Post, EnrollmentEdge.Mint, mintBody, null);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
+
+        using var wrongOp = await os.SendAssertedAsync(EnrollmentEdge.RedeemOperation, HttpMethod.Post, EnrollmentEdge.Mint, mintBody);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongOp.StatusCode);
+
+        using var blankBrain = await os.SendAssertedAsync(EnrollmentEdge.MintOperation, HttpMethod.Post, EnrollmentEdge.Mint, Body(new MintRequest("   ")));
+        Assert.Equal(HttpStatusCode.BadRequest, blankBrain.StatusCode);
+
+        using var minted = await os.SendAssertedAsync(EnrollmentEdge.MintOperation, HttpMethod.Post, EnrollmentEdge.Mint, mintBody);
+        Assert.Equal(HttpStatusCode.OK, minted.StatusCode);
+        var mintResponse = await Read(minted, EnrollmentEdgeJson.Default.MintResponse);
+        Assert.False(string.IsNullOrWhiteSpace(mintResponse.Code));
+        Assert.True(mintResponse.ExpiresAt > DateTimeOffset.UtcNow);
+
+        var machine = "m-mint-" + Guid.NewGuid().ToString("N")[..8];
+        using var redeemed = await os.SendAssertedAsync(EnrollmentEdge.RedeemOperation, HttpMethod.Post, EnrollmentEdge.Redeem,
+            Body(new RedeemRequest(mintResponse.Code, machine, "thumb-" + machine, "One-Click PC")));
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        var outcome = (await Read(redeemed, EnrollmentEdgeJson.Default.RedeemResponse)).ToOutcome();
+        Assert.Equal((EnrollmentResult.Accepted, os.Brain, "One-Click PC"), (outcome.Result, outcome.Brain, outcome.DeviceName));
     }
 
     private sealed class Fixed(DateTimeOffset now) : TimeProvider

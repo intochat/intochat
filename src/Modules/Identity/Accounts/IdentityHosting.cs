@@ -34,6 +34,8 @@ public static class IdentityHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthOptions>, IntoChat.OS.Modules.Identity.External.TrustedIssuersValidation>());
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.External.TrustedIssuerKeys>();
         services.TryAddSingleton<IServiceAssertions, IntoChat.OS.Modules.Identity.External.ServiceAssertions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthOptions>, IntoChat.OS.Modules.Identity.External.ServiceSignerValidation>());
+        services.TryAddSingleton<IServiceAssertionSigner, IntoChat.OS.Modules.Identity.External.ServiceAssertionSigner>();
         // External sign-in's throttle: per network prefix, per silo.
         services.TryAddSingleton<DigitalBrain.Runtime.Http.Surface.IRequestThrottle>(provider =>
             new DigitalBrain.Runtime.Http.Surface.SlidingWindowThrottle(30, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));

@@ -13,4 +13,5 @@ public static class AuthKeys
     public const string PrincipalLinks = SectionName + ":PrincipalLinks";
     public const string ExternalReturnOrigins = SectionName + ":ExternalReturnOrigins";
     public const string Day0EphemeralTry = SectionName + ":Day0EphemeralTry";
+    public const string ServiceSigner = SectionName + ":ServiceSigner";
 }

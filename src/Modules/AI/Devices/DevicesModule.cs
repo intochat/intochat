@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Devices.Runtimes.FoundryLocal;
 using IntoChat.OS.Modules.Devices.Runtimes.SherpaOnnx;
 using IntoChat.OS.Modules.Devices.Voice;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,16 +95,21 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton(static sp => new CloudRelayServiceClient(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
+            sp.GetService<IServiceAssertionSigner>()));
         services.TryAddSingleton<IDeviceEnrollmentRedeemer, DeviceEnrollmentRedeemer>();
         services.TryAddSingleton<IDeviceChatRoute>(static sp => new RelayDeviceChatRoute(
             sp.GetRequiredService<CloudClient>(),
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
-            sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetService<CloudRelayServiceClient>()));
         services.TryAddSingleton<IConnectedComputeTransport>(static sp => new RelayConnectedComputeTransport(
             sp.GetRequiredService<CloudClient>(),
             sp.GetRequiredService<DeviceCredentials>(),
-            sp.GetService<IOptionsMonitor<DevicesOptions>>()));
+            sp.GetService<IOptionsMonitor<DevicesOptions>>(),
+            sp.GetService<CloudRelayServiceClient>()));
         services.TryAddSingleton<IConnectedComputeRouter>(static sp => new ConnectedComputeRouter(
             sp.GetRequiredService<CloudClient>(),
             sp.GetRequiredService<DeviceCredentials>(),
@@ -111,7 +117,8 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetService<IOptionsMonitor<DevicesOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<IConnectedComputeTransport>(),
-            sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>()));
+            sp.GetService<global::Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>(),
+            sp.GetService<CloudRelayServiceClient>()));
         services.TryAddSingleton<IClientCodeSandboxConsent>(static sp =>
         {
             var initialAllow = sp.GetService<IOptionsMonitor<DevicesOptions>>()?.CurrentValue.Compute.AllowClientCodeSandbox

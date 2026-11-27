@@ -33,7 +33,10 @@ internal sealed class DeviceEnrollmentNeuron(IServiceProvider services) : Neuron
 
     public async Task<Code> Mint()
     {
-        await RequireOwnerAsPersonAsync();
+        if (!IsDevicesModuleCaller())
+        {
+            await RequireOwnerAsPersonAsync();
+        }
         var now = Context.Time.GetUtcNow();
         var code = Code.New();
         var expiresAt = now + Code.Validity;

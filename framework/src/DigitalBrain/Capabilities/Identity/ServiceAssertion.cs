@@ -13,7 +13,17 @@ namespace DigitalBrain.Capabilities.Identity;
 /// <param name="Request">The binding of the exact request, <see cref="ServiceAssertion.Request"/>.</param>
 /// <param name="Jti">The assertion id; the verifier owns replay.</param>
 /// <param name="ExpiresAt">At most 60 seconds after signing.</param>
-public sealed record ServiceAssertionClaims(string Issuer, string Audience, string Operation, string Request, string Jti, DateTimeOffset ExpiresAt);
+/// <param name="Subject">Optional subject identifier (payload <c>sub</c>), for example a brain id.</param>
+/// <param name="Purpose">Optional purpose tag (payload <c>purpose</c>).</param>
+public sealed record ServiceAssertionClaims(
+    string Issuer,
+    string Audience,
+    string Operation,
+    string Request,
+    string Jti,
+    DateTimeOffset ExpiresAt,
+    string? Subject = null,
+    string? Purpose = null);
 
 /// <summary>
 /// A service assertion: a compact JWS (ES256, P-256, IEEE P1363 signature) a trusted issuer sends as
@@ -59,7 +69,7 @@ public static partial class ServiceAssertion
         return CompactJws.Sign(
             JsonSerializer.SerializeToUtf8Bytes(new ServiceAssertionHeader("ES256", Type, claims.Issuer), ServiceAssertionJsonContext.Default.ServiceAssertionHeader),
             JsonSerializer.SerializeToUtf8Bytes(new ServiceAssertionPayload(claims.Issuer, claims.Audience, claims.ExpiresAt.ToUnixTimeSeconds(), claims.Jti,
-                claims.Operation, claims.Request), ServiceAssertionJsonContext.Default.ServiceAssertionPayload),
+                claims.Operation, claims.Request, claims.Subject, claims.Purpose), ServiceAssertionJsonContext.Default.ServiceAssertionPayload),
             privateKey);
     }
 
@@ -82,7 +92,8 @@ public static partial class ServiceAssertion
             var payload = JsonSerializer.Deserialize(CompactJws.Decode(parts[1]), ServiceAssertionJsonContext.Default.ServiceAssertionPayload);
             if (payload is null || payload.Iss != header.Kid || payload.Aud is not { } audience || audience != trusted.Audience ||
                 payload.Exp is < 0 or > 253_402_300_799) { return null; }
-            var claims = new ServiceAssertionClaims(header.Kid, audience, payload.Op ?? "", payload.Req ?? "", payload.Jti ?? "", DateTimeOffset.FromUnixTimeSeconds(payload.Exp));
+            var claims = new ServiceAssertionClaims(header.Kid, audience, payload.Op ?? "", payload.Req ?? "", payload.Jti ?? "",
+                DateTimeOffset.FromUnixTimeSeconds(payload.Exp), payload.Sub, payload.Purpose);
             return Valid(claims, clock.GetUtcNow()) ? claims : null;
         }
         catch (FormatException) { return null; }
@@ -97,7 +108,9 @@ public static partial class ServiceAssertion
         claims.Operation is { Length: > 0 } && OperationName().IsMatch(claims.Operation) &&
         claims.Request is { Length: 43 } &&
         !string.IsNullOrWhiteSpace(claims.Jti) && claims.Jti.Length <= 128 &&
-        claims.ExpiresAt > now && claims.ExpiresAt <= now.AddSeconds(LifetimeSeconds);
+        claims.ExpiresAt > now && claims.ExpiresAt <= now.AddSeconds(LifetimeSeconds) &&
+        (claims.Subject is null || (!string.IsNullOrWhiteSpace(claims.Subject) && claims.Subject.Length <= 200)) &&
+        (claims.Purpose is null || (claims.Purpose is { Length: > 0 } && OperationName().IsMatch(claims.Purpose)));
 
     [GeneratedRegex("^[a-z0-9][a-z0-9._-]{0,99}$")]
     private static partial Regex OperationName();
@@ -105,7 +118,15 @@ public static partial class ServiceAssertion
 
 internal sealed record ServiceAssertionHeader(string? Alg, string? Typ, string? Kid);
 
-internal sealed record ServiceAssertionPayload(string? Iss, string? Aud, long Exp, string? Jti, string? Op, string? Req);
+internal sealed record ServiceAssertionPayload(
+    string? Iss,
+    string? Aud,
+    long Exp,
+    string? Jti,
+    string? Op,
+    string? Req,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Sub = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Purpose = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(ServiceAssertionHeader))]

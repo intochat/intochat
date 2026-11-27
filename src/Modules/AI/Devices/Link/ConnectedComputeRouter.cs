@@ -16,7 +16,8 @@ namespace IntoChat.OS.Modules.Devices.Link;
 internal sealed class RelayConnectedComputeTransport(
     CloudClient cloud,
     DeviceCredentials credentials,
-    IOptionsMonitor<DevicesOptions>? options = null) : IConnectedComputeTransport
+    IOptionsMonitor<DevicesOptions>? options = null,
+    CloudRelayServiceClient? serviceRelay = null) : IConnectedComputeTransport
 {
     public async Task<bool> ProbeAsync(
         BrainId brainId,
@@ -24,12 +25,15 @@ internal sealed class RelayConnectedComputeTransport(
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(node);
-        if (await credentials.Read(ct).ConfigureAwait(false) is null)
+        var hasDeviceLink = await credentials.Read(ct).ConfigureAwait(false) is not null;
+        if (!hasDeviceLink && serviceRelay is not { IsConfigured: true })
         {
             return false;
         }
 
-        var response = await cloud.BrainComputeNodesAsync(brainId.Value, ct).ConfigureAwait(false);
+        var response = hasDeviceLink
+            ? await cloud.BrainComputeNodesAsync(brainId.Value, ct).ConfigureAwait(false)
+            : await serviceRelay!.BrainComputeNodesAsync(brainId.Value, ct).ConfigureAwait(false);
         if (response is null || !string.Equals(response.Brain, brainId.Value, StringComparison.Ordinal))
         {
             return false;
@@ -52,16 +56,17 @@ internal sealed class RelayConnectedComputeTransport(
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(request);
-        if (await credentials.Read(ct).ConfigureAwait(false) is null)
+        var hasDeviceLink = await credentials.Read(ct).ConfigureAwait(false) is not null;
+        if (!hasDeviceLink && serviceRelay is not { IsConfigured: true })
         {
             return null;
         }
 
         var timeoutMs = Math.Clamp(options?.CurrentValue.Compute.AvailabilityTimeoutMs ?? 400, 50, 500);
-        return await cloud.DispatchBrainSandboxAsync(
-            new BrainSandboxDispatchRequest(brainId.Value, node.MachineId, request),
-            TimeSpan.FromMilliseconds(timeoutMs),
-            ct).ConfigureAwait(false);
+        var dispatch = new BrainSandboxDispatchRequest(brainId.Value, node.MachineId, request);
+        return hasDeviceLink
+            ? await cloud.DispatchBrainSandboxAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false)
+            : await serviceRelay!.DispatchBrainSandboxAsync(dispatch, TimeSpan.FromMilliseconds(timeoutMs), ct).ConfigureAwait(false);
     }
 }
 
@@ -77,7 +82,8 @@ internal sealed class ConnectedComputeRouter(
     IOptionsMonitor<DevicesOptions>? options = null,
     TimeProvider? clock = null,
     IConnectedComputeTransport? transport = null,
-    ILogger<ConnectedComputeRouter>? logger = null) : IConnectedComputeRouter
+    ILogger<ConnectedComputeRouter>? logger = null,
+    CloudRelayServiceClient? serviceRelay = null) : IConnectedComputeRouter
 {
     internal static readonly TimeSpan RelayCacheFor = TimeSpan.FromSeconds(5);
 
@@ -351,12 +357,11 @@ internal sealed class ConnectedComputeRouter(
 
     private async Task RefreshFromRelayIfLinkedAsync(BrainId brainId, CancellationToken ct)
     {
-        if (cloud is null || credentials is null)
-        {
-            return;
-        }
-
-        if (await credentials.Read(ct).ConfigureAwait(false) is null)
+        var hasDeviceLink = cloud is not null
+            && credentials is not null
+            && await credentials.Read(ct).ConfigureAwait(false) is not null;
+        var hasServiceRelay = serviceRelay is { IsConfigured: true };
+        if (!hasDeviceLink && !hasServiceRelay)
         {
             return;
         }
@@ -372,7 +377,9 @@ internal sealed class ConnectedComputeRouter(
 
         try
         {
-            var answer = await cloud.BrainComputeNodesAsync(brainId.Value, bounded.Token).ConfigureAwait(false);
+            var answer = hasDeviceLink
+                ? await cloud!.BrainComputeNodesAsync(brainId.Value, bounded.Token).ConfigureAwait(false)
+                : await serviceRelay!.BrainComputeNodesAsync(brainId.Value, bounded.Token).ConfigureAwait(false);
             _relayRefreshedAt[brainId.Value] = now;
             if (answer is null || !string.Equals(answer.Brain, brainId.Value, StringComparison.Ordinal))
             {

@@ -798,6 +798,35 @@ public sealed class InstallPlanFacts
         Assert.Contains("azure-native:cognitiveservices:Deployment", importJson, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void OsAppSetsSandboxKernelCallbackUrlFromAuthPublicBaseUrl()
+    {
+        var withPublicBase = InstallConfig.Parse("""
+            {
+              "subscription": "00000000-0000-0000-0000-000000000001",
+              "location": "westeurope",
+              "prefix": "intochat",
+              "env": "test",
+              "osImage": "ghcr.io/intochat/os:1.0.0",
+              "sandboxImage": "ghcr.io/intochat/sandbox:1.0.0",
+              "registryServer": "intochat.azurecr.io",
+              "modules": {
+                "auth": {
+                  "PublicBaseUrl": "https://os.test.intochat.io/edge/ignored-path"
+                }
+              }
+            }
+            """);
+
+        var osAppWithPublic = InstallPlan.OsApp(withPublicBase, new Dictionary<string, string>(), []);
+        Assert.Equal("https://os.test.intochat.io", osAppWithPublic.Variables[InstallPlan.SandboxKernelCallbackUrlVariable]);
+        Assert.Equal("http://intochat-test-sandbox", osAppWithPublic.Variables[InstallPlan.SandboxUrlVariable]);
+
+        var withoutPublicBase = InstallConfig.Parse(ConfigJson);
+        var osAppWithoutPublic = InstallPlan.OsApp(withoutPublicBase, new Dictionary<string, string>(), []);
+        Assert.False(osAppWithoutPublic.Variables.ContainsKey(InstallPlan.SandboxKernelCallbackUrlVariable));
+    }
+
     private static string ResourceBlock(string yaml, string logicalName)
     {
         var start = yaml.IndexOf("\n  " + logicalName + ":\n", StringComparison.Ordinal);

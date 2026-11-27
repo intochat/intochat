@@ -62,9 +62,10 @@ internal sealed partial class HttpSandboxRuntimeBridge
             Func<UnitHostFrameResponse, CancellationToken, Task<UnitHostFrameRequest>> callbackHandler,
             ILogger logger)
         {
+            var launch = ResolveUnitHostLaunchCommand(assemblyPath, contractsDirectory);
             var startInfo = new ProcessStartInfo
             {
-                FileName = ResolveDotNetExecutable(),
+                FileName = launch.FileName,
                 UseShellExecute = false,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
@@ -76,13 +77,9 @@ internal sealed partial class HttpSandboxRuntimeBridge
                 StandardErrorEncoding = Encoding.UTF8,
             };
 
-            startInfo.ArgumentList.Add("exec");
-            startInfo.ArgumentList.Add(assemblyPath);
-            startInfo.ArgumentList.Add("--unit-host");
-            if (!string.IsNullOrWhiteSpace(contractsDirectory))
+            foreach (var argument in launch.Arguments)
             {
-                startInfo.ArgumentList.Add("--contracts-dir");
-                startInfo.ArgumentList.Add(contractsDirectory);
+                startInfo.ArgumentList.Add(argument);
             }
 
             ChildEnvironmentPolicy.Scrub(startInfo);
@@ -330,26 +327,100 @@ internal sealed partial class HttpSandboxRuntimeBridge
         }
 
         private static string ResolveDotNetExecutable()
+            => HttpSandboxRuntimeBridge.ResolveDotNetExecutable();
+    }
+
+    internal sealed record UnitHostLaunchCommand(string FileName, string[] Arguments);
+
+    /// <summary>
+    /// Resolves the command line for launching <c>IntoChat.OS.Sandbox --unit-host</c>.
+    /// Prefers the bundled self-contained native apphost (<c>IntoChat.OS.Sandbox.exe</c> on Windows,
+    /// <c>IntoChat.OS.Sandbox</c> on POSIX) when present so SDK-less desktop installs never invoke
+    /// <c>dotnet</c>; falls back to <c>dotnet exec &lt;dll&gt; --unit-host</c> only when no native apphost
+    /// exists alongside the <c>.dll</c>.
+    /// </summary>
+    internal static UnitHostLaunchCommand ResolveUnitHostLaunchCommand(
+        string assemblyPath,
+        string contractsDirectory,
+        bool? isWindows = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
+        var windows = isWindows ?? OperatingSystem.IsWindows();
+        var arguments = new List<string>(4);
+        string fileName;
+
+        if (TryResolveApphostExecutable(assemblyPath, windows, out var apphostPath))
         {
-            var processPath = Environment.ProcessPath;
-            if (!string.IsNullOrWhiteSpace(processPath)
-                && string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase))
-            {
-                return processPath;
-            }
-
-            var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-            if (!string.IsNullOrWhiteSpace(dotnetRoot))
-            {
-                var candidate = Path.Combine(dotnetRoot, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            return "dotnet";
+            fileName = apphostPath;
         }
+        else
+        {
+            fileName = ResolveDotNetExecutable();
+            arguments.Add("exec");
+            arguments.Add(assemblyPath);
+        }
+
+        arguments.Add("--unit-host");
+        if (!string.IsNullOrWhiteSpace(contractsDirectory))
+        {
+            arguments.Add("--contracts-dir");
+            arguments.Add(contractsDirectory);
+        }
+
+        return new UnitHostLaunchCommand(fileName, [.. arguments]);
+    }
+
+    private static bool TryResolveApphostExecutable(string assemblyOrExecutablePath, bool isWindows, out string executablePath)
+    {
+        var extension = Path.GetExtension(assemblyOrExecutablePath);
+        if (!string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            if (File.Exists(assemblyOrExecutablePath))
+            {
+                executablePath = Path.GetFullPath(assemblyOrExecutablePath);
+                return true;
+            }
+
+            executablePath = string.Empty;
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(assemblyOrExecutablePath);
+        var baseName = Path.GetFileNameWithoutExtension(assemblyOrExecutablePath);
+        if (!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(baseName))
+        {
+            var candidate = Path.Combine(directory, isWindows ? baseName + ".exe" : baseName);
+            if (File.Exists(candidate))
+            {
+                executablePath = Path.GetFullPath(candidate);
+                return true;
+            }
+        }
+
+        executablePath = string.Empty;
+        return false;
+    }
+
+    private static string ResolveDotNetExecutable()
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath)
+            && string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return processPath;
+        }
+
+        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrWhiteSpace(dotnetRoot))
+        {
+            var candidate = Path.Combine(dotnetRoot, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return "dotnet";
     }
 
     private sealed class WindowsJobObject : IDisposable
