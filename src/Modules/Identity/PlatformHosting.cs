@@ -64,6 +64,9 @@ public static class PlatformHosting
         services.TryAddSingleton<ICapabilities, Capabilities>();
         silo.AddStartupTask<IntegrationSeeder>();
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>();
+        services.TryAddSingleton<DigitalBrain.Identity.Local.Directory.IDirectoryChangeObserver>(
+            provider => provider.GetRequiredService<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>());
+        services.AddOsDirectoryPort();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
         SingleSiloGuard.Register(services);

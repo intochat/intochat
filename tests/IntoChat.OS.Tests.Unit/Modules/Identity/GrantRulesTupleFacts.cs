@@ -53,9 +53,9 @@ public sealed class GrantRulesTupleFacts
     [Fact]
     public void APlainNeuronTargetBelongsToTheBrainAfterItsType()
     {
-        Assert.True(IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain.InBrain("ui.workspace/test-brain/main", "test-brain"));
-        Assert.True(IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain.InBrain("test-brain/apps/gallery", "test-brain"));
-        Assert.False(IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain.InBrain("ui.workspace/other-brain/main", "test-brain"));
+        Assert.True(IntoChat.OS.Modules.Identity.Authority.BrainAuthorityDecisions.InBrain("ui.workspace/test-brain/main", "test-brain"));
+        Assert.True(IntoChat.OS.Modules.Identity.Authority.BrainAuthorityDecisions.InBrain("test-brain/apps/gallery", "test-brain"));
+        Assert.False(IntoChat.OS.Modules.Identity.Authority.BrainAuthorityDecisions.InBrain("ui.workspace/other-brain/main", "test-brain"));
     }
 
     [Fact]

@@ -32,7 +32,6 @@ using IntoChat.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Modules.Identity;
-using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 

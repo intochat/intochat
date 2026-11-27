@@ -65,15 +65,22 @@ public sealed class AccessFindingsUngatedGrainFacts(Gate20EdgeApprovalWallFacts.
     public async Task GatewayClientWithNoCaller_CannotAddItselfToAnyBrainAsOwner()
     {
         var host = fixture.Host;
-
-        var factory = host.Services.GetRequiredService<IGrainFactory>();
         Orleans.Runtime.RequestContext.Clear();
 
-        var directory = factory.GetGrain<IIdentityDirectory>("identity-directory");
+        var directory = DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<DigitalBrain.Identity.Local.Directory.IDirectory>(
+            host.Services,
+            DigitalBrain.Identity.Local.Directory.IDirectory.Key);
 
-        // SHOULD hold: an unstamped grain call cannot grant itself membership of a brain with any role.
+        // SHOULD hold: an unstamped call cannot grant itself membership of a brain with any role.
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => directory.ShareBrainAsync(host.Scope, host.Scope, "attacker", "Attacker", DigitalBrain.Capabilities.Identity.MemberRole.Owner, Ct));
+            () => directory.EnsureMember(new DigitalBrain.Capabilities.Identity.Member
+            {
+                AccountId = host.Scope,
+                BrainId = host.Scope,
+                PrincipalId = "attacker",
+                DisplayName = "Attacker",
+                Role = DigitalBrain.Capabilities.Identity.MemberRole.Owner,
+            }));
     }
 
     private static async Task RegisterAsync(Gate20EdgeApprovalWallFacts.EdgeKernelHarness host, string principal)

@@ -1,7 +1,6 @@
 {
   "Grains": {
     "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": "brain.entries",
-    "IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron": "identity-directory",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": "identity.external-ticket-replay",
     "IntoChat.OS.Authority.Identity.PrincipalCredentialGrain": "identity.principal-credential",
     "IntoChat.OS.Authority.Integrations.IntegrationNeuron": "integration.registration",
@@ -15,7 +14,6 @@
     "IntoChat.OS.Authority.Identity.IPrincipalCredential": "identity.principal-credential-grain",
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
     "IntoChat.OS.Connections.Platform.Integrations.IIntegration": "integration.registration",
-    "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
     "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table"
   },
   "Contracts": {
@@ -54,7 +52,6 @@
     "IntoChat.OS.Framework.Modules.Platform.Identity.Account": "identity.account; AccountId=0, Name=1, OwnerPrincipalId=2, CreatedAt=3",
     "IntoChat.OS.Framework.Modules.Platform.Identity.BrainEntry": "identity.brain-entry; Id=0, Kind=1",
     "IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision": "identity.brain-provision; Member=0, NewBrain=1",
-    "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory (not generated); ",
     "IntoChat.OS.Framework.Modules.Platform.Identity.Member": "identity.member; PrincipalId=0, AccountId=1, BrainId=2, Role=3, DisplayName=4, JoinedAt=5",
     "IntoChat.OS.Framework.UntrustedCallerException": "enforcement.untrusted-caller; ",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain+State": "kernel.instances.state; Entries=0",
@@ -215,7 +212,7 @@
     "IntoChat.OS.Apps.Settings.SettingsRefreshConnections": "SettingsRefreshConnections",
     "IntoChat.OS.Apps.Settings.SettingsReloadPreferences": "SettingsReloadPreferences",
     "IntoChat.OS.Apps.Settings.SettingsSavePreferences": "SettingsSavePreferences",
-    "IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged": "IdentityDirectoryChanged",
+    "IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged": "DirectoryChanged",
     "IntoChat.OS.Authority.Identity.Grants.GrantsChanged": "GrantsChanged",
     "IntoChat.OS.Authority.Secrets.OsVaultChanged": "VaultChanged",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected": "ConnectionConnected",

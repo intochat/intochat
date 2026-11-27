@@ -11,7 +11,6 @@ using IntoChat.OS.Modules.Identity.Authority;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Grants;
-using IntoChat.OS.Modules.Identity.Ports;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -50,11 +49,11 @@ public sealed class AppPrincipalFacts
         Assert.DoesNotContain(logs.Entries, e => e.Level >= LogLevel.Warning && e.Category.Contains("AppNeuron", StringComparison.Ordinal));
         Assert.Null(await harness.Identity.Membership(record.BrainId, AppPrincipal.Id(appKey)));
 
-        var directoryId = new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main");
+        var directoryId = new NeuronId(new BrainId("system"), DigitalBrain.Identity.Local.Directory.IDirectory.Type, "main");
         var stateJson = await ((DigitalBrain.Kernel.IBrainObserver)harness.Os).State(directoryId, Ct);
         if (stateJson is not null)
         {
-            var state = stateJson.Value.Deserialize<IdentityDirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var state = stateJson.Value.Deserialize<DigitalBrain.Identity.Local.Directory.DirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
             Assert.DoesNotContain(state.Brains, b => b.BrainId == record.BrainId);
         }
     }
@@ -162,13 +161,20 @@ public sealed class AppPrincipalFacts
         var sp = services.BuildServiceProvider();
         var os = TestOS.Local(o => o.Services = sp)
             .Register<AppNeuron>()
-            .Register<IdentityDirectoryGrain>()
+            .Register<DigitalBrain.Identity.Local.Directory.DirectoryNeuron>()
             .Register<GrantsNeuron>();
 
-        var directoryId = new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main");
-        var directory = os.Get<IDirectoryStore>(directoryId);
+        var directoryId = new NeuronId(new BrainId("system"), DigitalBrain.Identity.Local.Directory.IDirectory.Type, "main");
+        var directory = os.Get<DigitalBrain.Identity.Local.Directory.IDirectory>(directoryId);
         IIdentityClient identityClient = new EphemeralAwareTestIdentityClient(directory, os.Edge, ephemeral);
-        var port = new DirectoryPort(identityClient, os.Callers);
+        var localPort = new DigitalBrain.Identity.Local.Directory.LocalDirectoryPort(
+            (contract, _) => contract == typeof(DigitalBrain.Identity.Local.Directory.IDirectory)
+                ? directory
+                : throw new InvalidOperationException($"Unexpected contract {contract.FullName}"),
+            TimeProvider.System,
+            os.Callers,
+            os.Edge);
+        var port = new EphemeralDirectoryPort(localPort, os.Callers, os.Edge, ephemeral);
         var bound = new BoundIdentity(port, os.Callers);
         os.With<IIdentity>(bound);
 
@@ -188,7 +194,7 @@ public sealed class AppPrincipalFacts
     }
 
     private sealed class EphemeralAwareTestIdentityClient(
-        IDirectoryStore directory,
+        DigitalBrain.Identity.Local.Directory.IDirectory directory,
         EdgeAuthority edge,
         EphemeralBrainRegistry? ephemeral) : IIdentityClient
     {

@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Directory;
 using IntoChat.OS.Modules.Identity.Accounts;
-using IntoChat.OS.Modules.Identity.Directory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -79,17 +79,17 @@ public sealed class PrincipalLinks
             if (ExternalSignInTicket.NormalizeEmail(link.Email) is not { } email || string.IsNullOrWhiteSpace(link.Principal))
             { outcomes.Add(new(link.Principal ?? "", "", "invalid-email")); continue; }
             var linked = ExternalSignIn.PrincipalOf(link.Issuer!, email);
-            PrincipalLinkResult result;
-            // The directory's own module identity, as every directory write of this module (LocalIdentityClient).
-            using (edge.Enter(edge.Module(IdentityDirectoryGrain.DirectoryModuleId, new BrainId("system"))))
+            PrincipalLinkStatus result;
+            // The platform's kernel identity, as every directory write of this module.
+            using (edge.Enter(edge.Kernel(BrainId.Kernel)))
             {
                 result = await neurons.Directory().LinkPrincipal(link.Principal, linked).WaitAsync(cancellationToken);
             }
             outcomes.Add(new(link.Principal, linked, result switch
             {
-                PrincipalLinkResult.Linked => "linked",
-                PrincipalLinkResult.AlreadyLinked => "already-linked",
-                PrincipalLinkResult.NoSuchPrincipal => "no-such-principal",
+                PrincipalLinkStatus.Linked => "linked",
+                PrincipalLinkStatus.AlreadyLinked => "already-linked",
+                PrincipalLinkStatus.NoSuchPrincipal => "no-such-principal",
                 _ => "conflict",
             }));
         }

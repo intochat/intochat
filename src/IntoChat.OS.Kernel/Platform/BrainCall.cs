@@ -129,7 +129,7 @@ internal static class BrainCall
     private static readonly HashSet<string> GuestDeniedAdminContracts = new(StringComparer.OrdinalIgnoreCase)
     {
         "IGrantsNeuron",
-        "IDirectoryStore",
+        "IDirectory",
         "IHandleDirectory",
         "ICodeIndex",
         "ICodeKey",

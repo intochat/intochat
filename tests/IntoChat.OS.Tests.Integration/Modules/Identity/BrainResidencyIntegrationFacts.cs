@@ -196,9 +196,9 @@ public sealed class BrainResidencyIntegrationFacts(BrainResidencyIntegrationFact
 
         // Still zero files on disk and zero durable DirectoryNeuron entries before claim!
         Assert.False(Directory.Exists(brainDiskDir));
-        using (edge.Enter(edge.Module("identity.directory", new BrainId("system"))))
+        using (edge.Enter(edge.Kernel(BrainId.Kernel)))
         {
-            var durableDirectory = proxies.Get<IDirectoryStore>(IDirectoryStore.Key);
+            var durableDirectory = proxies.Get<DigitalBrain.Identity.Local.Directory.IDirectory>(DigitalBrain.Identity.Local.Directory.IDirectory.Key);
             Assert.False(await durableDirectory.BrainExists(ephemeralBrainId!));
         }
 

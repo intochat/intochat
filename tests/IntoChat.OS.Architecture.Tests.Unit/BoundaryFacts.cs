@@ -135,9 +135,9 @@ public sealed class BoundaryFacts
     {
         var contracts = ProductionArchitecture.Types.Where(IsCredentialContract).ToArray();
         Assert.Contains(typeof(IIntegration), contracts);
-        Assert.Contains(typeof(IIdentityDirectory), contracts);
+        Assert.Contains(typeof(IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient), contracts);
         ArchRuleDefinition.Interfaces().That().Are(contracts)
-            .Should().ResideInAssembly(typeof(IIdentityDirectory).Assembly, typeof(IIntegration).Assembly, typeof(IntoChat.OS.Host.Modules.OsModule).Assembly)
+            .Should().ResideInAssembly(typeof(IIntegration).Assembly, typeof(IntoChat.OS.Host.Modules.OsModule).Assembly)
             .Check(ProductionArchitecture.Graph.Value);
     }
 

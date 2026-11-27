@@ -18,7 +18,6 @@ using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Callers;
 using IntoChat.OS.Host.Connections;
-using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 
@@ -49,7 +48,8 @@ public static class KernelCapabilities
         // secrets@1 and identity@1 (05-12): the runtime capabilities over ports to the Authority vault and directory.
         IntoChat.OS.Modules.Identity.Secrets.MasterKeyServiceCollectionExtensions.AddOsSecretVaultPort(builder.Services);
         builder.Services.AddSecretsCapability<DigitalBrain.Identity.Local.Vault.LocalVaultPort>();
-        builder.Services.AddIdentityCapability<DirectoryPort>();
+        IntoChat.OS.Modules.Identity.Directory.OsDirectoryHosting.AddOsDirectoryPort(builder.Services);
+        builder.Services.AddIdentityCapability<IntoChat.OS.Modules.Identity.Directory.EphemeralDirectoryPort>();
         builder.Services.TryAddSingleton<IntoChat.OS.Kernel.Composition.Registry.IRegistryBroker, IntoChat.OS.Kernel.Composition.Registry.RegistryBroker>();
         return builder;
     }

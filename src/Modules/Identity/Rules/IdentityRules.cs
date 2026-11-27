@@ -2,9 +2,10 @@ using DigitalBrain.Access;
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Capabilities.Identity.Model;
+using DigitalBrain.Identity.Local.Directory;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
@@ -23,7 +24,7 @@ internal sealed record PrincipalIdIsValid(string PrincipalId) : Rule("identity.p
     public override string Message => "Use a lowercase username containing letters, numbers and hyphens.";
 }
 
-internal sealed record PrincipalIdIsAvailable(string PrincipalId, PrincipalRow? ExistingPrincipal) : Rule("identity.principal-id-available")
+internal sealed record PrincipalIdIsAvailable(string PrincipalId, PrincipalRecord? ExistingPrincipal) : Rule("identity.principal-id-available")
 {
     // The try- prefix marks a guest (GuestSurface): no registered principal may carry it.
     public override bool Broken => PrincipalId is "owner" or "integrations"
@@ -32,13 +33,13 @@ internal sealed record PrincipalIdIsAvailable(string PrincipalId, PrincipalRow? 
     public override string Message => "That username is unavailable.";
 }
 
-internal sealed record BrainIsProvisioned(string BrainId, IdentityBrainRow? Brain) : Rule("identity.brain-provisioned")
+internal sealed record BrainIsProvisioned(string BrainId, DirectoryBrainSnapshot? Brain) : Rule("identity.brain-provisioned")
 {
     public override bool Broken => Brain is null;
     public override string Message => $"Brain {BrainId} is not provisioned.";
 }
 
-internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccountOrPrincipalId, IdentityBrainRow? Brain, Member? Member) : Rule("identity.member-not-brain-owner")
+internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccountOrPrincipalId, DirectoryBrainSnapshot? Brain, Member? Member) : Rule("identity.member-not-brain-owner")
 {
     public override bool Broken => Member?.Role == MemberRole.Owner
         || (Brain is not null && !string.IsNullOrEmpty(TargetAccountOrPrincipalId)
@@ -47,7 +48,7 @@ internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccou
     public override string Message => $"The owner of brain {BrainId} cannot be removed from it.";
 }
 
-internal sealed record BrainAuthorityIsInitialized(IdentityBrainRow? Brain) : Rule("identity.brain-authority-initialized")
+internal sealed record BrainAuthorityIsInitialized(DirectoryBrainSnapshot? Brain) : Rule("identity.brain-authority-initialized")
 {
     public override bool Broken => Brain is null;
     public override string Message => "Initialize the brain authority before granting access.";
@@ -77,7 +78,7 @@ internal sealed record MemberRoleMatches(MemberRole ExistingRole, MemberRole Req
     public override string Message => "Membership role conflict.";
 }
 
-internal sealed record BrainKindIsMutable(IdentityBrainRow Brain) : Rule("identity.brain-kind-mutable")
+internal sealed record BrainKindIsMutable(DirectoryBrainSnapshot Brain) : Rule("identity.brain-kind-mutable")
 {
     public override bool Broken => Brain.OwnerProvisioned;
     public override string Message => $"Brain {Brain.BrainId} is a {Brain.Kind} brain; its kind is fixed.";

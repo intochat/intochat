@@ -50,7 +50,6 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
             "EnsureBrainWide", [Array.Empty<string>()]),
         ["IRemindable.ReceiveReminder"] = (grains, brain) => grains.GetGrain<IRemindable>(HostId(brain)).ReceiveReminder("probe", default),
         ["IPrincipalCredential.Hash"] = (grains, _) => grains.GetGrain<IPrincipalCredential>("owner").Hash(),
-        ["IIdentityDirectory.BrainsOfAsync"] = (grains, _) => grains.GetGrain<IIdentityDirectory>("identity-directory").BrainsOfAsync("owner", Ct),
         ["IBrainEntries.List"] = (grains, brain) => grains.GetGrain<IBrainEntries>(brain).List(),
         ["IIntegration.Read"] = (grains, _) => grains.GetGrain<IIntegration>("integration/github").Read(),
         ["ITypeTable.List"] = (grains, brain) => grains.GetGrain<ITypeTable>(brain).List(),

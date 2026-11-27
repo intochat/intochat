@@ -2,13 +2,13 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Directory;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity.Authority;
-using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Secrets;
 using IntoChat.OS.Modules.Identity.Accounts;
 
@@ -19,7 +19,7 @@ public sealed class IdentityRulesFacts
     [Fact]
     public void EveryRuleNameIsPrefixedAndUnique()
     {
-        var rules = typeof(IdentityDirectoryGrain).Assembly.GetTypes()
+        var rules = typeof(AuthorityMirror).Assembly.GetTypes()
             .Where(t => !t.IsAbstract && t.IsAssignableTo(typeof(Rule)))
             .Select(CreateDefault)
             .ToArray();
@@ -41,19 +41,17 @@ public sealed class IdentityRulesFacts
     }
 
     [Fact]
-    public async Task DirectoryNeuronRefusesInvalidAndTakenPrincipalsWithRules()
+    public async Task DirectoryNeuronRefusesAccountOwnerConflict()
     {
-        // The system brain is platform territory: its directory, marketplace and circles are reached by platform code.
         using var kernel = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("system"));
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
-        services.AddSingleton<AuthorityMirror>();
-        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<IdentityDirectoryGrain>();
-        var directory = os.Get<IDirectoryStore>(new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main"));
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<DirectoryNeuron>();
+        var directory = os.Get<IDirectory>(new NeuronId(new BrainId("system"), IDirectory.Type, "main"));
 
-        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => directory.RegisterPrincipal("owner", "Owner"));
-        Assert.Contains("identity.principal-id-available", ex.Rejected.Rules);
+        await directory.EnsureAccount(new Account { AccountId = "acct-1", OwnerPrincipalId = "alice", Name = "Alice" });
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            directory.EnsureAccount(new Account { AccountId = "acct-1", OwnerPrincipalId = "bob", Name = "Bob" }));
     }
 
     [Fact]

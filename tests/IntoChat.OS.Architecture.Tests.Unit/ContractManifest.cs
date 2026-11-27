@@ -50,8 +50,6 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Authority.Entries.BrainEntriesNeuron", "IntoChat.OS.Modules.Identity.Entries.BrainEntriesNeuron"),
         ("IntoChat.OS.Authority.Entries.BrainEntriesState", "IntoChat.OS.Modules.Identity.Entries.BrainEntriesState"),
         ("IntoChat.OS.Authority.Entries.StoredEntry", "IntoChat.OS.Modules.Identity.Entries.StoredEntry"),
-        ("IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged", "IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryChanged"),
-        ("IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron", "IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryNeuron"),
         ("IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain", "IntoChat.OS.Modules.Identity.External.ExternalTicketReplayGrain"),
         ("IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState", "IntoChat.OS.Modules.Identity.External.ExternalTicketReplayState"),
         ("IntoChat.OS.Authority.Identity.External.ExternalTicketUse", "IntoChat.OS.Modules.Identity.External.ExternalTicketUse"),
@@ -67,7 +65,6 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Connections.Platform.Entries.EntrySummary", "IntoChat.OS.Modules.Identity.Contracts.Entries.EntrySummary"),
         ("IntoChat.OS.Connections.Platform.Entries.IBrainEntries", "IntoChat.OS.Modules.Identity.Contracts.Entries.IBrainEntries"),
         ("IntoChat.OS.Connections.Platform.Integrations.IIntegration", "IntoChat.OS.Modules.Identity.Contracts.Integrations.IIntegration"),
-        ("IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory", "IntoChat.OS.Modules.Identity.Directory.IIdentityDirectory"),
         // The Aspire module became the first component (src/Components/Aspire, namespace IntoChat.Aspire).
         ("IntoChat.OS.Modules.Microsoft.Aspire.Deployment.AspireDeploymentState", "IntoChat.Aspire.Deployment.AspireDeploymentState"),
         ("IntoChat.OS.Modules.Microsoft.Aspire.AspireTelemetryChanged", "IntoChat.Aspire.AspireTelemetryChanged"),
@@ -133,6 +130,7 @@ internal sealed record ContractManifest(
         ("IntoChat.Files.FilesSelected", typeof(IntoChat.OS.Modules.Apps.FilesSelected)),
         ("IntoChat.OS.Modules.Microsoft.Orleans.ClusterChanged", typeof(IntoChat.OS.Host.Cluster.ClusterChanged)),
         ("IntoChat.OS.Authority.Secrets.OsVaultChanged", typeof(DigitalBrain.Identity.Local.Vault.VaultChanged)),
+        ("IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged", typeof(DigitalBrain.Identity.Local.Directory.DirectoryChanged)),
     ];
 
     internal static string BaselinePath => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, FileName);

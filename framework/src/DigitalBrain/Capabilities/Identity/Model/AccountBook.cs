@@ -176,8 +176,11 @@ public sealed record AccountBook
             return (this, new BrainProvision(existing, false), []);
         }
 
-        var accountId = $"account-{principalId}";
-        var brainId = $"brain-{principalId}";
+        var candidateBrainId = $"brain-{principalId}";
+        var validCandidate = BrainId.IsValid(candidateBrainId);
+        var suffix = validCandidate ? principalId : Guid.NewGuid().ToString("N");
+        var accountId = $"account-{suffix}";
+        var brainId = $"brain-{suffix}";
         var name = string.IsNullOrWhiteSpace(displayName) ? principalId : displayName;
 
         var (bookWithAccount, _, accountFacts) = EnsureAccount(accountId, name, principalId, now, now);

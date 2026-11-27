@@ -306,7 +306,8 @@ public sealed class KernelLayoutFacts
     public void F18_B05_ContractManifest_TracksIdentityDirectory()
     {
         var content = File.ReadAllText(ContractManifestPath());
-        Assert.Contains("IdentityDirectoryNeuron", content, StringComparison.Ordinal);
+        Assert.Contains("IdentityDirectoryChanged", content, StringComparison.Ordinal);
+        Assert.Contains("DirectoryChanged", content, StringComparison.Ordinal);
     }
 
     #endregion

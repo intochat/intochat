@@ -1,10 +1,10 @@
 using System.Security.Cryptography;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Directory;
 using IntoChat.OS.Modules.Identity.Authority;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
-using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Grants;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -189,7 +189,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         return false;
     }
 
-    public bool TryGetAuthorityRow(string brainScopeId, out IdentityBrainRow row)
+    public bool TryGetAuthorityRow(string brainScopeId, out DirectoryBrainSnapshot row)
     {
         if (string.IsNullOrWhiteSpace(brainScopeId))
         {
@@ -496,7 +496,7 @@ internal sealed class EphemeralBrainRecord
         Grants = grants;
     }
 
-    public IdentityBrainRow ToAuthorityRow() => new()
+    public DirectoryBrainSnapshot ToAuthorityRow() => new()
     {
         BrainId = BrainId,
         AccountId = Account.AccountId,
