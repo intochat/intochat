@@ -116,7 +116,7 @@ public static class InstallPlan
         {
             In(new ResourceGroupSpec { Name = group }),
             In(new IdentitySpec { Name = identity }),
-            In(new LogWorkspaceSpec { Name = workspace }),
+            In(new LogWorkspaceSpec { Name = workspace, DailyQuotaGb = c.LogWorkspace.DailyQuotaGb }),
             In(new StorageAccountSpec { Name = account }),
             In(new FileShareSpec { Name = BrainLogShare, StorageAccount = account, QuotaGb = c.StorageQuotaGb }),
             In(new BlobContainerSpec { Name = grainState, StorageAccount = account }),
@@ -136,6 +136,7 @@ public static class InstallPlan
         }
         if (c.Postgres.Enabled) { specs.AddRange(PostgresSpecs(c, vault).Select(In)); }
         if (c.Foundry.Enabled) { specs.AddRange(FoundrySpecs(c).Select(In)); }
+        if (c.CostGuardrails.Enabled) { specs.AddRange(CostGuardrailSpecs(c).Select(In)); }
         specs.Add(In(new ManagedEnvironmentSpec
         {
             Name = environment,
@@ -338,6 +339,36 @@ public static class InstallPlan
                 Capacity = deployment.Capacity,
             };
         }
+    }
+
+    private static IEnumerable<ResourceSpec> CostGuardrailSpecs(InstallConfig c)
+    {
+        var budgetEur = c.CostGuardrails.MonthlyBudgetEur;
+        var budgetSuffix = Math.Abs(budgetEur - 185.0) < 0.001
+            ? "hard-cap-185eur"
+            : string.Create(CultureInfo.InvariantCulture, $"hard-cap-{(int)Math.Round(budgetEur)}eur");
+        var budgetName = ResourceNames.For(c.Prefix, c.Env, budgetSuffix);
+        if (budgetName.Length > 63)
+        {
+            budgetName = budgetName[..63].TrimEnd('-');
+        }
+
+        yield return new CostGuardrailSpec
+        {
+            Name = ResourceNames.For(c.Prefix, c.Env, "cost-policies"),
+            ProtectedResourceGroups = c.CostGuardrails.ProtectedResourceGroups,
+        };
+        yield return new BudgetKillSwitchSpec
+        {
+            Name = ResourceNames.For(c.Prefix, c.Env, "cost-breaker"),
+            MonthlyBudgetEur = budgetEur,
+            AlertEmail = c.CostGuardrails.AlertEmail,
+            ProtectedResourceGroups = c.CostGuardrails.ProtectedResourceGroups,
+            AutomationAccountName = ResourceNames.For(c.Prefix, c.Env, "cost-aa"),
+            RunbookName = "Stop-IntoChatCostBreaker",
+            ActionGroupName = ResourceNames.For(c.Prefix, c.Env, "cost-ag"),
+            BudgetName = budgetName,
+        };
     }
 
     public static string DryRunLine(ResourceSpec spec)
