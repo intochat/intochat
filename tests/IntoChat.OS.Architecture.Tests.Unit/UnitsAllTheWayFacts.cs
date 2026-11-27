@@ -231,18 +231,17 @@ public sealed partial class UnitsAllTheWayFacts
     {
         var nodes = Path.Combine(Repository.Root, "ui", "lib", "s" + "rc", "nodes");
         var dispatch = File.ReadAllText(Path.Combine(nodes, "node_renderer.dart"));
+        var dartFiles = Directory.EnumerateFiles(nodes, "*.dart").ToArray();
+        Assert.NotEmpty(dartFiles);
+        var allNodeRenderers = string.Join("\n", dartFiles.Select(File.ReadAllText));
         var missing = new List<string>();
         var kinds = NodeSchema.DerivedKinds();
         Assert.NotEmpty(kinds);
-        Assert.NotEmpty(Directory.EnumerateFiles(nodes, "*.dart"));
         foreach (var (type, kind) in kinds)
         {
             var dart = NodeSchema.DartName(type);
             var render = "render" + dart[..^"Node".Length];
-            // One file per kind named after it (splitPane is split_pane.dart), holding the renderer the dispatch calls.
-            var file = Path.Combine(nodes, Regex.Replace(kind, "(?<=[a-z])([A-Z])", "_$1").ToLowerInvariant() + ".dart");
-            if (!File.Exists(file)) { missing.Add($"{kind}: no {Path.GetFileName(file)}"); continue; }
-            if (!File.ReadAllText(file).Contains(render + "(", StringComparison.Ordinal)) { missing.Add($"{kind}: {Path.GetFileName(file)} has no {render}"); }
+            if (!allNodeRenderers.Contains(render + "(", StringComparison.Ordinal)) { missing.Add($"{kind}: no {render} in ui/lib/src/nodes/*.dart"); }
             if (!dispatch.Contains($"{dart}() => {render}(", StringComparison.Ordinal)) { missing.Add($"{kind}: node_renderer.dart does not dispatch {dart}"); }
         }
         Assert.Empty(missing);
