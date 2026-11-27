@@ -400,7 +400,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         }
     }
 
-    private static Uri Combine(Uri server, string route)
+    internal static Uri Combine(Uri server, string route)
     {
         var baseText = server.AbsoluteUri;
         if (!baseText.EndsWith('/'))

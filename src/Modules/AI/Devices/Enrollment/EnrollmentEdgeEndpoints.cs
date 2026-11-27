@@ -4,6 +4,7 @@ using DigitalBrain.Access;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -20,12 +21,30 @@ internal static class EnrollmentEdgeEndpoints
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapPost(EnrollmentEdge.Redeem, static http => Run(http, RedeemAsync)).AllowAnonymous();
+        endpoints.MapPost(EnrollmentEdge.Mint, static http => Run(http, MintAsync)).AllowAnonymous();
         var brain = BrainRouteGroups.Session(endpoints, "/devices/enrollment").AllowAnonymous();
         brain.MapGet("", static http => Run(http, ListAsync));
         brain.MapGet("/live", static http => Run(http, LiveAsync));
     }
 
     private static async Task Run(HttpContext http, Func<HttpContext, Task<IResult>> handler) => await (await handler(http)).ExecuteAsync(http);
+
+    private static async Task<IResult> MintAsync(HttpContext http)
+    {
+        if (await AdmittedBodyAsync(http, EnrollmentEdge.MintOperation) is not { } body) { return Refused; }
+        MintRequest? request;
+        try { request = JsonSerializer.Deserialize(body.Span, EnrollmentEdgeJson.Default.MintRequest); }
+        catch (JsonException) { return Results.BadRequest(); }
+        if (request is null || string.IsNullOrWhiteSpace(request.BrainId)) { return Results.BadRequest(); }
+
+        var brainId = request.BrainId.Trim();
+        if (!BrainId.IsValid(brainId)) { return Results.BadRequest(); }
+
+        var brain = new BrainId(brainId);
+        var now = http.RequestServices.GetService<TimeProvider>()?.GetUtcNow() ?? DateTimeOffset.UtcNow;
+        var code = await AsDevicesModule(http, brain, static enrollment => enrollment.Mint());
+        return Results.Json(new MintResponse(code.Value, now + Code.Validity), EnrollmentEdgeJson.Default.MintResponse);
+    }
 
     private static async Task<IResult> RedeemAsync(HttpContext http)
     {

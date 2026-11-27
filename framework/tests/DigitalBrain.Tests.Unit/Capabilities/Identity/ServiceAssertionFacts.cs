@@ -95,6 +95,34 @@ public sealed class ServiceAssertionFacts
         Assert.Equal("""{"alg":"ES256","typ":"service","kid":"cloud"}""", Encoding.UTF8.GetString(Decode(header)));
     }
 
+    [Fact]
+    public void Optional_subject_and_purpose_round_trip_and_are_omitted_when_null()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var scoped = new ServiceAssertionClaims(
+            "cloud",
+            Audience,
+            "circle-compute-dispatch",
+            Request,
+            "jti-scoped",
+            Now.AddSeconds(30),
+            Subject: "brain-ada",
+            Purpose: "circle-compute-dispatch");
+
+        var token = ServiceAssertion.Sign(scoped, key, new FixedTime(Now));
+        var verified = ServiceAssertion.Verify(token, Trust(key), new FixedTime(Now));
+        Assert.Equal(scoped, verified);
+
+        var payloadJson = Encoding.UTF8.GetString(Decode(token.Split('.')[1]));
+        Assert.Contains("\"sub\":\"brain-ada\"", payloadJson, StringComparison.Ordinal);
+        Assert.Contains("\"purpose\":\"circle-compute-dispatch\"", payloadJson, StringComparison.Ordinal);
+
+        var plainToken = ServiceAssertion.Sign(Claims(), key, new FixedTime(Now));
+        var plainPayload = Encoding.UTF8.GetString(Decode(plainToken.Split('.')[1]));
+        Assert.DoesNotContain("\"sub\"", plainPayload, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"purpose\"", plainPayload, StringComparison.Ordinal);
+    }
+
     private static byte[] Decode(string value)
         => Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
 

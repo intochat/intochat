@@ -744,7 +744,7 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     {
         if (!string.IsNullOrWhiteSpace(options.Value.KernelCallbackUrl))
         {
-            return options.Value.KernelCallbackUrl!;
+            return options.Value.KernelCallbackUrl.Trim().TrimEnd('/');
         }
 
         // In external container mode, the container orchestrator (Aspire / compose) supplies
@@ -797,6 +797,21 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         }
 
         var baseDir = AppContext.BaseDirectory;
+        var nativeBinaryName = OperatingSystem.IsWindows() ? "IntoChat.OS.Sandbox.exe" : "IntoChat.OS.Sandbox";
+        string[] nativeCandidates =
+        [
+            Path.Combine(baseDir, nativeBinaryName),
+            Path.Combine(baseDir, "unithost", nativeBinaryName),
+            Path.Combine(baseDir, "..", "unithost", nativeBinaryName),
+        ];
+        foreach (var native in nativeCandidates)
+        {
+            if (File.Exists(native))
+            {
+                return Path.GetFullPath(native);
+            }
+        }
+
         string[] relativeCandidates =
         [
             Path.Combine(baseDir, "IntoChat.OS.Sandbox.dll"),

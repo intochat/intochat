@@ -290,11 +290,52 @@ public sealed class ConfinedProcessAndUnitHostFacts
 
         await using var remoteDefault = CreateBridge("http://localhost:18080");
         await using var remoteOverride = CreateBridge("http://localhost:18080", "http://127.0.0.1:5080");
+        await using var hostedPublic = CreateBridge("http://intochat-test-sandbox", "https://os.test.intochat.io/");
         await using var localUnitHost = CreateBridge(string.Empty);
 
         Assert.Null(remoteDefault.ResolveKernelCallbackUrl());
         Assert.Equal("http://127.0.0.1:5080", remoteOverride.ResolveKernelCallbackUrl());
+        Assert.Equal("https://os.test.intochat.io", hostedPublic.ResolveKernelCallbackUrl());
         Assert.Equal("http://localhost:17990", localUnitHost.ResolveKernelCallbackUrl());
+    }
+
+    [Fact]
+    public void ResolveUnitHostLaunchCommandPrefersNativeApphostWhenPresentAndFallsBackToDotNetExec()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("intochat-unithost-launch-");
+        try
+        {
+            var dllPath = Path.Combine(tempDir.FullName, "IntoChat.OS.Sandbox.dll");
+            File.WriteAllText(dllPath, "stub-dll");
+
+            // 1. Only .dll present -> falls back to `dotnet exec <dll> --unit-host --contracts-dir <dir>`
+            var devFallback = HttpSandboxRuntimeBridge.ResolveUnitHostLaunchCommand(dllPath, "C:\\contracts", isWindows: true);
+            Assert.Contains("dotnet", Path.GetFileNameWithoutExtension(devFallback.FileName), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(["exec", dllPath, "--unit-host", "--contracts-dir", "C:\\contracts"], devFallback.Arguments);
+
+            // 2. Windows apphost .exe present alongside .dll -> launches .exe directly without `dotnet exec`
+            var exePath = Path.Combine(tempDir.FullName, "IntoChat.OS.Sandbox.exe");
+            File.WriteAllText(exePath, "stub-exe");
+            var windowsApphost = HttpSandboxRuntimeBridge.ResolveUnitHostLaunchCommand(dllPath, "C:\\contracts", isWindows: true);
+            Assert.Equal(Path.GetFullPath(exePath), windowsApphost.FileName);
+            Assert.Equal(["--unit-host", "--contracts-dir", "C:\\contracts"], windowsApphost.Arguments);
+
+            // 3. Passing the .exe directly also launches without `dotnet exec`
+            var directExe = HttpSandboxRuntimeBridge.ResolveUnitHostLaunchCommand(exePath, string.Empty, isWindows: true);
+            Assert.Equal(Path.GetFullPath(exePath), directExe.FileName);
+            Assert.Equal(["--unit-host"], directExe.Arguments);
+
+            // 4. POSIX native apphost present alongside .dll -> launches native binary directly
+            var posixPath = Path.Combine(tempDir.FullName, "IntoChat.OS.Sandbox");
+            File.WriteAllText(posixPath, "stub-elf");
+            var posixApphost = HttpSandboxRuntimeBridge.ResolveUnitHostLaunchCommand(dllPath, "/contracts", isWindows: false);
+            Assert.Equal(Path.GetFullPath(posixPath), posixApphost.FileName);
+            Assert.Equal(["--unit-host", "--contracts-dir", "/contracts"], posixApphost.Arguments);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
     }
 
     private sealed class StubServer : IServer

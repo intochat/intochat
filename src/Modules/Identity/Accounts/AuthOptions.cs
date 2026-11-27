@@ -49,6 +49,21 @@ public sealed class AuthOptions
     // inside the real OS desktop with zero login wall.
     //   IntoChatOS:Auth:Day0EphemeralTry
     public bool Day0EphemeralTry { get; set; }
+
+    // Outbound ES256 service-assertion signing for hosted OS -> trusted service (e.g. cloud Circle relay) calls.
+    //   IntoChatOS:Auth:ServiceSigner:Issuer     this install's issuer name (kid / iss)
+    //   IntoChatOS:Auth:ServiceSigner:Audience   the target service audience (aud)
+    //   IntoChatOS:Auth:ServiceSigner:ServiceUrl target service base URL (http(s) origin)
+    //   IntoChatOS:Auth:ServiceSigner:PrivateKey P-256 PKCS#8 private key in base64 or PEM
+    public ServiceSignerOptions? ServiceSigner { get; set; }
+}
+
+public sealed class ServiceSignerOptions
+{
+    public string Issuer { get; set; } = "";
+    public string Audience { get; set; } = "";
+    public string ServiceUrl { get; set; } = "";
+    public string PrivateKey { get; set; } = "";
 }
 
 public sealed class TrustedIssuer

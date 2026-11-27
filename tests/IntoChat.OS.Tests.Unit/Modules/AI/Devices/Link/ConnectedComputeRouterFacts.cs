@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
@@ -12,6 +13,8 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Devices.Link;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.External;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -239,6 +242,87 @@ public sealed class ConnectedComputeRouterFacts
         var node = Assert.Single(await router.ListNodesAsync(OwnerBrain, Ct));
         Assert.Equal(ComputeNodeStatus.Offline, node.Status);
         Assert.False(node.IsEligibleForSovereignCompute);
+    }
+
+    [Fact]
+    public async Task HostedServiceAssertionAuthenticatesRelayComputeDiscoveryAndSandboxDispatchPerBrain()
+    {
+        using var root = new TempDirectory("intochat-compute-service-assertion-");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+        var credentials = new DeviceCredentials(new XorProtector(), Path.Combine(root.Path, "devices", "link.bin"));
+        using var signingKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var signer = new ServiceAssertionSigner(
+            Options.Create(new AuthOptions
+            {
+                ServiceSigner = new ServiceSignerOptions
+                {
+                    Issuer = "os.test.intochat.io",
+                    Audience = "https://cloud.test",
+                    ServiceUrl = "https://cloud.test/",
+                    PrivateKey = Convert.ToBase64String(signingKey.ExportPkcs8PrivateKey()),
+                },
+            }),
+            clock);
+
+        var seenAuth = new List<(string Method, string Target, string? Scheme, string? Token, bool HasProof, string Body)>();
+        using var relay = new ScriptedHttpHandler(async (request, ct) =>
+        {
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(ct);
+            seenAuth.Add((
+                request.Method.Method,
+                request.RequestUri!.PathAndQuery,
+                request.Headers.Authorization?.Scheme,
+                request.Headers.Authorization?.Parameter,
+                request.Headers.Contains(CircleRoutes.MachineProofHeader),
+                body));
+
+            if (request.RequestUri.AbsolutePath == DeviceRoutes.ComputeNodes)
+            {
+                var response = new BrainComputeNodesResponse(
+                    OwnerBrain.Value,
+                    [NewAdvertisement("win-pc-1", "Vlad PC", ComputeConsentMode.AutoAll, sandboxReady: true, clock.GetUtcNow())]);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(response, DeviceWireJson.Default.BrainComputeNodesResponse), Encoding.UTF8, "application/json"),
+                };
+            }
+
+            if (request.RequestUri.AbsolutePath == DeviceRoutes.SandboxDispatch)
+            {
+                var response = new ConnectedSandboxResponse(true, """{"status":"succeeded","via":"service-assertion"}""", null, null, "win-pc-1");
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(response, DeviceWireJson.Default.ConnectedSandboxResponse), Encoding.UTF8, "application/json"),
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        using var http = new HttpClient(relay);
+        var cloud = new CloudClient(http, credentials, clock);
+        var serviceRelay = new CloudRelayServiceClient(http, signer);
+        var thisMachine = new MachineId(Path.Combine(root.Path, "machine-id"));
+        var transport = new RelayConnectedComputeTransport(cloud, credentials, serviceRelay: serviceRelay);
+        var router = new ConnectedComputeRouter(cloud, credentials, thisMachine, clock: clock, transport: transport, serviceRelay: serviceRelay);
+
+        var result = await router.TryExecuteOnConnectedClientAsync(OwnerBrain, NewSandboxRequest("job-sa-1", OwnerBrain.Value), Ct);
+
+        Assert.NotNull(result);
+        Assert.True(result!.Handled);
+        Assert.Equal("win-pc-1", result.ExecutedByMachineId);
+        Assert.Equal(3, seenAuth.Count); // ListNodes refresh + Probe + Dispatch
+        foreach (var call in seenAuth)
+        {
+            Assert.Equal(ServiceAssertion.Scheme, call.Scheme);
+            Assert.False(call.HasProof);
+            var claims = ServiceAssertion.Verify(call.Token, issuer => issuer == "os.test.intochat.io" ? (signingKey, "https://cloud.test") : null, clock);
+            Assert.NotNull(claims);
+            Assert.Equal(OwnerBrain.Value, claims!.Subject);
+            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, claims.Purpose);
+            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, claims.Operation);
+            Assert.Equal(ServiceAssertion.Request(call.Method, call.Target, Encoding.UTF8.GetBytes(call.Body)), claims.Request);
+        }
     }
 
     [Fact]
@@ -1035,5 +1119,11 @@ public sealed class ConnectedComputeRouterFacts
     {
         private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
         public bool TryAdd(string nonce, DateTimeOffset expiresAt) => _seen.Add(nonce);
+    }
+
+    private sealed class ScriptedHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => handler(request, cancellationToken);
     }
 }

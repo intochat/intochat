@@ -14,6 +14,11 @@ public static class EnrollmentEdge
 
     public const string RedeemOperation = "devices.enrollment.redeem";
 
+    // POST, body MintRequest: mints a single-use enrollment code for the named brain (1-click Cloud link flow).
+    public const string Mint = "/devices/enrollment/mint";
+
+    public const string MintOperation = "devices.enrollment.mint";
+
     // GET: the brain's enrolled devices (EnrolledDevice[]).
     public const string List = "/brains/{brainId}/devices/enrollment";
 
@@ -49,9 +54,15 @@ public sealed record RedeemResponse(string Result, string Brain, string Account,
             : EnrollmentOutcome.Rejected;
 }
 
+public sealed record MintRequest(string BrainId);
+
+public sealed record MintResponse(string Code, DateTimeOffset ExpiresAt);
+
 public sealed record LiveResponse(bool Live);
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(MintRequest))]
+[JsonSerializable(typeof(MintResponse))]
 [JsonSerializable(typeof(RedeemRequest))]
 [JsonSerializable(typeof(RedeemResponse))]
 [JsonSerializable(typeof(LiveResponse))]

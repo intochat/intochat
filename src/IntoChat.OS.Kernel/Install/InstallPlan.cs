@@ -16,6 +16,8 @@ public static class InstallPlan
     public const string DbConnectionSecret = "db-connection";
     public const string LegacyPostgresConnectionSecret = "postgres-connection-string";
     public const string FoundryEndpointVariable = "IntoChatOS__Modules__ai__Options__AzureFoundry__Endpoint";
+    public const string SandboxUrlVariable = "IntoChatOS__Modules__sandbox__Options__Url";
+    public const string SandboxKernelCallbackUrlVariable = "IntoChatOS__Modules__sandbox__Options__KernelCallbackUrl";
     public const string GhcrTokenSecret = "ghcr-read-token";
     public const string SandboxEnrollKeySecret = "sandbox-enroll-key";
     public const string GhcrServer = "ghcr.io";
@@ -387,9 +389,11 @@ public static class InstallPlan
         if (c.SettingsFor("auth").Get("PublicBaseUrl") is { Length: > 0 } publicBaseUrl
             && Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var publicUri))
         {
+            var publicOrigin = $"{publicUri.Scheme}://{publicUri.Authority}";
             variables["IntoChatOS__ForwardedHeaders__AllowedHosts__0"] = publicUri.Host;
             variables["IntoChatOS__ForwardedHeaders__AllowedHosts__1"] = c.OsName;
-            variables["IntoChatOS__Connections__PublicOrigin"] = $"{publicUri.Scheme}://{publicUri.Authority}";
+            variables["IntoChatOS__Connections__PublicOrigin"] = publicOrigin;
+            variables[SandboxKernelCallbackUrlVariable] = publicOrigin;
         }
         if (!c.Postgres.Enabled)
         {
@@ -401,7 +405,7 @@ public static class InstallPlan
         }
         if (!string.IsNullOrWhiteSpace(c.SandboxImage))
         {
-            variables["IntoChatOS__Modules__sandbox__Options__Url"] = $"http://{c.SandboxName}";
+            variables[SandboxUrlVariable] = $"http://{c.SandboxName}";
         }
         foreach (var (name, value) in extra) { variables[name] = value; }
         return variables;

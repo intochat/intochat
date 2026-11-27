@@ -15,7 +15,12 @@ namespace IntoChat.OS.Modules.Devices.Link;
 // with the machine credential its device link holds, for the models its brain's other online devices offer, and streams a chat
 // through one of them. The relay names the credential's brain; a route for any other brain answers nothing, so one brain never
 // sees another's devices. This machine is never offered to itself.
-internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials credentials, MachineId thisMachine, TimeProvider clock) : IDeviceChatRoute
+internal sealed class RelayDeviceChatRoute(
+    CloudClient cloud,
+    DeviceCredentials credentials,
+    MachineId thisMachine,
+    TimeProvider clock,
+    CloudRelayServiceClient? serviceRelay = null) : IDeviceChatRoute
 {
     // The model catalog asks on every listing; the relay's answer is kept this long per brain.
     internal static readonly TimeSpan CacheFor = TimeSpan.FromSeconds(15);
@@ -47,13 +52,14 @@ internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials 
         var devices = await DevicesOf(owner, ct).ConfigureAwait(false);
         var offered = devices.Any(device => string.Equals(device.DeviceName, model.Device, StringComparison.Ordinal)
             && device.Models.Any(advertised => string.Equals(advertised.Id, model.Model.Value, StringComparison.OrdinalIgnoreCase)));
-        return offered ? new RelayChatClient(cloud, owner, model) : null;
+        return offered ? new RelayChatClient(cloud, credentials, owner, model, serviceRelay) : null;
     }
 
     private async Task<BrainDeviceModels[]> DevicesOf(BrainId owner, CancellationToken ct)
     {
-        // No link on this install: nothing to ask, and no call leaves it.
-        if (await credentials.Read(ct).ConfigureAwait(false) is null) { return []; }
+        // Neither a local device link nor hosted service-assertion relay auth: nothing to ask, and no call leaves this install.
+        var hasDeviceLink = await credentials.Read(ct).ConfigureAwait(false) is not null;
+        if (!hasDeviceLink && serviceRelay is not { IsConfigured: true }) { return []; }
         var now = clock.GetUtcNow();
         if (_cache.TryGetValue(owner.Value, out var cached) && now - cached.At < CacheFor) { return cached.Devices; }
         BrainDeviceModels[] devices;
@@ -61,7 +67,9 @@ internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials 
         {
             using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
             bounded.CancelAfter(AskFor);
-            var answer = await cloud.BrainModelsAsync(owner.Value, bounded.Token).ConfigureAwait(false);
+            var answer = hasDeviceLink
+                ? await cloud.BrainModelsAsync(owner.Value, bounded.Token).ConfigureAwait(false)
+                : await serviceRelay!.BrainModelsAsync(owner.Value, bounded.Token).ConfigureAwait(false);
             devices = string.Equals(answer.Brain, owner.Value, StringComparison.Ordinal)
                 ? [.. answer.Devices.Where(device => !string.Equals(device.MachineId, thisMachine.Value, StringComparison.Ordinal)
                     && !string.IsNullOrWhiteSpace(device.DeviceName))]
@@ -80,7 +88,12 @@ internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials 
 }
 
 // Text-only IChatClient over the relay's chat stream.
-internal sealed class RelayChatClient(CloudClient cloud, BrainId owner, DeviceModelRef model) : IChatClient
+internal sealed class RelayChatClient(
+    CloudClient cloud,
+    DeviceCredentials credentials,
+    BrainId owner,
+    DeviceModelRef model,
+    CloudRelayServiceClient? serviceRelay = null) : IChatClient
 {
     private readonly string _fullModelId = model.ToModelId().Value;
 
@@ -99,7 +112,13 @@ internal sealed class RelayChatClient(CloudClient cloud, BrainId owner, DeviceMo
         ArgumentNullException.ThrowIfNull(messages);
         var job = new DeviceChatJob(Guid.NewGuid().ToString("N"), model.Model.Value, WireMessages(messages, options?.Instructions),
             options?.Temperature, options?.MaxOutputTokens, Activity.Current?.Id);
-        using var response = await cloud.BrainChatAsync(new BrainChatRequest(owner.Value, model.Device, job), cancellationToken).ConfigureAwait(false);
+        var chatRequest = new BrainChatRequest(owner.Value, model.Device, job);
+        var hasDeviceLink = await credentials.Read(cancellationToken).ConfigureAwait(false) is not null;
+        using var response = hasDeviceLink
+            ? await cloud.BrainChatAsync(chatRequest, cancellationToken).ConfigureAwait(false)
+            : serviceRelay is { IsConfigured: true }
+                ? await serviceRelay.BrainChatAsync(chatRequest, cancellationToken).ConfigureAwait(false)
+                : throw new DeviceUnavailableException("relay-unconfigured");
         if (!response.IsSuccessStatusCode) { throw new DeviceUnavailableException($"relay-{(int)response.StatusCode}"); }
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream);

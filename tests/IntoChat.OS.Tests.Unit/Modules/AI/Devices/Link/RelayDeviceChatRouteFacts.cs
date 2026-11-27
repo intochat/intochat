@@ -3,12 +3,16 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices.Link;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.External;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Modules.Devices.Tests.Unit.Link;
@@ -131,6 +135,63 @@ public sealed class RelayDeviceChatRouteFacts
         Assert.Empty(await world.Route.Models(Ada, Ct));
     }
 
+    [Fact]
+    public async Task HostedServiceAssertionAuthenticatesMultiTenantModelsAndChatWithoutLocalLinkBin()
+    {
+        using var root = new TempDirectory("intochat-relay-service-assertion-");
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero));
+        var credentials = new DeviceCredentials(new XorProtector(), Path.Combine(root.Path, "devices", "link.bin"));
+        using var signingKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var signer = new ServiceAssertionSigner(
+            Options.Create(new AuthOptions
+            {
+                ServiceSigner = new ServiceSignerOptions
+                {
+                    Issuer = "os.test.intochat.io",
+                    Audience = "https://relay.test",
+                    ServiceUrl = "https://relay.test/",
+                    PrivateKey = Convert.ToBase64String(signingKey.ExportPkcs8PrivateKey()),
+                },
+            }),
+            clock);
+
+        var relay = new FakeRelay
+        {
+            Devices = new BrainDevicesResponse("ada", [new("m2", "pc2", [Llama])]),
+            ChatLines = [new DeviceChunk("Hi"), new DeviceChunk(null, Done: true, InputTokens: 2, OutputTokens: 1)],
+        };
+        using var http = new HttpClient(relay);
+        var machine = new MachineId(Path.Combine(root.Path, "machine-id"));
+        var route = new RelayDeviceChatRoute(
+            new CloudClient(http, credentials, clock),
+            credentials,
+            machine,
+            clock,
+            new CloudRelayServiceClient(http, signer));
+
+        var cards = await route.Models(Ada, Ct);
+        var card = Assert.Single(cards);
+        Assert.Equal("device:pc2/llama3", card.Id.Value);
+
+        using var chatClient = await route.Chat(Ada, new DeviceModelRef("pc2", new ModelId("llama3")), Ct);
+        var reply = await chatClient!.GetResponseAsync([new ChatMessage(ChatRole.User, "ping")], null, Ct);
+        Assert.Equal("Hi", reply.Text);
+
+        Assert.Equal(2, relay.Requests.Count);
+        foreach (var req in relay.Requests)
+        {
+            Assert.Equal(ServiceAssertion.Scheme, req.Scheme);
+            Assert.Equal("", req.Proof);
+            Assert.False(string.IsNullOrWhiteSpace(req.Bearer));
+            var verified = ServiceAssertion.Verify(req.Bearer, issuer => issuer == "os.test.intochat.io" ? (signingKey, "https://relay.test") : null, clock);
+            Assert.NotNull(verified);
+            Assert.Equal("ada", verified!.Subject);
+            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, verified.Purpose);
+            Assert.Equal(CloudRelayServiceClient.ComputeDispatchPurpose, verified.Operation);
+            Assert.Equal(ServiceAssertion.Request(req.Method, req.Path + req.Query, Encoding.UTF8.GetBytes(req.Body)), verified.Request);
+        }
+    }
+
     private sealed class World : IAsyncDisposable
     {
         private readonly TempDirectory _root;
@@ -180,7 +241,7 @@ public sealed class RelayDeviceChatRouteFacts
         }
     }
 
-    internal sealed record Seen(string Method, string Path, string Query, string? Bearer, string Proof, string Body);
+    internal sealed record Seen(string Method, string Path, string Query, string? Scheme, string? Bearer, string Proof, string Body);
 
     internal sealed class FakeRelay : HttpMessageHandler
     {
@@ -193,7 +254,7 @@ public sealed class RelayDeviceChatRouteFacts
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
-            Requests.Add(new Seen(request.Method.Method, request.RequestUri!.AbsolutePath, request.RequestUri.Query, request.Headers.Authorization?.Parameter,
+            Requests.Add(new Seen(request.Method.Method, request.RequestUri!.AbsolutePath, request.RequestUri.Query, request.Headers.Authorization?.Scheme, request.Headers.Authorization?.Parameter,
                 request.Headers.TryGetValues(CircleRoutes.MachineProofHeader, out var proof) ? proof.Single() : "", body));
             if (request.RequestUri.AbsolutePath == DeviceRoutes.Catalog)
             {
