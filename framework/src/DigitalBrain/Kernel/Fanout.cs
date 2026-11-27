@@ -94,6 +94,8 @@ internal sealed class Fanout(
         }
     }
 
+    // Ephemeral offers reach only already-subscribed listeners; declarative [Reacts] auto-wake
+    // applies to durable journaled signals (Appended / Reconcile).
     public Task Offered(NeuronId publisher, Signal signal, CancellationToken ct)
     {
         var alias = SignalAliases.Of(signal);

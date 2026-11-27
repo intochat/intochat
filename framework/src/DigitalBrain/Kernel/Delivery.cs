@@ -49,6 +49,7 @@ internal sealed class Delivery(
 
     private readonly Lock _gate = new();
     private readonly SemaphoreSlim _nudgeGate = new(1, 1);
+    private readonly HashSet<string> _imperativeBrainWide = new(StringComparer.Ordinal);
     private Subscriptions _held = Subscriptions.None(subscriber);
     private Subscriptions _durable = Subscriptions.None(subscriber);
     private long? _version;
@@ -147,10 +148,22 @@ internal sealed class Delivery(
 
     public async Task EnsureBrainWide(IEnumerable<string> aliases, DateTimeOffset now, bool exact)
     {
+        var list = aliases as IReadOnlyCollection<string> ?? [.. aliases];
         lock (_gate)
         {
             var at = view.Last;
-            _held = _held.AddBrainWide(aliases, at, now, exact);
+            _held = _held.AddBrainWide(list, at, now, exact);
+            if (exact)
+            {
+                _imperativeBrainWide.Clear();
+            }
+            foreach (var alias in list)
+            {
+                if (!string.IsNullOrWhiteSpace(alias))
+                {
+                    _imperativeBrainWide.Add(alias);
+                }
+            }
         }
         await Flush(force: true).ConfigureAwait(true);
     }
@@ -167,6 +180,17 @@ internal sealed class Delivery(
         if (list.Count == 0) { return; }
         lock (_gate)
         {
+            if (_held.Of(null) is { } existing)
+            {
+                var declarative = new HashSet<string>(list, StringComparer.Ordinal);
+                foreach (var alias in existing.Aliases)
+                {
+                    if (!declarative.Contains(alias))
+                    {
+                        _imperativeBrainWide.Add(alias);
+                    }
+                }
+            }
             _held = _held.AddBrainWide(list, new Position(0), now, exact: false);
         }
     }
@@ -185,6 +209,7 @@ internal sealed class Delivery(
         lock (_gate)
         {
             _held = _held.Remove(null);
+            _imperativeBrainWide.Clear();
         }
         await Flush(force: true).ConfigureAwait(true);
     }
@@ -210,7 +235,7 @@ internal sealed class Delivery(
                 if (_held.Of(source) is not { } current) { return; }
                 var wanted = current.Wants(subscriber, item.Journaled.Publisher, item.Alias, typeOf)
                              && !(current.IsBrainWide && item.Journaled.Publisher == subscriber)
-                             && (!current.IsBrainWide || acceptBrainWide is null || acceptBrainWide(item.Journaled.Publisher, item.Alias))
+                             && (!current.IsBrainWide || acceptBrainWide is null || IsImperativeBrainWide(item.Alias) || acceptBrainWide(item.Journaled.Publisher, item.Alias))
                              && (consumer.TakesUntyped || item.Journaled.Signal is not IUntypedSignal);
                 if (!wanted)
                 {
@@ -277,6 +302,24 @@ internal sealed class Delivery(
         var result = await journal.Append(commit, CancellationToken.None).ConfigureAwait(true);
         Carried(result.Version);
         scope?.Carry(result.Version);
+    }
+
+    private bool IsImperativeBrainWide(string alias)
+    {
+        lock (_gate)
+        {
+            if (_imperativeBrainWide.Count == 0) { return false; }
+            if (_imperativeBrainWide.Contains(alias)) { return true; }
+            if (typeOf(alias) is not { } signalType) { return false; }
+            foreach (var held in _imperativeBrainWide)
+            {
+                if (typeOf(held)?.IsAssignableFrom(signalType) == true)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     private void Move(Func<Subscriptions, Subscriptions> change) { lock (_gate) { _held = change(_held); } }
