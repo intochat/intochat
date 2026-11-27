@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Host.ServiceDefaults;
 using IntoChat.OS.Kernel.AspireServer;
@@ -640,5 +641,8 @@ public static partial class PulumiStackSynthesizer
     }
 
     private static string YamlQuote(string value)
-        => JsonSerializer.Serialize(value);
+        => JsonSerializer.Serialize(value, PulumiYamlJsonContext.Default.String);
 }
+
+[JsonSerializable(typeof(string))]
+internal sealed partial class PulumiYamlJsonContext : JsonSerializerContext;

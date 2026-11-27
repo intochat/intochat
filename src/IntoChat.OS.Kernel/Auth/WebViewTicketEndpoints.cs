@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel.Auth;
@@ -80,7 +81,8 @@ public static class WebViewTicketEndpoints
                 return Results.Unauthorized();
             }
 
-            var now = DateTimeOffset.UtcNow;
+            var clock = http.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System;
+            var now = clock.GetUtcNow();
             if (!tickets.TryRedeem(token, now, out var entry))
             {
                 return Results.Unauthorized();
@@ -157,6 +159,12 @@ public sealed class WebViewTickets
 {
     private static readonly TimeSpan TicketTtl = TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<string, WebViewTicket> _tickets = new(StringComparer.Ordinal);
+    private readonly TimeProvider _clock;
+
+    public WebViewTickets(TimeProvider? clock = null)
+    {
+        _clock = clock ?? TimeProvider.System;
+    }
 
     internal sealed record WebViewTicket(ClaimsPrincipal Principal, string Target, DateTimeOffset ExpiresAt);
 
@@ -176,7 +184,7 @@ public sealed class WebViewTickets
             ? principal
             : new ClaimsPrincipal(new ClaimsIdentity(principal.Claims, CookieAuthenticationDefaults.AuthenticationScheme));
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.GetUtcNow();
         PruneExpired(now);
 
         var token = CreateBase64UrlToken();

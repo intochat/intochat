@@ -127,7 +127,8 @@ public sealed class CliOverTheEdgeFacts(CliOverTheEdgeFacts.Kernel kernel) : ICl
         var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
         while (true)
         {
-            var run = await asCli.Call<WorkflowRunView>(typeof(IWorkflowRun), $"{kernel.Harness.Scope}/{runId}", nameof(IWorkflowRun.Read), new { }, Ct);
+            var run = await asCli.Call(typeof(IWorkflowRun), $"{kernel.Harness.Scope}/{runId}", nameof(IWorkflowRun.Read),
+                new EmptyArgs(), CliRequestJsonContext.Default.EmptyArgs, CliReplyJsonContext.Default.WorkflowRunView, Ct);
             if (run is not null && condition(run)) { return run; }
             Assert.True(DateTimeOffset.UtcNow < deadline, $"{runId} is still {run?.Status} after 30s.");
             await Task.Delay(100, Ct);
@@ -195,7 +196,8 @@ public sealed class CliOverTheEdgeFacts(CliOverTheEdgeFacts.Kernel kernel) : ICl
     {
         using var asCli = new NeuronsEdge(kernel.Harness.BaseAddress, kernel.Harness.Scope, new CliProof(CliProofKind.Presence, kernel.Harness.PresenceToken));
         var refused = await Assert.ThrowsAsync<RpcException>(() =>
-            asCli.Call<object>(typeof(IConfirmationInbox), IConfirmationInbox.Key(kernel.Harness.Scope), nameof(IConfirmationInbox.Read), new { }, Ct));
+            asCli.Call(typeof(IConfirmationInbox), IConfirmationInbox.Key(kernel.Harness.Scope), nameof(IConfirmationInbox.Read),
+                new EmptyArgs(), CliRequestJsonContext.Default.EmptyArgs, CliReplyJsonContext.Default.JsonElement, Ct));
         Assert.Equal(StatusCode.PermissionDenied, refused.StatusCode);
 
         var asPerson = await Neurons(kernel, appHeader: null).CallAsync(ReadInbox(kernel.Harness.Scope), cancellationToken: Ct);

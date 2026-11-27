@@ -58,29 +58,34 @@ public static class CliCommands
         switch (options.Verb)
         {
             case "runs":
-                foreach (var run in await edge.Call<RunView[]>(typeof(IRuns), IRuns.Key(brain).FullKey(), nameof(IRuns.List), new { limit = options.Limit }) ?? [])
+                foreach (var run in await edge.Call(typeof(IRuns), IRuns.Key(brain).FullKey(), nameof(IRuns.List),
+                    new ListRunsArgs(options.Limit), CliRequestJsonContext.Default.ListRunsArgs, CliReplyJsonContext.Default.RunViewArray) ?? [])
                 {
                     await output.WriteLineAsync($"{run.State,-9} {run.Kind,-10} {run.Id,-48} {run.Title}{(run.Waiting is { } waiting ? $"  (waits: {waiting})" : "")}");
                 }
                 return 0;
             case "send" when options.Arguments is [var app, var command, ..]:
-                var sent = await edge.Call<AppRunView>(typeof(IAppRun), new NeuronId(new BrainId(brain), "app.run", $"commands/{app}/{Guid.NewGuid():N}").FullKey(), nameof(IAppRun.Start),
-                    new { trigger = AppTrigger.Command, app, name = command, payloadJson = options.Arguments.ElementAtOrDefault(2) })
+                var sent = await edge.Call(typeof(IAppRun), new NeuronId(new BrainId(brain), "app.run", $"commands/{app}/{Guid.NewGuid():N}").FullKey(), nameof(IAppRun.Start),
+                    new StartAppRunArgs(AppTrigger.Command, app, command, options.Arguments.ElementAtOrDefault(2)),
+                    CliRequestJsonContext.Default.StartAppRunArgs, CliReplyJsonContext.Default.AppRunView)
                     ?? throw new InvalidOperationException("IAppRun.Start returned nothing.");
                 await output.WriteLineAsync($"{sent.Status} {sent.RunId}{(sent.Error is { } failure ? $"  {failure}" : sent.ResultJson is { } result ? $"  {result}" : "")}");
                 return sent.Status == AppRunStatus.Failed ? 1 : 0;
             case "start" when options.Arguments is [var workflow, ..]:
-                var started = await edge.Call<WorkflowRunView>(typeof(IWorkflowRun), new NeuronId(new BrainId(brain), "workflow.run", $"workflows/cli-{Guid.NewGuid().ToString("N")[..12]}").FullKey(), nameof(IWorkflowRun.Start),
-                    new { workflow, input = options.Arguments.ElementAtOrDefault(1) ?? "" })
+                var started = await edge.Call(typeof(IWorkflowRun), new NeuronId(new BrainId(brain), "workflow.run", $"workflows/cli-{Guid.NewGuid().ToString("N")[..12]}").FullKey(), nameof(IWorkflowRun.Start),
+                    new StartWorkflowArgs(workflow, options.Arguments.ElementAtOrDefault(1) ?? ""),
+                    CliRequestJsonContext.Default.StartWorkflowArgs, CliReplyJsonContext.Default.WorkflowRunView)
                     ?? throw new InvalidOperationException("IWorkflowRun.Start returned nothing.");
                 await output.WriteLineAsync($"{started.Status} {started.RunId}{(started.PlanId is { } plan ? $"  (waits: approval {plan})" : "")}");
                 return started.Status == WorkflowRunStatus.Failed ? 1 : 0;
             case "cancel" when options.Arguments is [var runId, ..]:
-                var reason = new { reason = options.Arguments.ElementAtOrDefault(1) ?? "Cancelled from the command line." };
+                var reason = new CancelRunArgs(options.Arguments.ElementAtOrDefault(1) ?? "Cancelled from the command line.");
                 string? outcome = runId.StartsWith("workflows/", StringComparison.Ordinal)
-                    ? (await edge.Call<WorkflowRunView>(typeof(IWorkflowRun), new NeuronId(new BrainId(brain), "workflow.run", runId).FullKey(), nameof(IWorkflowRun.Cancel), reason))?.Status.ToString()
+                    ? (await edge.Call(typeof(IWorkflowRun), new NeuronId(new BrainId(brain), "workflow.run", runId).FullKey(), nameof(IWorkflowRun.Cancel),
+                        reason, CliRequestJsonContext.Default.CancelRunArgs, CliReplyJsonContext.Default.WorkflowRunView))?.Status.ToString()
                     : runId.StartsWith("code-orchestration/", StringComparison.Ordinal)
-                        ? (await edge.Call<CodeOrchestrationView>(typeof(ICodeOrchestration), new NeuronId(new BrainId(brain), "flow.code-orchestration", runId).FullKey(), nameof(ICodeOrchestration.CancelAsync), reason))?.Status.ToString()
+                        ? (await edge.Call(typeof(ICodeOrchestration), new NeuronId(new BrainId(brain), "flow.code-orchestration", runId).FullKey(), nameof(ICodeOrchestration.CancelAsync),
+                            reason, CliRequestJsonContext.Default.CancelRunArgs, CliReplyJsonContext.Default.CodeOrchestrationView))?.Status.ToString()
                         : null;
                 await output.WriteLineAsync(outcome is null ? $"No cancellable run {runId}: workflows/ and code-orchestration/ runs can be cancelled." : $"{outcome} {runId}");
                 return outcome is null ? 1 : 0;
@@ -97,7 +102,7 @@ public static class CliCommands
         http.BaseAddress = options.Base;
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/brains/{Uri.EscapeDataString(options.Brain)}/confirmations/{string.Join('/', plan.Split('/').Select(Uri.EscapeDataString))}")
         {
-            Content = JsonContent.Create(new { approve }),
+            Content = JsonContent.Create(new ApproveConfirmationArgs(approve), CliRequestJsonContext.Default.ApproveConfirmationArgs),
         };
         foreach (var (name, value) in options.Proof?.Headers() ?? []) { request.Headers.TryAddWithoutValidation(name, value); }
         request.Headers.Add("Origin", options.Base.GetLeftPart(UriPartial.Authority));
@@ -126,14 +131,14 @@ public static class CliCommands
             return 0;
         }
 
-        object payload;
+        HttpContent payload;
         if (options.Arguments is [var singleUri] && singleUri.StartsWith("intochat://", StringComparison.OrdinalIgnoreCase))
         {
-            payload = new { uri = singleUri };
+            payload = JsonContent.Create(new LinkUriArgs(singleUri), CliRequestJsonContext.Default.LinkUriArgs);
         }
         else if (options.Arguments is [var server, var code])
         {
-            payload = new { server, code };
+            payload = JsonContent.Create(new LinkServerCodeArgs(server, code), CliRequestJsonContext.Default.LinkServerCodeArgs);
         }
         else
         {
@@ -141,7 +146,7 @@ public static class CliCommands
         }
 
         using var req = CreateEdgeRequest(HttpMethod.Post, $"/brains/{Uri.EscapeDataString(options.Brain)}/devices/link/enroll", options);
-        req.Content = JsonContent.Create(payload);
+        req.Content = payload;
         using var response = await http.SendAsync(req);
         var body = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)

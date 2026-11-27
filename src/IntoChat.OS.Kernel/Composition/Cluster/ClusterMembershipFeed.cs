@@ -6,14 +6,16 @@ namespace IntoChat.OS.Kernel.Composition.Cluster;
 
 // Orleans already owns one membership-update pump per silo. Enumerating its multicast
 // stream adds no management RPC, timer, or global registry of grain references.
-internal sealed class ClusterMembershipFeed(IClusterMembershipService membership, ILogger<ClusterMembershipFeed> logger) : IClusterMembershipFeed
+internal sealed class ClusterMembershipFeed(IClusterMembershipService membership, ILogger<ClusterMembershipFeed> logger, TimeProvider? clock = null) : IClusterMembershipFeed
 {
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+
     public ClusterSnapshot Current => Project(membership.CurrentSnapshot);
 
     public IAsyncDisposable Subscribe(Func<ClusterSnapshot?, Task> changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        return new Subscription(membership, changed, logger);
+        return new Subscription(membership, changed, logger, _clock);
     }
 
     private static ClusterSnapshot Project(ClusterMembershipSnapshot snapshot)
@@ -26,7 +28,7 @@ internal sealed class ClusterMembershipFeed(IClusterMembershipService membership
         private readonly CancellationTokenSource stopping = new();
         private readonly Task pump;
 
-        public Subscription(IClusterMembershipService membership, Func<ClusterSnapshot?, Task> changed, ILogger logger)
+        public Subscription(IClusterMembershipService membership, Func<ClusterSnapshot?, Task> changed, ILogger logger, TimeProvider clock)
         {
             // A background callback must not inherit the user/trace that activated its grain.
             using (ExecutionContext.SuppressFlow()) { pump = Task.Run(Run); }
@@ -61,7 +63,7 @@ internal sealed class ClusterMembershipFeed(IClusterMembershipService membership
                             catch (OperationCanceledException) when (stopping.IsCancellationRequested) { return; }
                             catch (Exception notification) { logger.LogWarning(notification, "Cluster membership failure notification failed."); }
                         }
-                        try { await Task.Delay(TimeSpan.FromSeconds(1), stopping.Token); }
+                        try { await Task.Delay(TimeSpan.FromSeconds(1), clock, stopping.Token); }
                         catch (OperationCanceledException) when (stopping.IsCancellationRequested) { return; }
                     }
                 }
