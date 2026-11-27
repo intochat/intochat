@@ -153,11 +153,18 @@ internal sealed partial class CodeOrchestrationSynapse(
     /// <see cref="ISynapseHost"/> (<c>UnitDeployer</c>) running strictly inside the
     /// <c>IntoChat.OS.Sandbox</c> execution boundary with a least-privilege <c>ScopedContracts</c> <c>AppToken</c>.
     /// </summary>
+    [PersonOnly("Crystallizing a Plane 1 orchestration script installs a durable sandboxed app unit on this brain.")]
     public async Task<CrystallizedAppReceipt> CrystallizeAsync(
         string alias,
         string? title = null,
         CancellationToken ct = default)
     {
+        if (!Answerer.Of(Context.Caller, Id.Brain).IsPerson)
+        {
+            throw new UnauthorizedAccessException(
+                "CrystallizeAsync is [PersonOnly] and may only be invoked directly by the brain owner (not by an agent or delegated caller).");
+        }
+
         var normalizedAlias = NormalizeAppAlias(alias);
         var effectiveTitle = string.IsNullOrWhiteSpace(title)
             ? (string.IsNullOrWhiteSpace(State.Title) ? normalizedAlias : State.Title)
@@ -267,11 +274,30 @@ internal sealed partial class CodeOrchestrationSynapse(
                 },
                 Icon: null);
 
-            var deployOutcome = await unitDeployer.Deploy(
-                Id.Brain,
-                synapseSource,
-                new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal),
-                ct).ConfigureAwait(true);
+            DeployOutcome deployOutcome;
+            try
+            {
+                deployOutcome = await unitDeployer.Deploy(
+                    Id.Brain,
+                    synapseSource,
+                    new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal),
+                    ct).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                await sandbox.UnloadAsync(Id.Brain.Value, appKey, CancellationToken.None).ConfigureAwait(true);
+                (logger ?? OsConsoleLog.For<CodeOrchestrationSynapse>()).LogWarning(
+                    ex,
+                    "UnitDeployer threw while deploying crystallized unit '{Alias}' ({AppKey}); unloaded sandbox package.",
+                    normalizedAlias,
+                    appKey);
+                return Fail(
+                    $"UnitDeployer failed while deploying crystallized unit '{normalizedAlias}': {ex.Message}",
+                    scopedContracts,
+                    appKey,
+                    deployHash,
+                    "IntoChat.OS.Sandbox");
+            }
 
             if (deployOutcome.Status is DeployStatus.Failed or DeployStatus.Refused)
             {
@@ -343,6 +369,29 @@ internal sealed partial class CodeOrchestrationSynapse(
             ExecutedByMachineId: inner.ExecutedByMachineId);
     }
 
+    private const int MaxAppAliasLength = 64;
+
+    private static readonly string[] ReservedSystemAliasPrefixes =
+    [
+        "os.",
+        "identity.",
+        "social.",
+        "flow.",
+        "ai.",
+        "mcp.",
+        "auth.",
+        "system.",
+        "runtime.",
+        "component.",
+        "synapse.",
+        "ino.",
+        "tasks.",
+        "friends.",
+        "settings.",
+        "desktop.",
+        "workspace.",
+    ];
+
     internal static string NormalizeAppAlias(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -353,17 +402,99 @@ internal sealed partial class CodeOrchestrationSynapse(
         var cleaned = raw.Trim().ToLowerInvariant();
         cleaned = InvalidAliasChars().Replace(cleaned, ".");
         cleaned = cleaned.Trim('.');
+        if (cleaned.Length > MaxAppAliasLength)
+        {
+            throw new ArgumentException(
+                $"App alias '{cleaned[..16]}...' exceeds maximum length of {MaxAppAliasLength} characters.",
+                nameof(raw));
+        }
+
+        foreach (var prefix in ReservedSystemAliasPrefixes)
+        {
+            var bare = prefix.TrimEnd('.');
+            if (cleaned.StartsWith(prefix, StringComparison.Ordinal)
+                || string.Equals(cleaned, bare, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException(
+                    $"App alias '{cleaned}' uses reserved system prefix '{prefix}' and cannot shadow a host/system neuron.");
+            }
+        }
+
         return cleaned;
     }
 
-    private static string BuildCrystallizedUnitSource(
+    internal static string EscapeCSharpStringLiteral(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var sb = new System.Text.StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            switch (ch)
+            {
+                case '\\':
+                    sb.Append("\\\\");
+                    break;
+                case '"':
+                    sb.Append("\\\"");
+                    break;
+                case '\r':
+                case '\n':
+                case '\t':
+                    sb.Append(' ');
+                    break;
+                default:
+                    if (!char.IsControl(ch))
+                    {
+                        sb.Append(ch);
+                    }
+
+                    break;
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    internal static string SanitizeCommentLine(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var sb = new System.Text.StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (ch is '\r' or '\n' or '\t')
+            {
+                sb.Append(' ');
+            }
+            else if (!char.IsControl(ch))
+            {
+                sb.Append(ch);
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    internal static string BuildCrystallizedUnitSource(
         string unitAlias,
         string appKey,
         string title,
         string[] scopedContracts)
     {
-        var safeTitle = title.Replace("\"", "'", StringComparison.Ordinal);
-        var scopeComment = scopedContracts.Length > 0 ? string.Join(", ", scopedContracts) : "none";
+        var safeAlias = EscapeCSharpStringLiteral(unitAlias);
+        var safeAppKey = EscapeCSharpStringLiteral(appKey);
+        var safeTitle = EscapeCSharpStringLiteral(title);
+        var rawScope = scopedContracts.Length > 0 ? string.Join(", ", scopedContracts) : "none";
+        var safeScopeLiteral = EscapeCSharpStringLiteral(rawScope);
+        var safeScopeComment = SanitizeCommentLine(rawScope);
+        var safeAppKeyComment = SanitizeCommentLine(appKey);
         var className = "Pinned" + string.Concat(
             unitAlias.Split(['.', '-', '_'], StringSplitOptions.RemoveEmptyEntries)
                 .Select(static s => char.ToUpperInvariant(s[0]) + s[1..]));
@@ -374,24 +505,34 @@ internal sealed partial class CodeOrchestrationSynapse(
 
         return $$"""
             // Crystallized Plane 1 sandboxed app unit.
-            // SandboxAppKey: {{appKey}}
-            // ScopedContracts: {{scopeComment}}
+            // SandboxAppKey: {{safeAppKeyComment}}
+            // ScopedContracts: {{safeScopeComment}}
             // ExecutionBoundary: IntoChat.OS.Sandbox
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DigitalBrain.Contracts;
             using DigitalBrain.Neurons;
 
             namespace CrystallizedApps;
 
             public sealed record {{className}}State(
-                string AppKey = "{{appKey}}",
+                string AppKey = "{{safeAppKey}}",
                 string Title = "{{safeTitle}}",
-                string ScopedContracts = "{{scopeComment}}")
+                string ScopedContracts = "{{safeScopeLiteral}}")
             {
-                public {{className}}State() : this("{{appKey}}", "{{safeTitle}}", "{{scopeComment}}") { }
+                public {{className}}State() : this("{{safeAppKey}}", "{{safeTitle}}", "{{safeScopeLiteral}}") { }
             }
 
-            [Neuron("{{unitAlias}}")]
+            [Neuron("{{safeAlias}}")]
             public sealed class {{className}} : Neuron<{{className}}State>
             {
+                [ReadOnlyCall]
+                public Task<{{className}}State> ReadAsync(CancellationToken ct = default)
+                    => Task.FromResult(State);
+
+                [ReadOnlyCall]
+                public Task<string> SandboxAppKeyAsync(CancellationToken ct = default)
+                    => Task.FromResult(State.AppKey);
             }
             """;
     }

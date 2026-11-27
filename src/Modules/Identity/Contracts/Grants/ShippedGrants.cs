@@ -41,7 +41,7 @@ public static class ShippedGrants
         Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"flows/{brain}/*", GrantRelations.Run),
         Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"app.run/{brain}/*", GrantRelations.Run),
         Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"workflow.run/{brain}/*", GrantRelations.Run),
-        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"codeblock.run/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"flow.code-orchestration/{brain}/*", GrantRelations.Run),
     ];
 
     public static Grant[] For(string brain, string app) => app switch

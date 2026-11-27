@@ -541,8 +541,8 @@ public sealed class TasksAppFacts
         Assert.Contains(topButtons, b => b.Key == "tasks:filter:all");
         Assert.Contains(topButtons, b => b.Key == "tasks:filter:running");
 
-        var openEng = Assert.Single(topButtons, b => b.Key == "tasks:open-engineer");
-        Assert.Equal(AppSignals.OpenApp("engineer", engFlow.FlowId), openEng.Intent);
+        var openIno = Assert.Single(topButtons, b => b.Key == "tasks:open-ino");
+        Assert.Equal(AppSignals.OpenApp("ino", engFlow.FlowId), openIno.Intent);
         var openCreator = Assert.Single(topButtons, b => b.Key == "tasks:open-creator");
         Assert.Equal(AppSignals.OpenApp("creator", engFlow.FlowId), openCreator.Intent);
 
@@ -787,7 +787,7 @@ public sealed class TasksAppFacts
         var openStudioIssueBtn = Assert.Single(renderedButtons, b => b.Key == $"tasks:open-engineer-issue:{previewId}");
         Assert.Equal(
             AppSignals.OpenApp(
-                "engineer",
+                "tasks",
                 new StudioNavArgs(
                     TargetId: "intochat/intochat#103",
                     Lens: "plan",

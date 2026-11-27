@@ -255,6 +255,27 @@ public sealed class Wave2Plane1Plane2ConsolidationFacts
         Assert.False(failReport.HostHealthy);
         Assert.Contains("remove:abcdef012345", failingHost.Calls);
 
+        // 3b. Null HttpClient / IHttpClientFactory fails closed, and invalid HealthPath is rejected fail-closed.
+        var noHttpHost = new RecordingCandidateHost(healthy: true);
+        var noHttpBridge = new CandidateHostLiveVerifier(noHttpHost, httpClientFactory: null, httpClient: null, TimeSpan.FromSeconds(5));
+        var noHttpReport = await noHttpBridge.VerifyCandidateAsync(
+            new CandidateLiveVerificationRequest(Path.GetTempPath(), "No http client", [sampleFile], CommitSha: "1234567890ab"),
+            Ct);
+        Assert.False(noHttpReport.Succeeded);
+        Assert.False(noHttpReport.HostHealthy);
+        Assert.False(noHttpReport.McpProbesPassed);
+        Assert.False(noHttpReport.PlaywrightPassed);
+        Assert.Contains("remove:1234567890ab", noHttpHost.Calls);
+
+        var badPathHost = new RecordingCandidateHost(healthy: true);
+        var badPathBridge = new CandidateHostLiveVerifier(badPathHost, httpClientFactory: null, httpClient: okHttp, TimeSpan.FromSeconds(5));
+        var badPathReport = await badPathBridge.VerifyCandidateAsync(
+            new CandidateLiveVerificationRequest(Path.GetTempPath(), "Bad health path", [sampleFile], CommitSha: "2234567890ab", HealthPath: "//evil.example/health"),
+            Ct);
+        Assert.False(badPathReport.Succeeded);
+        Assert.False(badPathReport.HostHealthy);
+        Assert.Contains("remove:2234567890ab", badPathHost.Calls);
+
         // 4. ProcessCandidateHost scrubs host custody keys and presence tokens before spawning candidate process.
         ProcessStartInfo? capturedStartInfo = null;
         var tempRoot = Path.Combine(Path.GetTempPath(), "intochat-proc-scrub-" + Guid.NewGuid().ToString("N")[..8]);

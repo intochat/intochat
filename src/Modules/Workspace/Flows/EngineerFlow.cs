@@ -1270,7 +1270,7 @@ internal sealed class EngineerFlow(
         {
             screens =
             [
-                ("app.engineer", Context.Get<IScreen>(new NeuronId(Id.Brain, "app.engineer", "default"))),
+                ("app.tasks", Context.Get<IScreen>(new NeuronId(Id.Brain, "app.tasks", "default"))),
             ];
         }
         catch (InvalidOperationException ex)

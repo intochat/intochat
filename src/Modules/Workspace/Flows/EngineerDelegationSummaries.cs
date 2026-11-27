@@ -20,14 +20,11 @@ internal static class EngineerDelegationSummaries
         EngineeringHarnessKind harness = EngineeringHarnessKind.InoNative)
     {
         var resolvedFlowId = flowId ?? string.Empty;
-        var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "engineer").Key;
         var tasksKey = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "tasks").Key;
-        var engineerUri = string.IsNullOrWhiteSpace(resolvedFlowId)
-            ? $"neuron://{appKey}"
-            : $"neuron://{appKey}#{resolvedFlowId}";
         var tasksUri = string.IsNullOrWhiteSpace(resolvedFlowId)
             ? $"neuron://{tasksKey}"
             : $"neuron://{tasksKey}#{resolvedFlowId}";
+        var engineerUri = tasksUri;
 
         return new EngineerRunSummary(
             Ok: false,
@@ -111,8 +108,8 @@ internal static class EngineerDelegationSummaries
                 : (view?.ConfirmationPlanId ?? run.Approval?.PlanId);
         var traceId = !string.IsNullOrWhiteSpace(view?.TraceId) ? view!.TraceId : head.TraceId;
 
-        var engineerUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "engineer").Key}#{flowId}";
         var tasksUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "tasks").Key}#{flowId}";
+        var engineerUri = tasksUri;
 
         var candidates = run.RankCandidates();
         var candidateByIndex = candidates.ToDictionary(static c => c.InstanceIndex);

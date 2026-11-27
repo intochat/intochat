@@ -166,7 +166,7 @@ public sealed class InoToEngineerDelegationJourneys
         Assert.Equal("ContainerVolume", waiting.Backend);
         Assert.NotNull(waiting.ConfirmationPlanId);
         Assert.StartsWith("app:engineer:deleg01:", waiting.ConfirmationPlanId!, StringComparison.Ordinal);
-        Assert.Contains($"neuron://{brain.Value}/apps/engineer#{started.FlowId}", waiting.EngineerAppUri, StringComparison.Ordinal);
+        Assert.Contains($"neuron://{brain.Value}/apps/tasks#{started.FlowId}", waiting.EngineerAppUri, StringComparison.Ordinal);
 
         // Verify distinct Architect and Critic model turns executed and refined the 2-task DAG.
         Assert.Equal(2, plannerPrompts.Count);

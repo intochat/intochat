@@ -71,6 +71,13 @@ public sealed record CrystallizedAppReceipt(
     string? ExecutionTarget = null,
     string? Error = null);
 
+/// <summary>Marks a contract method as requiring a direct Person caller (not an agent or delegated app).</summary>
+[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Method, Inherited = false)]
+public sealed class RequiresPersonAttribute(string? reason = null) : Attribute
+{
+    public string? Reason { get; } = reason;
+}
+
 /// <summary>
 /// Plane 1 code orchestration neuron contract (<c>code.orchestration</c> / <c>flow.code-orchestration</c>):
 /// compiles, Roslyn-AST-sanitizes (fail-closed), and runs C# orchestration scripts inside the least-privilege
@@ -96,12 +103,14 @@ public interface ICodeOrchestration
     [Description("Read the current status, scoped contracts, result.json, and diagnostics of this code orchestration run.")]
     Task<CodeOrchestrationView?> ReadAsync(CancellationToken ct = default);
 
+    [RequiresPerson("Crystallizing a Plane 1 orchestration script installs a durable sandboxed app unit on this brain.")]
     [Description("Pin a verified code orchestration run as a durable sandboxed app via UnitDeployer using a least-privilege ScopedContracts AppToken inside IntoChat.OS.Sandbox (never wildcard */*).")]
     Task<CrystallizedAppReceipt> CrystallizeAsync(
         string alias,
         string? title = null,
         CancellationToken ct = default);
 
+    [DigitalBrain.Contracts.Interleaves]
     [Description("Cancel an in-flight or waiting code orchestration run.")]
     Task<CodeOrchestrationView?> CancelAsync(string reason, CancellationToken ct = default);
 }

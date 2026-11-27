@@ -302,12 +302,8 @@ internal sealed class ProcessCandidateHost : ICandidateHost
         ChildEnvironmentPolicy.Scrub(startInfo);
         foreach (var (key, value) in given.Model)
         {
-            if (string.Equals(key, IntoChatOSNames.MasterKeyEnvironmentVariable, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, PresenceProof.TokenHashEnvironmentVariable, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, "INTOCHAT_PRESENCE_TOKEN", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, "IntoChatOS__MasterKey", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, "IntoChatOS__Security__PresenceTokenHash", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, "IntoChatOS__Security__PresenceTokenFile", StringComparison.OrdinalIgnoreCase))
+            if (ChildEnvironmentPolicy.IsHostCustodySecret(key)
+                || string.Equals(key, PresenceProof.TokenHashEnvironmentVariable, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
