@@ -5,6 +5,8 @@ using DigitalBrain.Units;
 using IntoChat.OS.Apps.Calculator;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Social;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Handles;
 using IntoChat.OS.Tests.Support.Fakes;
 
@@ -61,38 +63,39 @@ public sealed class SocialPostsAndRoomsJourney
         await using var calcSession = await alice.Open<CalculatorApp>(calcKey, ct);
         var initialGen = calcSession.CurrentView.Generation;
 
-        var roomId = new NeuronId(alice.Brain, "social.room", "hangout");
-        var aliceRoom = alice.Get<IRoom>(roomId);
-        await aliceRoom.Pin("app.calculator", calcKey, ct);
-        await aliceRoom.Invite(bob.Account, bob.Brain, Role.Editor, ct);
+        var roomId = new NeuronId(alice.Brain, IConversation.Type, "conversations/hangout");
+        var aliceRoom = alice.Get<IConversation>(roomId);
+        await aliceRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Hangout");
+        await aliceRoom.Pin("app.calculator", calcKey);
+        await aliceRoom.Invite(new AccountId(bob.Account), bob.Brain, Role.Editor);
 
-        // 5. Bob receives the invite on IRooms, marks presence with Here(), says "hello", and acts on the pinned calculator.
-        var bobRoomsId = new NeuronId(bob.Brain, "social.rooms", IRooms.DefaultKey);
-        var bobRooms = bob.Get<IRooms>(bobRoomsId);
-        var bobRoom = bob.Get<IRoom>(roomId);
+        // 5. Bob receives the invite on IThreadDirectory, marks presence with Here(), says "hello", and acts on the pinned calculator.
+        var bobRoomsId = new NeuronId(bob.Brain, Threads.Type, IThreadDirectory.DefaultKey);
+        var bobRooms = bob.Get<IThreadDirectory>(bobRoomsId);
+        var bobRoom = bob.Get<IConversation>(roomId);
 
-        await bobRoom.Here(ct);
-        await bobRoom.Say("hello", ct);
+        await bobRoom.Here();
+        await bobRoom.Say("hello");
 
-        var roomView = await bobRoom.Read(sinceRevision: null, ct);
+        var roomView = await bobRoom.Read(sinceRevision: null);
         Assert.Contains(bob.Account, roomView.PresentAccounts);
-        var msg = Assert.Single(roomView.Messages);
-        Assert.Equal(bob.Account, msg.Author);
+        var msg = Assert.Single(roomView.Entries.OfType<Said>());
+        Assert.Equal(bob.Account, msg.Sender?.AccountId);
         Assert.Equal("hello", msg.Text);
         Assert.Contains(roomView.PinnedScreens, p => p.ScreenType == "app.calculator" && p.ScreenKey == calcKey);
 
-        // Press key-0 ("7") on the pinned CalculatorApp: the room sends that key's command through the screen's Dispatch.
-        var afterPress = await bobRoom.Act("app.calculator", calcKey, calcSession.CurrentView.CommandAt("key-0"), ct);
+        // Press key-0 ("7") on the pinned CalculatorApp: the thread sends that key's command through the screen's Dispatch.
+        var afterPress = await bobRoom.Act("app.calculator", calcKey, calcSession.CurrentView.CommandAt("key-0"));
         Assert.True(afterPress.Generation > initialGen);
 
         // A command to a child the calculator does not show is refused before any handler runs.
         var unknown = await Assert.ThrowsAsync<ActivationRefusedException>(
-            () => bobRoom.Act("app.calculator", calcKey, calcSession.CurrentView.CommandAt("key-0") with { Target = "no-such-child" }, ct));
+            () => bobRoom.Act("app.calculator", calcKey, calcSession.CurrentView.CommandAt("key-0") with { Target = "no-such-child" }));
         Assert.Equal(ActivationRefusedException.UnknownChild, unknown.Reason);
 
-        // 6. Bob's IRooms.LastRevision(roomId) reflects the Changed nudges.
-        var lastRev = await bobRooms.LastRevision(roomId, ct);
-        Assert.True(lastRev >= 2, $"Expected Bob's IRooms.LastRevision >= 2 after Say + Act, got {lastRev}.");
+        // 6. Bob's IThreadDirectory.LastRevision(roomId) reflects the Changed nudges.
+        var lastRev = await bobRooms.LastRevision(roomId);
+        Assert.True(lastRev >= 2, $"Expected Bob's IThreadDirectory.LastRevision >= 2 after Say + Act, got {lastRev}.");
     }
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]

@@ -26,8 +26,8 @@ public sealed class CallerRuleFacts
     private static readonly Site[] Sites =
     [
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.Social.PostsNeuron", "social.posts", "default", "Publish", () => [new PostDraft("hello", []), CancellationToken.None]),
-        new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.Social.RoomNeuron", "social.room", "hall", "Pin", () => ["app.notes", "default", CancellationToken.None]),
-        new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.Social.RoomNeuron", "social.room", "hall", "Invite", () => ["bob", Stranger, Role.Editor, CancellationToken.None]),
+        new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "hall", "Pin", () => ["app.notes", "default"]),
+        new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "hall", "Invite", () => [new AccountId("bob"), (BrainId?)Stranger, Role.Editor]),
         new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "c1", "Post", () => ["hello", "e1", IntoChat.OS.Modules.Flutter.Conversations.Visibility.Everyone]),
         new("IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.AI.Conversations.ConversationNeuron", "conversation", "c1", "Stop", () => []),
         new("IntoChat.OS.Modules.Workspace", "IntoChat.OS.Modules.Apps.FriendsNeuron", "friends", "default", "List", () => []),

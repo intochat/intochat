@@ -478,19 +478,20 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
             NeuronId groupRoomId;
             using (host.StampOwner())
             {
-                var roomsIndex = SiloNeurons.Get<IRooms>(host.Services, new NeuronId(hostBrain, "social.rooms", IRooms.DefaultKey));
-                var summaries = await roomsIndex.List(ct);
+                var roomsIndex = SiloNeurons.Get<IThreadDirectory>(host.Services, new NeuronId(hostBrain, Threads.Type, IThreadDirectory.DefaultKey));
+                var summaries = (await roomsIndex.List(archived: false)).Entries;
                 var groupSummary = Assert.Single(summaries, s => string.Equals(s.Title, "Weekend Trip Squad", StringComparison.Ordinal));
-                groupRoomId = groupSummary.Room;
+                groupRoomId = groupSummary.Thread!.Value;
                 groupRoomKey = groupRoomId.Key;
 
-                var hostRoom = SiloNeurons.Get<IRoom>(host.Services, groupRoomId);
-                await hostRoom.Invite("bob", bobBrain, Role.Editor, ct);
-                await hostRoom.Invite("carol", carolBrain, Role.Viewer, ct);
+                var hostRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
+                await hostRoom.Invite(new AccountId("bob"), bobBrain, Role.Editor);
+                await hostRoom.Invite(new AccountId("carol"), carolBrain, Role.Viewer);
 
                 // Verify switching between DM and Group Room in Chromium UI
-                var dmSummary = summaries.First(s => s.Kind == RoomKind.Direct);
-                await page.ClickButtonAsync($"btn:switch-room:{dmSummary.Room.Brain.Value}:{dmSummary.Room.Key}", ct);
+                var dmSummary = summaries.First(s => s.Kind == ThreadKind.DirectPerson);
+                var dmThread = dmSummary.Thread!.Value;
+                await page.ClickButtonAsync($"btn:switch-room:{dmThread.Brain.Value}:{dmThread.Key}", ct);
                 await page.ClickButtonAsync($"btn:switch-room:{groupRoomId.Brain.Value}:{groupRoomId.Key}", ct);
             }
 
@@ -499,23 +500,23 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
 
             using (host.StampOwner())
             {
-                await SiloNeurons.Get<IRoom>(host.Services, groupRoomId).Say("Welcome to the trip room!", ct);
+                await SiloNeurons.Get<IConversation>(host.Services, groupRoomId).Say("Welcome to the trip room!");
             }
 
             using (host.StampPerson("bob", bobBrain.Value))
             {
-                await SiloNeurons.Get<IRoom>(host.Services, groupRoomId).Say("Hey everyone, ready for the weekend trip?", ct);
+                await SiloNeurons.Get<IConversation>(host.Services, groupRoomId).Say("Hey everyone, ready for the weekend trip?");
             }
 
             await WaitForSemanticsTextContainsAsync(page, "Hey everyone, ready for the weekend trip?", ct);
             await page.WaitForTimeoutAsync(400).WaitAsync(ct);
             Assert.Equal(0, host.Inference.RoomCallCount);
 
-            // 5. Explicit @Ino mention triggers room-scoped @Ino (RoomAgentDefinition: zero private host contexts/tools + secret redaction)
+            // 5. Explicit @Ino mention triggers room-scoped @Ino (SharedRoomAgentPolicy: zero private host contexts/tools + secret redaction)
             using (host.StampPerson("bob", bobBrain.Value))
             {
-                await SiloNeurons.Get<IRoom>(host.Services, groupRoomId)
-                    .Say($"@Ino please summarize our plan without leaking {Item350WebShellFixture.SyntheticSecretValue}", ct);
+                await SiloNeurons.Get<IConversation>(host.Services, groupRoomId)
+                    .Say($"@Ino please summarize our plan without leaking {Item350WebShellFixture.SyntheticSecretValue}");
             }
 
             await WaitForSemanticsTextContainsAsync(page, "@Ino · Room only", ct);
@@ -532,14 +533,15 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
             Assert.Contains("@Ino · Room only", systemPrompt, StringComparison.Ordinal);
             Assert.Contains("zero access to any participant's private brain", systemPrompt, StringComparison.OrdinalIgnoreCase);
 
-            // Verify secret redaction in both the stored RoomView and rendered Chromium DOM
+            // Verify secret redaction in both the stored ConversationView and rendered Chromium DOM
             using (host.StampOwner())
             {
-                var roomView = await SiloNeurons.Get<IRoom>(host.Services, groupRoomId).Read(null, ct);
-                Assert.Contains(roomView.Messages, m => m.Sender?.Kind == SenderKind.Self);
-                Assert.Contains(roomView.Messages, m => m.Sender?.Kind == SenderKind.Human && m.Sender.AccountId == "bob");
-                Assert.Contains(roomView.Messages, m => m.Sender?.Kind == SenderKind.Agent && m.Sender.RoomScoped && m.Sender.DisplayName == RoomAgentDefinition.DisplayName);
-                Assert.All(roomView.Messages, m =>
+                var roomView = await SiloNeurons.Get<IConversation>(host.Services, groupRoomId).Read();
+                var messages = roomView.Entries.OfType<Said>().ToArray();
+                Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Self);
+                Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Human && m.Sender.AccountId == "bob");
+                Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Agent && m.Sender.RoomScoped && m.Sender.DisplayName == SharedRoomAgentPolicy.DefaultRoomDisplayName);
+                Assert.All(messages, m =>
                     Assert.DoesNotContain(Item350WebShellFixture.SyntheticSecretValue, m.Text, StringComparison.Ordinal));
             }
 
@@ -548,29 +550,28 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
             Assert.Contains("bob", renderedRoomText, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("@Ino · Room only", renderedRoomText, StringComparison.Ordinal);
 
-            // 6. [Shareable] RoomChecklistApp pinning + IRoom.Act live updates with Caller.For.Account attribution + Role.Viewer rejection
+            // 6. [Shareable] RoomChecklistApp pinning + IConversation.Act live updates with Caller.For.Account attribution + Role.Viewer rejection
             var checklistKey = $"{groupRoomKey}-checklist";
             using (host.StampOwner())
             {
-                var hostRoom = SiloNeurons.Get<IRoom>(host.Services, groupRoomId);
+                var hostRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
                 // Non-shareable private host screens must be refused
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => hostRoom.Pin("app.settings", "default", ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => hostRoom.Pin("app.ino", "default", ct));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => hostRoom.Pin("app.settings", "default"));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => hostRoom.Pin("app.ino", "default"));
             }
 
             // Pin Shared Checklist via FriendsApp UI button
             await page.ClickButtonAsync($"btn:pin-checklist:{groupRoomKey}", ct);
             await WaitForSemanticsTextContainsAsync(page, "Pinned Mini-App · room.checklist", ct);
 
-            // Bob (Role.Editor) acts on the pinned RoomChecklistApp via IRoom.Act -> attributes Caller.For.Account ("bob")
+            // Bob (Role.Editor) acts on the pinned RoomChecklistApp via IConversation.Act -> attributes Caller.For.Account ("bob")
             using (host.StampPerson("bob", bobBrain.Value))
             {
-                var bobRoom = SiloNeurons.Get<IRoom>(host.Services, groupRoomId);
+                var bobRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
                 var updatedView = await bobRoom.Act(
                     "room.checklist",
                     checklistKey,
-                    new Command(".", "room-checklist.add", JsonSerializer.SerializeToElement(new { label = "Pack tent" })),
-                    ct);
+                    new Command(".", "room-checklist.add", JsonSerializer.SerializeToElement(new { label = "Pack tent" })));
                 Assert.NotNull(updatedView);
                 var checklistJson = JsonSerializer.Serialize(updatedView, JsonSerializerOptions.Web);
                 Assert.Contains("Pack tent", checklistJson, StringComparison.Ordinal);
@@ -578,30 +579,30 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
                 Assert.Contains("by bob", checklistJson, StringComparison.Ordinal);
             }
 
-            // Carol (Role.Viewer) is refused on IRoom.Act and IRoom.Say, while allowed to Read/Here
+            // Carol (Role.Viewer) is refused on IConversation.Act and IConversation.Say, while allowed to Read/Here
             using (host.StampPerson("carol", carolBrain.Value))
             {
-                var carolRoom = SiloNeurons.Get<IRoom>(host.Services, groupRoomId);
-                await carolRoom.Here(ct);
-                var carolView = await carolRoom.Read(null, ct);
-                Assert.NotEmpty(carolView.Messages);
+                var carolRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
+                await carolRoom.Here();
+                var carolView = await carolRoom.Read();
+                Assert.NotEmpty(carolView.Entries.OfType<Said>());
 
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                    carolRoom.Act("room.checklist", checklistKey, new Command(".", "room-checklist.add", JsonSerializer.SerializeToElement(new { label = "Unauthorized item" })), ct));
+                    carolRoom.Act("room.checklist", checklistKey, new Command(".", "room-checklist.add", JsonSerializer.SerializeToElement(new { label = "Unauthorized item" }))));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                    carolRoom.Say("Viewer should not be able to send", ct));
+                    carolRoom.Say("Viewer should not be able to send"));
             }
 
             // 7. Immediate Leave & Unfriend revocation
             // 7a. Bob leaves the group room -> immediately refused on Read/Say/Act/Here
             using (host.StampPerson("bob", bobBrain.Value))
             {
-                var bobRoom = SiloNeurons.Get<IRoom>(host.Services, groupRoomId);
-                await bobRoom.Leave(ct);
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Read(null, ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Say("after leave", ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Act("room.checklist", checklistKey, new Command(".", "room-checklist.add", JsonSerializer.SerializeToElement(new { label = "After leave" })), ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Here(ct));
+                var bobRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
+                await bobRoom.Leave();
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Read());
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Say("after leave"));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Act("room.checklist", checklistKey, new Command(".", "room-checklist.add", JsonSerializer.SerializeToElement(new { label = "After leave" }))));
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(bobRoom.Here);
             }
 
             // 7b. Host unfriends carol -> carol is immediately refused on Read/Here
@@ -613,9 +614,9 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
 
             using (host.StampPerson("carol", carolBrain.Value))
             {
-                var carolRoom = SiloNeurons.Get<IRoom>(host.Services, groupRoomId);
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carolRoom.Read(null, ct));
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carolRoom.Here(ct));
+                var carolRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carolRoom.Read());
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(carolRoom.Here);
             }
         }
         catch (Exception ex)

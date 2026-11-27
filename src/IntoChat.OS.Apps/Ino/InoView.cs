@@ -256,7 +256,7 @@ public static partial class InoView
         return string.Join(" · ", parts);
     }
     /// <summary>The 20 newest sessions drawn when Ino's <c>chats</c> section is open, each switching conversation.</summary>
-    public static Node Sessions(SessionPage page, string current)
+    public static Node Sessions(ThreadPage page, string current)
     {
         ArgumentNullException.ThrowIfNull(page);
         var items = page.Entries.Take(20).ToArray();
@@ -322,7 +322,7 @@ public static partial class InoView
         VoiceAbilities voice,
         Func<ChatThreadProps, Node> thread,
         ConversationView? view = null,
-        SessionPage? sessions = null,
+        ThreadPage? sessions = null,
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
@@ -336,7 +336,7 @@ public static partial class InoView
         VoiceAbilities voice,
         Func<ChatThreadProps, Node> thread,
         ConversationView? view = null,
-        SessionPage? sessions = null,
+        ThreadPage? sessions = null,
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,

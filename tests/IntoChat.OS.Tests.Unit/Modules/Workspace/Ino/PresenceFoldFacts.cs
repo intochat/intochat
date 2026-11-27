@@ -43,14 +43,22 @@ public sealed class FakeConversation : DigitalBrain.Neurons.Neuron<FakeConversat
     public Task<ConversationView> Read(long? sinceRevision = null)
         => Task.FromResult(State.View ?? new ConversationView(ConvId, 0, [], [], null, [], false, []));
 
+    public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
     public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
-    public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) => throw new NotSupportedException();
+    public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null) => throw new NotSupportedException();
     public Task Stop() => Task.CompletedTask;
     public Task Regenerate(EntryId reply) => throw new NotSupportedException();
     public Task Post(string text, string id, Visibility visibility = Visibility.Everyone)
         => Save(State with { Posts = [.. State.Posts, new RecordedPost(text, id, visibility)] }, new ConversationChanged(ConvId, State.Posts.Length + 1));
     public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
-    public Task Invite(AccountId friend) => throw new NotSupportedException();
+    public Task Invite(AccountId friend, BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => throw new NotSupportedException();
+    public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+    public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+    public Task Here() => Task.CompletedTask;
+    public Task Leave() => Task.CompletedTask;
+    public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+    public Task Edit(EntryId target, string text) => Task.CompletedTask;
+    public Task Delete(EntryId target) => Task.CompletedTask;
 }
 
 public sealed record FakeContextState(ContextEntry[] Entries)
@@ -152,14 +160,13 @@ public sealed class PresenceFoldFacts
     {
         var os = TestOS.Local();
         os.Register<PresenceNeuron>()
-            .Register<SessionListNeuron>()
-            .Register<InoConversationsNeuron>()
+            .Register<ThreadDirectoryNeuron>()
             .Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
             .Register<FakeConversation>()
             .Register<FakeAgentContext>()
             .Register<FakeFlows>()
             .Register<FlowDonePump>();
-        await os.Get<ISessionList>(new NeuronId(Brain, Sessions.Type, ISessionList.DefaultKey)).Open(ConvId);
+        await os.Get<IThreadDirectory>(new NeuronId(Brain, Threads.Type, IThreadDirectory.DefaultKey)).Open(ConvId);
         return os;
     }
 
@@ -253,14 +260,13 @@ public sealed class PresenceFoldFacts
         var os = TestOS.Local(o => o.Services = provider);
         await using var _ = os;
         os.Register<PresenceNeuron>()
-            .Register<SessionListNeuron>()
-            .Register<InoConversationsNeuron>()
+            .Register<ThreadDirectoryNeuron>()
             .Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
             .Register<FakeConversation>()
             .Register<FakeAgentContext>()
             .Register<FakeFlows>()
             .Register<FlowDonePump>();
-        await os.Get<ISessionList>(new NeuronId(Brain, Sessions.Type, ISessionList.DefaultKey)).Open(ConvId);
+        await os.Get<IThreadDirectory>(new NeuronId(Brain, Threads.Type, IThreadDirectory.DefaultKey)).Open(ConvId);
         await Settled(os);
 
         const string completedFlowId = "local/flow.task-worker/c1";
@@ -302,14 +308,13 @@ public sealed class PresenceFoldFacts
         var os = TestOS.Local(o => o.Services = provider);
         await using var _ = os;
         os.Register<PresenceNeuron>()
-            .Register<SessionListNeuron>()
-            .Register<InoConversationsNeuron>()
+            .Register<ThreadDirectoryNeuron>()
             .Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
             .Register<FakeConversation>()
             .Register<FakeAgentContext>()
             .Register<FakeFlows>()
             .Register<FlowDonePump>();
-        await os.Get<ISessionList>(new NeuronId(Brain, Sessions.Type, ISessionList.DefaultKey)).Open(ConvId);
+        await os.Get<IThreadDirectory>(new NeuronId(Brain, Threads.Type, IThreadDirectory.DefaultKey)).Open(ConvId);
         await Settled(os);
 
         const string flowId = "local/flow.task-worker/w3";

@@ -27,7 +27,7 @@ internal sealed record InoSetupHost(
     Func<IDevice?> GetDevice,
     Func<IUserSettings> GetSettings,
     Func<string, IConversation> GetConversation,
-    Func<ISessionList> GetSessions,
+    Func<IThreadDirectory> GetSessions,
     Func<IGrantsNeuron> GetGrants,
     Func<IApprovals> GetApprovals,
     Func<IProfileContextWriter> GetProfileWriter,
@@ -40,7 +40,7 @@ internal sealed record InoSetupHost(
     Func<string, UserSettingsState?, Func<Task<UserSettingsState?>>, Task<UserSettingsState?>> ReadSettingsOptional,
     Func<string, DeviceView?, Func<Task<DeviceView?>>, Task<DeviceView?>> ReadDeviceOptional,
     Func<string, InoCatalogSnapshot?, Func<Task<InoCatalogSnapshot?>>, Task<InoCatalogSnapshot?>> ReadCatalogOptional,
-    Func<string, SessionPage?, Func<Task<SessionPage?>>, Task<SessionPage?>> ReadSessionPageOptional,
+    Func<string, ThreadPage?, Func<Task<ThreadPage?>>, Task<ThreadPage?>> ReadSessionPageOptional,
     Action<Exception, string> LogOptional,
     ILogger? Logger);
 
@@ -107,7 +107,7 @@ internal static class InoModelSetup
             return InoModel.SummarizeGrants(grants, CallerApps.Assistant);
         });
 
-    public static Task<SessionPage?> ReadSessionsAsync(InoSetupHost host, int take = 20)
+    public static Task<ThreadPage?> ReadSessionsAsync(InoSetupHost host, int take = 20)
         => host.ReadSessionPageOptional("sessions-list", null, async () => await host.GetSessions().List(archived: false, skip: 0, take: take));
 
     public static Task<string[]> ReadRecentConversationsAsync(InoSetupHost host, string[]? fallback = null)
@@ -118,7 +118,7 @@ internal static class InoModelSetup
         });
 
     public static Task OpenSessionAsync(InoSetupHost host, string conversationId)
-        => Sessions.IsId(conversationId)
+        => Threads.IsLocalId(conversationId)
             ? host.TryOptional("session-open", () => host.GetSessions().Open(conversationId))
             : Task.CompletedTask;
 
@@ -250,7 +250,7 @@ internal static class InoModelSetup
         }
 
         await ReseatConversationAsync(host, modelId.Value, state.ConversationId);
-        if (Sessions.IsId(state.ConversationId))
+        if (Threads.IsLocalId(state.ConversationId))
         {
             await host.TryOptional("session-model", () => host.GetSessions().SetModel(state.ConversationId, modelId.Value));
         }
@@ -373,7 +373,7 @@ internal static class InoModelSetup
 
             case "rename":
                 var renamed = InoModel.DecideSlashRename(state, arg);
-                if (Sessions.IsId(state.ConversationId))
+                if (Threads.IsLocalId(state.ConversationId))
                 {
                     await host.TryOptional("session-rename", () => host.GetSessions().Rename(state.ConversationId, renamed.Title));
                 }

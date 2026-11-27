@@ -38,6 +38,8 @@ public abstract record Participant
 
 public enum Visibility { Everyone, Agents, Owner }
 
+public sealed record MessageReaction(string Emoji, string[] Accounts);
+
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$entry")]
 [JsonDerivedType(typeof(Said), "said")]
 [JsonDerivedType(typeof(Called), "called")]
@@ -65,7 +67,12 @@ public sealed record Said(
     EntryId? Replaces = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AttachmentRef[]? Attachments = null,
-    Visibility Visible = Visibility.Everyone) : ConversationEntry(Id, By, At, Visible);
+    Visibility Visible = Visibility.Everyone,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MessageId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] EntryId? ReplyTo = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MessageReaction[]? Reactions = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? EditedAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Deleted = false) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Called(
     EntryId Id,

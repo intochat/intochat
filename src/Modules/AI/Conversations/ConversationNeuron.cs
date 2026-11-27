@@ -1,13 +1,16 @@
 using System.Diagnostics;
+using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
+using DigitalBrain.Contracts;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Host.Conversations;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
@@ -18,6 +21,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -25,16 +29,30 @@ namespace IntoChat.OS.Modules.AI.Conversations;
 
 [Neuron(IConversation.Type)]
 internal sealed class ConversationNeuron(
-    ISecretRedactor redactor,
-    TimeProvider clock,
     IServiceProvider services,
+    ISecretRedactor? redactor = null,
+    TimeProvider? clock = null,
     ILogger<ConversationNeuron>? logger = null)
-    : InterleavingRunHost<ConversationState>(redactor, clock, services, (ILogger?)logger ?? OsConsoleLog.For<ConversationNeuron>()), IConversation, IConversationDriver
+    : InterleavingRunHost<ConversationState>(
+        redactor ?? (services is not null ? new SecretRedactor(services) : NoOpRedactor.Instance),
+        clock ?? services?.GetService<TimeProvider>() ?? DefaultConversationClock.Instance,
+        services!,
+        (ILogger?)logger ?? OsConsoleLog.For<ConversationNeuron>()), IConversation, IConversationDriver
 {
+    private sealed class NoOpRedactor : ISecretRedactor
+    {
+        public static NoOpRedactor Instance { get; } = new();
+        public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken) => ValueTask.FromResult(text);
+        public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
+    }
     private const int MaxSayCharacters = 32_000;
     private const int MaxActivityPreviewCharacters = 256;
+    private const int MaxEmojiCharacters = 32;
+    private const int MaxRoomAgentContextMessages = 30;
     private const string ConversationsKeyPrefix = ConversationMigrationService.ConversationsKeyPrefix;
+    private static readonly TimeSpan PresenceTtl = TimeSpan.FromMinutes(2);
 
+    private readonly Dictionary<string, DateTimeOffset> _presence = new(StringComparer.Ordinal);
     private Task? _importing;
     private (long Revision, string Text)? _pendingActivity;
 
@@ -57,7 +75,14 @@ internal sealed class ConversationNeuron(
     protected override ConversationState PrepareWrite(ConversationState previous, ConversationState next, bool blocked, bool bumpRevision)
         => next with { Revision = bumpRevision ? previous.Revision + 1 : previous.Revision, Blocked = blocked };
 
-    protected override Task OnStateLoaded(CancellationToken cancellationToken) => SyncPersistedOffersAsync(cancellationToken);
+    protected override async Task OnStateLoaded(CancellationToken cancellationToken)
+    {
+        if (State.Members.Length > 0)
+        {
+            await HearTheRosterAsync();
+        }
+        await SyncPersistedOffersAsync(cancellationToken);
+    }
 
     protected override async Task AfterCommit(ConversationState committed, bool announce)
     {
@@ -90,32 +115,63 @@ internal sealed class ConversationNeuron(
         }
     }
 
+    private Task HearTheRosterAsync()
+        => Context.Wires.Ensure<FriendRemoved>(FriendsDefaults.Id(Id.Brain.Value));
+
+    [On]
+    public async Task On(FriendRemoved removed)
+    {
+        ArgumentNullException.ThrowIfNull(removed);
+        await Fresh();
+        var account = removed.Account.Value;
+        _presence.Remove(account);
+        await Offers.Revoke(Id, account);
+        foreach (var pinned in State.PinnedScreens)
+        {
+            await Offers.Revoke(new NeuronId(Id.Brain, pinned.ScreenType, pinned.ScreenKey), account);
+        }
+
+        if (State.Members.All(m => !string.Equals(m.Account, account, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        await Persist(State with
+        {
+            Members = [.. State.Members.Where(m => !string.Equals(m.Account, account, StringComparison.Ordinal))],
+            Participants = [.. State.Participants.Where(p => p is not Participant.Human h || !string.Equals(h.Account.Value, account, StringComparison.Ordinal))],
+        }, announce: false);
+    }
+
     private async Task SyncPersistedOffersAsync(CancellationToken cancellationToken)
     {
-        if (State.Participants.Length == 0) { return; }
+        if (State.TrustPosture != ThreadTrustPosture.CrossBrainShared || State.Members.Length == 0)
+        {
+            return;
+        }
+
         var owners = Services.GetService<IBrainOwners>();
         if (owners is null) { return; }
         var ownerAccount = await owners.OwnerAccount(Id.Brain, cancellationToken);
         var offers = Offers;
-        foreach (var human in State.Participants.OfType<Participant.Human>())
+        foreach (var member in State.Members)
         {
-            if (string.IsNullOrWhiteSpace(human.Account.Value)
-                || string.Equals(human.Account.Value, ownerAccount, StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(member.Account)
+                || string.Equals(member.Account, ownerAccount, StringComparison.Ordinal))
             {
                 continue;
             }
 
             try
             {
-                if (await offers.RoleOf(Id, human.Account.Value, cancellationToken) is null)
+                if (await offers.RoleOf(Id, member.Account, cancellationToken) is null)
                 {
-                    await offers.Offer(Id, human.Account.Value, DigitalBrain.Components.Role.Editor, cancellationToken);
+                    await offers.Offer(Id, member.Account, member.Role, cancellationToken);
                 }
             }
             catch (UnauthorizedAccessException error)
             {
-                // Persisted participant is no longer a confirmed friend; leave without an offer.
-                Logger.LogSwallowed(error, "conversation participant offer refused");
+                Logger.LogSwallowed(error, "conversation member offer refused");
             }
         }
     }
@@ -128,9 +184,58 @@ internal sealed class ConversationNeuron(
         return !string.IsNullOrWhiteSpace(account) ? new AccountId(account) : new AccountId(Id.Brain.Value);
     }
 
+    private bool IsPostureLocked =>
+        State.PostureLocked
+        || State.Log.Length > 0
+        || State.Agents.Length > 0
+        || State.Participants.Length > 0
+        || State.Members.Length > 0;
+
+    private static void ValidateKindMatchesPosture(ThreadTrustPosture posture, ThreadKind kind)
+    {
+        var valid = posture switch
+        {
+            ThreadTrustPosture.OwnerTrusted => kind is ThreadKind.DirectAssistant or ThreadKind.Squad,
+            ThreadTrustPosture.CrossBrainShared => kind is ThreadKind.DirectPerson or ThreadKind.SharedRoom,
+            _ => false,
+        };
+        if (!valid)
+        {
+            throw new ArgumentException($"ThreadKind '{kind}' is incompatible with ThreadTrustPosture '{posture}'.", nameof(kind));
+        }
+    }
+
+    public async Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null)
+    {
+        AuthorizeOwnerOnly();
+        ValidateKindMatchesPosture(posture, kind);
+        await Fresh();
+
+        if (IsPostureLocked && State.TrustPosture != posture)
+        {
+            throw new InvalidOperationException(
+                $"ThreadTrustPosture is immutable after creation and cannot be changed from '{State.TrustPosture}' to '{posture}'.");
+        }
+
+        var cleanTitle = string.IsNullOrWhiteSpace(title) ? State.Title : title.Trim();
+        var cleanLead = string.IsNullOrWhiteSpace(leadAgentId) ? State.LeadAgentId : leadAgentId.Trim();
+
+        await Persist(State with
+        {
+            TrustPosture = posture,
+            Kind = kind,
+            PostureLocked = true,
+            Title = cleanTitle,
+            LeadAgentId = cleanLead,
+        }, announce: false);
+    }
+
     private Task EnsureImportedAsync()
     {
-        if (State.Imported) { return Task.CompletedTask; }
+        if (State.Imported || State.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            return Task.CompletedTask;
+        }
         if (_importing is { } pending) { return pending; }
         var task = ImportOnceAsync();
         _importing = task;
@@ -158,7 +263,10 @@ internal sealed class ConversationNeuron(
                 return;
             }
 
-            var nextState = ConversationMigrationService.ApplyToState(State, migrated, ownerAccount, DefaultAgentId, KeptRuns);
+            var nextState = ConversationMigrationService.ApplyToState(State, migrated, ownerAccount, DefaultAgentId, KeptRuns) with
+            {
+                PostureLocked = true,
+            };
             await EnsureContextWires(AllContexts(nextState));
             SetBlockedCache(migrated.Blocked);
             await Persist(nextState);
@@ -171,10 +279,17 @@ internal sealed class ConversationNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
         AgentDefinitionRules.Validate(definition);
+        AuthorizeOwnerOnly();
         await Fresh();
 
         var trimmedId = agentId.Trim();
         var normalized = AgentDefinitionRules.Normalize(definition);
+        if (State.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            normalized = SharedRoomAgentPolicy.Confine(normalized, State.Title);
+            SharedRoomAgentPolicy.AssertConfined(normalized);
+        }
+
         var existingIndex = Array.FindIndex(State.Agents, a => string.Equals(a.AgentId, trimmedId, StringComparison.Ordinal));
         if (existingIndex >= 0 && AgentDefinitionRules.AreEqual(State.Agents[existingIndex].Definition, normalized))
         {
@@ -182,7 +297,10 @@ internal sealed class ConversationNeuron(
         }
 
         EnsureIdle();
-        await EnsureContextWires(normalized.Contexts);
+        if (State.TrustPosture == ThreadTrustPosture.OwnerTrusted)
+        {
+            await EnsureContextWires(normalized.Contexts);
+        }
 
         var agents = State.Agents.ToList();
         var seated = new SeatedAgent(trimmedId, normalized);
@@ -192,6 +310,7 @@ internal sealed class ConversationNeuron(
         var participants = WithParticipants(State.Participants, new Participant.Assistant(trimmedId));
         await Mutate(() => Persist(State with
         {
+            PostureLocked = true,
             Participants = participants,
             Agents = [.. agents],
         }));
@@ -220,6 +339,7 @@ internal sealed class ConversationNeuron(
 
         await Mutate(() => Persist(State with
         {
+            PostureLocked = true,
             Participants = participants,
             Log = nextLog,
         }));
@@ -271,6 +391,7 @@ internal sealed class ConversationNeuron(
             await PersistWithActivityAsync(
                 State with
                 {
+                    PostureLocked = true,
                     Participants = participants,
                     Log = nextLog,
                 },
@@ -278,13 +399,25 @@ internal sealed class ConversationNeuron(
         });
     }
 
-    public async Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null)
+    public async Task Say(
+        string text,
+        ModelId? model = null,
+        AttachmentRef[]? attachments = null,
+        string? messageId = null,
+        EntryId? replyTo = null)
     {
-        // The owner's view, or a friend's; a call with no caller is neither.
+        await Fresh();
+
+        if (State.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            await SayInSharedThreadAsync(text, attachments, messageId, replyTo);
+            return;
+        }
+
+        // OwnerTrusted thread: strictly owner-only.
         if (RequireCaller().Brain != Id.Brain)
         {
-            await SayAsFriendAsync(text, attachments);
-            return;
+            throw new UnauthorizedAccessException("Personal OwnerTrusted conversations refuse foreign callers.");
         }
 
         var hasAttachments = attachments is { Length: > 0 };
@@ -299,8 +432,16 @@ internal sealed class ConversationNeuron(
             throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
         }
 
-        await Fresh();
         await EnsureImportedAsync();
+
+        var callerAccount = CallerAccount();
+        var speaker = new Participant.Human(callerAccount);
+        var cleanMessageId = string.IsNullOrWhiteSpace(messageId) ? null : messageId.Trim();
+        if (cleanMessageId is not null && ConversationLog.HasMessageId(State.Log, cleanMessageId, speaker))
+        {
+            return;
+        }
+
         EnsureUnblocked();
         EnsureIdle();
         await EnforceTrialTurnPolicyAsync();
@@ -311,15 +452,15 @@ internal sealed class ConversationNeuron(
         var masked = string.IsNullOrEmpty(normalizedText) ? string.Empty : await Runner.Mask(normalizedText);
         var runId = Guid.NewGuid().ToString("N");
         var now = Clock.GetUtcNow();
-        var callerAccount = CallerAccount();
-        var speaker = new Participant.Human(callerAccount);
         var said = new Said(
             EntryIds.Said(runId),
             speaker,
             now,
             masked,
             Sender: new SenderIdentity(callerAccount.Value, callerAccount.Value, SenderKind.Self),
-            Attachments: sanitizedAttachments);
+            Attachments: sanitizedAttachments,
+            MessageId: cleanMessageId,
+            ReplyTo: replyTo);
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
         var participants = WithParticipants(State.Participants, speaker);
         var runSummaryText = SummarizePromptText(masked, sanitizedAttachments);
@@ -328,9 +469,12 @@ internal sealed class ConversationNeuron(
             TraceId = TraceContext.Current?.TraceId,
         };
 
+        var targetAgentId = ResolveSquadTargetAgent(masked);
+
         await PersistWithActivityAsync(
             State with
             {
+                PostureLocked = true,
                 Participants = participants,
                 Log = nextLog,
                 ActiveRun = activeRun,
@@ -340,7 +484,7 @@ internal sealed class ConversationNeuron(
 
         try
         {
-            await Context.Get<IConversationDriver>(Id).Drive(runId, model?.Value, null);
+            await Context.Get<IConversationDriver>(Id).Drive(runId, model?.Value, null, targetAgentId, depth: 0);
         }
         catch
         {
@@ -349,9 +493,420 @@ internal sealed class ConversationNeuron(
         }
     }
 
+    private async Task SayInSharedThreadAsync(
+        string text,
+        AttachmentRef[]? attachments,
+        string? messageId,
+        EntryId? replyTo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var author = await RequireSeat(requireEditor: true);
+        if (!IsSameBrainCaller() && attachments is { Length: > 0 })
+        {
+            throw new UnauthorizedAccessException("Cross-brain friend messages cannot attach owner brain blobs directly.");
+        }
+
+        var trimmed = text.Trim();
+        if (trimmed.Length > MaxSayCharacters)
+        {
+            throw new ArgumentOutOfRangeException(nameof(text), $"Message exceeds the {MaxSayCharacters}-character limit.");
+        }
+
+        var speaker = new Participant.Human(new AccountId(author));
+        var cleanMessageId = string.IsNullOrWhiteSpace(messageId) ? null : messageId.Trim();
+        if (cleanMessageId is not null && ConversationLog.HasMessageId(State.Log, cleanMessageId, speaker))
+        {
+            return;
+        }
+
+        var masked = await Runner.Mask(trimmed);
+        await AwaitPendingWrite();
+
+        var sanitizedAttachments = IsSameBrainCaller() && attachments is { Length: > 0 }
+            ? await SanitizeAndAuthorizeAttachmentsAsync(attachments)
+            : null;
+        var said = new Said(
+            EntryIds.Said(Guid.NewGuid().ToString("N")),
+            speaker,
+            Clock.GetUtcNow(),
+            masked,
+            Sender: new SenderIdentity(author, author, SenderKind.Human),
+            Attachments: sanitizedAttachments,
+            MessageId: cleanMessageId,
+            ReplyTo: replyTo);
+        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
+        var participants = WithParticipants(State.Participants, speaker);
+
+        using (OwnModuleIfForeign())
+        {
+            await Persist(State with
+            {
+                PostureLocked = true,
+                Participants = participants,
+                Log = nextLog,
+            });
+        }
+
+        var committedRevision = State.Revision;
+        await NudgeDirectoriesAsync(committedRevision);
+
+        // Shared rooms enforce explicit @agentId mention trigger ONLY; normal human messages trigger 0 agent turns.
+        if (ResolveMentionedSharedAgent(masked) is { } mentionedAgent)
+        {
+            using var module = OwnModuleIfForeign();
+            _ = Context.Get<IConversationDriver>(Id).DriveSharedRoomAgent(committedRevision, mentionedAgent);
+        }
+    }
+
+    private string? ResolveMentionedSharedAgent(string text)
+    {
+        var mentions = SharedRoomAgentPolicy.ExtractMentions(text);
+        if (mentions.Length == 0)
+        {
+            return null;
+        }
+
+        foreach (var mention in mentions)
+        {
+            var seated = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, mention, StringComparison.OrdinalIgnoreCase));
+            if (seated is not null)
+            {
+                return seated.AgentId;
+            }
+            if (SharedRoomAgentPolicy.IsMentioned("@" + mention, SharedRoomAgentPolicy.DefaultRoomAgentId))
+            {
+                return SharedRoomAgentPolicy.DefaultRoomAgentId;
+            }
+        }
+        return null;
+    }
+
+    private string ResolveSquadTargetAgent(string text)
+    {
+        if (State.Agents.Length > 1 || State.Kind == ThreadKind.Squad)
+        {
+            var mentions = SharedRoomAgentPolicy.ExtractMentions(text);
+            foreach (var mention in mentions)
+            {
+                var matched = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, mention, StringComparison.OrdinalIgnoreCase));
+                if (matched is not null)
+                {
+                    return matched.AgentId;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(State.LeadAgentId))
+            {
+                var lead = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, State.LeadAgentId, StringComparison.OrdinalIgnoreCase));
+                if (lead is not null)
+                {
+                    return lead.AgentId;
+                }
+            }
+        }
+
+        return State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
+    }
+
+    private string? ResolveSquadHandoffAgent(string replyText, string currentAgentId)
+    {
+        if (State.TrustPosture != ThreadTrustPosture.OwnerTrusted || State.Kind != ThreadKind.Squad || State.Agents.Length < 2)
+        {
+            return null;
+        }
+
+        var mentions = SharedRoomAgentPolicy.ExtractMentions(replyText);
+        foreach (var mention in mentions)
+        {
+            var matched = State.Agents.FirstOrDefault(a =>
+                string.Equals(a.AgentId, mention, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(a.AgentId, currentAgentId, StringComparison.OrdinalIgnoreCase));
+            if (matched is not null)
+            {
+                return matched.AgentId;
+            }
+        }
+        return null;
+    }
+
+    public async Task Invite(AccountId friend, BrainId? friendBrain = null, Role role = Role.Editor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
+        AuthorizeOwnerOnly();
+        await Fresh();
+
+        if (State.TrustPosture != ThreadTrustPosture.CrossBrainShared)
+        {
+            throw new UnauthorizedAccessException(
+                "OwnerTrusted conversations cannot invite external friends; create a CrossBrainShared thread instead.");
+        }
+
+        if (friendBrain is not { } targetBrain || string.IsNullOrWhiteSpace(targetBrain.Value))
+        {
+            throw new ArgumentException("Inviting a friend to a CrossBrainShared thread requires their BrainId.", nameof(friendBrain));
+        }
+
+        var account = friend.Value.Trim();
+        await HearTheRosterAsync();
+        await Offers.Offer(Id, account, role);
+        foreach (var pinned in State.PinnedScreens)
+        {
+            await Offers.Offer(new NeuronId(Id.Brain, pinned.ScreenType, pinned.ScreenKey), account, role);
+        }
+
+        var updatedMembers = State.Members
+            .Where(m => !string.Equals(m.Account, account, StringComparison.Ordinal))
+            .Append(new SeatedMember(account, targetBrain, role))
+            .ToArray();
+        var participants = WithParticipants(State.Participants, new Participant.Human(new AccountId(account)));
+
+        await Persist(State with
+        {
+            PostureLocked = true,
+            Members = updatedMembers,
+            Participants = participants,
+        }, announce: false);
+
+        await DirectoryOf(targetBrain).Invited(Id, State.Title, State.Kind);
+    }
+
+    public async Task Pin(string screenType, string screenKey = "default")
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(screenType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(screenKey);
+        AuthorizeOwnerOnly();
+        await Fresh();
+
+        var type = screenType.Trim();
+        var key = screenKey.Trim();
+        RequirePinnableScreen(type);
+
+        if (IsPinned(type, key))
+        {
+            return;
+        }
+
+        var nextPinned = State.PinnedScreens.Append(new PinnedScreen(type, key)).ToArray();
+        await Persist(State with { PinnedScreens = nextPinned });
+
+        var screenId = new NeuronId(Id.Brain, type, key);
+        foreach (var member in State.Members)
+        {
+            await Offers.Offer(screenId, member.Account, member.Role);
+        }
+
+        await NudgeDirectoriesAsync(State.Revision);
+    }
+
+    public async Task<PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(screenType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(screenKey);
+        ArgumentNullException.ThrowIfNull(command);
+
+        await Fresh();
+        await RequireSeat(requireEditor: true);
+
+        var type = screenType.Trim();
+        var key = screenKey.Trim();
+        if (!IsPinned(type, key))
+        {
+            throw new ActivationRefusedException(
+                ActivationRefusedException.UnknownChild,
+                $"Screen '{type}/{key}' is not pinned in thread '{Id.Key}'.");
+        }
+
+        RequirePinnableScreen(type);
+
+        // Preserve the real authenticated caller (Caller.For.Account) with zero module privilege elevation.
+        var screen = Context.Get<IScreen>(new NeuronId(Id.Brain, type, key));
+        await screen.Dispatch(command);
+        var view = await screen.Read()
+            ?? throw new InvalidOperationException($"Pinned screen '{type}/{key}' produced no published view.");
+
+        using (OwnModuleIfForeign())
+        {
+            await Persist(State);
+        }
+        await NudgeDirectoriesAsync(State.Revision);
+        return view;
+    }
+
+    public async Task Here()
+    {
+        await Fresh();
+        var account = await RequireSeat(requireEditor: false);
+        _presence[account] = Clock.GetUtcNow();
+    }
+
+    public async Task Leave()
+    {
+        await Fresh();
+        var account = await RequireSeat(requireEditor: false);
+        _presence.Remove(account);
+        if (IsSameBrainCaller())
+        {
+            return;
+        }
+
+        using (OwnModuleIfForeign())
+        {
+            await Offers.Revoke(Id, account);
+            foreach (var pinned in State.PinnedScreens)
+            {
+                await Offers.Revoke(new NeuronId(Id.Brain, pinned.ScreenType, pinned.ScreenKey), account);
+            }
+
+            var updatedMembers = State.Members
+                .Where(m => !string.Equals(m.Account, account, StringComparison.Ordinal))
+                .ToArray();
+            var updatedParticipants = State.Participants
+                .Where(p => p is not Participant.Human h || !string.Equals(h.Account.Value, account, StringComparison.Ordinal))
+                .ToArray();
+            await Persist(State with { Members = updatedMembers, Participants = updatedParticipants });
+        }
+
+        await NudgeDirectoriesAsync(State.Revision);
+    }
+
+    public async Task React(EntryId target, string emoji, bool remove = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(emoji);
+        var cleanEmoji = emoji.Trim();
+        if (cleanEmoji.Length > MaxEmojiCharacters)
+        {
+            throw new ArgumentException($"Reaction emoji cannot exceed {MaxEmojiCharacters} characters.", nameof(emoji));
+        }
+
+        await Fresh();
+        var account = await RequireSeat(requireEditor: true);
+        await AwaitPendingWrite();
+
+        var nextLog = ConversationLog.Replace(State.Log, target, State.Revision + 1, said =>
+        {
+            if (said.Deleted)
+            {
+                throw new InvalidOperationException("Cannot react to a deleted message.");
+            }
+            var updated = ApplyReaction(said.Reactions ?? [], cleanEmoji, account, remove);
+            return said with { Reactions = updated.Length > 0 ? updated : null };
+        });
+
+        using (OwnModuleIfForeign())
+        {
+            await Persist(State with { Log = nextLog });
+        }
+        if (State.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            await NudgeDirectoriesAsync(State.Revision);
+        }
+    }
+
+    public async Task Edit(EntryId target, string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        var trimmed = text.Trim();
+        if (trimmed.Length > MaxSayCharacters)
+        {
+            throw new ArgumentOutOfRangeException(nameof(text), $"Message exceeds the {MaxSayCharacters}-character limit.");
+        }
+
+        await Fresh();
+        var account = await RequireSeat(requireEditor: true);
+        await AwaitPendingWrite();
+
+        var masked = await Runner.Mask(trimmed);
+        var now = Clock.GetUtcNow();
+        var nextLog = ConversationLog.Replace(State.Log, target, State.Revision + 1, said =>
+        {
+            if (said.Deleted)
+            {
+                throw new InvalidOperationException("Cannot edit a deleted message.");
+            }
+            if (said.By is not Participant.Human human || !string.Equals(human.Account.Value, account, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Only the original author may edit a message.");
+            }
+            return said with { Text = masked, EditedAt = now };
+        });
+
+        using (OwnModuleIfForeign())
+        {
+            await Persist(State with { Log = nextLog });
+        }
+        if (State.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            await NudgeDirectoriesAsync(State.Revision);
+        }
+    }
+
+    public async Task Delete(EntryId target)
+    {
+        await Fresh();
+        var account = await RequireSeat(requireEditor: true);
+        var isOwner = IsSameBrainCaller();
+        await AwaitPendingWrite();
+
+        var now = Clock.GetUtcNow();
+        var nextLog = ConversationLog.Replace(State.Log, target, State.Revision + 1, said =>
+        {
+            var isAuthor = said.By is Participant.Human human
+                && string.Equals(human.Account.Value, account, StringComparison.Ordinal);
+            if (!isAuthor && !isOwner)
+            {
+                throw new UnauthorizedAccessException("Only the message author or thread owner may delete a message.");
+            }
+            return said with
+            {
+                Text = string.Empty,
+                Attachments = null,
+                Reactions = null,
+                EditedAt = now,
+                Deleted = true,
+            };
+        });
+
+        using (OwnModuleIfForeign())
+        {
+            await Persist(State with { Log = nextLog });
+        }
+        if (State.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            await NudgeDirectoriesAsync(State.Revision);
+        }
+    }
+
+    private static MessageReaction[] ApplyReaction(MessageReaction[] existing, string emoji, string account, bool remove)
+    {
+        var list = existing.ToList();
+        var idx = list.FindIndex(r => string.Equals(r.Emoji, emoji, StringComparison.Ordinal));
+        if (remove)
+        {
+            if (idx < 0) { return existing; }
+            var remaining = list[idx].Accounts.Where(a => !string.Equals(a, account, StringComparison.Ordinal)).ToArray();
+            if (remaining.Length == 0) { list.RemoveAt(idx); }
+            else { list[idx] = list[idx] with { Accounts = remaining }; }
+            return [.. list];
+        }
+
+        if (idx < 0)
+        {
+            list.Add(new MessageReaction(emoji, [account]));
+            return [.. list];
+        }
+
+        if (list[idx].Accounts.Contains(account, StringComparer.Ordinal))
+        {
+            return existing;
+        }
+
+        list[idx] = list[idx] with { Accounts = [.. list[idx].Accounts, account] };
+        return [.. list];
+    }
+
     private async Task<AttachmentRef[]> SanitizeAndAuthorizeAttachmentsAsync(AttachmentRef[] attachments)
     {
-        // Fail closed: never accept attachments without verifying ownership and reconstructing metadata from the brain's store.
         var store = Services.GetService<FileAttachmentStore>()
             ?? throw new InvalidOperationException("Attachment store is unavailable; attachments cannot be verified.");
 
@@ -383,7 +938,6 @@ internal sealed class ConversationNeuron(
                 ? null
                 : await Runner.Mask(meta.Transcript);
 
-            // Reconstruct strictly from server-stored metadata (never trust client-supplied sizes, MIME, URL, or transcripts).
             result[i] = new AttachmentRef(
                 Id: meta.Id,
                 Kind: meta.Kind,
@@ -420,37 +974,6 @@ internal sealed class ConversationNeuron(
         }
 
         return string.Empty;
-    }
-
-    private async Task SayAsFriendAsync(string text, AttachmentRef[]? attachments = null)
-    {
-        await Fresh();
-        var account = Context.Caller?.For?.Account;
-        if (string.IsNullOrWhiteSpace(account))
-        {
-            throw FriendRelay.Refused();
-        }
-        var friend = new AccountId(account);
-        if (attachments is { Length: > 0 })
-        {
-            throw new UnauthorizedAccessException("Cross-brain friend messages cannot attach owner brain blobs directly.");
-        }
-        if (string.IsNullOrEmpty(text) || text.Length > MaxSayCharacters)
-        {
-            throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
-        }
-
-        var masked = await Runner.Mask(text);
-        await AwaitPendingWrite();
-
-        var said = new Said(
-            EntryIds.Said(Guid.NewGuid().ToString("N")),
-            new Participant.Human(friend),
-            Clock.GetUtcNow(),
-            masked,
-            Sender: new SenderIdentity(friend.Value, friend.Value, SenderKind.Human));
-        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
-        await Persist(State with { Log = nextLog });
     }
 
     public Task Stop()
@@ -512,19 +1035,41 @@ internal sealed class ConversationNeuron(
 
     public async Task<ConversationView> Read(long? sinceRevision = null)
     {
-        // The owner's view, or a friend's; a call with no caller is neither.
-        if (RequireCaller().Brain != Id.Brain)
+        await Fresh();
+
+        var isSameBrain = RequireCaller().Brain == Id.Brain;
+        if (!isSameBrain)
         {
+            if (State.TrustPosture != ThreadTrustPosture.CrossBrainShared)
+            {
+                throw new UnauthorizedAccessException("Personal OwnerTrusted conversations refuse foreign callers.");
+            }
+            var viewerAccount = await RequireSeat(requireEditor: false);
             var committed = await ReadCommittedAsync();
-            var shared = ConversationLog.Visible(committed.Log, sinceRevision, owner: false);
-            return new ConversationView(ConvId, committed.Revision, [.. committed.Participants], shared, Active: null, Runs: [], Blocked: false, Contexts: []);
+            var shared = ConversationLog.Visible(committed.Log, sinceRevision, owner: false)
+                .Select(e => ResolveSenderForViewer(e, viewerAccount))
+                .ToArray();
+            return new ConversationView(ConvId, committed.Revision, [.. committed.Participants], shared, Active: null, Runs: [], Blocked: false, Contexts: [])
+            {
+                TrustPosture = committed.TrustPosture,
+                Kind = committed.Kind,
+                Title = committed.Title,
+                LeadAgentId = committed.LeadAgentId,
+                PinnedScreens = committed.PinnedScreens,
+                PresentAccounts = ActivePresence(),
+            };
         }
 
-        await Fresh();
         await EnsureImportedAsync();
         await AwaitPendingWrite();
         var state = Committed;
+        var ownerAccount = CallerAccount().Value;
         var visible = ConversationLog.Visible(state.Log, sinceRevision, owner: true);
+        if (state.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+        {
+            visible = [.. visible.Select(e => ResolveSenderForViewer(e, ownerAccount))];
+        }
+
         return new ConversationView(
             ConvId,
             state.Revision,
@@ -537,16 +1082,105 @@ internal sealed class ConversationNeuron(
         {
             Replacing = state.Replacing,
             BlockedReason = IsBlocked ? InterruptReason : null,
+            TrustPosture = state.TrustPosture,
+            Kind = state.Kind,
+            Title = state.Title,
+            LeadAgentId = state.LeadAgentId,
+            PinnedScreens = state.PinnedScreens,
+            PresentAccounts = ActivePresence(),
         };
     }
 
-    public Task Invite(AccountId friend)
+    public async Task DriveSharedRoomAgent(long triggerRevision, string agentId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
-        throw new UnauthorizedAccessException("Personal conversations cannot invite friends; use IRoom (social.room) instead.");
+        if (Context.Caller is { } caller
+            && caller.Brain != Id.Brain
+            && !(caller.Inside && caller.Via == Id))
+        {
+            throw new UnauthorizedAccessException($"Thread '{Id.Key}' refused direct driver invocation.");
+        }
+
+        await Fresh();
+        if (State.TrustPosture != ThreadTrustPosture.CrossBrainShared)
+        {
+            return;
+        }
+
+        var seated = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, agentId, StringComparison.OrdinalIgnoreCase));
+        var definition = seated is not null
+            ? SharedRoomAgentPolicy.Confine(seated.Definition, State.Title)
+            : SharedRoomAgentPolicy.CreateRoomAgent(State.Title);
+        SharedRoomAgentPolicy.AssertConfined(definition);
+
+        var resolvedAgentId = seated?.AgentId ?? SharedRoomAgentPolicy.DefaultRoomAgentId;
+        var sender = seated is not null
+            ? new SenderIdentity(resolvedAgentId, definition.DisplayName, SenderKind.Agent, RoomScoped: true)
+            : SharedRoomAgentPolicy.RoomAgentSender;
+
+        var snapshot = State.Log
+            .Select(static l => l.Entry)
+            .OfType<Said>()
+            .Where(static s => !s.Deleted && s.Visible == Visibility.Everyone)
+            .TakeLast(MaxRoomAgentContextMessages)
+            .ToArray();
+
+        string? replyText = null;
+        if (Services.GetService<IModelInference>() is { } inference)
+        {
+            var aiMessages = new List<AiMessage>(snapshot.Length + 1)
+            {
+                new("system", [new AiText(definition.Instructions)]),
+            };
+            foreach (var msg in snapshot)
+            {
+                var msgSender = msg.Sender ?? ResolveDefaultSender(msg);
+                var role = msgSender.Kind == SenderKind.Agent ? "assistant" : "user";
+                var body = msgSender.Kind == SenderKind.Agent
+                    ? msg.Text
+                    : FormatAttributedMessage(msgSender, msg.Text);
+                aiMessages.Add(new AiMessage(role, [new AiText(body)]) { Sender = msgSender });
+            }
+
+            try
+            {
+                var result = await inference.Generate(
+                    new InferenceRequest(aiMessages, definition.Model, definition.Options),
+                    model: null,
+                    CancellationToken.None,
+                    brainId: Id.Brain.Value);
+                replyText = string.Concat(result.Messages
+                    .SelectMany(static m => m.Content)
+                    .OfType<AiText>()
+                    .Select(static t => t.Text)).Trim();
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Logger.LogSwallowed(error, "room-scoped agent inference failed");
+                replyText = "I could not reach a model right now. Try mentioning the assistant again in a moment.";
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(replyText))
+        {
+            return;
+        }
+
+        var masked = await Runner.Mask(replyText);
+        var assistantParticipant = new Participant.Assistant(resolvedAgentId);
+        var reply = new Said(
+            EntryIds.Reply(Guid.NewGuid().ToString("N")),
+            assistantParticipant,
+            Clock.GetUtcNow(),
+            masked,
+            Sender: sender);
+
+        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, reply);
+        var participants = WithParticipants(State.Participants, assistantParticipant);
+        await Persist(State with { Log = nextLog, Participants = participants });
+        await NudgeDirectoriesAsync(State.Revision);
     }
 
-    public async Task Drive(string runId, string? model, string? replaces)
+    public async Task Drive(string runId, string? model, string? replaces, string? targetAgentId = null, int depth = 0)
     {
         if (State.ActiveRun?.RunId != runId || IsActive)
         {
@@ -554,7 +1188,11 @@ internal sealed class ConversationNeuron(
             return;
         }
 
-        var seated = State.Agents.FirstOrDefault() ?? new SeatedAgent(DefaultAgentId, new AgentDefinition());
+        var seated = (!string.IsNullOrWhiteSpace(targetAgentId)
+            ? State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, targetAgentId, StringComparison.OrdinalIgnoreCase))
+            : null)
+            ?? State.Agents.FirstOrDefault()
+            ?? new SeatedAgent(DefaultAgentId, new AgentDefinition());
         var definition = seated.Definition;
         var agentParticipant = new Participant.Assistant(seated.AgentId);
         EntryId? replacingId = string.IsNullOrWhiteSpace(replaces) ? null : new EntryId(replaces);
@@ -568,6 +1206,8 @@ internal sealed class ConversationNeuron(
         var streamStarted = false;
         var streamStart = 0L;
         var replyEntry = EntryIds.Reply(runId);
+        string? handoffTarget = null;
+        string? handoffText = null;
 
         var sink = new ConversationTurnSink(
             async updatedRun =>
@@ -589,7 +1229,7 @@ internal sealed class ConversationNeuron(
             var window = ModelContext.From(priorLog);
             var latestHumanSender = LatestHumanSender(State.Log);
             var latestHumanSaid = LatestHumanSaidForTurn(State.Log);
-            var input = latestHumanSaid is { Attachments.Length: > 0 }
+            var input = depth == 0 && latestHumanSaid is { Attachments.Length: > 0 }
                 ? (await BuildMultimodalInputAsync(latestHumanSaid, activeRun.Token)) with { Sender = latestHumanSender }
                 : new AiMessage("user", [new AiText(turnState.Run.UserText)]) { Sender = latestHumanSender };
 
@@ -717,6 +1357,14 @@ internal sealed class ConversationNeuron(
                             if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
                             await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
                             committed = true;
+
+                            // Multi-agent Squad handoff with strict maxDepth = 3 loop guard.
+                            if (depth + 1 < SharedRoomAgentPolicy.MaxSquadHandoffDepth
+                                && ResolveSquadHandoffAgent(turnState.Visible, seated.AgentId) is { } nextAgent)
+                            {
+                                handoffTarget = nextAgent;
+                                handoffText = turnState.Visible;
+                            }
                             break;
                         }
                     case AgentTurnEvent.TurnFailed failed:
@@ -752,13 +1400,207 @@ internal sealed class ConversationNeuron(
                     runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
             }
         }
+
+        if (committed && handoffTarget is not null && handoffText is not null && !IsBlocked)
+        {
+            // Release the current run lease BEFORE dispatching the next Squad handoff turn so IsActive is false.
+            activeRun.Dispose();
+            var nextRunId = Guid.NewGuid().ToString("N");
+            var handoffRun = new AgentRun(nextRunId, AgentRunStatus.Running, handoffText, Clock.GetUtcNow())
+            {
+                TraceId = TraceContext.Current?.TraceId,
+            };
+            await Persist(State with { ActiveRun = handoffRun, Replacing = null });
+            try
+            {
+                await Context.Get<IConversationDriver>(Id).Drive(nextRunId, model, null, handoffTarget, depth + 1);
+            }
+            catch (Exception error)
+            {
+                Logger.LogSwallowed(error, "squad handoff dispatch failed");
+                await UndoHandOffAsync(State with { ActiveRun = null, Replacing = null }, nextRunId);
+            }
+        }
     }
+
+    private string[] ActivePresence()
+    {
+        var now = Clock.GetUtcNow();
+        return _presence
+            .Where(kv => now - kv.Value <= PresenceTtl)
+            .Select(static kv => kv.Key)
+            .OrderBy(static a => a, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private bool IsPinned(string screenType, string screenKey)
+        => State.PinnedScreens.Any(p =>
+            string.Equals(p.ScreenType, screenType, StringComparison.Ordinal)
+            && string.Equals(p.ScreenKey, screenKey, StringComparison.Ordinal));
+
+    private void RequirePinnableScreen(string screenType)
+    {
+        if (SharedRoomAgentPolicy.IsHostPrivateScreenType(screenType))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{screenType}' is host-private and cannot be pinned in thread '{Id.Key}'.");
+        }
+
+        var screenClass = Context.ClassOf(screenType);
+        if (screenClass is null || !typeof(IScreen).IsAssignableFrom(screenClass))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{screenType}' is not a registered pinnable screen in thread '{Id.Key}'.");
+        }
+
+        if (!screenClass.IsDefined(typeof(ShareableAttribute), inherit: false))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{screenType}' is not marked [Shareable] and cannot be pinned in thread '{Id.Key}'.");
+        }
+
+        if (screenClass.IsDefined(typeof(InternalAttribute), inherit: false))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{screenType}' is internal and cannot be pinned in thread '{Id.Key}'.");
+        }
+
+        if (screenClass.GetCustomAttribute<ScreenAttribute>(inherit: false) is { Category: { Length: > 0 } category }
+            && SharedRoomAgentPolicy.IsHostPrivateCategory(category))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{screenType}' (category '{category}') is host-private and cannot be pinned in thread '{Id.Key}'.");
+        }
+    }
+
+    private async Task<string> RequireSeat(bool requireEditor = false)
+    {
+        var caller = RequireCaller();
+        if (IsSameBrainCaller())
+        {
+            return caller.For?.Account ?? Id.Brain.Value;
+        }
+
+        if (State.TrustPosture != ThreadTrustPosture.CrossBrainShared)
+        {
+            throw new UnauthorizedAccessException($"Thread '{Id.Key}' admits only its owner.");
+        }
+
+        var account = caller.For?.Account;
+        if (string.IsNullOrEmpty(account))
+        {
+            throw new UnauthorizedAccessException($"Thread '{Id.Key}' admits its host and the friends its host invited.");
+        }
+
+        var member = State.Members.FirstOrDefault(m =>
+            string.Equals(m.Account, account, StringComparison.Ordinal) && m.Brain == caller.Brain);
+        if (member is null || !await IsFriendAsync(new AccountId(account)))
+        {
+            throw new UnauthorizedAccessException($"Thread '{Id.Key}' admits its host and the friends its host invited.");
+        }
+
+        if (requireEditor && member.Role != Role.Editor)
+        {
+            throw new UnauthorizedAccessException($"Thread '{Id.Key}' requires Editor role for this action.");
+        }
+
+        return account;
+    }
+
+    private async Task<bool> IsFriendAsync(AccountId account)
+    {
+        if (Services.GetService<IFriendCheck>() is not { } roster) { return false; }
+        var edge = Services.GetService<EdgeAuthority>();
+        using var module = edge?.Enter(edge.Module(IConversation.Type, Id.Brain));
+        return await roster.IsFriend(Id.Brain, account.Value);
+    }
+
+    private IDisposable? OwnModuleIfForeign()
+    {
+        if (Context.Caller is { Brain: var brain } && brain == Id.Brain)
+        {
+            return null;
+        }
+        var edge = Services.GetService<EdgeAuthority>();
+        return edge?.Enter(edge.Module(IConversation.Type, Id.Brain));
+    }
+
+    private IThreadDirectory DirectoryOf(BrainId brain)
+        => brain == Id.Brain
+            ? Context.Get<IThreadDirectory>(new NeuronId(brain, Threads.Type, IThreadDirectory.DefaultKey))
+            : Context.Get<IThreadDirectory>(new BindingTarget.Offered(brain, new NeuronId(brain, Threads.Type, IThreadDirectory.DefaultKey)));
+
+    private async Task NudgeDirectoriesAsync(long revision)
+    {
+        if (Context.ClassOf(Threads.Type) is not null)
+        {
+            try
+            {
+                await DirectoryOf(Id.Brain).Changed(Id, revision);
+            }
+            catch (UnauthorizedAccessException refused)
+            {
+                Logger.LogSwallowed(refused, "the host's thread directory refused the notice of a change");
+            }
+        }
+
+        foreach (var member in State.Members)
+        {
+            try
+            {
+                await DirectoryOf(member.Brain).Changed(Id, revision);
+            }
+            catch (UnauthorizedAccessException refused)
+            {
+                Logger.LogSwallowed(refused, "a participant's thread directory refused the notice of a change");
+            }
+        }
+    }
+
+    private static ConversationEntry ResolveSenderForViewer(ConversationEntry entry, string viewerAccount)
+    {
+        if (entry is not Said said)
+        {
+            return entry;
+        }
+        if (said.Sender is { Kind: SenderKind.Agent } || said.By is Participant.Assistant)
+        {
+            return said;
+        }
+
+        var accountId = said.Sender?.AccountId ?? (said.By is Participant.Human h ? h.Account.Value : "unknown");
+        var displayName = said.Sender?.DisplayName ?? accountId;
+        var kind = string.Equals(accountId, viewerAccount, StringComparison.Ordinal)
+            ? SenderKind.Self
+            : SenderKind.Human;
+        return said with { Sender = new SenderIdentity(accountId, displayName, kind) };
+    }
+
+    private static SenderIdentity ResolveDefaultSender(Said said)
+        => said.By switch
+        {
+            Participant.Human human => new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Human),
+            Participant.Assistant assistant => new SenderIdentity(assistant.AgentId, assistant.AgentId, SenderKind.Agent),
+            _ => new SenderIdentity("unknown", "Unknown", SenderKind.Human),
+        };
+
+    private static string FormatAttributedMessage(SenderIdentity sender, string text)
+    {
+        var safeName = SanitizeSpeakerToken(sender.DisplayName);
+        var safeId = SanitizeSpeakerToken(sender.AccountId);
+        var framedBody = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Replace("\n", "\n  ", StringComparison.Ordinal);
+        return $"[{safeName} ({safeId})]: {framedBody}";
+    }
+
+    private static string SanitizeSpeakerToken(string value)
+        => value.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
 
     private static SenderIdentity? LatestHumanSender(LoggedEntry[] log)
     {
         for (var i = log.Length - 1; i >= 0; i--)
         {
-            if (log[i].Entry is Said { By: Participant.Human human } said)
+            if (log[i].Entry is Said { By: Participant.Human human, Deleted: false } said)
             {
                 return said.Sender ?? new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Human);
             }
@@ -766,7 +1608,6 @@ internal sealed class ConversationNeuron(
         return null;
     }
 
-    // Prior history strictly before the latest person prompt (covers both Say and Regenerate without duplicating plan.Input).
     private static LoggedEntry[] PriorLogForTurn(LoggedEntry[] log)
     {
         for (var i = log.Length - 1; i >= 0; i--)
@@ -783,7 +1624,7 @@ internal sealed class ConversationNeuron(
     {
         for (var i = log.Length - 1; i >= 0; i--)
         {
-            if (log[i].Entry is Said { By: Participant.Human } said)
+            if (log[i].Entry is Said { By: Participant.Human, Deleted: false } said)
             {
                 return said;
             }
@@ -830,7 +1671,9 @@ internal sealed class ConversationNeuron(
     }
 
     private static string[] AllContexts(ConversationState state)
-        => [.. state.Agents.SelectMany(static a => a.Definition.Contexts).Distinct(StringComparer.Ordinal)];
+        => state.TrustPosture == ThreadTrustPosture.CrossBrainShared
+            ? []
+            : [.. state.Agents.SelectMany(static a => a.Definition.Contexts).Distinct(StringComparer.Ordinal)];
 
     private static Participant[] WithParticipants(Participant[] existing, params Participant[] additions)
     {

@@ -16,7 +16,7 @@ internal static class InoDrawing
         InoAppState s,
         bool dictation = false,
         ConversationView? view = null,
-        SessionPage? sessions = null,
+        ThreadPage? sessions = null,
         IReadOnlyDictionary<string, AppManifest?>? apps = null,
         string? links = null,
         VoiceAbilities? voice = null)

@@ -1,12 +1,14 @@
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Modules.AI.Conversations;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.Social;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -75,6 +77,12 @@ public sealed class RoomActAttributionFacts
             => Task.FromResult<string?>(brain.Value);
     }
 
+    private sealed class NoOpSecretRedactor : ISecretRedactor
+    {
+        public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken) => ValueTask.FromResult(text);
+        public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
+    }
+
     private static (TestOS Os, CallerRecorder Recorder, MutableFriendCheck Friends) CreateEnvironment()
     {
         var recorder = new CallerRecorder();
@@ -84,12 +92,14 @@ public sealed class RoomActAttributionFacts
             .AddSingleton(recorder)
             .AddSingleton<IFriendCheck>(friends)
             .AddSingleton<IBrainOwners>(new StaticBrainOwners())
+            .AddSingleton<ISecretRedactor>(new NoOpSecretRedactor())
+            .AddSingleton(TimeProvider.System)
             .AddSingleton(_ => capturedEdge ?? throw new InvalidOperationException("EdgeAuthority not yet captured."))
             .BuildServiceProvider();
 
         var os = TestOS.Local(options => options.Services = sp)
-            .Register<RoomNeuron>()
-            .Register<RoomsNeuron>()
+            .Register<ConversationNeuron>()
+            .Register<ThreadDirectoryNeuron>()
             .Register<RoomProbeScreen>()
             .Register<NonScreenNeuron>()
             .Register<FakeFriendsRoster>();
@@ -108,7 +118,7 @@ public sealed class RoomActAttributionFacts
         friends.Friends.Add((aliceBrain.Value, "bob"));
         friends.Friends.Add((bobBrain.Value, "alice"));
 
-        var roomId = new NeuronId(aliceBrain, "social.room", "hangout");
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/hangout");
         var probeId = new NeuronId(aliceBrain, "test.room-probe", "probe-1");
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
@@ -116,15 +126,16 @@ public sealed class RoomActAttributionFacts
             var opened = await os.Get<IScreen>(probeId).Open();
             Assert.NotNull(opened);
 
-            var aliceRoom = os.Get<IRoom>(roomId);
-            await aliceRoom.Pin("test.room-probe", "probe-1", Ct);
-            await aliceRoom.Invite("bob", bobBrain, Role.Editor, Ct);
+            var aliceRoom = os.Get<IConversation>(roomId);
+            await aliceRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Hangout");
+            await aliceRoom.Pin("test.room-probe", "probe-1");
+            await aliceRoom.Invite(new AccountId("bob"), bobBrain, Role.Editor);
         }
 
         using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
         {
-            var bobRoom = os.Get<IRoom>(roomId);
-            var view = await bobRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"), Ct);
+            var bobRoom = os.Get<IConversation>(roomId);
+            var view = await bobRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"));
             Assert.NotNull(view);
         }
 
@@ -151,40 +162,40 @@ public sealed class RoomActAttributionFacts
         friends.Friends.Add((aliceBrain.Value, "carol"));
         friends.Friends.Add((carolBrain.Value, "alice"));
 
-        var roomId = new NeuronId(aliceBrain, "social.room", "lounge");
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/lounge");
         var probeId = new NeuronId(aliceBrain, "test.room-probe", "probe-1");
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
         {
             _ = await os.Get<IScreen>(probeId).Open();
-            var aliceRoom = os.Get<IRoom>(roomId);
-            await aliceRoom.Pin("test.room-probe", "probe-1", Ct);
-            await aliceRoom.Invite("carol", carolBrain, Role.Viewer, Ct);
-            await aliceRoom.Say("welcome", Ct);
+            var aliceRoom = os.Get<IConversation>(roomId);
+            await aliceRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Lounge");
+            await aliceRoom.Pin("test.room-probe", "probe-1");
+            await aliceRoom.Invite(new AccountId("carol"), carolBrain, Role.Viewer);
+            await aliceRoom.Say("welcome");
         }
 
         using (os.Edge.Enter(os.Edge.Person("carol", "carol", carolBrain)))
         {
-            var carolRoom = os.Get<IRoom>(roomId);
-            await carolRoom.Here(Ct);
-            var view = await carolRoom.Read(null, Ct);
-            Assert.Single(view.Messages);
+            var carolRoom = os.Get<IConversation>(roomId);
+            await carolRoom.Here();
+            var view = await carolRoom.Read();
+            Assert.Single(view.Entries.OfType<Said>());
             Assert.Contains("carol", view.PresentAccounts);
 
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
-                () => carolRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"), Ct));
+                () => carolRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap")));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
-                () => carolRoom.Say("viewer cannot write", Ct));
+                () => carolRoom.Say("viewer cannot write"));
         }
 
         Assert.Empty(recorder.DispatchedCallers);
 
-        // Host remains allowed to Act and Say.
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
         {
-            var aliceRoom = os.Get<IRoom>(roomId);
-            await aliceRoom.Say("host still writes", Ct);
-            var afterAct = await aliceRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"), Ct);
+            var aliceRoom = os.Get<IConversation>(roomId);
+            await aliceRoom.Say("host still writes");
+            var afterAct = await aliceRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"));
             Assert.NotNull(afterAct);
         }
 
@@ -203,19 +214,21 @@ public sealed class RoomActAttributionFacts
         friends.Friends.Add((aliceBrain.Value, "bob"));
         friends.Friends.Add((bobBrain.Value, "alice"));
 
-        var roomId = new NeuronId(aliceBrain, "social.room", "hangout");
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/hangout");
         var probeId = new NeuronId(aliceBrain, "test.room-probe", "unpinned");
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
         {
             _ = await os.Get<IScreen>(probeId).Open();
-            await os.Get<IRoom>(roomId).Invite("bob", bobBrain, Role.Editor, Ct);
+            var aliceRoom = os.Get<IConversation>(roomId);
+            await aliceRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Hangout");
+            await aliceRoom.Invite(new AccountId("bob"), bobBrain, Role.Editor);
         }
 
         using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
         {
             var refused = await Assert.ThrowsAsync<ActivationRefusedException>(
-                () => os.Get<IRoom>(roomId).Act("test.room-probe", "unpinned", new Command(".", "probe.tap"), Ct));
+                () => os.Get<IConversation>(roomId).Act("test.room-probe", "unpinned", new Command(".", "probe.tap")));
             Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
         }
 
@@ -246,14 +259,16 @@ public sealed class RoomActAttributionFacts
         await using var lifetime = os;
 
         var aliceBrain = new BrainId("alice");
-        var roomId = new NeuronId(aliceBrain, "social.room", "hangout");
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/hangout");
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
         {
+            var room = os.Get<IConversation>(roomId);
+            await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Hangout");
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
-                () => os.Get<IRoom>(roomId).Pin(forbiddenScreenType, "default", Ct));
+                () => room.Pin(forbiddenScreenType, "default"));
 
-            var view = await os.Get<IRoom>(roomId).Read(null, Ct);
+            var view = await room.Read();
             Assert.Empty(view.PinnedScreens);
         }
     }
@@ -265,12 +280,14 @@ public sealed class RoomActAttributionFacts
         await using var lifetime = os;
 
         var aliceBrain = new BrainId("alice");
-        var roomId = new NeuronId(aliceBrain, "social.room", "hangout");
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/hangout");
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
         {
-            await os.Get<IRoom>(roomId).Pin("test.room-probe", "probe-1", Ct);
-            var view = await os.Get<IRoom>(roomId).Read(null, Ct);
+            var room = os.Get<IConversation>(roomId);
+            await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Hangout");
+            await room.Pin("test.room-probe", "probe-1");
+            var view = await room.Read();
             var pinned = Assert.Single(view.PinnedScreens);
             Assert.Equal("test.room-probe", pinned.ScreenType);
             Assert.Equal("probe-1", pinned.ScreenKey);
@@ -288,54 +305,149 @@ public sealed class RoomActAttributionFacts
         friends.Friends.Add((aliceBrain.Value, "bob"));
         friends.Friends.Add((bobBrain.Value, "alice"));
 
-        var roomId = new NeuronId(aliceBrain, "social.room", "hangout");
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/hangout");
         var probeId = new NeuronId(aliceBrain, "test.room-probe", "probe-1");
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
         {
             _ = await os.Get<IScreen>(probeId).Open();
-            var aliceRoom = os.Get<IRoom>(roomId);
-            await aliceRoom.Pin("test.room-probe", "probe-1", Ct);
-            await aliceRoom.Invite("bob", bobBrain, Role.Editor, Ct);
+            var aliceRoom = os.Get<IConversation>(roomId);
+            await aliceRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Hangout");
+            await aliceRoom.Pin("test.room-probe", "probe-1");
+            await aliceRoom.Invite(new AccountId("bob"), bobBrain, Role.Editor);
         }
 
-        // Bob is admitted while friends.
         using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
         {
-            await os.Get<IRoom>(roomId).Say("before unfriend", Ct);
+            await os.Get<IConversation>(roomId).Say("before unfriend");
         }
 
-        // 1. Immediate revocation: IFriendCheck returns false BEFORE FriendRemoved signal arrives.
         friends.Friends.Remove((aliceBrain.Value, "bob"));
 
         using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
         {
-            var bobRoom = os.Get<IRoom>(roomId);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Read(null, Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Say("blocked", Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"), Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Here(Ct));
+            var bobRoom = os.Get<IConversation>(roomId);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Read());
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Say("blocked"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap")));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(bobRoom.Here);
         }
 
-        // 2. Deliver FriendRemoved signal to the room (from Alice's friends roster).
         using (os.Edge.EnterKernel(aliceBrain))
         {
             await os.Get<IFakeRoster>(FriendsDefaults.Id(aliceBrain.Value)).EmitRemoved("bob");
         }
         await os.Idle();
 
-        // Even if friendship is restored later, Bob's seat and offers were revoked until re-invited.
         friends.Friends.Add((aliceBrain.Value, "bob"));
 
         using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
         {
-            var bobRoom = os.Get<IRoom>(roomId);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Read(null, Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Say("still blocked", Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap"), Ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Here(Ct));
+            var bobRoom = os.Get<IConversation>(roomId);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Read());
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Say("still blocked"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Act("test.room-probe", "probe-1", new Command(".", "probe.tap")));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(bobRoom.Here);
         }
 
         Assert.Empty(recorder.DispatchedCallers);
+    }
+
+    [Fact]
+    public async Task ThreadTrustPosture_IsStrictlyImmutableAfterCreation()
+    {
+        var (os, _, _) = CreateEnvironment();
+        await using var lifetime = os;
+
+        var aliceBrain = new BrainId("alice");
+        var ownerThread = new NeuronId(aliceBrain, IConversation.Type, "conversations/owner-only");
+        var sharedThread = new NeuronId(aliceBrain, IConversation.Type, "conversations/shared-only");
+
+        using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
+        {
+            var ownerConv = os.Get<IConversation>(ownerThread);
+            await ownerConv.Configure(ThreadTrustPosture.OwnerTrusted, ThreadKind.Squad, "My Squad");
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => ownerConv.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Downgrade"));
+
+            var sharedConv = os.Get<IConversation>(sharedThread);
+            await sharedConv.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Friends Room");
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => sharedConv.Configure(ThreadTrustPosture.OwnerTrusted, ThreadKind.DirectAssistant, "Upgrade"));
+        }
+    }
+
+    [Fact]
+    public async Task RichMessengerPrimitives_IdempotencyReplyReactionsEditDeleteAndSinceRevisionWork()
+    {
+        var (os, _, friends) = CreateEnvironment();
+        await using var lifetime = os;
+
+        var aliceBrain = new BrainId("alice");
+        var bobBrain = new BrainId("bob");
+        friends.Friends.Add((aliceBrain.Value, "bob"));
+        friends.Friends.Add((bobBrain.Value, "alice"));
+
+        var roomId = new NeuronId(aliceBrain, IConversation.Type, "conversations/rich-chat");
+
+        EntryId firstId;
+        long revAfterFirst;
+        using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
+        {
+            var room = os.Get<IConversation>(roomId);
+            await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Rich Chat");
+            await room.Invite(new AccountId("bob"), bobBrain, Role.Editor);
+
+            // Idempotent MessageId: duplicate call is a no-op.
+            await room.Say("Hello world", messageId: "msg-1");
+            await room.Say("Hello world", messageId: "msg-1");
+
+            var view = await room.Read();
+            var first = Assert.Single(view.Entries.OfType<Said>());
+            Assert.Equal("msg-1", first.MessageId);
+            firstId = first.Id;
+            revAfterFirst = view.Revision;
+        }
+
+        // Bob replies to firstId and reacts with emoji.
+        EntryId bobReplyId;
+        using (os.Edge.Enter(os.Edge.Person("bob", "bob", bobBrain)))
+        {
+            var bobRoom = os.Get<IConversation>(roomId);
+            await bobRoom.Say("Replying!", messageId: "msg-2", replyTo: firstId);
+            await bobRoom.React(firstId, "👍");
+
+            var delta = await bobRoom.Read(sinceRevision: revAfterFirst);
+            Assert.Equal(2, delta.Entries.OfType<Said>().Count());
+            var bobMsg = Assert.Single(delta.Entries.OfType<Said>(), s => s.MessageId == "msg-2");
+            Assert.Equal(firstId, bobMsg.ReplyTo);
+            bobReplyId = bobMsg.Id;
+
+            var reacted = Assert.Single(delta.Entries.OfType<Said>(), s => s.Id == firstId);
+            var reaction = Assert.Single(reacted.Reactions!);
+            Assert.Equal("👍", reaction.Emoji);
+            Assert.Equal(["bob"], reaction.Accounts);
+
+            // Bob cannot edit Alice's message.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bobRoom.Edit(firstId, "spoofed"));
+        }
+
+        // Alice edits her message and tombstones Bob's message (owner privilege).
+        using (os.Edge.Enter(os.Edge.Person("alice", "alice", aliceBrain)))
+        {
+            var room = os.Get<IConversation>(roomId);
+            var revBeforeEdit = (await room.Read()).Revision;
+            await room.Edit(firstId, "Hello edited world");
+            await room.Delete(bobReplyId);
+
+            var delta = await room.Read(sinceRevision: revBeforeEdit);
+            var edited = Assert.Single(delta.Entries.OfType<Said>(), s => s.Id == firstId);
+            Assert.Equal("Hello edited world", edited.Text);
+            Assert.NotNull(edited.EditedAt);
+
+            var tombstoned = Assert.Single(delta.Entries.OfType<Said>(), s => s.Id == bobReplyId);
+            Assert.True(tombstoned.Deleted);
+            Assert.Equal(string.Empty, tombstoned.Text);
+        }
     }
 }

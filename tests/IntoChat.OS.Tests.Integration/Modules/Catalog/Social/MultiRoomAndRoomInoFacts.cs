@@ -6,7 +6,8 @@ using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Social;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.Apps.Social;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Tests.Integration.Journeys;
 using IntoChat.OS.Tests.Support.Fakes;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +18,7 @@ public sealed class MultiRoomAndRoomInoFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static NeuronId IndexOf(Person person) => new(person.Brain, "social.rooms", IRooms.DefaultKey);
+    private static NeuronId IndexOf(Person person) => new(person.Brain, Threads.Type, IThreadDirectory.DefaultKey);
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task MultiRoomCreateListInviteLeaveAndReactiveSignalsWork(NeuronRuntimeKind kind)
@@ -27,48 +28,49 @@ public sealed class MultiRoomAndRoomInoFacts
         await alice.Befriend(bob, Ct);
         await alice.Befriend(carol, Ct);
 
-        // Open Alice's FriendsApp so it subscribes to RoomsIndexChanged and RoomChanged.
         await using var aliceFriends = await alice.Open<FriendsApp>("default", Ct);
 
-        var aliceIndex = alice.Get<IRooms>(IndexOf(alice));
-        var dmId = await aliceIndex.Create("Bob", RoomKind.Direct, "dm-bob", Ct);
-        var groupId = await aliceIndex.Create("Weekend Trip", RoomKind.Group, "trip-group", Ct);
-        await alice.Get<IRoom>(dmId).Configure("Bob", RoomKind.Direct, Ct);
-        await alice.Get<IRoom>(dmId).Invite(bob.Account, bob.Brain, Role.Editor, Ct);
-        await aliceIndex.Invite(dmId, bob.Account, bob.Brain, Role.Editor, Ct);
-        await alice.Get<IRoom>(groupId).Configure("Weekend Trip", RoomKind.Group, Ct);
-        await alice.Get<IRoom>(groupId).Invite(bob.Account, bob.Brain, Role.Editor, Ct);
-        await alice.Get<IRoom>(groupId).Invite(carol.Account, carol.Brain, Role.Viewer, Ct);
-        await aliceIndex.Invite(groupId, bob.Account, bob.Brain, Role.Editor, Ct);
+        var aliceIndex = alice.Get<IThreadDirectory>(IndexOf(alice));
+        var dmId = await aliceIndex.CreateShared("Bob", ThreadKind.DirectPerson, "dm-bob");
+        var groupId = await aliceIndex.CreateShared("Weekend Trip", ThreadKind.SharedRoom, "trip-group");
+        await alice.Get<IConversation>(dmId).Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.DirectPerson, "Bob");
+        await alice.Get<IConversation>(dmId).Invite(new AccountId(bob.Account), bob.Brain, Role.Editor);
+        await alice.Get<IConversation>(groupId).Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Weekend Trip");
+        await alice.Get<IConversation>(groupId).Invite(new AccountId(bob.Account), bob.Brain, Role.Editor);
+        await alice.Get<IConversation>(groupId).Invite(new AccountId(carol.Account), carol.Brain, Role.Viewer);
 
-        var aliceRooms = await aliceIndex.List(Ct);
+        var aliceRooms = (await aliceIndex.List(archived: false)).Entries
+            .Where(static e => e.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+            .ToArray();
         Assert.Equal(2, aliceRooms.Length);
-        Assert.Contains(aliceRooms, r => r.Room == dmId && r.Kind == RoomKind.Direct && r.IsHost);
-        Assert.Contains(aliceRooms, r => r.Room == groupId && r.Kind == RoomKind.Group && r.IsHost);
+        Assert.Contains(aliceRooms, r => r.Thread == dmId && r.Kind == ThreadKind.DirectPerson && r.IsHost);
+        Assert.Contains(aliceRooms, r => r.Thread == groupId && r.Kind == ThreadKind.SharedRoom && r.IsHost);
 
-        var bobIndex = bob.Get<IRooms>(IndexOf(bob));
-        var bobRooms = await bobIndex.List(Ct);
+        var bobIndex = bob.Get<IThreadDirectory>(IndexOf(bob));
+        var bobRooms = (await bobIndex.List(archived: false)).Entries
+            .Where(static e => e.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+            .ToArray();
         Assert.Equal(2, bobRooms.Length);
         Assert.All(bobRooms, r => Assert.False(r.IsHost));
-        // Blocker 5: invited guests receive Title and Kind, not raw room key as Group.
-        Assert.Contains(bobRooms, r => r.Room == dmId && r.Kind == RoomKind.Direct && r.Title == "Bob");
-        Assert.Contains(bobRooms, r => r.Room == groupId && r.Kind == RoomKind.Group && r.Title == "Weekend Trip");
+        Assert.Contains(bobRooms, r => r.Thread == dmId && r.Kind == ThreadKind.DirectPerson && r.Title == "Bob");
+        Assert.Contains(bobRooms, r => r.Thread == groupId && r.Kind == ThreadKind.SharedRoom && r.Title == "Weekend Trip");
 
-        // Blocker 5: Bob clicking OpenDirect for Alice reuses Alice's DM instead of creating a duplicate DM.
         await using var bobFriends = await bob.Open<FriendsApp>("default", Ct);
         await bobFriends.Send(new OpenDirectRoom(alice.Account), Ct);
-        var bobRoomsAfterOpenDirect = await bobIndex.List(Ct);
+        var bobRoomsAfterOpenDirect = (await bobIndex.List(archived: false)).Entries
+            .Where(static e => e.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+            .ToArray();
         Assert.Equal(2, bobRoomsAfterOpenDirect.Length);
 
-        // Bob leaves the group room; it disappears from Bob's index and Bob loses his seat.
-        await bob.Get<IRoom>(groupId).Leave(Ct);
-        await bobIndex.Leave(groupId, Ct);
-        var bobRoomsAfterLeave = await bobIndex.List(Ct);
+        await bob.Get<IConversation>(groupId).Leave();
+        await bobIndex.Leave(groupId);
+        var bobRoomsAfterLeave = (await bobIndex.List(archived: false)).Entries
+            .Where(static e => e.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+            .ToArray();
         Assert.Single(bobRoomsAfterLeave);
-        Assert.DoesNotContain(bobRoomsAfterLeave, r => r.Room == groupId);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.Get<IRoom>(groupId).Say("after leaving", Ct));
+        Assert.DoesNotContain(bobRoomsAfterLeave, r => r.Thread == groupId);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.Get<IConversation>(groupId).Say("after leaving"));
 
-        // Blocker 6: RoomChecklistApp clear + add produces monotonic non-colliding IDs.
         await using var checklist = await alice.Open<RoomChecklistApp>("collision-check", Ct);
         await checklist.Send(new AddChecklistItem("First"), Ct);
         await checklist.Send(new AddChecklistItem("Second"), Ct);
@@ -94,44 +96,41 @@ public sealed class MultiRoomAndRoomInoFacts
         var (alice, bob) = (os.Person("alice"), os.Person("bob"));
         await alice.Befriend(bob, Ct);
 
-        var aliceIndex = alice.Get<IRooms>(IndexOf(alice));
-        var roomId = await aliceIndex.Create("Design Sync", RoomKind.Group, "design-sync", Ct);
-        await alice.Get<IRoom>(roomId).Configure("Design Sync", RoomKind.Group, Ct);
-        await alice.Get<IRoom>(roomId).Invite(bob.Account, bob.Brain, Role.Editor, Ct);
+        var aliceIndex = alice.Get<IThreadDirectory>(IndexOf(alice));
+        var roomId = await aliceIndex.CreateShared("Design Sync", ThreadKind.SharedRoom, "design-sync");
+        await alice.Get<IConversation>(roomId).Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Design Sync");
+        await alice.Get<IConversation>(roomId).Invite(new AccountId(bob.Account), bob.Brain, Role.Editor);
 
-        // 1. Normal human-to-human messages trigger ZERO agent turns.
-        await alice.Get<IRoom>(roomId).Say("Hey Bob, ready to review?", Ct);
-        await bob.Get<IRoom>(roomId).Say("Yep, let's go!", Ct);
+        await alice.Get<IConversation>(roomId).Say("Hey Bob, ready to review?");
+        await bob.Get<IConversation>(roomId).Say("Yep, let's go!");
         await os.Idle();
         Assert.Equal(0, recording.CallCount);
 
-        // Over-length room message is rejected by MaxSayCharacters cap.
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => alice.Get<IRoom>(roomId).Say(new string('a', 32_001), Ct));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => alice.Get<IConversation>(roomId).Say(new string('a', 32_001)));
 
-        // 2. Explicit @Ino mention triggers room-scoped agent turn asynchronously off the Say critical path.
-        await bob.Get<IRoom>(roomId).Say("@Ino summarize our plan", Ct);
-        await WaitUntilAsync(async () => recording.CallCount == 1 && (await alice.Get<IRoom>(roomId).Read(null, Ct)).Messages.Length == 4, os.Idle, Ct);
+        await bob.Get<IConversation>(roomId).Say("@Ino summarize our plan");
+        await WaitUntilAsync(async () => recording.CallCount == 1 && (await alice.Get<IConversation>(roomId).Read()).Entries.OfType<Said>().Count() == 4, os.Idle, Ct);
         Assert.Equal(1, recording.CallCount);
         var lastRequest = Assert.Single(recording.Requests);
         Assert.Contains(lastRequest.Messages, m => m.Role == "system" && m.Content.OfType<AiText>().Any(t => t.Text.Contains("@Ino · Room only", StringComparison.Ordinal)));
         Assert.Contains(lastRequest.Messages, m => m.Sender?.AccountId == alice.Account);
         Assert.Contains(lastRequest.Messages, m => m.Sender?.AccountId == bob.Account);
 
-        // 3. Alice's view attributes Alice as Self, Bob as Human, and @Ino as Agent.
-        var aliceView = await alice.Get<IRoom>(roomId).Read(null, Ct);
-        Assert.Equal(4, aliceView.Messages.Length);
-        Assert.Equal(SenderKind.Self, aliceView.Messages[0].Sender?.Kind);
-        Assert.Equal(alice.Account, aliceView.Messages[0].Sender?.AccountId);
-        Assert.Equal(SenderKind.Human, aliceView.Messages[1].Sender?.Kind);
-        Assert.Equal(bob.Account, aliceView.Messages[1].Sender?.AccountId);
-        Assert.Equal(SenderKind.Agent, aliceView.Messages[3].Sender?.Kind);
-        Assert.Equal(RoomAgentDefinition.DisplayName, aliceView.Messages[3].Sender?.DisplayName);
+        var aliceView = await alice.Get<IConversation>(roomId).Read();
+        var aliceMessages = aliceView.Entries.OfType<Said>().ToArray();
+        Assert.Equal(4, aliceMessages.Length);
+        Assert.Equal(SenderKind.Self, aliceMessages[0].Sender?.Kind);
+        Assert.Equal(alice.Account, aliceMessages[0].Sender?.AccountId);
+        Assert.Equal(SenderKind.Human, aliceMessages[1].Sender?.Kind);
+        Assert.Equal(bob.Account, aliceMessages[1].Sender?.AccountId);
+        Assert.Equal(SenderKind.Agent, aliceMessages[3].Sender?.Kind);
+        Assert.Equal(SharedRoomAgentPolicy.DefaultRoomDisplayName, aliceMessages[3].Sender?.DisplayName);
 
-        // 4. Bob's view attributes Bob as Self and Alice as Human.
-        var bobView = await bob.Get<IRoom>(roomId).Read(null, Ct);
-        Assert.Equal(SenderKind.Human, bobView.Messages[0].Sender?.Kind);
-        Assert.Equal(SenderKind.Self, bobView.Messages[1].Sender?.Kind);
-        Assert.Equal(SenderKind.Agent, bobView.Messages[3].Sender?.Kind);
+        var bobView = await bob.Get<IConversation>(roomId).Read();
+        var bobMessages = bobView.Entries.OfType<Said>().ToArray();
+        Assert.Equal(SenderKind.Human, bobMessages[0].Sender?.Kind);
+        Assert.Equal(SenderKind.Self, bobMessages[1].Sender?.Kind);
+        Assert.Equal(SenderKind.Agent, bobMessages[3].Sender?.Kind);
     }
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
@@ -142,59 +141,50 @@ public sealed class MultiRoomAndRoomInoFacts
         await alice.Befriend(bob, Ct);
         await alice.Befriend(carol, Ct);
 
-        var roomId = new NeuronId(alice.Brain, "social.room", "checklist-room");
-        var aliceRoom = alice.Get<IRoom>(roomId);
-        await aliceRoom.Invite(bob.Account, bob.Brain, Role.Editor, Ct);
-        await aliceRoom.Invite(carol.Account, carol.Brain, Role.Viewer, Ct);
+        var roomId = new NeuronId(alice.Brain, IConversation.Type, "conversations/checklist-room");
+        var aliceRoom = alice.Get<IConversation>(roomId);
+        await aliceRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Checklist Room");
+        await aliceRoom.Invite(new AccountId(bob.Account), bob.Brain, Role.Editor);
+        await aliceRoom.Invite(new AccountId(carol.Account), carol.Brain, Role.Viewer);
 
-        // 1. Non-[Shareable] screens (e.g. personal FriendsApp) are rejected by RoomNeuron.Pin.
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => aliceRoom.Pin("app.friends", "default", Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => aliceRoom.Pin("app.friends", "default"));
 
-        // 2. [Shareable] RoomChecklistApp (backed by CheckBoxNeuron) is allowed by RoomNeuron.Pin.
         const string checklistKey = "trip-checklist";
         await using var checklistSession = await alice.Open<RoomChecklistApp>(checklistKey, Ct);
-        await aliceRoom.Pin("room.checklist", checklistKey, Ct);
+        await aliceRoom.Pin("room.checklist", checklistKey);
 
-        // Host adds initial item (wires CheckBoxNeuron child grain on host brain).
         var hostAddCmd = new Command(".", "room-checklist.add", System.Text.Json.JsonSerializer.SerializeToElement(new { label = "Book flights" }));
-        await aliceRoom.Act("room.checklist", checklistKey, hostAddCmd, Ct);
+        await aliceRoom.Act("room.checklist", checklistKey, hostAddCmd);
 
-        // 3. Viewer (Carol) is rejected by RoomNeuron.Act (Role.Editor enforced).
         var addCmd = new Command(".", "room-checklist.add", System.Text.Json.JsonSerializer.SerializeToElement(new { label = "Reserve hotel" }));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carol.Get<IRoom>(roomId).Act("room.checklist", checklistKey, addCmd, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => carol.Get<IConversation>(roomId).Act("room.checklist", checklistKey, addCmd));
 
-        // 4. Editor (Bob) acts on the pinned RoomChecklistApp; Caller.For.Account is propagated as Bob (no AsSocialModule elevation).
-        var afterAdd = await bob.Get<IRoom>(roomId).Act("room.checklist", checklistKey, addCmd, Ct);
+        var afterAdd = await bob.Get<IConversation>(roomId).Act("room.checklist", checklistKey, addCmd);
         Assert.Contains($"last updated by {bob.Account}", afterAdd.View.GetRawText(), StringComparison.Ordinal);
 
-        // 5. Interactive CheckBoxNeuron child updates through RoomNeuron.Act -> Screen.Dispatch -> CheckBoxNeuron -> Toggled,
-        // including for guest-added items (i2 added by Bob must also be wired via FollowChild and cleaned up via UnfollowChild).
         var toggleHostCheckBox = new Command(
             RoomChecklistApp.CheckKey("i1"),
             "control.setChecked",
             System.Text.Json.JsonSerializer.SerializeToElement(new { isOn = true }));
-        var afterCheck = await aliceRoom.Act("room.checklist", checklistKey, toggleHostCheckBox, Ct);
+        var afterCheck = await aliceRoom.Act("room.checklist", checklistKey, toggleHostCheckBox);
         Assert.NotNull(afterCheck);
         await os.Idle();
         var latestView = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
         Assert.NotNull(latestView);
         Assert.Contains("1/2 done", latestView!.View.GetRawText(), StringComparison.Ordinal);
 
-        // Toggle Bob's guest-added item (i2) via CheckBoxNeuron and verify OnChildToggled updates to 2/2 done
-        // (proving FollowChild wired the guest-added item's CheckBoxNeuron child).
         var toggleGuestCheckBox = new Command(
             RoomChecklistApp.CheckKey("i2"),
             "control.setChecked",
             System.Text.Json.JsonSerializer.SerializeToElement(new { isOn = true }));
-        await aliceRoom.Act("room.checklist", checklistKey, toggleGuestCheckBox, Ct);
+        await aliceRoom.Act("room.checklist", checklistKey, toggleGuestCheckBox);
         await os.Idle();
         var afterGuestToggle = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
         Assert.NotNull(afterGuestToggle);
         Assert.Contains("2/2 done", afterGuestToggle!.View.GetRawText(), StringComparison.Ordinal);
 
-        // Guest clears completed items (exercises UnfollowChild under foreign caller) and adds a fresh item i3.
         var clearCmd = new Command(".", "room-checklist.clear-completed");
-        await bob.Get<IRoom>(roomId).Act("room.checklist", checklistKey, clearCmd, Ct);
+        await bob.Get<IConversation>(roomId).Act("room.checklist", checklistKey, clearCmd);
         await os.Idle();
         var afterClear = await alice.Get<IScreen>(new NeuronId(alice.Brain, "room.checklist", checklistKey)).Read();
         Assert.NotNull(afterClear);

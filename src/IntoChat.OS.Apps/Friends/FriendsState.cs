@@ -1,7 +1,9 @@
 using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Social;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Friends;
@@ -28,14 +30,21 @@ public sealed record SocialFeedItem(
     public bool HasApp => Title is not null || AppId is not null || EmbeddedApps is { Length: > 0 };
 }
 
+public sealed record FriendRoomMessage(
+    string EntryId,
+    string Author,
+    string Text,
+    DateTimeOffset At,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null);
+
 public sealed record ActiveFriendRoom(
     string OwnerBrain,
     string RoomKey,
     long Revision,
-    RoomMessage[] Messages,
+    FriendRoomMessage[] Messages,
     string[] PresentAccounts,
     string Title = "",
-    RoomKind Kind = RoomKind.Group,
+    ThreadKind Kind = ThreadKind.SharedRoom,
     PinnedScreen[]? PinnedScreens = null,
     string[]? Participants = null);
 
@@ -86,7 +95,7 @@ public sealed record FriendsAppState(
     public SocialFeedItem[] SocialFeed { get; init; } = [];
     public string RoomMessageDraft { get; init; } = "";
     public string NewRoomTitleDraft { get; init; } = "";
-    public RoomSummary[] Rooms { get; init; } = [];
+    public ThreadEntry[] Rooms { get; init; } = [];
     public ActiveFriendRoom? ActiveRoom { get; init; }
 
     [IgnoreExplore]

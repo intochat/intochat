@@ -128,12 +128,12 @@ public sealed class NeuronAgentChatClientFacts
 
         await using var os = TestOS.Local(o => o.Services = services);
         os.Register(typeof(AIModule).Assembly);
-        os.Register<SessionListNeuron>();
+        os.Register<ThreadDirectoryNeuron>();
 
         var personCaller = os.Edge.Person("owner", "owner", brain);
         using var scope = os.Edge.Enter(personCaller);
 
-        var sessions = os.Get<ISessionList>(new NeuronId(brain, Sessions.Type, ISessionList.DefaultKey));
+        var sessions = os.Get<IThreadDirectory>(new NeuronId(brain, Threads.Type, IThreadDirectory.DefaultKey));
         var convId = "c-" + new string('d', 32);
         await sessions.Open(convId);
         var conversation = os.Get<IConversation>(new NeuronId(brain, IConversation.Type, IConversation.KeyOf(ConversationId.Parse(convId))));
@@ -144,7 +144,7 @@ public sealed class NeuronAgentChatClientFacts
             .BuildServiceProvider();
         using var client = new NeuronAgentChatClient(
             clientServices,
-            os.Get<ISessionList>,
+            os.Get<IThreadDirectory>,
             os.Get<IConversation>,
             (source, aliases, onSubscribed, token) => LiveFromTestOs(os, source, aliases, onSubscribed, token));
 
@@ -184,12 +184,12 @@ public sealed class NeuronAgentChatClientFacts
 
         await using var os = TestOS.Local(o => o.Services = services);
         os.Register(typeof(AIModule).Assembly);
-        os.Register<SessionListNeuron>();
+        os.Register<ThreadDirectoryNeuron>();
 
         var personCaller = os.Edge.Person("owner", "owner", brain);
         using var scope = os.Edge.Enter(personCaller);
 
-        var sessions = os.Get<ISessionList>(new NeuronId(brain, Sessions.Type, ISessionList.DefaultKey));
+        var sessions = os.Get<IThreadDirectory>(new NeuronId(brain, Threads.Type, IThreadDirectory.DefaultKey));
         var convId = "c-" + new string('e', 32);
         await sessions.Open(convId);
         var conversation = os.Get<IConversation>(new NeuronId(brain, IConversation.Type, IConversation.KeyOf(ConversationId.Parse(convId))));
@@ -200,7 +200,7 @@ public sealed class NeuronAgentChatClientFacts
             .BuildServiceProvider();
         using var client = new NeuronAgentChatClient(
             clientServices,
-            os.Get<ISessionList>,
+            os.Get<IThreadDirectory>,
             os.Get<IConversation>,
             (source, aliases, onSubscribed, token) => LiveFromTestOs(os, source, aliases, onSubscribed, token));
 

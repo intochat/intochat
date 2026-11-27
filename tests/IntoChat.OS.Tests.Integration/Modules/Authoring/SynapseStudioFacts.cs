@@ -282,7 +282,7 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         Assert.True(tickDeploy.Ok, tickDeploy.Text);
 
         // 2. Persist current conversation selection in SessionListNeuron
-        var sessions = runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.ISessionList>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, IntoChat.OS.Modules.Flutter.Conversations.ISessionList.DefaultKey));
+        var sessions = runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.IThreadDirectory>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Threads.Type, IntoChat.OS.Modules.Flutter.Conversations.IThreadDirectory.DefaultKey));
         await sessions.Open("c-deadbeef");
 
         // 3. Create and configure an app snapshot on the silo
@@ -298,7 +298,7 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
         Assert.Contains(deployedAfter, u => u.SourceKey == TwoFileAlias && u.Status == DeployStatus.Deployed);
         Assert.Contains(deployedAfter, u => u.SourceKey == Alias && u.Status == DeployStatus.Deployed);
 
-        var currentSession = await runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.ISessionList>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, IntoChat.OS.Modules.Flutter.Conversations.ISessionList.DefaultKey)).Current();
+        var currentSession = await runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.IThreadDirectory>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Threads.Type, IntoChat.OS.Modules.Flutter.Conversations.IThreadDirectory.DefaultKey)).Current();
         Assert.Equal("c-deadbeef", currentSession);
 
         var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, probeAppKey)).Read();

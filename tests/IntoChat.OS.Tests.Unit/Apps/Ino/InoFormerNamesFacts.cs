@@ -76,12 +76,20 @@ public sealed class InoFormerNamesFacts
             return Task.CompletedTask;
         }
 
-        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null) => throw new NotSupportedException();
+        public Task Configure(ThreadTrustPosture posture, ThreadKind kind, string? title = null, string? leadAgentId = null) => Task.CompletedTask;
+        public Task Say(string text, ModelId? model = null, AttachmentRef[]? attachments = null, string? messageId = null, EntryId? replyTo = null) => throw new NotSupportedException();
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
         public Task Post(string text, string id, Visibility visibility = Visibility.Everyone) => Task.CompletedTask;
         public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
         public Task<ConversationView> Read(long? sinceRevision = null) => Task.FromResult(new ConversationView(ConversationId.Parse("main"), 0, [], [], null, [], false, []));
-        public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Invite(AccountId friend, DigitalBrain.BrainId? friendBrain = null, DigitalBrain.Components.Role role = DigitalBrain.Components.Role.Editor) => throw new NotSupportedException();
+        public Task Pin(string screenType, string screenKey = "default") => Task.CompletedTask;
+        public Task<DigitalBrain.Units.PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command) => throw new NotSupportedException();
+        public Task Here() => Task.CompletedTask;
+        public Task Leave() => Task.CompletedTask;
+        public Task React(EntryId target, string emoji, bool remove = false) => Task.CompletedTask;
+        public Task Edit(EntryId target, string text) => Task.CompletedTask;
+        public Task Delete(EntryId target) => Task.CompletedTask;
     }
 }

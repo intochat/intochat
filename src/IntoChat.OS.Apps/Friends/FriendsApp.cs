@@ -21,6 +21,8 @@ using DigitalBrain.UI.Commands;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Social;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.UI;
 using IntoChat.OS.Modules.UI.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -134,23 +136,24 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         await base.OnActivate(cancellationToken);
         await FollowChild<ITabStripControl, SelectionChanged>(SectionKey);
         await FollowChild<ITabStripControl, SelectionChanged>(ScopeKey);
-        if (Context.ClassOf("social.rooms") is not null)
+        if (Context.ClassOf(Threads.Type) is not null)
         {
-            await Follow<IRooms, RoomsIndexChanged>(IRooms.DefaultKey);
-            await Follow<IRooms, RoomChanged>(IRooms.DefaultKey);
+            await Follow<IThreadDirectory, ThreadDirectoryChanged>(IThreadDirectory.DefaultKey);
+            await Follow<IThreadDirectory, ThreadRevisionChanged>(IThreadDirectory.DefaultKey);
         }
     }
 
     [On]
-    public async Task OnRoomsIndexChanged(RoomsIndexChanged changed)
+    public async Task OnRoomsIndexChanged(ThreadDirectoryChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
         var rooms = await TryReadRoomsAsync();
         var active = State.ActiveRoom;
         if (active is not null
             && string.Equals(changed.Action, "left", StringComparison.Ordinal)
-            && string.Equals(active.OwnerBrain, changed.Room.Brain.Value, StringComparison.Ordinal)
-            && string.Equals(active.RoomKey, changed.Room.Key, StringComparison.Ordinal))
+            && changed.Thread is { } thread
+            && string.Equals(active.OwnerBrain, thread.Brain.Value, StringComparison.Ordinal)
+            && string.Equals(active.RoomKey, thread.Key, StringComparison.Ordinal))
         {
             active = null;
         }
@@ -158,14 +161,14 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     }
 
     [On]
-    public async Task OnRoomChanged(RoomChanged changed)
+    public async Task OnRoomChanged(ThreadRevisionChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
         var rooms = await TryReadRoomsAsync();
         var active = State.ActiveRoom;
         if (active is not null
-            && string.Equals(active.OwnerBrain, changed.Room.Brain.Value, StringComparison.Ordinal)
-            && string.Equals(active.RoomKey, changed.Room.Key, StringComparison.Ordinal))
+            && string.Equals(active.OwnerBrain, changed.Thread.Brain.Value, StringComparison.Ordinal)
+            && string.Equals(active.RoomKey, changed.Thread.Key, StringComparison.Ordinal))
         {
             var isOwn = string.Equals(active.OwnerBrain, CurrentBrainId().Value, StringComparison.Ordinal);
             if (ResolveRoom(active.OwnerBrain, active.RoomKey, isOwn) is { } room)
@@ -341,8 +344,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     [Slot(Key = SharedWithMeDefaults.KeyPart)] private partial ISharedWithMe Mine { get; }
     [Slot(Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
     [Slot(Required = false)] private partial IPosts? SocialPosts { get; }
-    [Slot(Required = false)] private partial SlotCollection<IRoom> SocialRooms { get; }
-    [Slot(Required = false)] private partial IRooms? RoomIndex { get; }
+    [Slot(Required = false)] private partial SlotCollection<IConversation> SocialRooms { get; }
+    [Slot(Key = IThreadDirectory.DefaultKey, Required = false)] private partial IThreadDirectory? RoomIndex { get; }
 
     [On]
     public Task MakeCode(FriendsMakeCode request)
@@ -716,22 +719,23 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             }
 
             var ownBrain = CurrentBrainId();
-            var dmKey = $"dm-{friend.Account.Value.ToLowerInvariant()}";
+            var dmKey = $"conversations/dm-{friend.Account.Value.ToLowerInvariant()}";
             NeuronId roomId;
             if (RoomIndex is { } index)
             {
-                var listed = await index.List();
+                var listed = (await index.List(archived: false)).Entries;
                 var existing = listed.FirstOrDefault(r =>
-                    r.Kind == RoomKind.Direct
-                    && ((r.Room.Brain == ownBrain && string.Equals(r.Room.Key, dmKey, StringComparison.Ordinal))
-                        || r.Room.Brain == friend.Brain));
-                roomId = existing is not null
-                    ? existing.Room
-                    : await index.Create(friend.Name, RoomKind.Direct, dmKey);
+                    r.Kind == ThreadKind.DirectPerson
+                    && r.Thread is { } t
+                    && ((t.Brain == ownBrain && string.Equals(t.Key, dmKey, StringComparison.Ordinal))
+                        || t.Brain == friend.Brain));
+                roomId = existing?.Thread is { } existingThread
+                    ? existingThread
+                    : await index.CreateShared(friend.Name, ThreadKind.DirectPerson, dmKey);
             }
             else
             {
-                roomId = new NeuronId(ownBrain, "social.room", dmKey);
+                roomId = new NeuronId(ownBrain, IConversation.Type, dmKey);
             }
 
             var isOwnRoom = roomId.Brain == ownBrain;
@@ -743,12 +747,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 
             if (isOwnRoom)
             {
-                await room.Configure(friend.Name, RoomKind.Direct);
-                await room.Invite(friend.Account.Value, friend.Brain, Role.Editor);
-                if (RoomIndex is { } hostIndex)
-                {
-                    await hostIndex.Invite(roomId, friend.Account.Value, friend.Brain, Role.Editor);
-                }
+                await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.DirectPerson, friend.Name);
+                await room.Invite(friend.Account, friend.Brain, Role.Editor);
             }
 
             await room.Here();
@@ -781,25 +781,12 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             NeuronId roomId;
             if (RoomIndex is { } index)
             {
-                roomId = await index.Create(title, RoomKind.Group);
-                if (!string.IsNullOrWhiteSpace(request.FriendAccount))
-                {
-                    var friend = roster.FirstOrDefault(f =>
-                        string.Equals(f.Account.Value, request.FriendAccount.Trim(), StringComparison.OrdinalIgnoreCase));
-                    if (friend is not null)
-                    {
-                        await index.Invite(roomId, friend.Account.Value, friend.Brain, Role.Editor);
-                    }
-                }
+                roomId = await index.CreateShared(title, ThreadKind.SharedRoom);
             }
             else
             {
-                var key = $"room-{Guid.NewGuid():N}";
-                roomId = new NeuronId(ownBrain, "social.room", key);
-                if (ResolveRoom(ownBrain.Value, key, isOwnRoom: true) is { } created)
-                {
-                    await created.Configure(title, RoomKind.Group);
-                }
+                var key = $"conversations/room-{Guid.NewGuid():N}";
+                roomId = new NeuronId(ownBrain, IConversation.Type, key);
             }
 
             var room = ResolveRoom(roomId.Brain.Value, roomId.Key, isOwnRoom: true);
@@ -808,14 +795,14 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 return State with { Status = "Social rooms are unavailable." };
             }
 
-            await room.Configure(title, RoomKind.Group);
+            await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, title);
             if (!string.IsNullOrWhiteSpace(request.FriendAccount))
             {
                 var friend = roster.FirstOrDefault(f =>
                     string.Equals(f.Account.Value, request.FriendAccount.Trim(), StringComparison.OrdinalIgnoreCase));
                 if (friend is not null)
                 {
-                    await room.Invite(friend.Account.Value, friend.Brain, Role.Editor);
+                    await room.Invite(friend.Account, friend.Brain, Role.Editor);
                 }
             }
 
@@ -862,15 +849,10 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             }
 
             var role = string.Equals(request.Role?.Trim(), "viewer", StringComparison.OrdinalIgnoreCase) ? Role.Viewer : Role.Editor;
-            var roomId = new NeuronId(ownBrain, "social.room", roomKey);
             var room = ResolveRoom(ownBrain.Value, roomKey, isOwnRoom: true);
             if (room is not null)
             {
-                await room.Invite(friend.Account.Value, friend.Brain, role);
-            }
-            if (RoomIndex is { } index)
-            {
-                await index.Invite(roomId, friend.Account.Value, friend.Brain, role);
+                await room.Invite(friend.Account, friend.Brain, role);
             }
 
             var view = room is not null ? await room.Read() : null;
@@ -912,7 +894,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 }
             }
 
-            var roomId = new NeuronId(new BrainId(ownerBrain), "social.room", roomKey);
+            var roomId = new NeuronId(new BrainId(ownerBrain), IConversation.Type, roomKey);
             if (RoomIndex is { } index)
             {
                 await index.Leave(roomId);
@@ -1037,7 +1019,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                     string.Equals(f.Account.Value, friendAccount, StringComparison.OrdinalIgnoreCase));
                 if (friend is not null)
                 {
-                    await room.Invite(friend.Account.Value, friend.Brain, Role.Editor);
+                    await room.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom);
+                    await room.Invite(friend.Account, friend.Brain, Role.Editor);
                 }
             }
 
@@ -1105,37 +1088,53 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         });
     }
 
-    private static ActiveFriendRoom ToActiveRoom(string ownerBrain, string roomKey, RoomView view) => new(
+    private static ActiveFriendRoom ToActiveRoom(string ownerBrain, string roomKey, ConversationView view) => new(
         ownerBrain,
         roomKey,
         view.Revision,
-        view.Messages,
+        view.Entries
+            .OfType<Said>()
+            .Where(static s => !s.Deleted)
+            .Select(static s => new FriendRoomMessage(
+                s.Id.Value,
+                s.Sender?.AccountId ?? (s.By is Participant.Human h ? h.Account.Value : s.By is Participant.Assistant a ? a.AgentId : "unknown"),
+                s.Text,
+                s.At,
+                s.Sender))
+            .ToArray(),
         view.PresentAccounts,
         Title: string.IsNullOrWhiteSpace(view.Title) ? roomKey : view.Title,
-        Kind: view.Kind ?? RoomKind.Group,
+        Kind: view.Kind,
         PinnedScreens: view.PinnedScreens,
-        Participants: view.Participants);
+        Participants: view.Participants.OfType<Participant.Human>().Select(static h => h.Account.Value).OrderBy(static a => a, StringComparer.Ordinal).ToArray());
 
-    private async Task<RoomSummary[]> TryReadRoomsAsync()
+    private async Task<ThreadEntry[]> TryReadRoomsAsync()
     {
         if (RoomIndex is not { } index) { return State.Rooms ?? []; }
-        try { return await index.List(); }
+        try
+        {
+            var page = await index.List(archived: false);
+            return page.Entries
+                .Where(static e => e.TrustPosture == ThreadTrustPosture.CrossBrainShared)
+                .ToArray();
+        }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Rooms index could not be read.");
+            OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Thread directory could not be read.");
             return State.Rooms ?? [];
         }
     }
 
-    private IRoom? ResolveRoom(string ownerBrainValue, string roomKey, bool isOwnRoom)
+    private IConversation? ResolveRoom(string ownerBrainValue, string roomKey, bool isOwnRoom)
     {
+        var normalizedKey = roomKey.StartsWith("conversations/", StringComparison.Ordinal) ? roomKey : "conversations/" + roomKey;
         if (isOwnRoom)
         {
-            return SocialRooms.TryGet(roomKey);
+            return SocialRooms.TryGet(normalizedKey);
         }
 
         var ownerBrain = new BrainId(ownerBrainValue);
-        return Slots.Offered<IRoom>(ownerBrain, new NeuronId(ownerBrain, "social.room", roomKey));
+        return Slots.Offered<IConversation>(ownerBrain, new NeuronId(ownerBrain, IConversation.Type, normalizedKey));
     }
 
     private async Task<SocialFeedItem[]> LoadSocialFeedAsync(Friend[] roster)
@@ -1355,27 +1354,28 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         var ownBrain = CurrentBrainId().Value;
         var roomRows = rooms.Select(summary =>
         {
-            var kindLabel = summary.Kind == RoomKind.Direct ? "DM" : "Group";
+            var thread = summary.Thread ?? new NeuronId(CurrentBrainId(), IConversation.Type, summary.Id);
+            var kindLabel = summary.Kind == ThreadKind.DirectPerson ? "DM" : "Group";
             var active = room is not null
-                && string.Equals(room.OwnerBrain, summary.Room.Brain.Value, StringComparison.Ordinal)
-                && string.Equals(room.RoomKey, summary.Room.Key, StringComparison.Ordinal);
+                && string.Equals(room.OwnerBrain, thread.Brain.Value, StringComparison.Ordinal)
+                && string.Equals(room.RoomKey, thread.Key, StringComparison.Ordinal);
             return (Node)HStack(Space.Sm)[
-                new TagPill(kindLabel, summary.Kind == RoomKind.Direct ? "accent" : "done", summary.Kind == RoomKind.Direct ? Icons.MessageSquare : "users"),
+                new TagPill(kindLabel, summary.Kind == ThreadKind.DirectPerson ? "accent" : "done", summary.Kind == ThreadKind.DirectPerson ? Icons.MessageSquare : "users"),
                 Button(summary.Title, Icons.MessageSquare)
-                    .Key($"btn:switch-room:{summary.Room.Brain.Value}:{summary.Room.Key}")
+                    .Key($"btn:switch-room:{thread.Brain.Value}:{thread.Key}")
                     .Small()
                     .Style(OsMixStyles.FilterPill(selected: active))
-                    .Sends(Sends(new OpenFriendRoom(summary.Room.Key, "", summary.Room.Brain.Value))),
+                    .Sends(Sends(new OpenFriendRoom(thread.Key, "", thread.Brain.Value))),
                 GhostButton("Leave", "log-out")
-                    .Key($"btn:leave-room:{summary.Room.Brain.Value}:{summary.Room.Key}")
+                    .Key($"btn:leave-room:{thread.Brain.Value}:{thread.Key}")
                     .Small()
-                    .Sends(Sends(new LeaveRoom(summary.Room.Brain.Value, summary.Room.Key)))
+                    .Sends(Sends(new LeaveRoom(thread.Brain.Value, thread.Key)))
             ];
         }).ToArray();
 
         var subtitle = room is null
             ? "Pick a DM or create a Group Room to chat live. Mention @Ino for room-only help."
-            : $"{(room.Kind == RoomKind.Direct ? "DM" : "Group")} · {(string.IsNullOrWhiteSpace(room.Title) ? room.RoomKey : room.Title)} · Present: {(room.PresentAccounts.Length > 0 ? string.Join(", ", room.PresentAccounts) : "nobody yet")}";
+            : $"{(room.Kind == ThreadKind.DirectPerson ? "DM" : "Group")} · {(string.IsNullOrWhiteSpace(room.Title) ? room.RoomKey : room.Title)} · Present: {(room.PresentAccounts.Length > 0 ? string.Join(", ", room.PresentAccounts) : "nobody yet")}";
 
         var messages = room is { Messages.Length: > 0 }
             ? room.Messages.Select(m =>
@@ -1383,7 +1383,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 var sender = m.Sender ?? new SenderIdentity(m.Author, m.Author, SenderKind.Human);
                 var role = sender.Kind == SenderKind.Agent ? "assistant" : "user";
                 return new MessageNode(
-                    $"room-msg-{m.Revision}",
+                    $"room-msg-{m.EntryId}",
                     role,
                     m.Text,
                     Sender: sender);
@@ -1396,9 +1396,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 ? (Node)Card($"Pinned Mini-App · {p.ScreenType}", p.ScreenKey)[
                     Kit.Embed($"{room.OwnerBrain}/{p.ScreenType}/{p.ScreenKey}")
                 ]
-                : (Node)Card($"Pinned Mini-App · {p.ScreenType}", $"{p.ScreenKey} (room-mediated via IRoom.Act)")[
+                : (Node)Card($"Pinned Mini-App · {p.ScreenType}", $"{p.ScreenKey} (room-mediated via IConversation.Act)")[
                     HStack(Space.Sm)[
-                        MutedText($"Hosted by {room.OwnerBrain} · actions route through IRoom.Act with your Editor seat."),
+                        MutedText($"Hosted by {room.OwnerBrain} · actions route through IConversation.Act with your Editor seat."),
                         string.Equals(p.ScreenType, "room.checklist", StringComparison.Ordinal)
                             ? (Node)Button("Clear done", Icons.Trash2)
                                 .Key($"btn:act-room-app:{p.ScreenType}:{p.ScreenKey}:clear")
@@ -1409,7 +1409,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 ]).ToArray()
             : Array.Empty<Node>();
 
-        var inviteButtons = isOwnActiveRoom && room!.Kind == RoomKind.Group
+        var inviteButtons = isOwnActiveRoom && room!.Kind == ThreadKind.SharedRoom
             ? (state.Roster ?? []).Select(friend => (Node)Button($"Invite {friend.Name}", "user-plus")
                 .Key($"btn:invite-room:{room.RoomKey}:{friend.Account.Value}")
                 .Small()

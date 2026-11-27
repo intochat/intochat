@@ -124,21 +124,7 @@ public sealed class FriendsStoredStateFacts
         5,
         ProfileImported: true);
 
-    private static RoomState Room() => new(
-        3,
-        [new RoomMessage(1, "ben", "hello", At), new RoomMessage(2, "ada", "hi", At.AddSeconds(5))],
-        [new PinnedScreen("app.calculator", "room-calc")],
-        [new RoomParticipant("ben", new BrainId("ben"), Role.Editor), new RoomParticipant("eve", new BrainId("eve-brain"), Role.Viewer)]);
-
-    // The rooms index as its first version wrote it (pinned by 84b289787, kept as RoomsState.before-conversations.json).
-    private static RoomsState RoomsBeforeConversations() => new([new RoomEntry(new NeuronId(new BrainId("ada"), "social.room", "hangout"), 3, At)]);
-
-    // The rooms index now: the rooms, and the invitations to friends' conversations the roster used to keep.
-    private static RoomsState Rooms() => new(
-        RoomsBeforeConversations().Rooms,
-        [new ConversationPointer(new BrainId("ben"), "c-0123456789abcdef0123456789abcdef", "Trip", "ben")]);
-
-    // The roster after its invitations moved to the rooms index: the same record, the list empty.
+    // The roster after its invitations moved to the thread directory: the same record, the list empty.
     private static FriendsRecord RosterWithoutGroups()
     {
         var roster = RosterWithoutKeys();
@@ -171,8 +157,6 @@ public sealed class FriendsStoredStateFacts
         ("BrainKeysState.empty.json", static () => new BrainKeysState()),
         ("ProfileState.json", Profile),
         ("PostsState.json", Posts),
-        ("RoomState.json", Room),
-        ("RoomsState.json", Rooms),
         ("FileSharesRecord.json", Door),
         ("SharedWithMeRecord.json", SharedWithMe),
     ];
@@ -227,33 +211,6 @@ public sealed class FriendsStoredStateFacts
                 .Replace(",\"profileImported\":false", "", StringComparison.Ordinal));
     }
 
-    // A rooms index written by the first version reads back with no invitations to conversations, and what this version
-    // writes for it differs only by that member, null. The file is the one 84b289787 pinned; it is never rewritten.
-    [Fact]
-    public void ARoomsIndexOfTheFirstVersionStillReads()
-    {
-        const string firstVersion = """{"rooms":[{"room":"ada/social.room/hangout","lastRevision":3,"updatedAt":"2026-01-02T03:04:05+00:00"}]}""";
-        var stored = File.ReadAllBytes(Golden("RoomsState.before-conversations.json"));
-        Assert.Equal(firstVersion, Encoding.UTF8.GetString(stored));
-
-        var read = (RoomsState)RuntimeProtocol.Deserialize(stored, typeof(RoomsState))!;
-        Assert.Equivalent(RoomsBeforeConversations(), read, strict: true);
-        Assert.Null(read.Conversations);
-        Assert.Equal(
-            firstVersion,
-            Encoding.UTF8.GetString(RuntimeProtocol.SerializeToUtf8Bytes(read, typeof(RoomsState))).Replace(",\"conversations\":null", "", StringComparison.Ordinal));
-    }
-
-    // The invitation the roster kept and the one the rooms index keeps name the same conversation: the roster stored the
-    // id as an object with a computed member, the index stores the id text.
-    [Fact]
-    public void TheRoomsIndexKeepsAConversationByItsIdText()
-    {
-        var index = Encoding.UTF8.GetString(RuntimeProtocol.SerializeToUtf8Bytes(Rooms(), typeof(RoomsState)));
-        Assert.Contains("\"conversations\":[{\"brain\":\"ben\",\"conversation\":\"c-0123456789abcdef0123456789abcdef\",\"title\":\"Trip\",\"by\":\"ben\"}]", index, StringComparison.Ordinal);
-        Assert.DoesNotContain("isCanonical", index, StringComparison.Ordinal);
-    }
-
     private const string FirstVersionPosts = """{"posts":[{"id":"p1","author":"ada","text":"Hello Ben","audienceAccounts":["ben"],"reactions":[{"account":"ben","kind":"like","at":"2026-01-02T03:05:05+00:00"}],"comments":[{"id":"c1","author":"ben","text":"Nice","at":"2026-01-02T03:06:05+00:00"}],"sequence":1,"createdAt":"2026-01-02T03:04:05+00:00","sharedApp":null},{"id":"p2","author":"ada","text":"My app","audienceAccounts":["ben","eve"],"reactions":[],"comments":[],"sequence":2,"createdAt":"2026-01-02T04:04:05+00:00","sharedApp":{"appId":"customer-notes","title":"Customer Notes","files":[{"path":"App.cs","content":"// unit source"}]}}],"nextSequence":2}""";
 
     // A roster written before friends, groups and keys existed: Friends stays null, which is what starts the one-time import.
@@ -291,10 +248,8 @@ public sealed class FriendsStoredStateFacts
                 "identity.brain-keys|state",
                 "os.profile|state",
                 "social.posts|state",
-                "social.rooms|state",
-                "social.room|state",
             ],
-            new[] { typeof(FriendsNeuron), typeof(ProfileNeuron), typeof(PostsNeuron), typeof(RoomNeuron), typeof(RoomsNeuron), typeof(FileSharesNeuron), typeof(SharedWithMeNeuron), typeof(BrainKeysNeuron) }
+            new[] { typeof(FriendsNeuron), typeof(ProfileNeuron), typeof(PostsNeuron), typeof(FileSharesNeuron), typeof(SharedWithMeNeuron), typeof(BrainKeysNeuron) }
                 .Select(static type => type.GetCustomAttribute<NeuronAttribute>(false)!)
                 .Select(static neuron => $"{neuron.Type}|{neuron.State ?? "state"}")
                 .Order(StringComparer.Ordinal));
@@ -306,7 +261,6 @@ public sealed class FriendsStoredStateFacts
         Assert.Equal("owner/files.shares/files/shares", FileSharesDefaults.Id("owner").ToString());
         Assert.Equal("owner/files.shared-with-me/files/shared-with-me", SharedWithMeDefaults.Id("owner").ToString());
         Assert.Equal("default", IPosts.DefaultKey);
-        Assert.Equal("default", IRooms.DefaultKey);
     }
 
     // A contract is stored by its full name (agent definitions, grants, slot specs) and called by its alias.
@@ -320,11 +274,9 @@ public sealed class FriendsStoredStateFacts
                 "IntoChat.OS.Modules.Apps.IProfile|os.profile|os.profile",
                 "IntoChat.OS.Modules.Apps.ISharedWithMe|files.shared-with-me|files.shared-with-me",
                 "IntoChat.OS.Modules.Apps.Social.IPosts|social.posts|social.posts",
-                "IntoChat.OS.Modules.Apps.Social.IRooms|social.rooms|social.rooms",
-                "IntoChat.OS.Modules.Apps.Social.IRoom|social.room|social.room",
                 "IntoChat.OS.Modules.Identity.Contracts.Keys.IBrainKeys|identity.brain-keys|identity.brain-keys",
             ],
-            new[] { typeof(IFriends), typeof(IProfile), typeof(IPosts), typeof(IRoom), typeof(IRooms), typeof(IFileShares), typeof(ISharedWithMe), typeof(IBrainKeys) }
+            new[] { typeof(IFriends), typeof(IProfile), typeof(IPosts), typeof(IFileShares), typeof(ISharedWithMe), typeof(IBrainKeys) }
                 .Select(static contract => $"{contract.FullName}|{contract.GetCustomAttribute<NeuronAliasAttribute>(false)!.Alias}|{PlainNeuronContracts.TypeOf(contract)}")
                 .Order(StringComparer.Ordinal));
     }
