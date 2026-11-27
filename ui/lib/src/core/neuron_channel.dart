@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:grpc/grpc.dart' show CallOptions;
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:grpc/grpc.dart' as grpc;
 import 'package:grpc/grpc_connection_interface.dart' show ClientChannelBase;
 
 import '../generated/neurons.pb.dart' as pb;
@@ -62,6 +63,58 @@ abstract interface class NeuronLink {
   Future<void> shutdown();
 }
 
+/// Centralized gRPC interceptor injecting auth + session headers on every RPC
+/// and applying [defaultUnaryTimeout] to unary calls while leaving streaming
+/// calls unbounded and preserving explicit per-call [grpc.CallOptions] overrides.
+final class _NeuronAuthAndDeadlineInterceptor extends grpc.ClientInterceptor {
+  _NeuronAuthAndDeadlineInterceptor({
+    required this.authorization,
+    required this.sessionHeaders,
+    required this.defaultUnaryTimeout,
+  });
+
+  final String? authorization;
+  final Map<String, String> Function()? sessionHeaders;
+  final Duration defaultUnaryTimeout;
+
+  grpc.CallOptions _enrich(
+    grpc.CallOptions options, {
+    required bool applyDefaultDeadline,
+  }) {
+    final defaults = grpc.CallOptions(
+      metadata: authorization == null
+          ? const {}
+          : {'authorization': authorization!},
+      timeout: applyDefaultDeadline ? defaultUnaryTimeout : null,
+      providers: [
+        if (sessionHeaders != null)
+          (metadata, uri) {
+            for (final entry in sessionHeaders!().entries) {
+              metadata.putIfAbsent(entry.key, () => entry.value);
+            }
+          },
+      ],
+    );
+    return defaults.mergedWith(options);
+  }
+
+  @override
+  grpc.ResponseFuture<R> interceptUnary<Q, R>(
+    grpc.ClientMethod<Q, R> method,
+    Q request,
+    grpc.CallOptions options,
+    grpc.ClientUnaryInvoker<Q, R> invoker,
+  ) => invoker(method, request, _enrich(options, applyDefaultDeadline: true));
+
+  @override
+  grpc.ResponseStream<R> interceptStreaming<Q, R>(
+    grpc.ClientMethod<Q, R> method,
+    Stream<Q> requests,
+    grpc.CallOptions options,
+    grpc.ClientStreamingInvoker<Q, R> invoker,
+  ) => invoker(method, requests, _enrich(options, applyDefaultDeadline: false));
+}
+
 /// The operations over one gRPC(-Web) connection.
 final class NeuronChannel implements NeuronLink {
   NeuronChannel(
@@ -70,24 +123,25 @@ final class NeuronChannel implements NeuronLink {
     Map<String, String> Function()? sessionHeaders,
     this.callTimeout = defaultCallTimeout,
   }) : _channel = transport.createNeuronChannel(baseUri),
-       _options = CallOptions(
-         metadata: authorization == null
-             ? const {}
-             : {'authorization': authorization},
-         providers: [
-           if (sessionHeaders != null)
-             (metadata, uri) => metadata.addAll(sessionHeaders()),
-         ],
+       _interceptor = _NeuronAuthAndDeadlineInterceptor(
+         authorization: authorization,
+         sessionHeaders: sessionHeaders,
+         defaultUnaryTimeout: callTimeout,
        ) {
-    _client = rpc.NeuronsClient(_channel, options: _options);
+    _client = rpc.NeuronsClient(_channel, interceptors: [_interceptor]);
   }
 
-  /// The deadline a [call] gets unless it names its own; `Watch` streams have none.
+  /// The deadline a unary [call] or [readState] gets unless it names its own;
+  /// `Watch` streams have none.
   static const defaultCallTimeout = Duration(seconds: 15);
   final Duration callTimeout;
   final ClientChannelBase _channel;
-  final CallOptions _options;
+  final _NeuronAuthAndDeadlineInterceptor _interceptor;
   late final rpc.NeuronsClient _client;
+
+  /// Exposes the centralized interceptor for unit tests.
+  @visibleForTesting
+  grpc.ClientInterceptor get interceptorForTesting => _interceptor;
 
   static pb.CallRequest callRequest(
     String brainId,
@@ -103,10 +157,6 @@ final class NeuronChannel implements NeuronLink {
     arguments: utf8.encode(jsonEncode(arguments)),
   );
 
-  /// The per-call options: [timeout], else [callTimeout].
-  CallOptions callOptions({Duration? timeout}) =>
-      CallOptions(timeout: timeout ?? callTimeout);
-
   /// Runs a contract method; null when the method answers nothing. It fails with
   /// `DEADLINE_EXCEEDED` after [timeout] (default [callTimeout]).
   @override
@@ -120,7 +170,7 @@ final class NeuronChannel implements NeuronLink {
   }) async {
     final reply = await _client.call(
       callRequest(brainId, contract, key, method, arguments),
-      options: callOptions(timeout: timeout),
+      options: timeout == null ? null : grpc.CallOptions(timeout: timeout),
     );
     if (reply.result.isEmpty) return null;
     final decoded = jsonDecode(utf8.decode(reply.result));
@@ -137,7 +187,7 @@ final class NeuronChannel implements NeuronLink {
   }) async {
     final reply = await _client.readState(
       pb.NeuronStateRequest(brainId: brainId, contract: contract, key: key),
-      options: callOptions(timeout: timeout),
+      options: timeout == null ? null : grpc.CallOptions(timeout: timeout),
     );
     if (reply.stateJson.isEmpty) return null;
     return jsonDecode(utf8.decode(reply.stateJson));

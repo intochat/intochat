@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
@@ -219,7 +218,7 @@ final class UiMixSurface extends StatelessWidget {
 }
 
 // --- src/primitives/expander.dart ---
-final class UiMixExpander extends StatefulWidget {
+final class UiMixExpander extends StatelessWidget {
   const UiMixExpander({
     super.key,
     required this.header,
@@ -248,96 +247,105 @@ final class UiMixExpander extends StatefulWidget {
   final String? semanticsId;
 
   @override
-  State<UiMixExpander> createState() => _UiMixExpanderState();
-}
-
-class _UiMixExpanderState extends State<UiMixExpander> {
-  bool _hovered = false;
-  bool _pressed = false;
-  bool _focused = false;
-
-  @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
-    final resolved = widget.style.resolve(
-      hovered: _hovered && widget.enabled,
-      pressed: _pressed && widget.enabled,
-      focused: _focused && widget.enabled,
-    );
-    final duration = resolved.motion.duration;
-    final curve = resolved.motion.curve;
+    final tokens = UiTokens.of(context);
+    final duration = style.motion.duration;
+    final curve = style.motion.curve;
 
     final card = Box(
-      style: UiStyleMapper.boxStyler(
-        context,
-        widget.style,
-        isHovered: _hovered,
-        isPressed: _pressed,
-        isFocused: _focused,
-        isEnabled: widget.enabled,
-      ),
+      style: UiStyleMapper.boxStyler(context, style, isEnabled: enabled),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           NakedButton(
-            enabled: widget.enabled,
-            onPressed: () => widget.onExpandedChanged(!widget.isExpanded),
-            onHoverChange: (hovered) {
-              if (_hovered == hovered) return;
-              setState(() => _hovered = hovered);
-            },
-            onPressChange: (pressed) {
-              if (_pressed == pressed) return;
-              setState(() => _pressed = pressed);
-            },
-            onFocusChange: (focused) {
-              if (_focused == focused) return;
-              setState(() => _focused = focused);
-            },
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.header,
-                        style: TextStyle(
-                          color: colors.strong,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+            enabled: enabled,
+            onPressed: () => onExpandedChanged(!isExpanded),
+            builder: (context, buttonState, _) {
+              final hovered = buttonState.isHovered && enabled;
+              final pressed = buttonState.isPressed && enabled;
+              final focused = buttonState.isFocused && enabled;
+              final resolved = style.resolve(
+                hovered: hovered,
+                pressed: pressed,
+                focused: focused,
+              );
+              final headerBg = focused
+                  ? UiMixTokens.accentTint()
+                  : pressed
+                  ? UiMixTokens.recessed()
+                  : hovered
+                  ? UiMixTokens.recessed().withValues(alpha: 0.6)
+                  : Colors.transparent;
+
+              return Box(
+                style: BoxStyler()
+                    .color(headerBg)
+                    .borderRadius(
+                      BorderRadiusGeometryMix.circular(tokens.radiusSmall),
+                    )
+                    .border(
+                      BoxBorderMix.all(
+                        BorderSideMix.color(
+                          focused ? UiMixTokens.focus() : Colors.transparent,
+                        ).width(focused ? 1.5 : 1.0),
                       ),
-                      if (widget.subtitle.isNotEmpty)
-                        Text(
-                          widget.subtitle,
-                          style: TextStyle(color: colors.muted, fontSize: 12),
-                        ),
-                    ],
-                  ),
+                    )
+                    .animate(
+                      AnimationConfig.curve(
+                        duration: resolved.motion.duration,
+                        curve: resolved.motion.curve,
+                      ),
+                    ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            header,
+                            style: TextStyle(
+                              color: colors.strong,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                color: colors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0.0,
+                      duration: duration,
+                      curve: curve,
+                      child: Icon(
+                        uiIcon('chevron-down') ?? Icons.expand_more,
+                        size: 18,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ],
                 ),
-                AnimatedRotation(
-                  turns: widget.isExpanded ? 0.5 : 0.0,
-                  duration: duration,
-                  curve: curve,
-                  child: Icon(
-                    uiIcon('chevron-down') ?? Icons.expand_more,
-                    size: 18,
-                    color: colors.muted,
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
           AnimatedSize(
             duration: duration,
             curve: curve,
             alignment: Alignment.topCenter,
-            child: widget.isExpanded
+            child: isExpanded
                 ? Padding(
-                    padding: EdgeInsets.only(top: resolved.gap ?? 10),
-                    child: widget.body,
+                    padding: EdgeInsets.only(top: style.gap ?? 10),
+                    child: body,
                   )
                 : const SizedBox.shrink(),
           ),
@@ -345,20 +353,16 @@ class _UiMixExpanderState extends State<UiMixExpander> {
       ),
     );
 
-    if (widget.semanticsId == null) return card;
+    if (semanticsId == null) return card;
     return Semantics(
-      identifier: widget.semanticsId,
-      expanded: widget.isExpanded,
+      identifier: semanticsId,
+      expanded: isExpanded,
       child: card,
     );
   }
 }
 
 // --- src/primitives/tabs.dart ---
-class _StepTabIntent extends Intent {
-  const _StepTabIntent(this.delta);
-  final int delta;
-}
 
 /// Option B `naked_ui` (`NakedButton`) + `mix` Tabs control with roving
 /// `â†` / `â†’` keyboard navigation, horizontal overflow scrolling, active tab
@@ -382,39 +386,28 @@ final class UiMixTabs extends StatefulWidget {
 }
 
 class _UiMixTabsState extends State<UiMixTabs> {
-  List<GlobalKey> _keys = [];
-  final List<FocusNode> _focusNodes = [];
-  int? _focusedIndex;
-  int? _hoveredIndex;
+  static const _noneTabId = '__none__';
+  static String _tabId(int index) => 'tab_$index';
 
-  List<String> get labels => widget.labels;
-  int get index => widget.index;
-  ValueChanged<int> get onChanged => widget.onChanged;
-  Set<int> get disabled => widget.disabled;
+  List<GlobalKey> _keys = [];
 
   @override
   void initState() {
     super.initState();
-    _syncNodes();
+    _syncKeys();
     _reveal(Duration.zero);
   }
 
-  void _syncNodes() {
-    while (_focusNodes.length < labels.length) {
-      _focusNodes.add(FocusNode());
-    }
-    while (_focusNodes.length > labels.length) {
-      _focusNodes.removeLast().dispose();
-    }
-    if (_keys.length != labels.length) {
-      _keys = [for (var i = 0; i < labels.length; i++) GlobalKey()];
+  void _syncKeys() {
+    if (_keys.length != widget.labels.length) {
+      _keys = [for (var i = 0; i < widget.labels.length; i++) GlobalKey()];
     }
   }
 
   @override
   void didUpdateWidget(UiMixTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncNodes();
+    _syncKeys();
     if (oldWidget.index != widget.index ||
         oldWidget.labels.length != widget.labels.length) {
       final disableAnim = MediaQuery.disableAnimationsOf(context);
@@ -422,31 +415,10 @@ class _UiMixTabsState extends State<UiMixTabs> {
     }
   }
 
-  @override
-  void dispose() {
-    for (final node in _focusNodes) {
-      node.dispose();
-    }
-    super.dispose();
-  }
-
-  void _stepFrom(int current, int delta) {
-    if (labels.isEmpty) return;
-    var candidate = current;
-    for (var step = 0; step < labels.length; step++) {
-      candidate = (candidate + delta + labels.length) % labels.length;
-      if (!disabled.contains(candidate)) {
-        _focusNodes[candidate].requestFocus();
-        onChanged(candidate);
-        return;
-      }
-    }
-  }
-
   void _reveal(Duration duration) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || index < 0 || index >= _keys.length) return;
-      final tab = _keys[index].currentContext;
+      if (!mounted || widget.index < 0 || widget.index >= _keys.length) return;
+      final tab = _keys[widget.index].currentContext;
       if (tab == null) return;
       Scrollable.ensureVisible(
         tab,
@@ -457,113 +429,99 @@ class _UiMixTabsState extends State<UiMixTabs> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    _syncNodes();
-    final c = UiColors.of(context);
-    final type = UiType.of(context);
-    return Box(
-      style: BoxStyler().border(
-        BorderMix(bottom: BorderSideMix.color(c.hairline).width(1.0)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        primary: false,
-        child: Row(
-          children: [
-            for (var i = 0; i < labels.length; i++) ...[
-              if (i > 0) const SizedBox(width: 4),
-              _tab(c, type, i),
-            ],
-          ],
-        ),
-      ),
-    );
+  void _handleChanged(String tabId) {
+    if (!tabId.startsWith('tab_')) return;
+    final next = int.tryParse(tabId.substring(4));
+    if (next == null ||
+        next < 0 ||
+        next >= widget.labels.length ||
+        widget.disabled.contains(next)) {
+      return;
+    }
+    widget.onChanged(next);
   }
 
-  Widget _tab(UiColors c, UiTypeSet type, int i) {
-    final active = i == index;
-    final off = disabled.contains(i);
-    final focused = _focusedIndex == i;
-    final hovered = _hoveredIndex == i;
+  @override
+  Widget build(BuildContext context) {
+    _syncKeys();
+    final c = UiColors.of(context);
+    final type = UiType.of(context);
+    final selectedTabId =
+        widget.index >= 0 && widget.index < widget.labels.length
+        ? _tabId(widget.index)
+        : _noneTabId;
 
-    return Semantics(
-      key: _keys[i],
-      button: true,
-      selected: active,
-      enabled: !off,
-      child: Shortcuts(
-        shortcuts: const {
-          SingleActivator(LogicalKeyboardKey.arrowLeft): _StepTabIntent(-1),
-          SingleActivator(LogicalKeyboardKey.arrowRight): _StepTabIntent(1),
-        },
-        child: Actions(
-          actions: {
-            _StepTabIntent: CallbackAction<_StepTabIntent>(
-              onInvoke: (intent) {
-                if (!off) _stepFrom(i, intent.delta);
-                return null;
-              },
-            ),
-          },
-          child: NakedButton(
-            focusNode: _focusNodes[i],
-            enabled: !off,
-            onPressed: off ? null : () => onChanged(i),
-            onHoverChange: (h) {
-              if (!mounted) return;
-              setState(() {
-                if (h) {
-                  _hoveredIndex = i;
-                } else if (_hoveredIndex == i) {
-                  _hoveredIndex = null;
-                }
-              });
-            },
-            onFocusChange: (f) {
-              if (!mounted) return;
-              setState(() {
-                if (f) {
-                  _focusedIndex = i;
-                } else if (_focusedIndex == i) {
-                  _focusedIndex = null;
-                }
-              });
-            },
-            child: Opacity(
-              opacity: off ? 0.45 : 1.0,
-              child: Box(
-                key: ValueKey('ui_mix_tab_$i'),
-                style: BoxStyler()
-                    .color(
-                      focused
-                          ? c.accentTint
-                          : hovered && !off
-                          ? c.recessed.withValues(alpha: 0.6)
-                          : Colors.transparent,
-                    )
-                    .padding(
-                      EdgeInsetsGeometryMix.symmetric(
-                        vertical: 9,
-                        horizontal: 10,
-                      ),
-                    )
-                    .border(
-                      BorderMix(
-                        bottom: BorderSideMix.color(
-                          active ? c.accent : Colors.transparent,
-                        ).width(2.0),
-                      ),
-                    ),
-                child: Text(
-                  labels[i],
-                  style: type.body.copyWith(
-                    fontSize: 12,
-                    color: active ? c.strong : c.muted,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+    return NakedTabs(
+      selectedTabId: selectedTabId,
+      onChanged: _handleChanged,
+      child: Box(
+        style: BoxStyler().border(
+          BorderMix(
+            bottom: BorderSideMix.color(UiMixTokens.hairline()).width(1.0),
+          ),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          child: NakedTabBar(
+            child: Row(
+              children: [
+                for (var i = 0; i < widget.labels.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 4),
+                  NakedTab(
+                    key: _keys[i],
+                    tabId: _tabId(i),
+                    enabled: !widget.disabled.contains(i),
+                    builder: (context, tabState, _) {
+                      final active = tabState.isSelected;
+                      final off = tabState.isDisabled;
+                      final focused = tabState.isFocused;
+                      final hovered = tabState.isHovered;
+                      return Opacity(
+                        opacity: off ? 0.45 : 1.0,
+                        child: Box(
+                          key: ValueKey('ui_mix_tab_$i'),
+                          style: BoxStyler()
+                              .color(
+                                focused
+                                    ? UiMixTokens.accentTint()
+                                    : hovered && !off
+                                    ? UiMixTokens.recessed().withValues(
+                                        alpha: 0.6,
+                                      )
+                                    : Colors.transparent,
+                              )
+                              .padding(
+                                EdgeInsetsGeometryMix.symmetric(
+                                  vertical: 9,
+                                  horizontal: 10,
+                                ),
+                              )
+                              .border(
+                                BorderMix(
+                                  bottom: BorderSideMix.color(
+                                    active
+                                        ? UiMixTokens.accent()
+                                        : Colors.transparent,
+                                  ).width(2.0),
+                                ),
+                              ),
+                          child: Text(
+                            widget.labels[i],
+                            style: type.body.copyWith(
+                              fontSize: 12,
+                              color: active ? c.strong : c.muted,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              ),
+                ],
+              ],
             ),
           ),
         ),
@@ -594,7 +552,7 @@ final class UiNavBarItem {
 /// Mix-styled adaptive navigation bar:
 /// - Bottom navigation bar on compact/mobile viewports (`width < compactBreakpoint`)
 /// - Compact vertical navigation rail on medium/tablet+ viewports (`width >= compactBreakpoint`)
-final class UiAdaptiveNavBar extends StatefulWidget {
+final class UiAdaptiveNavBar extends StatelessWidget {
   const UiAdaptiveNavBar({
     super.key,
     required this.items,
@@ -619,47 +577,42 @@ final class UiAdaptiveNavBar extends StatefulWidget {
   final String? semanticsId;
 
   @override
-  State<UiAdaptiveNavBar> createState() => _UiAdaptiveNavBarState();
-}
-
-class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
-  int? _hoveredIndex;
-  int? _focusedIndex;
-
-  @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
     final type = UiType.of(context);
-    final isCompact =
-        MediaQuery.sizeOf(context).width < widget.compactBreakpoint;
+    final isCompact = MediaQuery.sizeOf(context).width < compactBreakpoint;
 
     final nav = isCompact
         ? _buildBottomBar(c, tokens, type)
         : _buildRail(c, tokens, type);
 
-    if (widget.semanticsId == null) return nav;
-    return Semantics(identifier: widget.semanticsId, child: nav);
+    if (semanticsId == null) return nav;
+    return Semantics(identifier: semanticsId, child: nav);
   }
 
   Widget _buildBottomBar(UiColors c, UiTokens tokens, UiTypeSet type) {
     return Box(
       key: const ValueKey('ui_adaptive_nav_bottom'),
       style: BoxStyler()
-          .height(widget.barHeight)
-          .color(c.surface)
+          .height(barHeight)
+          .color(UiMixTokens.surface())
           .padding(EdgeInsetsGeometryMix.symmetric(horizontal: tokens.p8))
-          .border(BorderMix(top: BorderSideMix.color(c.hairline).width(1.0))),
+          .border(
+            BorderMix(
+              top: BorderSideMix.color(UiMixTokens.hairline()).width(1.0),
+            ),
+          ),
       child: SafeArea(
         top: false,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            for (var i = 0; i < widget.items.length; i++)
+            for (var i = 0; i < items.length; i++)
               Expanded(
                 child: _buildItem(
                   index: i,
-                  item: widget.items[i],
+                  item: items[i],
                   c: c,
                   tokens: tokens,
                   type: type,
@@ -676,34 +629,35 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
     return Box(
       key: const ValueKey('ui_adaptive_nav_rail'),
       style: BoxStyler()
-          .width(widget.railWidth)
-          .color(c.surface)
+          .width(railWidth)
+          .color(UiMixTokens.surface())
           .padding(
             EdgeInsetsGeometryMix.symmetric(
               vertical: tokens.p12,
               horizontal: tokens.p6,
             ),
           )
-          .border(BorderMix(right: BorderSideMix.color(c.hairline).width(1.0))),
+          .border(
+            BorderMix(
+              right: BorderSideMix.color(UiMixTokens.hairline()).width(1.0),
+            ),
+          ),
       child: SafeArea(
         right: false,
         child: Column(
           children: [
-            if (widget.leading != null) ...[
-              widget.leading!,
-              SizedBox(height: tokens.p12),
-            ],
+            if (leading != null) ...[leading!, SizedBox(height: tokens.p12)],
             Expanded(
               child: SingleChildScrollView(
                 primary: false,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (var i = 0; i < widget.items.length; i++) ...[
+                    for (var i = 0; i < items.length; i++) ...[
                       if (i > 0) SizedBox(height: tokens.p6),
                       _buildItem(
                         index: i,
-                        item: widget.items[i],
+                        item: items[i],
                         c: c,
                         tokens: tokens,
                         type: type,
@@ -714,10 +668,7 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
                 ),
               ),
             ),
-            if (widget.trailing != null) ...[
-              SizedBox(height: tokens.p12),
-              widget.trailing!,
-            ],
+            if (trailing != null) ...[SizedBox(height: tokens.p12), trailing!],
           ],
         ),
       ),
@@ -732,16 +683,9 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
     required UiTypeSet type,
     required bool isRail,
   }) {
-    final active = index == widget.selectedIndex;
+    final active = index == selectedIndex;
     final enabled = item.enabled;
-    final hovered = _hoveredIndex == index && enabled;
-    final focused = _focusedIndex == index && enabled;
     final fg = active ? c.accent : c.muted;
-    final bg = active
-        ? c.accentTint
-        : hovered
-        ? c.recessed.withValues(alpha: 0.7)
-        : Colors.transparent;
 
     final badge = item.badgeCount != null && item.badgeCount! > 0
         ? Positioned(
@@ -749,7 +693,7 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
             top: -4,
             child: Box(
               style: BoxStyler()
-                  .color(c.error)
+                  .color(UiMixTokens.error())
                   .padding(
                     EdgeInsetsGeometryMix.symmetric(horizontal: 4, vertical: 1),
                   )
@@ -768,90 +712,79 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
         : null;
 
     return Semantics(
-      button: true,
       selected: active,
-      enabled: enabled,
-      label: item.label,
       child: NakedButton(
         enabled: enabled,
-        onPressed: enabled ? () => widget.onSelected(index) : null,
-        onHoverChange: (h) {
-          if (!mounted) return;
-          setState(() {
-            if (h) {
-              _hoveredIndex = index;
-            } else if (_hoveredIndex == index) {
-              _hoveredIndex = null;
-            }
-          });
-        },
-        onFocusChange: (f) {
-          if (!mounted) return;
-          setState(() {
-            if (f) {
-              _focusedIndex = index;
-            } else if (_focusedIndex == index) {
-              _focusedIndex = null;
-            }
-          });
-        },
-        child: Opacity(
-          opacity: enabled ? 1.0 : 0.45,
-          child: Box(
-            key: ValueKey('ui_nav_item_${item.id}'),
-            style: BoxStyler()
-                .color(bg)
-                .padding(
-                  EdgeInsetsGeometryMix.symmetric(
-                    horizontal: tokens.p6,
-                    vertical: isRail ? tokens.p8 : tokens.p6,
+        semanticLabel: item.label,
+        onPressed: enabled ? () => onSelected(index) : null,
+        builder: (context, buttonState, _) {
+          final hovered = buttonState.isHovered && enabled;
+          final focused = buttonState.isFocused && enabled;
+          final bg = active
+              ? UiMixTokens.accentTint()
+              : hovered
+              ? UiMixTokens.recessed().withValues(alpha: 0.7)
+              : Colors.transparent;
+
+          return Opacity(
+            opacity: enabled ? 1.0 : 0.45,
+            child: Box(
+              key: ValueKey('ui_nav_item_${item.id}'),
+              style: BoxStyler()
+                  .color(bg)
+                  .padding(
+                    EdgeInsetsGeometryMix.symmetric(
+                      horizontal: tokens.p6,
+                      vertical: isRail ? tokens.p8 : tokens.p6,
+                    ),
+                  )
+                  .borderRadius(
+                    BorderRadiusGeometryMix.circular(tokens.controlRadius),
+                  )
+                  .border(
+                    BoxBorderMix.all(
+                      BorderSideMix.color(
+                        focused ? UiMixTokens.focus() : Colors.transparent,
+                      ).width(1.5),
+                    ),
+                  )
+                  .animate(
+                    AnimationConfig.curve(
+                      duration: tokens.fast,
+                      curve: tokens.ease,
+                    ),
                   ),
-                )
-                .borderRadius(
-                  BorderRadiusGeometryMix.circular(tokens.controlRadius),
-                )
-                .border(
-                  BoxBorderMix.all(
-                    BorderSideMix.color(focused ? c.focus : Colors.transparent)
-                        .width(1.5),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        active ? (item.activeIcon ?? item.icon) : item.icon,
+                        size: 18,
+                        color: fg,
+                      ),
+                      ?badge,
+                    ],
                   ),
-                )
-                .animate(
-                  AnimationConfig.curve(
-                    duration: tokens.fast,
-                    curve: tokens.ease,
-                  ),
-                ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      active ? (item.activeIcon ?? item.icon) : item.icon,
-                      size: 18,
+                  SizedBox(height: tokens.p2),
+                  Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.meta.copyWith(
+                      fontSize: 10.5,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                       color: fg,
                     ),
-                    ?badge,
-                  ],
-                ),
-                SizedBox(height: tokens.p2),
-                Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.meta.copyWith(
-                    fontSize: 10.5,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                    color: fg,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

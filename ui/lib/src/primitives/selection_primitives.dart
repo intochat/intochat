@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
+import '../theme/mix_tokens.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_icon.dart';
 import '../theme/ui_shadows.dart';
@@ -434,7 +435,7 @@ final class UiSegmentedOption<T> {
 }
 
 /// Mix-styled pill segmented control with recessed track and elevated active thumb.
-final class UiSegmentedControl<T> extends StatefulWidget {
+final class UiSegmentedControl<T> extends StatelessWidget {
   const UiSegmentedControl({
     super.key,
     required this.options,
@@ -453,36 +454,31 @@ final class UiSegmentedControl<T> extends StatefulWidget {
   final String? semanticsId;
 
   @override
-  State<UiSegmentedControl<T>> createState() => _UiSegmentedControlState<T>();
-}
-
-class _UiSegmentedControlState<T> extends State<UiSegmentedControl<T>> {
-  int? _hoveredIndex;
-  int? _focusedIndex;
-
-  @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
     final type = UiType.of(context);
-    final isInteractive = widget.onChanged != null;
-    final vPad = widget.compact ? tokens.p4 : tokens.p6;
-    final hPad = widget.compact ? tokens.p10 : tokens.p12;
+    final isInteractive = onChanged != null;
+    final vPad = compact ? tokens.p4 : tokens.p6;
+    final hPad = compact ? tokens.p10 : tokens.p12;
 
     final track = Box(
       style: BoxStyler()
-          .color(c.recessed)
+          .color(UiMixTokens.recessed())
           .padding(EdgeInsetsGeometryMix.all(3))
           .borderRadius(BorderRadiusGeometryMix.circular(tokens.pill))
-          .border(BoxBorderMix.all(BorderSideMix.color(c.hairline).width(1.0))),
+          .border(
+            BoxBorderMix.all(
+              BorderSideMix.color(UiMixTokens.hairline()).width(1.0),
+            ),
+          ),
       child: Row(
-        mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          for (var i = 0; i < widget.options.length; i++)
+          for (var i = 0; i < options.length; i++)
             _buildSegment(
-              context: context,
               index: i,
-              option: widget.options[i],
+              option: options[i],
               c: c,
               tokens: tokens,
               type: type,
@@ -494,12 +490,11 @@ class _UiSegmentedControlState<T> extends State<UiSegmentedControl<T>> {
       ),
     );
 
-    if (widget.semanticsId == null) return track;
-    return Semantics(identifier: widget.semanticsId, child: track);
+    if (semanticsId == null) return track;
+    return Semantics(identifier: semanticsId, child: track);
   }
 
   Widget _buildSegment({
-    required BuildContext context,
     required int index,
     required UiSegmentedOption<T> option,
     required UiColors c,
@@ -509,111 +504,99 @@ class _UiSegmentedControlState<T> extends State<UiSegmentedControl<T>> {
     required double vPad,
     required double hPad,
   }) {
-    final selected = option.value == widget.value;
+    final selected = option.value == value;
     final enabled = isInteractive && option.enabled;
-    final hovered = _hoveredIndex == index && enabled;
-    final focused = _focusedIndex == index && enabled;
-
-    var thumbStyle = BoxStyler()
-        .padding(
-          EdgeInsetsGeometryMix.symmetric(horizontal: hPad, vertical: vPad),
-        )
-        .borderRadius(BorderRadiusGeometryMix.circular(tokens.pill))
-        .color(
-          selected
-              ? c.surface
-              : hovered
-              ? c.surface.withValues(alpha: 0.45)
-              : Colors.transparent,
-        )
-        .border(
-          BoxBorderMix.all(
-            BorderSideMix.color(
-              focused
-                  ? c.focus
-                  : selected
-                  ? c.hairline
-                  : Colors.transparent,
-            ).width(focused ? 1.5 : 1.0),
-          ),
-        )
-        .animate(
-          AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
-        );
-
-    if (selected) {
-      thumbStyle = thumbStyle.shadow(
-        BoxShadowMix(
-          color: c.ink.withValues(alpha: 0.08),
-          blurRadius: 4,
-          offset: const Offset(0, 1),
-        ),
-      );
-    }
-
     final fg = selected ? c.strong : c.muted;
 
     final item = Semantics(
-      button: true,
       selected: selected,
-      enabled: enabled,
-      label: option.label,
       child: NakedButton(
         enabled: enabled,
-        onPressed: enabled ? () => widget.onChanged?.call(option.value) : null,
-        onHoverChange: (h) {
-          if (!mounted) return;
-          setState(() {
-            if (h) {
-              _hoveredIndex = index;
-            } else if (_hoveredIndex == index) {
-              _hoveredIndex = null;
-            }
-          });
-        },
-        onFocusChange: (f) {
-          if (!mounted) return;
-          setState(() {
-            if (f) {
-              _focusedIndex = index;
-            } else if (_focusedIndex == index) {
-              _focusedIndex = null;
-            }
-          });
-        },
-        child: Opacity(
-          opacity: enabled ? 1.0 : 0.45,
-          child: Box(
-            key: ValueKey('ui_segmented_option_$index'),
-            style: thumbStyle,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (option.icon != null) ...[
-                  Icon(option.icon, size: 14, color: fg),
-                  SizedBox(width: tokens.p6),
-                ],
-                Flexible(
-                  child: Text(
-                    option.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.body.copyWith(
-                      fontSize: widget.compact ? 12 : 13,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                      color: fg,
+        semanticLabel: option.label,
+        onPressed: enabled ? () => onChanged?.call(option.value) : null,
+        builder: (context, buttonState, _) {
+          final hovered = buttonState.isHovered && enabled;
+          final focused = buttonState.isFocused && enabled;
+
+          var thumbStyle = BoxStyler()
+              .padding(
+                EdgeInsetsGeometryMix.symmetric(
+                  horizontal: hPad,
+                  vertical: vPad,
+                ),
+              )
+              .borderRadius(BorderRadiusGeometryMix.circular(tokens.pill))
+              .color(
+                selected
+                    ? UiMixTokens.surface()
+                    : hovered
+                    ? UiMixTokens.surface().withValues(alpha: 0.45)
+                    : Colors.transparent,
+              )
+              .border(
+                BoxBorderMix.all(
+                  BorderSideMix.color(
+                    focused
+                        ? UiMixTokens.focus()
+                        : selected
+                        ? UiMixTokens.hairline()
+                        : Colors.transparent,
+                  ).width(focused ? 1.5 : 1.0),
+                ),
+              )
+              .animate(
+                AnimationConfig.curve(
+                  duration: tokens.fast,
+                  curve: tokens.ease,
+                ),
+              );
+
+          if (selected) {
+            thumbStyle = thumbStyle.shadow(
+              BoxShadowMix(
+                color: c.ink.withValues(alpha: 0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            );
+          }
+
+          return Opacity(
+            opacity: enabled ? 1.0 : 0.45,
+            child: Box(
+              key: ValueKey('ui_segmented_option_$index'),
+              style: thumbStyle,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (option.icon != null) ...[
+                    Icon(option.icon, size: 14, color: fg),
+                    SizedBox(width: tokens.p6),
+                  ],
+                  Flexible(
+                    child: Text(
+                      option.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(
+                        fontSize: compact ? 12 : 13,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: fg,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
 
-    return widget.expand ? Expanded(child: item) : item;
+    return expand ? Expanded(child: item) : item;
   }
 }
 
@@ -634,13 +617,14 @@ final class UiMixSelectItem<T> {
   final String? detail;
 }
 
-/// Figma select: a full-width 48 high box, radius 12, `inputBorder`, with a
-/// 3 px `focus` ring. A null [onChanged] disables it. Lists over eight
-/// items get a search box.
+/// Figma select backed by `NakedSelect<T>` + `NakedSelectOption<T>` and Mix 2.5
+/// `BoxStyler`: a full-width 48 high box, radius 12, `inputBorder`, with a
+/// 3 px `focus` ring. A null [onChanged] disables it. Lists over eight items
+/// get a search box.
 ///
 /// [itemBuilder] replaces the default row (label and detail); it receives the
-/// width available for the row. [triggerBuilder] replaces the box, for
-/// callers that supply their own trigger.
+/// width available for the row. [triggerBuilder] replaces the box, for callers
+/// that supply their own trigger.
 typedef UiKitSelect<T> = UiMixSelect<T>;
 
 final class UiMixSelect<T> extends StatefulWidget {
@@ -666,7 +650,7 @@ final class UiMixSelect<T> extends StatefulWidget {
     double width,
   )?
   itemBuilder;
-  final Widget Function(BuildContext context, MenuController menu)?
+  final Widget Function(BuildContext context, NakedSelectState<T> state)?
   triggerBuilder;
 
   @override
@@ -674,11 +658,10 @@ final class UiMixSelect<T> extends StatefulWidget {
 }
 
 class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
-  final _menu = MenuController();
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  bool _isOpen = false;
   String _query = '';
-  bool _focused = false;
 
   @override
   void dispose() {
@@ -687,17 +670,35 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
     super.dispose();
   }
 
+  void _handleOpenChanged(bool open) {
+    if (_isOpen == open) return;
+    if (open) {
+      _search.clear();
+      setState(() {
+        _query = '';
+        _isOpen = true;
+      });
+      if (widget.items.length > 8) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _isOpen) _searchFocus.requestFocus();
+        });
+      }
+    } else {
+      setState(() => _isOpen = false);
+    }
+  }
+
   void _choose(UiMixSelectItem<T> item) {
     if (!item.enabled) return;
-    _menu.close();
+    setState(() => _isOpen = false);
     widget.onChanged?.call(item.value);
   }
 
-  void _toggle() => _menu.isOpen ? _menu.close() : _menu.open();
-
   @override
   Widget build(BuildContext context) {
+    final c = UiColors.of(context);
     final type = UiType.of(context);
+    final tokens = UiTokens.of(context);
     final matches = widget.items
         .where((item) => item.label.toLowerCase().contains(_query))
         .toList();
@@ -707,6 +708,7 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
         .firstOrNull;
     final name = widget.label ?? widget.hint ?? '';
     final enabled = widget.onChanged != null;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final full = constraints.maxWidth.isFinite;
@@ -714,22 +716,34 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
           240.0,
           480.0,
         );
-        // Leading check column and menu item padding.
-        final rowWidth = menuWidth - (widget.value == null ? 32 : 64);
-        final anchor = MenuAnchor(
-          controller: _menu,
-          onOpen: () {
-            _search.clear();
-            setState(() => _query = '');
-            if (searchable) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && _menu.isOpen) _searchFocus.requestFocus();
-              });
-            }
-          },
-          menuChildren: [
-            SizedBox(
-              width: menuWidth,
+        // Leading check column, overlay border/padding, and option padding.
+        final rowWidth = menuWidth - (widget.value == null ? 36 : 64);
+
+        final select = NakedSelect<T>(
+          value: widget.value,
+          enabled: enabled,
+          open: _isOpen,
+          onOpenChanged: _handleOpenChanged,
+          semanticLabel: name.isEmpty ? null : name,
+          semanticValue: selected?.label,
+          positioning: const OverlayPositionConfig(
+            side: OverlaySide.bottom,
+            alignment: OverlayAlignment.start,
+            sideOffset: 4,
+          ),
+          onChanged: enabled
+              ? (next) {
+                  if (next == null) return;
+                  final match = widget.items
+                      .where((item) => item.value == next && item.enabled)
+                      .firstOrNull;
+                  if (match != null) widget.onChanged?.call(match.value);
+                }
+              : null,
+          overlayBuilder: (context, info) => Material(
+            type: MaterialType.transparency,
+            child: Box(
+              style: _overlayStyle(context, c, tokens, menuWidth),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -773,25 +787,65 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
                               ),
                             ),
                           for (final item in matches)
-                            MenuItemButton(
-                              onPressed: item.enabled
-                                  ? () => _choose(item)
-                                  : null,
-                              leadingIcon: widget.value == null
-                                  ? null
-                                  : SizedBox(
-                                      width: 20,
-                                      child: item.value == widget.value
-                                          ? const Icon(Icons.check, size: 18)
-                                          : null,
+                            NakedSelectOption<T>(
+                              value: item.value,
+                              enabled: item.enabled,
+                              builder: (context, optionState, _) {
+                                final lit =
+                                    (optionState.isHovered ||
+                                        optionState.isFocused) &&
+                                    !optionState.isDisabled;
+                                return Opacity(
+                                  opacity: optionState.isDisabled ? 0.45 : 1.0,
+                                  child: Box(
+                                    style: BoxStyler()
+                                        .color(
+                                          lit
+                                              ? c.menuHover
+                                              : Colors.transparent,
+                                        )
+                                        .padding(
+                                          EdgeInsetsGeometryMix.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                        )
+                                        .borderRadius(
+                                          BorderRadiusGeometryMix.circular(
+                                            tokens.radiusSmall,
+                                          ),
+                                        ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        if (widget.value != null) ...[
+                                          SizedBox(
+                                            width: 20,
+                                            child: optionState.isSelected
+                                                ? Icon(
+                                                    Icons.check,
+                                                    size: 18,
+                                                    color: c.strong,
+                                                  )
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                        Expanded(
+                                          child:
+                                              widget.itemBuilder?.call(
+                                                context,
+                                                item,
+                                                rowWidth,
+                                              ) ??
+                                              _row(item, type, rowWidth),
+                                        ),
+                                      ],
                                     ),
-                              child:
-                                  widget.itemBuilder?.call(
-                                    context,
-                                    item,
-                                    rowWidth,
-                                  ) ??
-                                  _row(item, type, rowWidth),
+                                  ),
+                                );
+                              },
                             ),
                         ],
                       ),
@@ -800,24 +854,15 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
                 ],
               ),
             ),
-          ],
-          builder: (context, controller, _) =>
-              widget.triggerBuilder?.call(context, controller) ??
-              _box(context, selected, full),
-        );
-        final field = Semantics(
-          button: true,
-          enabled: enabled,
-          label: name,
-          child: NakedButton(
-            enabled: enabled,
-            onFocusChange: (v) {
-              if (_focused != v) setState(() => _focused = v);
-            },
-            onPressed: enabled ? _toggle : null,
-            child: Opacity(opacity: enabled ? 1 : 0.45, child: anchor),
+          ),
+          builder: (context, selectState, _) => Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child:
+                widget.triggerBuilder?.call(context, selectState) ??
+                _box(context, selected, full, selectState),
           ),
         );
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: full && widget.triggerBuilder == null
@@ -830,48 +875,90 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
               ),
               const SizedBox(height: 7),
             ],
-            field,
+            select,
           ],
         );
       },
     );
   }
 
-  Widget _box(BuildContext context, UiMixSelectItem<T>? selected, bool full) {
+  BoxStyler _overlayStyle(
+    BuildContext context,
+    UiColors c,
+    UiTokens tokens,
+    double width,
+  ) {
+    final shadows = UiShadows.lg(uiKitShadowBase(context));
+    return BoxStyler()
+        .width(width)
+        .color(UiMixTokens.surface())
+        .padding(EdgeInsetsGeometryMix.all(4))
+        .borderRadius(BorderRadiusGeometryMix.circular(tokens.fieldRadius))
+        .border(
+          BoxBorderMix.all(
+            BorderSideMix.color(UiMixTokens.hairline()).width(1.0),
+          ),
+        )
+        .shadows([
+          for (final s in shadows)
+            BoxShadowMix(
+              color: s.color,
+              blurRadius: s.blurRadius,
+              spreadRadius: s.spreadRadius,
+              offset: s.offset,
+            ),
+        ]);
+  }
+
+  Widget _box(
+    BuildContext context,
+    UiMixSelectItem<T>? selected,
+    bool full,
+    NakedSelectState<T> state,
+  ) {
     final c = UiColors.of(context);
     final type = UiType.of(context);
     final tokens = UiTokens.of(context);
     final radius = tokens.fieldRadius;
-    final shadows = UiShadows.xs(uiKitShadowBase(context));
+    final focused = state.isFocused;
 
-    var boxStyle = BoxStyler()
-        .color(c.surface)
-        .height(48)
-        .padding(EdgeInsetsGeometryMix.symmetric(horizontal: 14))
-        .borderRadius(BorderRadiusGeometryMix.circular(radius))
-        .border(
-          BoxBorderMix.all(
-            BorderSideMix.color(_focused ? c.accent : c.inputBorder).width(1.0),
-          ),
-        )
-        .animate(
-          AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
-        );
-    if (full) {
-      boxStyle = boxStyle.width(double.infinity);
-    }
-    for (final s in shadows) {
-      boxStyle = boxStyle.shadow(
+    final boxShadows = <BoxShadowMix>[
+      if (focused)
+        BoxShadowMix(
+          color: UiMixTokens.focus(),
+          spreadRadius: 3.0,
+          blurRadius: 0.0,
+        ),
+      for (final s in UiShadows.xs(uiKitShadowBase(context)))
         BoxShadowMix(
           color: s.color,
           blurRadius: s.blurRadius,
           spreadRadius: s.spreadRadius,
           offset: s.offset,
         ),
-      );
+    ];
+
+    var boxStyle = BoxStyler()
+        .color(UiMixTokens.surface())
+        .height(48)
+        .padding(EdgeInsetsGeometryMix.symmetric(horizontal: 14))
+        .borderRadius(BorderRadiusGeometryMix.circular(radius))
+        .border(
+          BoxBorderMix.all(
+            BorderSideMix.color(
+              focused || state.isOpen ? UiMixTokens.accent() : c.inputBorder,
+            ).width(1.0),
+          ),
+        )
+        .shadows(boxShadows)
+        .animate(
+          AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
+        );
+    if (full) {
+      boxStyle = boxStyle.width(double.infinity);
     }
 
-    final box = Box(
+    return Box(
       key: const ValueKey('ui_kit_select_box'),
       style: boxStyle,
       child: Row(
@@ -890,29 +977,6 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
           Icon(Icons.keyboard_arrow_down, size: 18, color: c.muted),
         ],
       ),
-    );
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        if (_focused)
-          Positioned(
-            left: -3,
-            top: -3,
-            right: -3,
-            bottom: -3,
-            child: IgnorePointer(
-              child: Box(
-                key: const ValueKey('ui_kit_select_ring'),
-                style: BoxStyler()
-                    .borderRadius(BorderRadiusGeometryMix.circular(radius + 3))
-                    .border(
-                      BoxBorderMix.all(BorderSideMix.color(c.focus).width(3.0)),
-                    ),
-              ),
-            ),
-          ),
-        box,
-      ],
     );
   }
 

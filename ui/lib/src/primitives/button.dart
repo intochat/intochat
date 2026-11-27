@@ -3,6 +3,7 @@ import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
 import '../design/keys.dart';
+import '../theme/mix_tokens.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_icon.dart';
 import '../theme/ui_shadows.dart';
@@ -14,12 +15,12 @@ import 'style.dart';
 enum UiMixButtonStyle { primary, secondary, ghost, danger, link }
 
 /// Single authoritative IntoChat button primitive combining:
-/// - `NakedButton` + `BoxStyler` (`Mix.Style()` [UiStyleData] support +
+/// - `NakedButton.builder` + `BoxStyler` (`Mix.Style()` [UiStyleData] support +
 ///   [UiMixButtonStyle] presets `primary`, `secondary`, `ghost`, `danger`, `link`)
 /// - [SelectionRing] + [Stop] keyboard-first focus (`DESIGN.md` §1.11)
 /// - `36px` standard / `30px` compact desktop density, `1px` press translate,
 ///   `DESIGN.md` §10.8 [Tooltip], and Lucide [IconData] or icon name [String].
-final class UiMixButton extends StatefulWidget {
+final class UiMixButton extends StatelessWidget {
   const UiMixButton({
     super.key,
     required this.label,
@@ -83,29 +84,11 @@ final class UiMixButton extends StatefulWidget {
   /// Optional semantics identifier (e.g. `key:mix:save`).
   final String? semanticsId;
 
-  @override
-  State<UiMixButton> createState() => _UiMixButtonState();
-}
+  bool get _interactive => enabled && onPressed != null;
 
-class _UiMixButtonState extends State<UiMixButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-  bool _focused = false;
-
-  bool get _interactive => widget.enabled && widget.onPressed != null;
-
-  void _setPressed(bool value) {
-    if (_pressed != value) setState(() => _pressed = value);
-  }
-
-  Widget _wrapTooltipAndSemantics(
-    BuildContext context,
-    UiColors c,
-    UiTokens tokens,
-    Widget child,
-  ) {
+  Widget _wrapTooltipAndSemantics(UiColors c, UiTokens tokens, Widget child) {
     var result = child;
-    final tip = widget.tooltip?.trim();
+    final tip = tooltip?.trim();
     if (tip != null && tip.isNotEmpty) {
       result = Tooltip(
         message: tip,
@@ -125,13 +108,8 @@ class _UiMixButtonState extends State<UiMixButton> {
         child: result,
       );
     }
-    if (widget.semanticsId != null) {
-      result = Semantics(
-        identifier: widget.semanticsId,
-        button: true,
-        enabled: _interactive,
-        child: result,
-      );
+    if (semanticsId != null) {
+      result = Semantics(identifier: semanticsId, child: result);
     }
     return result;
   }
@@ -142,245 +120,236 @@ class _UiMixButtonState extends State<UiMixButton> {
     UiTokens tokens,
     UiStyleData style,
   ) {
-    final resolved = style.resolve(
-      hovered: _hovered && _interactive,
-      pressed: _pressed && _interactive,
-      focused: _focused && _interactive,
-    );
-    final fg = UiStyleMapper.resolveToneForeground(colors, resolved.tone);
-    final effectiveFg = _interactive ? fg : fg.withValues(alpha: 0.5);
-    final iconName = widget.icon ?? resolved.icon;
-    final resolvedIcon =
-        widget.iconData ??
-        (iconName != null && iconName.isNotEmpty ? uiIcon(iconName) : null);
-    final gap = resolved.gap ?? 6.0;
-    final textStyle = UiStyleMapper.textStyle(
-      context,
-      resolved,
-      isEnabled: _interactive,
-      colorOverride: fg,
-    );
-
-    final labelWidget = Text(
-      widget.label,
-      style: textStyle,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-
-    final content = resolvedIcon == null
-        ? labelWidget
-        : Row(
-            mainAxisSize: widget.fullWidth
-                ? MainAxisSize.max
-                : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(resolvedIcon, size: 15, color: effectiveFg),
-              SizedBox(width: gap),
-              Flexible(child: labelWidget),
-            ],
+    final tip = tooltip?.trim();
+    final button = Stop(
+      onActivate: _interactive ? onPressed : null,
+      isDefault: style.tone == 'accent' || style.tone == 'primary',
+      builder: (context, stopView) => NakedButton(
+        focusNode: focusNode,
+        enabled: _interactive,
+        onPressed: onPressed,
+        tooltip: (tip != null && tip.isNotEmpty) ? tip : null,
+        builder: (context, buttonState, _) {
+          final hovered = buttonState.isHovered && _interactive;
+          final pressed = buttonState.isPressed && _interactive;
+          final focused = buttonState.isFocused && _interactive;
+          final resolved = style.resolve(
+            hovered: hovered,
+            pressed: pressed,
+            focused: focused,
+          );
+          final fg = UiStyleMapper.resolveToneForeground(colors, resolved.tone);
+          final effectiveFg = _interactive ? fg : fg.withValues(alpha: 0.5);
+          final iconName = icon ?? resolved.icon;
+          final resolvedIcon =
+              iconData ??
+              (iconName != null && iconName.isNotEmpty
+                  ? uiIcon(iconName)
+                  : null);
+          final gap = resolved.gap ?? 6.0;
+          final textStyle = UiStyleMapper.textStyle(
+            context,
+            resolved,
+            isEnabled: _interactive,
+            colorOverride: fg,
           );
 
-    Widget box = Box(
-      style: UiStyleMapper.boxStyler(
-        context,
-        style,
-        isHovered: _hovered,
-        isPressed: _pressed,
-        isFocused: _focused,
-        isEnabled: _interactive,
-      ),
-      child: widget.fullWidth ? Center(child: content) : content,
-    );
-    if (widget.fullWidth) {
-      box = SizedBox(width: double.infinity, child: box);
-    }
+          final labelWidget = Text(
+            label,
+            style: textStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
 
-    final tip = widget.tooltip?.trim();
-    final button = Stop(
-      onActivate: _interactive ? widget.onPressed : null,
-      isDefault: style.tone == 'accent' || style.tone == 'primary',
-      builder: (context, stopView) => Semantics(
-        button: true,
-        enabled: _interactive,
-        tooltip: (tip != null && tip.isNotEmpty) ? tip : null,
-        child: NakedButton(
-          focusNode: widget.focusNode,
-          enabled: _interactive,
-          onPressed: widget.onPressed,
-          onHoverChange: (hovered) {
-            if (_hovered == hovered) return;
-            setState(() => _hovered = hovered);
-          },
-          onPressChange: _setPressed,
-          onFocusChange: (focused) {
-            if (_focused == focused) return;
-            setState(() => _focused = focused);
-          },
-          child: SelectionRing(
-            on: _focused || stopView.selected,
+          final content = resolvedIcon == null
+              ? labelWidget
+              : Row(
+                  mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(resolvedIcon, size: 15, color: effectiveFg),
+                    SizedBox(width: gap),
+                    Flexible(child: labelWidget),
+                  ],
+                );
+
+          Widget box = Box(
+            style: UiStyleMapper.boxStyler(
+              context,
+              style,
+              isHovered: hovered,
+              isPressed: pressed,
+              isFocused: focused,
+              isEnabled: _interactive,
+            ),
+            child: fullWidth ? Center(child: content) : content,
+          );
+          if (fullWidth) {
+            box = SizedBox(width: double.infinity, child: box);
+          }
+
+          return SelectionRing(
+            on: focused || stopView.selected,
             radius: resolved.radius ?? tokens.button,
             child: AnimatedScale(
               scale: UiStyleMapper.resolveScale(
                 style,
-                isHovered: _hovered,
-                isPressed: _pressed,
-                isFocused: _focused,
+                isHovered: hovered,
+                isPressed: pressed,
+                isFocused: focused,
                 isEnabled: _interactive,
               ),
               duration: resolved.motion.duration,
               curve: resolved.motion.curve,
               child: box,
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
 
-    return _wrapTooltipAndSemantics(context, colors, tokens, button);
+    return _wrapTooltipAndSemantics(colors, tokens, button);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final structuredStyle = widget.style;
+    final structuredStyle = style;
     if (structuredStyle != null) {
       return _buildStructured(context, c, tokens, structuredStyle);
     }
 
-    final hover = _hovered && _interactive;
-    final (
-      Color? fill,
-      Color ink,
-      Color? borderColor,
-    ) = switch (widget.preset) {
-      UiMixButtonStyle.primary => (
-        hover ? c.accentHover : c.accent,
-        c.onAccent,
-        null,
-      ),
-      UiMixButtonStyle.secondary => (
-        hover ? c.surfaceSunk : c.surfaceCard,
-        c.textStrong,
-        c.borderInput,
-      ),
-      UiMixButtonStyle.ghost => (
-        hover ? c.surfaceSunk : Colors.transparent,
-        c.textBody,
-        null,
-      ),
-      UiMixButtonStyle.danger => (
-        hover ? c.errorBg : Colors.transparent,
-        c.textStrong,
-        c.error,
-      ),
-      UiMixButtonStyle.link => (
-        null,
-        hover ? c.accentCopyHover : c.accentCopy,
-        null,
-      ),
-    };
     final resolvedIcon =
-        widget.iconData ??
-        (widget.icon != null && widget.icon!.isNotEmpty
-            ? uiIcon(widget.icon!)
-            : null);
-    final targetHeight = widget.compact
+        iconData ?? (icon != null && icon!.isNotEmpty ? uiIcon(icon!) : null);
+    final targetHeight = compact
         ? tokens.buttonSmallHeight
         : tokens.buttonHeight;
-    final hPad = widget.compact ? 10.0 : 14.0;
+    final hPad = compact ? 10.0 : 14.0;
+    final tip = tooltip?.trim();
 
-    Widget body = Row(
-      mainAxisSize: widget.fullWidth ? MainAxisSize.max : MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (resolvedIcon != null) ...[
-          Icon(resolvedIcon, size: 15, color: ink),
-          const SizedBox(width: 6),
-        ],
-        Flexible(
-          child: Text(
-            widget.label,
-            style: UiType.textStyle(13, weight: FontWeight.w600, color: ink),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ],
-    );
-
-    if (widget.preset != UiMixButtonStyle.link) {
-      final ringActive = _focused;
-      var boxStyle = BoxStyler()
-          .padding(EdgeInsetsGeometryMix.symmetric(horizontal: hPad))
-          .borderRadius(BorderRadiusGeometryMix.circular(tokens.button))
-          .animate(
-            AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
-          );
-      if (fill != null) {
-        boxStyle = boxStyle.color(fill);
-      }
-      if (ringActive) {
-        boxStyle = boxStyle.border(
-          BoxBorderMix.all(BorderSideMix.color(c.accent).width(1.5)),
-        );
-      } else if (borderColor != null) {
-        boxStyle = boxStyle.border(
-          BoxBorderMix.all(BorderSideMix.color(borderColor).width(1.0)),
-        );
-      }
-      final decorated = Box(
-        style: boxStyle,
-        child: Center(widthFactor: 1, heightFactor: 1, child: body),
-      );
-      body = LayoutBuilder(
-        builder: (context, constraints) {
-          final h = constraints.maxHeight < targetHeight
-              ? constraints.maxHeight
-              : targetHeight;
-          return SizedBox(height: h, child: decorated);
-        },
-      );
-    }
-    if (widget.fullWidth) body = SizedBox(width: double.infinity, child: body);
-
-    final tip = widget.tooltip?.trim();
     final result = Stop(
-      onActivate: _interactive ? widget.onPressed : null,
-      isDefault: widget.preset == UiMixButtonStyle.primary,
+      onActivate: _interactive ? onPressed : null,
+      isDefault: preset == UiMixButtonStyle.primary,
       builder: (context, stopView) => Opacity(
         opacity: _interactive ? 1 : 0.45,
-        child: Semantics(
-          button: true,
+        child: NakedButton(
+          focusNode: focusNode,
           enabled: _interactive,
+          onPressed: onPressed,
           tooltip: (tip != null && tip.isNotEmpty) ? tip : null,
-          child: NakedButton(
-            focusNode: widget.focusNode,
-            enabled: _interactive,
-            onPressed: widget.onPressed,
-            onHoverChange: (v) {
-              if (_hovered != v) setState(() => _hovered = v);
-            },
-            onFocusChange: (v) {
-              if (_focused != v) setState(() => _focused = v);
-            },
-            onPressChange: _setPressed,
-            child: SelectionRing(
-              on: _focused || stopView.selected,
+          builder: (context, buttonState, _) {
+            final hover = buttonState.isHovered && _interactive;
+            final pressed = buttonState.isPressed && _interactive;
+            final focused = buttonState.isFocused && _interactive;
+            final (
+              Color? fill,
+              Color ink,
+              Color? borderColor,
+            ) = switch (preset) {
+              UiMixButtonStyle.primary => (
+                hover ? UiMixTokens.accentHover() : UiMixTokens.accent(),
+                c.onAccent,
+                null,
+              ),
+              UiMixButtonStyle.secondary => (
+                hover ? UiMixTokens.recessed() : UiMixTokens.surface(),
+                c.textStrong,
+                c.borderInput,
+              ),
+              UiMixButtonStyle.ghost => (
+                hover ? UiMixTokens.recessed() : Colors.transparent,
+                c.textBody,
+                null,
+              ),
+              UiMixButtonStyle.danger => (
+                hover ? c.errorBg : Colors.transparent,
+                c.textStrong,
+                UiMixTokens.error(),
+              ),
+              UiMixButtonStyle.link => (
+                null,
+                hover ? c.accentCopyHover : c.accentCopy,
+                null,
+              ),
+            };
+
+            Widget body = Row(
+              mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (resolvedIcon != null) ...[
+                  Icon(resolvedIcon, size: 15, color: ink),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    style: UiType.textStyle(
+                      13,
+                      weight: FontWeight.w600,
+                      color: ink,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            );
+
+            if (preset != UiMixButtonStyle.link) {
+              var boxStyle = BoxStyler()
+                  .padding(EdgeInsetsGeometryMix.symmetric(horizontal: hPad))
+                  .borderRadius(BorderRadiusGeometryMix.circular(tokens.button))
+                  .animate(
+                    AnimationConfig.curve(
+                      duration: tokens.fast,
+                      curve: tokens.ease,
+                    ),
+                  );
+              if (fill != null) {
+                boxStyle = boxStyle.color(fill);
+              }
+              if (focused) {
+                boxStyle = boxStyle.border(
+                  BoxBorderMix.all(
+                    BorderSideMix.color(UiMixTokens.accent()).width(1.5),
+                  ),
+                );
+              } else if (borderColor != null) {
+                boxStyle = boxStyle.border(
+                  BoxBorderMix.all(BorderSideMix.color(borderColor).width(1.0)),
+                );
+              }
+              final decorated = Box(
+                style: boxStyle,
+                child: Center(widthFactor: 1, heightFactor: 1, child: body),
+              );
+              body = LayoutBuilder(
+                builder: (context, constraints) {
+                  final h = constraints.maxHeight < targetHeight
+                      ? constraints.maxHeight
+                      : targetHeight;
+                  return SizedBox(height: h, child: decorated);
+                },
+              );
+            }
+            if (fullWidth) body = SizedBox(width: double.infinity, child: body);
+
+            return SelectionRing(
+              on: focused || stopView.selected,
               radius: tokens.button,
               child: Transform.translate(
-                offset: Offset(0, _pressed ? 1 : 0),
+                offset: Offset(0, pressed ? 1 : 0),
                 child: body,
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
 
-    return _wrapTooltipAndSemantics(context, c, tokens, result);
+    return _wrapTooltipAndSemantics(c, tokens, result);
   }
 }

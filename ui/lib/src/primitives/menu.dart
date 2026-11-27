@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mix/mix.dart';
+import 'package:naked_ui/naked_ui.dart';
 
+import '../theme/mix_tokens.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_icon.dart';
 import '../theme/ui_shadows.dart';
@@ -12,7 +14,7 @@ import 'layout_primitives.dart';
 
 /// Ghost square icon button (34x34, `radiusSmall` corners) with tooltip,
 /// semantic label, hover fill, and keyboard focus halo.
-final class UiGhostIconButton extends StatefulWidget {
+final class UiGhostIconButton extends StatelessWidget {
   const UiGhostIconButton({
     super.key,
     required this.icon,
@@ -27,65 +29,42 @@ final class UiGhostIconButton extends StatefulWidget {
   final FocusNode? focusNode;
 
   @override
-  State<UiGhostIconButton> createState() => _UiGhostIconButtonState();
-}
-
-class _UiGhostIconButtonState extends State<UiGhostIconButton> {
-  bool _hover = false;
-  bool _focused = false;
-
-  @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final enabled = widget.onPressed != null;
+    final enabled = onPressed != null;
     return Opacity(
       opacity: enabled ? 1 : 0.45,
       child: Tooltip(
-        message: widget.label,
+        message: label,
         excludeFromSemantics: true,
-        child: Semantics(
-          button: true,
+        child: NakedButton(
+          focusNode: focusNode,
           enabled: enabled,
-          label: widget.label,
-          child: FocusableActionDetector(
-            focusNode: widget.focusNode,
-            enabled: enabled,
-            mouseCursor: enabled
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
-            onShowHoverHighlight: (v) => setState(() => _hover = v),
-            onShowFocusHighlight: (v) => setState(() => _focused = v),
-            actions: {
-              ActivateIntent: CallbackAction<ActivateIntent>(
-                onInvoke: (_) => widget.onPressed?.call(),
-              ),
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.onPressed,
-              child: Box(
-                style: (() {
-                  var s = BoxStyler()
-                      .width(34)
-                      .height(34)
-                      .color(
-                        _hover && enabled ? c.recessed : Colors.transparent,
-                      )
-                      .borderRadius(
-                        BorderRadiusGeometryMix.circular(tokens.radiusSmall),
-                      );
-                  if (_focused) {
-                    s = s.border(
-                      BoxBorderMix.all(BorderSideMix.color(c.accent).width(2)),
-                    );
-                  }
-                  return s;
-                })(),
-                child: Icon(widget.icon, size: uiIconSize, color: c.body),
-              ),
-            ),
-          ),
+          onPressed: onPressed,
+          semanticLabel: label,
+          builder: (context, buttonState, _) {
+            final hover = buttonState.isHovered && enabled;
+            final focused = buttonState.isFocused && enabled;
+            var s = BoxStyler()
+                .width(34)
+                .height(34)
+                .color(hover ? UiMixTokens.recessed() : Colors.transparent)
+                .borderRadius(
+                  BorderRadiusGeometryMix.circular(tokens.radiusSmall),
+                );
+            if (focused) {
+              s = s.border(
+                BoxBorderMix.all(
+                  BorderSideMix.color(UiMixTokens.accent()).width(2),
+                ),
+              );
+            }
+            return Box(
+              style: s,
+              child: Icon(icon, size: uiIconSize, color: c.body),
+            );
+          },
         ),
       ),
     );
