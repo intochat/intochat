@@ -47,7 +47,8 @@ public sealed record MessageNode(
     Button? Retry = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelLabel = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null)
 {
     /// <inheritdoc />
     public bool Equals(MessageNode? other) =>
@@ -62,7 +63,8 @@ public sealed record MessageNode(
         && ModelLabel == other.ModelLabel
         && ProviderIcon == other.ProviderIcon
         && Equals(Retry, other.Retry)
-        && Equals(Error, other.Error);
+        && Equals(Error, other.Error)
+        && Equals(Sender, other.Sender);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status);

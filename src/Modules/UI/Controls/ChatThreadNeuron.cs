@@ -167,7 +167,8 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
             Retry: retry,
             ModelLabel: message.Model,
             ProviderIcon: message.ProviderIcon,
-            Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? ChatThreadProps.NoAnswer : message.Failure) : null);
+            Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? ChatThreadProps.NoAnswer : message.Failure) : null,
+            Sender: message.Sender);
     }
 
     private static Command RetryCommand(string id)

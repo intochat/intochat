@@ -1,0 +1,140 @@
+/*
+# Room Checklist
+Role: Shareable
+Shipped: true
+Operations: add, toggle, clear-completed
+
+A shareable interactive checklist mini-app backed by server-side CheckBoxNeuron grains for live collaboration inside rooms.
+*/
+using DigitalBrain;
+using DigitalBrain.Access;
+using DigitalBrain.Neurons;
+using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
+using IntoChat.OS.Host.Apps;
+using IntoChat.OS.Modules.UI.Controls;
+using IntoChat.OS.UI;
+using static IntoChat.OS.UI.Kit;
+
+namespace IntoChat.OS.Apps.Social;
+
+public sealed record ChecklistItem(string Id, string Label, bool Checked, string UpdatedBy = "");
+
+public sealed record RoomChecklistState(string Title, ChecklistItem[] Items, string LastUpdatedBy = "")
+{
+    public RoomChecklistState() : this("Shared Checklist", [], "") { }
+}
+
+[Signal("room-checklist.add")]
+public sealed record AddChecklistItem(string Label = "") : Signal;
+
+[Signal("room-checklist.toggle")]
+public sealed record ToggleChecklistItem(string ItemId = "", bool? Checked = null) : Signal;
+
+[Signal("room-checklist.clear-completed")]
+public sealed record ClearCompletedChecklistItems : Signal;
+
+/// <summary>
+/// A [Shareable] interactive DigitalBrain.UI mini-app backed by server-side <see cref="CheckBoxNeuron"/> grains.
+/// Every participant (and @Ino) interacts with live checkbox neurons with per-caller <c>Caller.For.Account</c> attribution.
+/// </summary>
+[Shareable]
+[Neuron("social.room-checklist"), Screen("social.room-checklist", Title = "Shared Checklist", Icon = "check-square", Category = "Social")]
+public sealed class RoomChecklistApp : AggregateScreen<RoomChecklistState>
+{
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        await base.OnActivate(cancellationToken);
+        foreach (var item in State.Items)
+        {
+            await FollowChild<ICheckBoxControl, Toggled>(CheckKey(item.Id));
+        }
+    }
+
+    public static string CheckKey(string itemId) => $"chk-{itemId}";
+
+    private string CallerAccount() => Context.Caller?.For?.Account ?? Id.Brain.Value;
+
+    [On]
+    public async Task Add(AddChecklistItem request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.Label))
+        {
+            return;
+        }
+
+        var id = $"i{State.Items.Length + 1}";
+        var actor = CallerAccount();
+        var item = new ChecklistItem(id, request.Label.Trim(), Checked: false, UpdatedBy: actor);
+        await FollowChild<ICheckBoxControl, Toggled>(CheckKey(id));
+        await Show(State with { Items = [.. State.Items, item], LastUpdatedBy = actor });
+    }
+
+    [On]
+    public Task Toggle(ToggleChecklistItem request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var actor = CallerAccount();
+        var updated = State.Items
+            .Select(item => string.Equals(item.Id, request.ItemId, StringComparison.Ordinal)
+                ? item with { Checked = request.Checked ?? !item.Checked, UpdatedBy = actor }
+                : item)
+            .ToArray();
+        return Show(State with { Items = updated, LastUpdatedBy = actor });
+    }
+
+    [On]
+    public Task OnChildToggled(Toggled toggled)
+    {
+        ArgumentNullException.ThrowIfNull(toggled);
+        if (SignalChild is not { } childKey || !childKey.StartsWith("chk-", StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
+        var itemId = childKey["chk-".Length..];
+        var actor = CallerAccount();
+        var updated = State.Items
+            .Select(item => string.Equals(item.Id, itemId, StringComparison.Ordinal)
+                ? item with { Checked = toggled.IsOn, UpdatedBy = actor }
+                : item)
+            .ToArray();
+        return Show(State with { Items = updated, LastUpdatedBy = actor });
+    }
+
+    [On]
+    public Task ClearCompleted(ClearCompletedChecklistItems request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var actor = CallerAccount();
+        var remaining = State.Items.Where(static item => !item.Checked).ToArray();
+        return Show(State with { Items = remaining, LastUpdatedBy = actor });
+    }
+
+    protected override Node Render(RoomChecklistState state)
+    {
+        var completed = state.Items.Count(static i => i.Checked);
+        var subtitle = string.IsNullOrWhiteSpace(state.LastUpdatedBy)
+            ? $"{completed}/{state.Items.Length} done"
+            : $"{completed}/{state.Items.Length} done · last updated by {state.LastUpdatedBy}";
+
+        var rows = state.Items.Select(item => (Node)HStack(Space.Sm)[
+            Child<ICheckBoxControl, CheckBoxProps>(CheckKey(item.Id), new CheckBoxProps(item.Label, IsOn: item.Checked)),
+            !string.IsNullOrWhiteSpace(item.UpdatedBy) ? (Node)MutedText($"by {item.UpdatedBy}") : null
+        ]).ToArray();
+
+        return Card(state.Title, subtitle)[
+            VStack(Space.Sm,
+            [
+                .. rows.Length == 0
+                    ? [Empty("No items yet", "Add an item to collaborate in this room.")]
+                    : rows,
+                HStack(Space.Sm)[
+                    Button("Clear done", Icons.Trash2).Key("btn:clear-done").Small().Sends(Sends(new ClearCompletedChecklistItems()))
+                ],
+            ])
+        ];
+    }
+}

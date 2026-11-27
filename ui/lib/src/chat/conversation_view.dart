@@ -585,14 +585,25 @@ class _ConversationViewState extends State<ConversationView> {
                 pending.text.length > msg.text.length
             ? pending.text
             : null;
+        final sender = msg.sender;
+        final isSelf = sender != null
+            ? sender.kind == SenderKind.self
+            : parseMessageRole(msg.role) == WireMessageRole.user;
+        final isOtherHuman = sender != null && sender.kind == SenderKind.human;
         return Padding(
           key: ValueKey('msg:${msg.id}'),
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
-              child: parseMessageRole(msg.role) == WireMessageRole.user
+              child: isSelf
                   ? _UserMessageItem(message: msg, ctx: widget.ctx.deeper())
+                  : isOtherHuman
+                  ? _OtherHumanMessageItem(
+                      message: msg,
+                      sender: sender,
+                      ctx: widget.ctx.deeper(),
+                    )
                   : _AssistantMessageItem(
                       message: msg,
                       ctx: widget.ctx.deeper(),
@@ -911,6 +922,133 @@ class _UserMessageItem extends StatelessWidget {
   }
 }
 
+class _OtherHumanMessageItem extends StatelessWidget {
+  const _OtherHumanMessageItem({
+    required this.message,
+    required this.sender,
+    required this.ctx,
+  });
+
+  final MessageNode message;
+  final SenderIdentity sender;
+  final NodeContext ctx;
+
+  static String _initials(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '?';
+    final first = trimmed.substring(0, 1);
+    final space = trimmed.lastIndexOf(' ');
+    if (space > 0 && space + 1 < trimmed.length) {
+      return '$first${trimmed.substring(space + 1, space + 2)}'.toUpperCase();
+    }
+    return first.toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
+    final displayName = sender.displayName.trim().isNotEmpty
+        ? sender.displayName.trim()
+        : sender.accountId;
+    final cards = message.cards ?? const <Node>[];
+
+    return Align(
+      key: ValueKey('msg-human:${message.id}'),
+      alignment: Alignment.centerLeft,
+      child: LayoutBuilder(
+        builder: (context, box) => ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: box.maxWidth.isFinite ? box.maxWidth * 0.78 : 520,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                key: ValueKey('msg-avatar:${message.id}'),
+                width: 28,
+                height: 28,
+                margin: const EdgeInsets.only(top: 18, right: 10),
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: c.accentBorder),
+                ),
+                child: Center(
+                  child: Text(
+                    _initials(displayName),
+                    style: UiType.textStyle(
+                      11,
+                      weight: FontWeight.w600,
+                      color: c.accent,
+                    ),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 2, bottom: 4),
+                      child: Text(
+                        displayName,
+                        key: ValueKey('msg-speaker:${message.id}'),
+                        style: UiType.textStyle(
+                          12,
+                          weight: FontWeight.w600,
+                          color: c.textMuted,
+                        ),
+                      ),
+                    ),
+                    if (message.text.isNotEmpty)
+                      UiCopyableMessage(
+                        copyText: (_) => message.text,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 11,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.surfaceCard,
+                            border: Border.all(color: c.borderHairline),
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(tokens.bubble),
+                              topRight: Radius.circular(tokens.bubble),
+                              bottomRight: Radius.circular(tokens.bubble),
+                              bottomLeft: const Radius.circular(6),
+                            ),
+                          ),
+                          child: Text(
+                            message.text,
+                            style: UiType.textStyle(
+                              14,
+                              color: c.textStrong,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (cards.isNotEmpty) ...[
+                      if (message.text.isNotEmpty) const SizedBox(height: 8),
+                      for (var i = 0; i < cards.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        NodeRenderer.render(cards[i], ctx),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AssistantMessageItem extends StatelessWidget {
   const _AssistantMessageItem({
     required this.message,
@@ -953,6 +1091,15 @@ class _AssistantMessageItem extends StatelessWidget {
         ? modelLabel(rawChipModel, modelNames)
         : null;
     final retry = message.retry;
+    final sender = message.sender;
+    final showRoomAgentBadge =
+        sender != null &&
+        sender.kind == SenderKind.agent &&
+        sender.displayName.trim().isNotEmpty;
+    final agentBadgeLabel =
+        sender != null && sender.displayName.trim().isNotEmpty
+        ? sender.displayName.trim()
+        : '@Ino · Room only';
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -962,6 +1109,33 @@ class _AssistantMessageItem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (showRoomAgentBadge) ...[
+              Container(
+                key: ValueKey('msg-agent-badge:${message.id}'),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  borderRadius: BorderRadius.circular(UiTokens.of(context).xs),
+                  border: Border.all(color: c.accentBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.sparkles, size: 12, color: c.accent),
+                    const SizedBox(width: 5),
+                    Text(
+                      agentBadgeLabel,
+                      style: UiType.textStyle(
+                        11.5,
+                        weight: FontWeight.w600,
+                        color: c.accent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             if (activities.isNotEmpty) ...[
               Wrap(
                 spacing: 6,

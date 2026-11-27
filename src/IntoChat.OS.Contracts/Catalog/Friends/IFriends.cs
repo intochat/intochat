@@ -42,10 +42,6 @@ public interface IFriends
     // The invitations to friends' conversations are kept by the rooms index (IRooms.Conversations, "social.rooms"); the
     // roster hands on what it is told and answers from there (OWED.md).
     Task<GroupInvite[]> Groups();
-    // Retired: nothing calls GroupSay or GroupRead. They relay to a friend's conversation, which is a matter of that
-    // conversation and not of the roster; they stay until their removal date (OWED.md).
-    Task GroupSay(GroupInvite group, string text);
-    Task<ConversationView> GroupRead(GroupInvite group, long? sinceRevision = null);
     [Shared] Task Invited(GroupInvite group);
     [ReadOnlyCall] Task<BrainPublicKeys> PublicKeys(CancellationToken ct = default);
 }

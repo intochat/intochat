@@ -1,0 +1,109 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+
+void main() {
+  testWidgets(
+    'renders self right-aligned, other human left-aligned with avatar + name, and @Ino Room only badge',
+    (tester) async {
+      final root = <String, dynamic>{
+        'kind': 'conversation',
+        'key': 'room-thread:alice:trip',
+        'messages': [
+          {
+            'id': 'room-msg-1',
+            'role': 'user',
+            'text': 'Welcome everyone!',
+            'status': 'completed',
+            'sender': {
+              'accountId': 'alice',
+              'displayName': 'Alice',
+              'kind': 'self',
+            },
+          },
+          {
+            'id': 'room-msg-2',
+            'role': 'user',
+            'text': 'Hey Alice, ready for the trip!',
+            'status': 'completed',
+            'sender': {
+              'accountId': 'bob',
+              'displayName': 'Bob Builder',
+              'kind': 'human',
+            },
+          },
+          {
+            'id': 'room-msg-3',
+            'role': 'assistant',
+            'text': 'Here is a quick packing checklist for the room.',
+            'status': 'completed',
+            'sender': {
+              'accountId': 'room-ino',
+              'displayName': '@Ino · Room only',
+              'kind': 'agent',
+            },
+          },
+        ],
+        'composer': {
+          'key': 'input:room-message',
+          'onSubmit': {'target': '.', 'signal': 'friends.send-room-message'},
+          'placeholder': 'Message room',
+          'enabled': true,
+        },
+        'status': 'ready',
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light('intochat'),
+          home: Scaffold(
+            body: ViewHost(
+              knowsApp: (_) => false,
+              kind: 'view',
+              name: 'local/apps/friends/view',
+              load: (_, _) async => PublishedViewPayload.fromJson({
+                'generation': 1,
+                'view': {'title': 'Friends', 'root': root},
+              }),
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Self message is right-aligned without other-human avatar.
+      expect(find.text('Welcome everyone!'), findsOneWidget);
+      expect(find.byKey(const ValueKey('msg-human:room-msg-1')), findsNothing);
+
+      // Other human message is left-aligned with initials avatar and display name.
+      expect(find.byKey(const ValueKey('msg-human:room-msg-2')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('msg-avatar:room-msg-2')),
+        findsOneWidget,
+      );
+      expect(find.text('BB'), findsOneWidget);
+      expect(find.text('Bob Builder'), findsOneWidget);
+      expect(find.text('Hey Alice, ready for the trip!'), findsOneWidget);
+
+      final selfRect = tester.getRect(find.text('Welcome everyone!'));
+      final otherRect = tester.getRect(
+        find.text('Hey Alice, ready for the trip!'),
+      );
+      expect(selfRect.left, greaterThan(otherRect.left));
+
+      // Room agent message shows distinct @Ino · Room only badge.
+      expect(
+        find.byKey(const ValueKey('msg-agent-badge:room-msg-3')),
+        findsOneWidget,
+      );
+      expect(find.text('@Ino · Room only'), findsOneWidget);
+      expect(
+        find.text('Here is a quick packing checklist for the room.'),
+        findsOneWidget,
+      );
+    },
+  );
+}

@@ -7,6 +7,7 @@ using DigitalBrain.Components;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.UI;
 using IntoChat.OS.Host.Conversations;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
@@ -37,8 +38,6 @@ internal sealed class ConversationNeuron(
 
     private ConversationDefaults Defaults => Services.GetService<ConversationDefaults>() ?? ConversationDefaults.Generic;
     private string DefaultAgentId => Defaults.DefaultAgentId;
-    private IBrainOwners Owners => Services.GetService<IBrainOwners>() ?? throw FriendRelay.Refused();
-    private IFriends Friends => Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
     private IOffers Offers => Context.Offers;
 
     protected override string HostKind => "Conversation";
@@ -105,28 +104,6 @@ internal sealed class ConversationNeuron(
     }
 
     private void AuthorizeOwnerOnly() => RequireSameBrain(FriendRelay.Refused);
-
-    private async Task<AccountId> RequireOwnerAsPersonAsync()
-    {
-        var caller = Context.Caller;
-        if (caller is not { Actor: Actor.Person person }
-            || string.IsNullOrEmpty(person.Account)
-            || caller.Brain != Id.Brain)
-        {
-            throw FriendRelay.Refused();
-        }
-        var allowedSurfaces = Defaults.AllowedInviteSurfaces;
-        if (caller.Via is { } via && (via.Brain != Id.Brain || allowedSurfaces is null || !allowedSurfaces.Contains(via.Type, StringComparer.Ordinal)))
-        {
-            throw FriendRelay.Refused();
-        }
-        var owner = await Owners.OwnerAccount(Id.Brain);
-        if (!string.Equals(owner, person.Account, StringComparison.Ordinal))
-        {
-            throw FriendRelay.Refused();
-        }
-        return new AccountId(person.Account);
-    }
 
     private AccountId CallerAccount()
     {
@@ -256,7 +233,8 @@ internal sealed class ConversationNeuron(
 
         var masked = await Runner.Mask(text);
         var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
-        var entry = new Said(entryId, new Participant.Assistant(agentId), Clock.GetUtcNow(), masked);
+        var agentDisplay = State.Agents.FirstOrDefault()?.Definition.DisplayName ?? agentId;
+        var entry = new Said(entryId, new Participant.Assistant(agentId), Clock.GetUtcNow(), masked, Sender: new SenderIdentity(agentId, agentDisplay, SenderKind.Agent));
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, entry);
         var participants = WithParticipants(State.Participants, new Participant.Assistant(agentId));
 
@@ -300,11 +278,13 @@ internal sealed class ConversationNeuron(
             var masked = await Runner.Mask(heard);
             var maskedReply = await Runner.Mask(reply);
             var now = Clock.GetUtcNow();
-            var speaker = new Participant.Human(CallerAccount());
+            var callerAccount = CallerAccount();
+            var speaker = new Participant.Human(callerAccount);
             var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
+            var agentDisplay = State.Agents.FirstOrDefault()?.Definition.DisplayName ?? agentId;
             var assistant = new Participant.Assistant(agentId);
-            var heardEntry = new Said(heardId, speaker, now, masked);
-            var spokenEntry = new Said(spokenId, assistant, now, maskedReply, model);
+            var heardEntry = new Said(heardId, speaker, now, masked, Sender: new SenderIdentity(callerAccount.Value, callerAccount.Value, SenderKind.Self));
+            var spokenEntry = new Said(spokenId, assistant, now, maskedReply, model, Sender: new SenderIdentity(agentId, agentDisplay, SenderKind.Agent));
             var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, heardEntry, spokenEntry);
             var participants = WithParticipants(State.Participants, speaker, assistant);
 
@@ -342,8 +322,9 @@ internal sealed class ConversationNeuron(
         var masked = await Runner.Mask(text);
         var runId = Guid.NewGuid().ToString("N");
         var now = Clock.GetUtcNow();
-        var speaker = new Participant.Human(CallerAccount());
-        var said = new Said(EntryIds.Said(runId), speaker, now, masked);
+        var callerAccount = CallerAccount();
+        var speaker = new Participant.Human(callerAccount);
+        var said = new Said(EntryIds.Said(runId), speaker, now, masked, Sender: new SenderIdentity(callerAccount.Value, callerAccount.Value, SenderKind.Self));
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
         var participants = WithParticipants(State.Participants, speaker);
         var activeRun = new AgentRun(runId, AgentRunStatus.Running, masked, now)
@@ -389,7 +370,12 @@ internal sealed class ConversationNeuron(
         var masked = await Runner.Mask(text);
         await AwaitPendingWrite();
 
-        var said = new Said(EntryIds.Said(Guid.NewGuid().ToString("N")), new Participant.Human(friend), Clock.GetUtcNow(), masked);
+        var said = new Said(
+            EntryIds.Said(Guid.NewGuid().ToString("N")),
+            new Participant.Human(friend),
+            Clock.GetUtcNow(),
+            masked,
+            Sender: new SenderIdentity(friend.Value, friend.Value, SenderKind.Human));
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
         await Persist(State with { Log = nextLog });
     }
@@ -481,31 +467,6 @@ internal sealed class ConversationNeuron(
         };
     }
 
-    public async Task Invite(AccountId friend)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
-        var owner = await RequireOwnerAsPersonAsync();
-        await Fresh();
-        await EnsureImportedAsync();
-
-        var friends = Friends;
-        if (!await friends.IsFriend(friend))
-        {
-            throw FriendRelay.Refused();
-        }
-        var roster = await friends.List();
-        var target = roster.FirstOrDefault(row => row.Account == friend)
-            ?? throw FriendRelay.Refused();
-
-        var participants = WithParticipants(State.Participants, new Participant.Human(owner), new Participant.Human(friend));
-        await Persist(State with { Participants = participants });
-        await Offers.Offer(Id, friend.Value, DigitalBrain.Components.Role.Editor);
-
-        var title = await ReadTitleBestEffortAsync();
-        var invite = new GroupInvite(Id.Brain, ConvId, title, owner);
-        await SiloNeurons.Get<IFriends>(Services, FriendsDefaults.Id(target.Brain.Value)).Invited(invite);
-    }
-
     public async Task Drive(string runId, string? model, string? replaces)
     {
         if (State.ActiveRun?.RunId != runId || IsActive)
@@ -547,7 +508,8 @@ internal sealed class ConversationNeuron(
         {
             var priorLog = PriorLogForTurn(State.Log);
             var window = ModelContext.From(priorLog);
-            var input = new AiMessage("user", [new AiText(turnState.Run.UserText)]);
+            var latestHumanSender = LatestHumanSender(State.Log);
+            var input = new AiMessage("user", [new AiText(turnState.Run.UserText)]) { Sender = latestHumanSender };
 
             if (AgentHistoryCompactor.TryParseCompactCommand(turnState.Run.UserText, out var compactFocus))
             {
@@ -659,7 +621,7 @@ internal sealed class ConversationNeuron(
                                 newEntries.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, nextSummary!, upTo));
                             }
                             ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
-                            newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId));
+                            newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
 
                             var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
                             storeCount++;
@@ -724,20 +686,16 @@ internal sealed class ConversationNeuron(
         }
     }
 
-    private async Task<string> ReadTitleBestEffortAsync()
+    private static SenderIdentity? LatestHumanSender(LoggedEntry[] log)
     {
-        if (!Sessions.IsId(ConvId.Value)) { return ConvId.Value; }
-        try
+        for (var i = log.Length - 1; i >= 0; i--)
         {
-            var session = await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey))
-                .Get(ConvId.Value);
-            return !string.IsNullOrWhiteSpace(session?.Title) ? session.Title : Sessions.NewChat;
+            if (log[i].Entry is Said { By: Participant.Human human } said)
+            {
+                return said.Sender ?? new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Human);
+            }
         }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Logger.LogDebug(error, "Session list could not be read for conversation {ConversationId}.", ConvId);
-            return Sessions.NewChat;
-        }
+        return null;
     }
 
     // Prior history strictly before the latest person prompt (covers both Say and Regenerate without duplicating plan.Input).

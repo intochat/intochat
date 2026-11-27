@@ -1,11 +1,21 @@
+using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.Access;
+using DigitalBrain.Components;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Social;
 
-internal sealed record RoomEntry(NeuronId Room, long LastRevision, DateTimeOffset UpdatedAt);
+internal sealed record RoomEntry(
+    NeuronId Room,
+    long LastRevision,
+    DateTimeOffset UpdatedAt,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Title = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RoomKind? Kind = null);
 
 // A friend's conversation the person was invited to. The conversation is kept by its id text.
 internal sealed record ConversationPointer(BrainId Brain, string Conversation, string Title, string By);
@@ -16,18 +26,81 @@ internal sealed record RoomsState(RoomEntry[] Rooms, ConversationPointer[]? Conv
     public RoomsState() : this([]) { }
 }
 
-// A person's index of the rooms they were invited to. The contract is shareable and not offered, so the kernel lets any
+// A person's index of the rooms they own or were invited to. The contract is shareable and not offered, so the kernel lets any
 // brain call Invited and Changed: the index itself decides who may write into it.
 [Neuron("social.rooms")]
 internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<RoomsState>, IRooms
 {
+    public Task<RoomSummary[]> List(CancellationToken ct = default)
+    {
+        _ = RequireSameBrain(FriendRelay.Refused);
+        var summaries = State.Rooms
+            .OrderByDescending(static r => r.UpdatedAt)
+            .Select(r => new RoomSummary(
+                r.Room,
+                string.IsNullOrWhiteSpace(r.Title) ? r.Room.Key : r.Title,
+                r.Kind ?? RoomKind.Group,
+                r.LastRevision,
+                r.UpdatedAt,
+                IsHost: r.Room.Brain == Id.Brain))
+            .ToArray();
+        return Task.FromResult(summaries);
+    }
+
+    public async Task<NeuronId> Create(string title, RoomKind kind = RoomKind.Group, string? roomKey = null, CancellationToken ct = default)
+    {
+        _ = RequireSameBrain(FriendRelay.Refused);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+
+        var cleanTitle = title.Trim();
+        var key = string.IsNullOrWhiteSpace(roomKey)
+            ? $"{(kind == RoomKind.Direct ? "dm" : "room")}-{Guid.NewGuid():N}"
+            : roomKey.Trim();
+        var roomId = new NeuronId(Id.Brain, RoomFriends.RoomType, key);
+
+        var existing = State.Rooms.FirstOrDefault(r => r.Room == roomId);
+        var entry = new RoomEntry(roomId, existing?.LastRevision ?? 0, Context.Time.GetUtcNow(), cleanTitle, kind);
+        var next = State.Rooms.Where(r => r.Room != roomId).Append(entry).ToArray();
+        await Save(State with { Rooms = next }, new RoomsIndexChanged(Id.Brain, roomId, "created")).ConfigureAwait(true);
+        return roomId;
+    }
+
+    public async Task Invite(NeuronId room, string friendAccount, BrainId friendBrain, Role role = Role.Editor, CancellationToken ct = default)
+    {
+        _ = RequireSameBrain(FriendRelay.Refused);
+        ArgumentException.ThrowIfNullOrWhiteSpace(friendAccount);
+        ArgumentException.ThrowIfNullOrWhiteSpace(friendBrain.Value);
+        if (room.Brain != Id.Brain)
+        {
+            throw new UnauthorizedAccessException($"Only brain '{room.Brain.Value}' may invite participants to room '{room.Key}'.");
+        }
+
+        var existing = State.Rooms.FirstOrDefault(r => r.Room == room);
+        var entry = new RoomEntry(room, existing?.LastRevision ?? 0, Context.Time.GetUtcNow(), existing?.Title, existing?.Kind);
+        var next = State.Rooms.Where(r => r.Room != room).Append(entry).ToArray();
+        await Save(State with { Rooms = next }, new RoomsIndexChanged(Id.Brain, room, "invited")).ConfigureAwait(true);
+    }
+
+    public async Task Leave(NeuronId room, CancellationToken ct = default)
+    {
+        _ = RequireSameBrain(FriendRelay.Refused);
+        if (State.Rooms.All(r => r.Room != room))
+        {
+            return;
+        }
+
+        var next = State.Rooms.Where(r => r.Room != room).ToArray();
+        await Save(State with { Rooms = next }, new RoomsIndexChanged(Id.Brain, room, "left")).ConfigureAwait(true);
+    }
+
     public async Task Invited(NeuronId room, CancellationToken ct = default)
     {
         await RequireNoticeOf(room).ConfigureAwait(true);
         var existing = State.Rooms.FirstOrDefault(r => r.Room == room);
-        var entry = new RoomEntry(room, existing?.LastRevision ?? 0, Context.Time.GetUtcNow());
+        var entry = new RoomEntry(room, existing?.LastRevision ?? 0, Context.Time.GetUtcNow(), existing?.Title, existing?.Kind);
         var next = State.Rooms.Where(r => r.Room != room).Append(entry).ToArray();
-        await Store(State with { Rooms = next }).ConfigureAwait(true);
+        using var scope = OwnModuleIfForeign();
+        await Save(State with { Rooms = next }, new RoomsIndexChanged(Id.Brain, room, "invited")).ConfigureAwait(true);
     }
 
     public async Task Changed(NeuronId room, long revision, CancellationToken ct = default)
@@ -35,9 +108,10 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
         await RequireNoticeOf(room).ConfigureAwait(true);
         var existing = State.Rooms.FirstOrDefault(r => r.Room == room);
         var nextRevision = Math.Max(existing?.LastRevision ?? 0, revision);
-        var entry = new RoomEntry(room, nextRevision, Context.Time.GetUtcNow());
+        var entry = new RoomEntry(room, nextRevision, Context.Time.GetUtcNow(), existing?.Title, existing?.Kind);
         var next = State.Rooms.Where(r => r.Room != room).Append(entry).ToArray();
-        await Store(State with { Rooms = next }).ConfigureAwait(true);
+        using var scope = OwnModuleIfForeign();
+        await Save(State with { Rooms = next }, new RoomChanged(room, nextRevision)).ConfigureAwait(true);
     }
 
     public Task<long> LastRevision(NeuronId room, CancellationToken ct = default)
@@ -80,6 +154,16 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
             .ToArray());
     }
 
+    private IDisposable? OwnModuleIfForeign()
+    {
+        if (Context.Caller is { Brain: var brain } && brain == Id.Brain)
+        {
+            return null;
+        }
+        var edge = services?.GetService(typeof(EdgeAuthority)) as EdgeAuthority;
+        return edge?.Enter(edge.Module("social.rooms", Id.Brain));
+    }
+
     private static ConversationPointer Pointer(ConversationInvite invite)
         => new(invite.Brain, invite.Conversation.Value ?? "", invite.Title ?? "", invite.By.Value ?? "");
 
@@ -90,10 +174,6 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
     private bool FromOwnRoster()
         => IsSameBrainCaller() && Context.Caller is { Inside: true, Via: { } via } && via == FriendsDefaults.Id(Id.Brain.Value);
 
-    // An invitation is taken from this brain's roster, which has checked it, or from the conversation itself: the stamped
-    // caller came through that conversation's proxy in the inviter's own brain, the inviter owns that brain and is the
-    // person the invitation names, and this brain's roster lists them as a friend. The invitation's own fields prove
-    // nothing; they are compared with the stamped caller.
     private async Task RequireInvitationTo(ConversationInvite invite)
     {
         if (FromOwnRoster()) { return; }
@@ -120,6 +200,10 @@ internal sealed class RoomsNeuron(IServiceProvider? services = null) : Neuron<Ro
         if (caller.Via is not { } relay || relay.Brain == Id.Brain)
         {
             if (caller.Brain == Id.Brain) { return; }
+            if (caller.Inside && caller.Via is { } ownRoom && string.Equals(ownRoom.Type, RoomFriends.RoomType, StringComparison.Ordinal) && ownRoom == room)
+            {
+                return;
+            }
             throw FriendRelay.Refused();
         }
 

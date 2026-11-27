@@ -41,7 +41,12 @@ internal static class InferenceMapping
         ArgumentNullException.ThrowIfNull(message);
         if (message.Role is not ("system" or "developer" or "user" or "assistant" or "tool"))
         { throw new ArgumentException($"Unknown message role '{message.Role}'.", nameof(message)); }
-        return new(new ChatRole(message.Role), message.Content.Select(ToContent).ToList());
+        var chatMessage = new ChatMessage(new ChatRole(message.Role), message.Content.Select(ToContent).ToList());
+        if (message.Sender is { } sender)
+        {
+            chatMessage.AuthorName = !string.IsNullOrWhiteSpace(sender.DisplayName) ? sender.DisplayName : sender.AccountId;
+        }
+        return chatMessage;
     }
 
     internal static AiMessage FromChatMessage(ChatMessage message)

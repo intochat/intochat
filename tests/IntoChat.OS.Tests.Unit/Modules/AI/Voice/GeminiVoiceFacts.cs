@@ -407,7 +407,6 @@ public sealed class GeminiVoiceFacts
         }
 
         public Task Regenerate(EntryId entry) => Task.CompletedTask;
-        public Task Invite(AccountId account) => Task.CompletedTask;
         public Task Stop() => Task.CompletedTask;
         public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
         public Task Post(string text, string? id = null) => Task.CompletedTask;

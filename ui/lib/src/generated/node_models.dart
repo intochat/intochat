@@ -60,6 +60,8 @@ enum IntentKind { copy, openWindow, openSettings }
 
 enum ListSelectionMode { single, none }
 
+enum SenderKind { self, human, agent }
+
 enum StepperStatus { pending, active, done, error, skipped }
 
 /// A node of a view, discriminated by `kind`.
@@ -1886,6 +1888,7 @@ final class MessageNode {
     required this.modelLabel,
     required this.providerIcon,
     required this.error,
+    required this.sender,
   });
 
   final String id;
@@ -1899,6 +1902,7 @@ final class MessageNode {
   final String? modelLabel;
   final String? providerIcon;
   final ErrorLineNode? error;
+  final SenderIdentity? sender;
 
   factory MessageNode.fromJson(Map<String, dynamic> json) => MessageNode(
     id: _string(json['id']),
@@ -1922,6 +1926,9 @@ final class MessageNode {
     providerIcon: _stringOrNull(json['providerIcon']),
     error: json['error'] is Map
         ? ErrorLineNode.fromJson(_map(json['error']))
+        : null,
+    sender: json['sender'] is Map
+        ? SenderIdentity.fromJson(_map(json['sender']))
         : null,
   );
 }
@@ -2346,6 +2353,24 @@ final class SecretCardNode extends Node {
         ? ButtonNode.fromJson(_map(json['enter']))
         : null,
     skip: json['skip'] is Map ? ButtonNode.fromJson(_map(json['skip'])) : null,
+  );
+}
+
+final class SenderIdentity {
+  const SenderIdentity({
+    required this.accountId,
+    required this.displayName,
+    required this.kind,
+  });
+
+  final String accountId;
+  final String displayName;
+  final SenderKind kind;
+
+  factory SenderIdentity.fromJson(Map<String, dynamic> json) => SenderIdentity(
+    accountId: _string(json['accountId']),
+    displayName: _string(json['displayName']),
+    kind: _enum(SenderKind.values, json['kind']),
   );
 }
 

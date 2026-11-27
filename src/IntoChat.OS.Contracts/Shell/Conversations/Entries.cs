@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Identity.Contracts;
 
@@ -50,7 +51,8 @@ public sealed record Said(
     DateTimeOffset At,
     string Text,
     ModelId? Model = null,
-    EntryId? Replaces = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    EntryId? Replaces = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SenderIdentity? Sender = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
 
 public sealed record Called(
     EntryId Id,
@@ -66,7 +68,8 @@ public sealed record Returned(
     string Tool,
     string ResultJson,
     bool Ok,
-    CardEntry? Card) : ConversationEntry(Id, By, At, Visibility.Everyone);
+    CardEntry? Card,
+    Visibility Visible = Visibility.Owner) : ConversationEntry(Id, By, At, Visible);
 
 public sealed record Summarized(
     EntryId Id,

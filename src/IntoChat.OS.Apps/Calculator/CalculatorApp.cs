@@ -10,6 +10,7 @@ using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
@@ -78,6 +79,7 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
     }
 }
 
+[Shareable]
 [Neuron("app.calculator"), Screen("app.calculator", Title = "Calculator", Icon = "calculator", Category = "Workspace")]
 public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
 {

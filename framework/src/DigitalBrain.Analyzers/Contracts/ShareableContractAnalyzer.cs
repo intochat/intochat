@@ -39,6 +39,13 @@ public sealed class ShareableContractAnalyzer : DiagnosticAnalyzer
 
         if (type.TypeKind != TypeKind.Interface)
         {
+            var isScreen = type.TypeKind == TypeKind.Class
+                && type.AllInterfaces.Any(iface => string.Equals(Rules.FullName(iface), "DigitalBrain.IScreen", StringComparison.Ordinal));
+            if (isScreen)
+            {
+                return;
+            }
+
             var loc = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
             context.ReportDiagnostic(Diagnostic.Create(Rules.ShareableContract, loc, type.Name));
             return;

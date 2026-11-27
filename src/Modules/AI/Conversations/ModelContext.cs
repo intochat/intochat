@@ -1,3 +1,4 @@
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter.Conversations;
 
@@ -18,6 +19,21 @@ internal static class ModelContext
         var summaryIndex = ConversationLog.LastSummaryIndex(log);
         var summary = summaryIndex >= 0 ? ((Summarized)log[summaryIndex].Entry).Summary : null;
         var startIndex = summaryIndex >= 0 ? ConversationLog.CoveredEndIndex(log, summaryIndex) + 1 : 0;
+
+        // Detect multi-human transcripts so authenticated speaker attribution is preserved in both Sender metadata and prompt text.
+        var humanAccounts = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = startIndex; i < log.Length; i++)
+        {
+            if (log[i].Entry is Said { By: Participant.Human human } said)
+            {
+                var id = said.Sender?.AccountId ?? human.Account.Value;
+                if (!string.IsNullOrWhiteSpace(id))
+                {
+                    humanAccounts.Add(id);
+                }
+            }
+        }
+        var multiHuman = humanAccounts.Count > 1;
 
         // Collect every superseded reply and its run, so both the old reply and its run's tool calls/results are excluded.
         var supersededReplies = new HashSet<EntryId>();
@@ -82,8 +98,12 @@ internal static class ModelContext
                         continue;
                     }
                     FlushPendingCalls();
+                    var sender = ResolveSender(said);
                     var role = said.By is Participant.Human ? "user" : "assistant";
-                    messages.Add(new AiMessage(role, [new AiText(said.Text)]));
+                    var contentText = multiHuman && said.By is Participant.Human
+                        ? $"[{sender.DisplayName} ({sender.AccountId})]: {said.Text}"
+                        : said.Text;
+                    messages.Add(new AiMessage(role, [new AiText(contentText)]) { Sender = sender });
                     sources.Add(said.Id);
                     break;
 
@@ -121,5 +141,20 @@ internal static class ModelContext
 
         FlushPendingCalls();
         return new ModelWindow([.. messages], [.. sources], summary);
+    }
+
+    private static SenderIdentity ResolveSender(Said said)
+    {
+        if (said.Sender is { } explicitSender)
+        {
+            return explicitSender;
+        }
+
+        return said.By switch
+        {
+            Participant.Human human => new SenderIdentity(human.Account.Value, human.Account.Value, SenderKind.Human),
+            Participant.Assistant assistant => new SenderIdentity(assistant.AgentId, assistant.AgentId, SenderKind.Agent),
+            _ => new SenderIdentity("unknown", "Unknown", SenderKind.Human),
+        };
     }
 }

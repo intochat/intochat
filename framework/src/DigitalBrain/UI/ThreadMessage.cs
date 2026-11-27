@@ -27,6 +27,9 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     /// <summary>True on the latest completed assistant reply when no turn is active: draws a Regenerate action.</summary>
     public bool CanRegenerate { get; init; }
 
+    /// <summary>Authenticated speaker attribution for this message, when present.</summary>
+    public SenderIdentity? Sender { get; init; }
+
     /// <summary>Whether the message failed, was interrupted or was cancelled: it draws a reason and a retry.</summary>
     [JsonIgnore]
     public bool IsFailed => Status is "failed" or "interrupted" or "cancelled";
@@ -34,6 +37,7 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     /// <inheritdoc />
     public bool Equals(ThreadMessage? other) => other is not null && Id == other.Id && Role == other.Role && Text == other.Text && Status == other.Status
         && Model == other.Model && ProviderIcon == other.ProviderIcon && Failure == other.Failure && CanRegenerate == other.CanRegenerate
+        && Equals(Sender, other.Sender)
         && Activities.SequenceEqual(other.Activities) && Cards.SequenceEqual(other.Cards);
 
     /// <inheritdoc />
