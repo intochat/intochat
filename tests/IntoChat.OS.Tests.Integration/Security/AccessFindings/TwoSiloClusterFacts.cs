@@ -186,6 +186,12 @@ public sealed class TwoSiloClusterFacts
                 {
                     UseSharedMembership(builder, sharedTable);
                     builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
+                    // Aggressive periodic refresh proves SingleSiloGuard's MarkSelfDeadAsync does not race with
+                    // MembershipTableManager.PeriodicallyRefreshMembershipTable into Environment.FailFast (exit 134).
+                    builder.Services.Configure<Orleans.Configuration.ClusterMembershipOptions>(options =>
+                    {
+                        options.TableRefreshTimeout = TimeSpan.FromMilliseconds(50);
+                    });
                 });
             });
 
