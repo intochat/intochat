@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import '../desktop/unified_app_header.dart';
 import '../desktop/window_frame.dart';
 
 /// Semantic region sectors for Smart Sort clustering on the Spatial Canvas.
@@ -66,7 +65,7 @@ enum CanvasSector {
 /// Features:
 /// - Semi-neuron ambient animated background (drifting nodes & pulsing synapses).
 /// - Infinite pan & smooth zoom (Ctrl+wheel / pinch / space-drag).
-/// - Spatial App Cards with UnifiedAppHeader (drag to move, resize edges).
+/// - Spatial App Cards with [WindowHeaderBar] (drag to move, resize edges).
 /// - "Smart Sort" clustering into 4 semantic sectors (Intelligence, Studio, Workspace, Social).
 /// - Active synaptic links drawing glowing curves between interacting apps.
 class SpatialAppCanvas extends StatefulWidget {
@@ -74,33 +73,17 @@ class SpatialAppCanvas extends StatefulWidget {
     super.key,
     required this.windows,
     required this.windowStates,
+    required this.windowActions,
     required this.topWindowId,
-    required this.onFocusWindow,
-    required this.onCloseWindow,
-    required this.onToggleZoom,
-    required this.onPinWindow,
-    required this.onReloadWindow,
-    required this.onHardRestartWindow,
-    required this.onSwitchExecutionMode,
-    required this.onInspectSandbox,
     required this.windowBuilders,
-    this.onOpenAppSettings,
     this.tabs = const {},
     this.onToast,
   });
 
   final List<String> windows; // ordered window IDs (z-order)
   final Map<String, DesktopWindowState> windowStates;
+  final Map<String, DesktopWindowActions> windowActions;
   final String? topWindowId;
-  final ValueChanged<String> onFocusWindow;
-  final ValueChanged<String> onCloseWindow;
-  final ValueChanged<String> onToggleZoom;
-  final ValueChanged<String> onPinWindow;
-  final ValueChanged<String> onReloadWindow;
-  final ValueChanged<String> onHardRestartWindow;
-  final void Function(String winId, String mode) onSwitchExecutionMode;
-  final ValueChanged<String> onInspectSandbox;
-  final ValueChanged<String>? onOpenAppSettings;
   final Map<String, WidgetBuilder> windowBuilders;
   final Map<String, List<DesktopTabSpec>> tabs;
   final ValueChanged<String>? onToast;
@@ -347,125 +330,105 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
     UiColors c,
   ) {
     final isFocused = widget.topWindowId == winId;
-    final worldRect = w.bounds;
+    final actions =
+        widget.windowActions[winId] ?? DesktopWindowActions(window: w);
 
-    // Convert world rect to screen rect via camera matrix
-    final screenLeft = worldRect.left * _zoom + _cameraOffset.dx;
-    final screenTop = worldRect.top * _zoom + _cameraOffset.dy;
-    final screenWidth = worldRect.width * _zoom;
-    final screenHeight = worldRect.height * _zoom;
+    return ListenableBuilder(
+      listenable: w,
+      builder: (context, _) {
+        final worldRect = w.bounds;
 
-    final isLOD = _zoom < 0.58;
+        // Convert world rect to screen rect via camera matrix
+        final screenLeft = worldRect.left * _zoom + _cameraOffset.dx;
+        final screenTop = worldRect.top * _zoom + _cameraOffset.dy;
+        final screenWidth = worldRect.width * _zoom;
+        final screenHeight = worldRect.height * _zoom;
 
-    return Positioned(
-      key: ValueKey('spatial-card-pos-$winId'),
-      left: screenLeft,
-      top: screenTop,
-      width: screenWidth,
-      height: screenHeight,
-      child: Listener(
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: (_) => widget.onFocusWindow(winId),
-        child: Container(
-          decoration: BoxDecoration(
-            color: c.surfaceCard.withValues(alpha: c.isGlass ? 0.88 : 0.98),
-            borderRadius: BorderRadius.circular(
-              UiTokens.of(context).card * _zoom.clamp(0.6, 1.0),
-            ),
-            border: Border.all(
-              color: w.isPinned
-                  ? c.accent
-                  : (isFocused ? c.borderInput : c.borderHairline),
-              width: w.isPinned || isFocused ? 2.0 : 1.0,
-            ),
-            boxShadow: isFocused ? UiShadows.lg(c) : UiShadows.md(c),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. Unified 42px App Header (card frame)
-                  UnifiedAppHeader(
-                    window: w,
-                    focused: isFocused,
-                    zoomed: w.zoomed,
-                    canMove: true,
-                    desk: viewportSize,
-                    tabs: widget.tabs[winId] ?? const [],
-                    isPinned: w.isPinned,
-                    menuOpen: _menuOpenWindowId == winId,
-                    onToggleMenu: () {
-                      setState(() {
-                        if (_menuOpenWindowId == winId) {
-                          _menuOpenWindowId = null;
-                        } else {
-                          _menuOpenWindowId = winId;
-                        }
-                      });
-                    },
-                    onFocus: () => widget.onFocusWindow(winId),
-                    onClose: () => widget.onCloseWindow(winId),
-                    onToggleZoom: () => widget.onToggleZoom(winId),
-                    onPin: () => widget.onPinWindow(winId),
-                    onReload: () => widget.onReloadWindow(winId),
-                    onHardRestartSandbox: () =>
-                        widget.onHardRestartWindow(winId),
-                    onMoveDelta: (delta) {
-                      final worldDelta = delta / _zoom;
-                      w.setBounds(w.bounds.shift(worldDelta));
-                    },
-                  ),
+        final isLOD = _zoom < 0.58;
 
-                  // 2. Viewport / LOD Thumbnail
-                  Expanded(
-                    child: isLOD
-                        ? _buildLODPreview(w, c)
-                        : (widget.windowBuilders[winId]?.call(context) ??
-                              const SizedBox.shrink()),
-                  ),
-                ],
-              ),
-              if (_menuOpenWindowId == winId)
-                Positioned(
-                  left: 10,
-                  top: kUnifiedAppHeaderHeight + 4,
-                  width: 320,
-                  child: AppTestingMenuPopover(
-                    window: w,
-                    executionMode: w.executionMode,
-                    onSelectMode: (m) {
-                      w.setExecutionMode(m);
-                      widget.onSwitchExecutionMode(winId, m);
-                      setState(() => _menuOpenWindowId = null);
-                    },
-                    onReload: () {
-                      w.recordReload();
-                      widget.onReloadWindow(winId);
-                      setState(() => _menuOpenWindowId = null);
-                    },
-                    onResetSandbox: () {
-                      w.recordHardRestart();
-                      widget.onHardRestartWindow(winId);
-                      setState(() => _menuOpenWindowId = null);
-                    },
-                    onInspectSandbox: () {
-                      widget.onInspectSandbox(winId);
-                      setState(() => _menuOpenWindowId = null);
-                    },
-                    onOpenAppSettings: widget.onOpenAppSettings != null
-                        ? () {
-                            setState(() => _menuOpenWindowId = null);
-                            widget.onOpenAppSettings!(winId);
-                          }
-                        : null,
-                  ),
+        return Positioned(
+          key: ValueKey('spatial-card-pos-$winId'),
+          left: screenLeft,
+          top: screenTop,
+          width: screenWidth,
+          height: screenHeight,
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (_) {
+              actions.focus();
+              if (_menuOpenWindowId != null && _menuOpenWindowId != winId) {
+                setState(() => _menuOpenWindowId = null);
+              }
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: c.surfaceCard.withValues(alpha: c.isGlass ? 0.88 : 0.98),
+                borderRadius: BorderRadius.circular(
+                  UiTokens.of(context).card * _zoom.clamp(0.6, 1.0),
                 ),
-            ],
+                border: Border.all(
+                  color: w.isPinned
+                      ? c.accent
+                      : (isFocused ? c.borderInput : c.borderHairline),
+                  width: w.isPinned || isFocused ? 2.0 : 1.0,
+                ),
+                boxShadow: isFocused ? UiShadows.lg(c) : UiShadows.md(c),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: WindowTestingMenuHost(
+                actions: actions,
+                open: _menuOpenWindowId == winId,
+                onDismiss: () => setState(() => _menuOpenWindowId = null),
+                topOffset: kSpatialCardHeaderHeight + 4,
+                alignment: Alignment.topLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. Unified 42px Spatial Card Header
+                    WindowHeaderBar(
+                      variant: WindowChromeVariant.spatialCard,
+                      actions: actions,
+                      focused: isFocused,
+                      zoomed: w.zoomed,
+                      canMove: true,
+                      desk: viewportSize,
+                      tabs: widget.tabs[winId] ?? const [],
+                      menuOpen: _menuOpenWindowId == winId,
+                      onToggleMenu: () {
+                        setState(() {
+                          _menuOpenWindowId = _menuOpenWindowId == winId
+                              ? null
+                              : winId;
+                        });
+                      },
+                      onMoveDelta: (delta) {
+                        final worldDelta = delta / _zoom;
+                        w.setBounds(w.bounds.shift(worldDelta));
+                      },
+                    ),
+
+                    // 2. Viewport / LOD Thumbnail
+                    Expanded(
+                      child: Listener(
+                        behavior: HitTestBehavior.translucent,
+                        onPointerDown: (_) {
+                          if (_menuOpenWindowId == winId) {
+                            setState(() => _menuOpenWindowId = null);
+                          }
+                        },
+                        child: isLOD
+                            ? _buildLODPreview(w, c)
+                            : (widget.windowBuilders[winId]?.call(context) ??
+                                  const SizedBox.shrink()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

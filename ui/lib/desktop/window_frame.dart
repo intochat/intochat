@@ -3,9 +3,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import 'unified_app_header.dart';
+import 'window_chrome.dart';
 
-const double kDesktopTitleBarHeight = 38.0;
+export 'window_chrome.dart';
 
 class DesktopWindowState extends ChangeNotifier {
   DesktopWindowState({
@@ -155,22 +155,8 @@ class WindowFrame extends StatefulWidget {
     required this.forceZoom,
     required this.desk,
     required this.child,
+    this.actions,
     this.tabs = const [],
-    this.onFocus,
-    this.onClose,
-    this.onMinimize,
-    this.onToggleZoom,
-    this.onNewTab,
-    this.onFavourite,
-    this.isFavourite = false,
-    this.onPin,
-    this.isPinned = false,
-    this.onReload,
-    this.onHardRestartSandbox,
-    this.onSwitchExecutionMode,
-    this.onInspectSandbox,
-    this.onOpenAppSettings,
-    this.executionMode,
   });
 
   final DesktopWindowState window;
@@ -178,22 +164,8 @@ class WindowFrame extends StatefulWidget {
   final bool forceZoom;
   final Size desk;
   final Widget child;
+  final DesktopWindowActions? actions;
   final List<DesktopTabSpec> tabs;
-  final VoidCallback? onFocus;
-  final VoidCallback? onClose;
-  final VoidCallback? onMinimize;
-  final VoidCallback? onToggleZoom;
-  final VoidCallback? onNewTab;
-  final VoidCallback? onFavourite;
-  final bool isFavourite;
-  final VoidCallback? onPin;
-  final bool isPinned;
-  final VoidCallback? onReload;
-  final VoidCallback? onHardRestartSandbox;
-  final ValueChanged<String>? onSwitchExecutionMode;
-  final VoidCallback? onInspectSandbox;
-  final VoidCallback? onOpenAppSettings;
-  final String? executionMode;
 
   static final Map<int, bool> _lastZoom = {};
 
@@ -205,6 +177,9 @@ class _WindowFrameState extends State<WindowFrame> {
   bool _menuOpen = false;
   final GlobalKey _focusKey = GlobalKey();
   late final String _focusTarget = 'window:${widget.window.appId}';
+
+  DesktopWindowActions get _actions =>
+      widget.actions ?? DesktopWindowActions(window: widget.window);
 
   @override
   void initState() {
@@ -218,42 +193,6 @@ class _WindowFrameState extends State<WindowFrame> {
     super.dispose();
   }
 
-  void _handlePin() {
-    widget.window.togglePinned();
-    widget.onPin?.call();
-  }
-
-  void _handleReload() {
-    widget.window.recordReload();
-    widget.onReload?.call();
-  }
-
-  void _handleHardRestartSandbox() {
-    widget.window.recordHardRestart();
-    widget.onHardRestartSandbox?.call();
-    if (mounted) {
-      showKitToast(
-        context,
-        'Hard-restarted isolated sandbox for ${widget.window.title}',
-      );
-    }
-  }
-
-  void _handleSelectExecutionMode(String mode) {
-    widget.window.setExecutionMode(mode);
-    widget.onSwitchExecutionMode?.call(mode);
-    if (mounted) {
-      showKitToast(
-        context,
-        'Switched execution mode to ${DesktopWindowState.formatExecutionMode(mode)}',
-      );
-    }
-  }
-
-  void _handleInspectSandbox() {
-    widget.onInspectSandbox?.call();
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -261,42 +200,30 @@ class _WindowFrameState extends State<WindowFrame> {
       builder: (context, _) {
         final c = UiColors.of(context);
         final w = widget.window;
+        final actions = _actions;
         final zoomed = w.zoomed || widget.forceZoom;
         final radius = zoomed ? 0.0 : UiTokens.of(context).card;
-        final effectivePinned = widget.isPinned || w.isPinned;
-        final effectiveMode = widget.executionMode ?? w.executionMode;
 
         final innerContent = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _TitleBar(
-              window: w,
+            WindowHeaderBar(
+              variant: WindowChromeVariant.floating,
+              actions: actions,
               focused: widget.focused,
               zoomed: zoomed,
               canMove: !widget.forceZoom,
               desk: widget.desk,
-              onFocus: widget.onFocus,
-              onClose: widget.onClose,
-              onMinimize: widget.onMinimize,
-              onToggleZoom: widget.onToggleZoom ?? w.toggleZoom,
-              onPin: _handlePin,
-              isPinned: effectivePinned,
-              onReload: _handleReload,
-              onHardRestartSandbox: _handleHardRestartSandbox,
               menuOpen: _menuOpen,
               onToggleMenu: () => setState(() => _menuOpen = !_menuOpen),
             ),
             if (widget.tabs.length > 1)
-              UnifiedAppHeader.inWindow(
-                window: w,
-                focused: widget.focused,
-                tabs: widget.tabs,
-              ),
+              WindowTabStrip(tabs: widget.tabs, showBarContainer: true),
             Expanded(
               child: Listener(
                 behavior: HitTestBehavior.translucent,
                 onPointerDown: (_) {
-                  if (!widget.focused) widget.onFocus?.call();
+                  if (!widget.focused) actions.focus();
                   if (_menuOpen) setState(() => _menuOpen = false);
                 },
                 child: RepaintBoundary(child: widget.child),
@@ -305,7 +232,7 @@ class _WindowFrameState extends State<WindowFrame> {
           ],
         );
 
-        final borderColor = effectivePinned
+        final borderColor = w.isPinned
             ? c.accent
             : (widget.focused
                   ? (c.isGlass ? c.specularBorder : c.borderInput)
@@ -338,51 +265,21 @@ class _WindowFrameState extends State<WindowFrame> {
 
         final body = RepaintBoundary(
           key: _focusKey,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: zoomed
-                    ? frame
-                    : _ResizeHandles(
-                        window: w,
-                        onFocus: widget.onFocus,
-                        child: frame,
-                      ),
-              ),
-              if (_menuOpen)
-                Positioned(
-                  right: 10,
-                  top: kDesktopTitleBarHeight + 4,
-                  width: 320,
-                  child: AppTestingMenuPopover(
-                    window: w,
-                    executionMode: effectiveMode,
-                    onSelectMode: (m) {
-                      _handleSelectExecutionMode(m);
-                      setState(() => _menuOpen = false);
-                    },
-                    onReload: () {
-                      _handleReload();
-                      setState(() => _menuOpen = false);
-                    },
-                    onResetSandbox: () {
-                      _handleHardRestartSandbox();
-                      setState(() => _menuOpen = false);
-                    },
-                    onInspectSandbox: () {
-                      _handleInspectSandbox();
-                      setState(() => _menuOpen = false);
-                    },
-                    onOpenAppSettings: widget.onOpenAppSettings != null
-                        ? () {
-                            setState(() => _menuOpen = false);
-                            widget.onOpenAppSettings!();
-                          }
-                        : null,
-                  ),
-                ),
-            ],
+          child: WindowTestingMenuHost(
+            actions: actions,
+            open: _menuOpen,
+            onDismiss: () => setState(() => _menuOpen = false),
+            topOffset: kDesktopTitleBarHeight + 4,
+            alignment: Alignment.topRight,
+            child: Positioned.fill(
+              child: zoomed
+                  ? frame
+                  : _ResizeHandles(
+                      window: w,
+                      onFocus: actions.focus,
+                      child: frame,
+                    ),
+            ),
           ),
         );
 
@@ -401,396 +298,6 @@ class _WindowFrameState extends State<WindowFrame> {
           child: body,
         );
       },
-    );
-  }
-}
-
-class _TitleBar extends StatefulWidget {
-  const _TitleBar({
-    required this.window,
-    required this.focused,
-    required this.zoomed,
-    required this.canMove,
-    required this.desk,
-    required this.onToggleZoom,
-    required this.onPin,
-    required this.isPinned,
-    required this.onReload,
-    required this.onHardRestartSandbox,
-    required this.menuOpen,
-    required this.onToggleMenu,
-    this.onFocus,
-    this.onClose,
-    this.onMinimize,
-  });
-
-  final DesktopWindowState window;
-  final bool focused;
-  final bool zoomed;
-  final bool canMove;
-  final Size desk;
-  final VoidCallback onToggleZoom;
-  final VoidCallback onPin;
-  final bool isPinned;
-  final VoidCallback onReload;
-  final VoidCallback onHardRestartSandbox;
-  final bool menuOpen;
-  final VoidCallback onToggleMenu;
-  final VoidCallback? onFocus;
-  final VoidCallback? onClose;
-  final VoidCallback? onMinimize;
-
-  @override
-  State<_TitleBar> createState() => _TitleBarState();
-}
-
-class _TitleBarState extends State<_TitleBar>
-    with SingleTickerProviderStateMixin {
-  bool _hoverControls = false;
-  late final AnimationController _spinController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 600),
-  );
-
-  DateTime _lastDown = DateTime(0);
-  Offset _lastPos = Offset.zero;
-
-  @override
-  void dispose() {
-    _spinController.dispose();
-    super.dispose();
-  }
-
-  void _onDown(PointerDownEvent e) {
-    final now = DateTime.now();
-    final quick = now.difference(_lastDown) < const Duration(milliseconds: 350);
-    final near = (e.position - _lastPos).distance < 6;
-    _lastDown = now;
-    _lastPos = e.position;
-    if (quick && near && !_hoverControls && !widget.menuOpen) {
-      _lastDown = DateTime(0);
-      widget.onToggleZoom();
-    } else {
-      widget.onFocus?.call();
-    }
-  }
-
-  void _triggerReload({bool hard = false}) {
-    _spinController.forward(from: 0);
-    if (hard) {
-      widget.onHardRestartSandbox();
-    } else {
-      widget.onReload();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = UiColors.of(context);
-    final w = widget.window;
-    final effectivePinned = widget.isPinned || w.isPinned;
-
-    return Listener(
-      onPointerDown: _onDown,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: widget.canMove ? (_) => widget.onFocus?.call() : null,
-        onPanUpdate: widget.canMove
-            ? (d) => w.moveBy(d.delta, widget.desk)
-            : null,
-        child: Container(
-          height: kDesktopTitleBarHeight,
-          decoration: BoxDecoration(
-            color: widget.focused ? c.titleBarFocused : c.titleBarBlurred,
-            border: Border(bottom: BorderSide(color: c.borderHairline)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Left: three 12px traffic lights, 8px apart
-              Align(
-                alignment: Alignment.centerLeft,
-                child: MouseRegion(
-                  onEnter: (_) => setState(() => _hoverControls = true),
-                  onExit: (_) => setState(() => _hoverControls = false),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _Light(
-                        key: ValueKey('window-close-btn-${w.id}'),
-                        color: c.error,
-                        active: widget.focused || _hoverControls,
-                        glyph: LucideIcons.x,
-                        showGlyph: _hoverControls,
-                        label: 'Close',
-                        onTap: widget.onClose ?? () {},
-                      ),
-                      const SizedBox(width: 8),
-                      _Light(
-                        key: ValueKey('window-minimize-btn-${w.id}'),
-                        color: c.working,
-                        active: widget.focused || _hoverControls,
-                        glyph: LucideIcons.minus,
-                        showGlyph: _hoverControls,
-                        label: 'Minimise',
-                        onTap: widget.onMinimize ?? () {},
-                      ),
-                      const SizedBox(width: 8),
-                      _Light(
-                        key: ValueKey('window-zoom-btn-${w.id}'),
-                        color: c.done,
-                        active: widget.focused || _hoverControls,
-                        glyph: widget.zoomed
-                            ? LucideIcons.minimize2
-                            : LucideIcons.maximize2,
-                        showGlyph: _hoverControls,
-                        label: 'Zoom',
-                        onTap: widget.onToggleZoom,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Centre: app icon + title 13/600 (+ optional sandbox status pill)
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: w.bounds.width >= 460 ? 148 : 96,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IcAppIcon(appId: w.appId, accentHex: w.accentHex, size: 16),
-                    const SizedBox(width: 7),
-                    Flexible(
-                      child: Text(
-                        w.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: UiType.textStyle(
-                          13,
-                          weight: FontWeight.w600,
-                          color: widget.focused ? c.textStrong : c.textMuted,
-                        ),
-                      ),
-                    ),
-                    if (w.sandboxStatusBadge != null) ...[
-                      const SizedBox(width: 6),
-                      TagPill(
-                        label: w.sandboxStatusBadge!,
-                        tone: TagTone.accent,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              // Right: Split workspace snap + OS tools overflow group (reload, pin, settings menu)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.canMove && w.bounds.width >= 460) ...[
-                      _OverflowActionButton(
-                        key: ValueKey('window-snap-left-btn-${w.id}'),
-                        tooltip: 'Split workspace left half',
-                        icon: LucideIcons.panelLeft,
-                        color: c.textMuted,
-                        onTap: () {
-                          widget.onFocus?.call();
-                          if (w.zoomed) w.toggleZoom();
-                          final halfW = ((widget.desk.width - 36) / 2).clamp(
-                            320.0,
-                            widget.desk.width,
-                          );
-                          final fullH = (widget.desk.height - 24).clamp(
-                            260.0,
-                            widget.desk.height,
-                          );
-                          w.setBounds(Rect.fromLTWH(12, 12, halfW, fullH));
-                        },
-                      ),
-                      const SizedBox(width: 2),
-                      _OverflowActionButton(
-                        key: ValueKey('window-snap-right-btn-${w.id}'),
-                        tooltip: 'Split workspace right half',
-                        icon: LucideIcons.panelRight,
-                        color: c.textMuted,
-                        onTap: () {
-                          widget.onFocus?.call();
-                          if (w.zoomed) w.toggleZoom();
-                          final halfW = ((widget.desk.width - 36) / 2).clamp(
-                            320.0,
-                            widget.desk.width,
-                          );
-                          final fullH = (widget.desk.height - 24).clamp(
-                            260.0,
-                            widget.desk.height,
-                          );
-                          final rightX = (widget.desk.width - halfW - 12).clamp(
-                            12.0,
-                            widget.desk.width,
-                          );
-                          w.setBounds(Rect.fromLTWH(rightX, 12, halfW, fullH));
-                        },
-                      ),
-                      const SizedBox(width: 2),
-                    ],
-                    _OverflowActionButton(
-                      key: ValueKey('window-reload-btn-${w.id}'),
-                      tooltip: 'Reload viewport (long-press for hard restart)',
-                      icon: LucideIcons.rotateCw,
-                      spinAnimation: _spinController,
-                      color: c.textMuted,
-                      onTap: () => _triggerReload(hard: false),
-                      onLongPress: () => _triggerReload(hard: true),
-                    ),
-                    const SizedBox(width: 2),
-                    _OverflowActionButton(
-                      key: ValueKey('window-pin-btn-${w.id}'),
-                      tooltip: effectivePinned
-                          ? 'Unpin window'
-                          : 'Pin window (always on top)',
-                      icon: effectivePinned
-                          ? LucideIcons.pinOff
-                          : LucideIcons.pin,
-                      active: effectivePinned,
-                      color: effectivePinned ? c.accent : c.textMuted,
-                      onTap: widget.onPin,
-                    ),
-                    const SizedBox(width: 2),
-                    _OverflowActionButton(
-                      key: ValueKey('window-settings-btn-${w.id}'),
-                      tooltip: 'Window & Sandbox options',
-                      icon: LucideIcons.moreHorizontal,
-                      active: widget.menuOpen,
-                      color: widget.menuOpen ? c.accent : c.textMuted,
-                      onTap: widget.onToggleMenu,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Light extends StatelessWidget {
-  const _Light({
-    super.key,
-    required this.color,
-    required this.active,
-    required this.glyph,
-    required this.showGlyph,
-    required this.label,
-    required this.onTap,
-  });
-
-  final Color color;
-  final bool active;
-  final IconData glyph;
-  final bool showGlyph;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = UiColors.of(context);
-    return Semantics(
-      button: true,
-      label: label,
-      child: GestureDetector(
-        onTap: onTap,
-        onDoubleTap: () {},
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: active ? color : c.borderInput,
-              shape: BoxShape.circle,
-            ),
-            child: showGlyph
-                ? Icon(glyph, size: 8, color: const Color(0xB317140F))
-                : null,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OverflowActionButton extends StatefulWidget {
-  const _OverflowActionButton({
-    super.key,
-    required this.tooltip,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.onLongPress,
-    this.active = false,
-    this.spinAnimation,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-  final bool active;
-  final Animation<double>? spinAnimation;
-
-  @override
-  State<_OverflowActionButton> createState() => _OverflowActionButtonState();
-}
-
-class _OverflowActionButtonState extends State<_OverflowActionButton> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = UiColors.of(context);
-    Widget iconWidget = Icon(
-      widget.icon,
-      size: 13.5,
-      color: widget.active
-          ? widget.color
-          : (_hover ? c.textStrong : widget.color),
-    );
-    if (widget.spinAnimation != null) {
-      iconWidget = RotationTransition(
-        turns: widget.spinAnimation!,
-        child: iconWidget,
-      );
-    }
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          onLongPress: widget.onLongPress,
-          child: Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: widget.active
-                  ? widget.color.withValues(alpha: 0.14)
-                  : (_hover ? c.surfaceSunk : Colors.transparent),
-              borderRadius: BorderRadius.circular(UiTokens.of(context).button),
-            ),
-            child: iconWidget,
-          ),
-        ),
-      ),
     );
   }
 }
