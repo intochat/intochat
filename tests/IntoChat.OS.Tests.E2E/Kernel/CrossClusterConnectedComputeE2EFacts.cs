@@ -1118,8 +1118,14 @@ internal sealed class CircleRelayTestServer : IAsyncDisposable
         _hostedOsAudience = hostedOsAudience;
     }
 
+    private volatile bool _simulateUnresponsiveWorker;
+
     public string Origin { get; }
-    public bool SimulateUnresponsiveWorker { get; set; }
+    public bool SimulateUnresponsiveWorker
+    {
+        get => _simulateUnresponsiveWorker;
+        set => _simulateUnresponsiveWorker = value;
+    }
     public int CapabilityReportsReceived => Volatile.Read(ref _capabilityReportsReceived);
     public int ServiceAssertionCallsVerified => Volatile.Read(ref _serviceAssertionCallsVerified);
     public int CapturedConsoleRequestCount => Volatile.Read(ref _capturedConsoleRequestCount);
@@ -1412,6 +1418,11 @@ internal sealed class CircleRelayTestServer : IAsyncDisposable
         var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(30);
         while (DateTimeOffset.UtcNow < deadline && !http.RequestAborted.IsCancellationRequested)
         {
+            if (SimulateUnresponsiveWorker)
+            {
+                break;
+            }
+
             if (queue.TryDequeue(out var job))
             {
                 job.Claimed.TrySetResult(true);
@@ -1462,6 +1473,11 @@ internal sealed class CircleRelayTestServer : IAsyncDisposable
         var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(30);
         while (DateTimeOffset.UtcNow < deadline && !http.RequestAborted.IsCancellationRequested)
         {
+            if (SimulateUnresponsiveWorker)
+            {
+                break;
+            }
+
             if (queue.TryDequeue(out var job))
             {
                 if (string.Equals(job.Request.Capability, ClientComputeConsentPolicy.ConsoleCapability, StringComparison.Ordinal))

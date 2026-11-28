@@ -12,6 +12,7 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
+using IntoChat.OS.Kernel.Composition.Machine;
 using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
@@ -449,6 +450,7 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
                 {
                     [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
                     [IntoChatOSNames.HomeKey] = homeDir,
+                    [MachineHosting.IdFileKey] = Path.Combine(homeDir, "machine-id"),
                     [IntoChatOSNames.ShellEnabledKey] = "false",
                     [IntoChatOSNames.FrontEnabledKey] = "false",
                     [AuthKeys.Posture] = "Open",

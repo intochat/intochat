@@ -11,6 +11,7 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
+using IntoChat.OS.Kernel.Composition.Machine;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Voice;
 using IntoChat.OS.Modules.Identity.Accounts;
@@ -91,6 +92,7 @@ internal sealed class VoiceHostHarness : IAsyncDisposable
             {
                 [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
                 [IntoChatOSNames.HomeKey] = homeDir,
+                [MachineHosting.IdFileKey] = Path.Combine(homeDir, "machine-id"),
                 [IntoChatOSNames.ShellEnabledKey] = "false",
                 [IntoChatOSNames.FrontEnabledKey] = "false",
                 [AuthKeys.Posture] = "Open",
