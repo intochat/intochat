@@ -342,6 +342,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
         var suffix = Guid.NewGuid().ToString("N")[..6];
         var specialistHandle = $"@gauntlet-{suffix}";
         var squadTitle = $"Gauntlet Squad {suffix}";
+        string? createdTaskId = null;
 
         await using var context = await host.NewBrowserContextAsync(ViewportWidth, ViewportHeight, ct);
         var page = await context.NewPageAsync();
@@ -428,7 +429,6 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
             await WaitForSemanticsTextContainsAsync(page, squadTaskTitle, ct);
             await WaitForSemanticsTextContainsAsync(page, "0/1 done", ct);
 
-            string createdTaskId;
             using (host.StampOwner())
             {
                 var tasks = SiloNeurons.Get<ITasks>(host.Services, ITasks.Key(brainId));
@@ -530,6 +530,22 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
         }
         finally
         {
+            if (!string.IsNullOrWhiteSpace(createdTaskId))
+            {
+                try
+                {
+                    using (host.StampOwner())
+                    {
+                        var tasks = SiloNeurons.Get<ITasks>(host.Services, ITasks.Key(brainId));
+                        await tasks.Transition(createdTaskId, TaskStatus.Completed, "Gauntlet cleanup");
+                    }
+                }
+                catch
+                {
+                    // Best-effort cleanup so pending ChoiceCard does not block subsequent tests.
+                }
+            }
+
             await CloseDrawerBestEffortAsync(ct);
         }
 

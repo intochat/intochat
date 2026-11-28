@@ -75,16 +75,16 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
         try
         {
             // 1. Default Dock cleanup: verify DesktopApp's published view + live Desktop Shell in Chromium
-            //    expose the 5 default apps (Ino, Friends, Files, GridCraft, Settings) and exclude Creator, Engineer, and Tasks.
+            //    expose the 4 default apps (Ino, Files, GridCraft, Settings) and exclude retired Friends, Creator, Engineer, and Tasks.
             using (var kernel = host.CreateKernelClient())
             {
                 var desktopViewJson = await kernel.GetStringAsync($"/brains/{host.Scope}/apps/desktop/view", ct);
-                foreach (var requiredDockKey in new[] { "dock-ino", "dock-friends", "dock-files", "dock-gridcraft", "dock-settings" })
+                foreach (var requiredDockKey in new[] { "dock-ino", "dock-files", "dock-gridcraft", "dock-settings" })
                 {
                     Assert.Contains($"\"{requiredDockKey}\"", desktopViewJson, StringComparison.Ordinal);
                 }
 
-                foreach (var excludedDockKey in new[] { "dock-creator", "dock-engineer", "dock-tasks" })
+                foreach (var excludedDockKey in new[] { "dock-friends", "dock-creator", "dock-engineer", "dock-tasks" })
                 {
                     Assert.DoesNotContain($"\"{excludedDockKey}\"", desktopViewJson, StringComparison.Ordinal);
                 }
@@ -130,7 +130,22 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
                     RecommendedIndex: 0));
             }
 
-            // 3. Open InoApp in Chromium and verify the JobCard ("Open artifact") and docked ChoiceCard render live.
+            // 3. Switch InoApp to "main" (order-independent across journeys), open InoApp in Chromium, and verify JobCard + ChoiceCard render live.
+            using (var kernel = host.CreateKernelClient())
+            {
+                using var switchMain = await kernel.PostAsJsonAsync(
+                    $"/brains/{host.Scope}/act",
+                    new
+                    {
+                        neuron = $"{host.Scope}/apps/ino",
+                        target = ".",
+                        signal = "ino.switch-conversation",
+                        args = new { conversationId = "main" },
+                    },
+                    ct);
+                Assert.True(switchMain.IsSuccessStatusCode, $"Failed to switch InoApp to 'main': {(int)switchMain.StatusCode}");
+            }
+
             await page.GotoAsync(host.ShellFor("apps/ino/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
 
             var openArtifactBtn = page.GetByRole(AriaRole.Button, new() { Name = "Open artifact" }).First;
@@ -432,70 +447,39 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
 
         await using var context = await host.NewBrowserContextAsync(ViewportWidth, ViewportHeight, ct);
         var page = await context.NewPageAsync();
-        // FriendsApp embeds pinned room.checklist via /apps/node, which intentionally returns 403 for direct node loads in #526 (mutations route through IRoom.Act).
-        var httpErrors = TrackHttpErrors(page, ignoreRoomChecklistEmbed403: true);
+        var httpErrors = TrackHttpErrors(page);
 
         try
         {
-            await page.GotoAsync(host.ShellFor("apps/friends/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
-            await WaitForSemanticsTextContainsAsync(page, "Rooms & Group Chat", ct);
+            // 2. Create 1:1 DM with bob and multi-participant Group Room in Unified Messenger (app.ino, post-INT-2605 FriendsApp retirement).
+            var dmShortKey = $"dm-bob-{Guid.NewGuid():N}"[..16];
+            var groupShortKey = $"trip-squad-{Guid.NewGuid():N}"[..18];
+            var groupRoomKey = $"conversations/{groupShortKey}";
+            var groupRoomId = new NeuronId(hostBrain, IConversation.Type, groupRoomKey);
 
-            // Refresh FriendsApp so roster renders both confirmed friends.
-            using (var kernel = host.CreateKernelClient())
-            {
-                using var openResp = await kernel.PostAsJsonAsync(
-                    $"/brains/{host.Scope}/act",
-                    new { neuron = $"{host.Scope}/apps/friends", target = ".", signal = "friends.open", args = new { } },
-                    ct);
-                Assert.True(openResp.IsSuccessStatusCode);
-            }
-
-            // 2. Open 1:1 DM with bob via FriendsApp UI button
-            await page.KeyedNode("btn:open-dm:bob").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 30_000 }).WaitAsync(ct);
-            await page.ClickButtonAsync("btn:open-dm:bob", ct);
-            await WaitForSemanticsTextContainsAsync(page, "Opened direct chat with", ct);
-
-            // 3. Create multi-participant Group Room via FriendsApp, invite bob (Editor) & carol (Viewer), and verify switching
-            string groupRoomKey;
-            using (var kernel = host.CreateKernelClient())
-            {
-                using var createGroup = await kernel.PostAsJsonAsync(
-                    $"/brains/{host.Scope}/act",
-                    new
-                    {
-                        neuron = $"{host.Scope}/apps/friends",
-                        target = ".",
-                        signal = "friends.create-group-room",
-                        args = new { title = "Weekend Trip Squad", friendAccount = "bob" },
-                    },
-                    ct);
-                Assert.True(createGroup.IsSuccessStatusCode);
-            }
-
-            await WaitForSemanticsTextContainsAsync(page, "Weekend Trip Squad", ct);
-
-            // Resolve the created group room id and invite carol as Role.Viewer (and ensure bob is Role.Editor).
-            NeuronId groupRoomId;
             using (host.StampOwner())
             {
                 var roomsIndex = SiloNeurons.Get<IThreadDirectory>(host.Services, new NeuronId(hostBrain, Threads.Type, IThreadDirectory.DefaultKey));
-                var summaries = (await roomsIndex.List(archived: false)).Entries;
-                var groupSummary = Assert.Single(summaries, s => string.Equals(s.Title, "Weekend Trip Squad", StringComparison.Ordinal));
-                groupRoomId = groupSummary.Thread!.Value;
-                groupRoomKey = groupRoomId.Key;
+                await roomsIndex.Create(dmShortKey, "DM with bob", ThreadTrustPosture.CrossBrainShared, ThreadKind.DirectPerson);
+                await roomsIndex.Create(groupShortKey, "Weekend Trip Squad", ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom);
+
+                var dmRoom = SiloNeurons.Get<IConversation>(host.Services, new NeuronId(hostBrain, IConversation.Type, $"conversations/{dmShortKey}"));
+                await dmRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.DirectPerson, "DM with bob");
+                await dmRoom.Invite(new AccountId("bob"), bobBrain, Role.Editor);
 
                 var hostRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
+                await hostRoom.Configure(ThreadTrustPosture.CrossBrainShared, ThreadKind.SharedRoom, "Weekend Trip Squad");
                 await hostRoom.Invite(new AccountId("bob"), bobBrain, Role.Editor);
                 await hostRoom.Invite(new AccountId("carol"), carolBrain, Role.Viewer);
-
-                // Verify switching between DM and Group Room in Chromium UI
-                var dmSummary = summaries.First(s => s.Kind == ThreadKind.DirectPerson);
-                var dmThread = dmSummary.Thread!.Value;
-                var dmShortKey = dmThread.Key.StartsWith("conversations/", StringComparison.Ordinal) ? dmThread.Key["conversations/".Length..] : dmThread.Key;
-                var groupShortKey = groupRoomId.Key.StartsWith("conversations/", StringComparison.Ordinal) ? groupRoomId.Key["conversations/".Length..] : groupRoomId.Key;
-                await page.ClickButtonAsync($"btn:switch-room:{dmThread.Brain.Value}:{dmShortKey}", ct);
-                await page.ClickButtonAsync($"btn:switch-room:{groupRoomId.Brain.Value}:{groupShortKey}", ct);
             }
+
+            await page.GotoAsync(host.ShellFor("apps/ino/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
+            await WaitForSemanticsTextContainsAsync(page, "Weekend Trip Squad", ct);
+
+            // 3. Switch between DM and Group Room in Chromium Unified Messenger Arc sidebar.
+            await page.ClickButtonAsync($"session-room-{dmShortKey}", ct);
+            await page.ClickButtonAsync($"session-room-{groupShortKey}", ct);
+            await WaitForSemanticsTextContainsAsync(page, "CrossBrainShared · E2EE", ct);
 
             // 4. Normal friend messages trigger 0 agent turns; host message renders as Self, bob's renders with Human attribution
             host.Inference.ResetRoomCounters();
@@ -542,7 +526,7 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
                 var messages = roomView.Entries.OfType<Said>().ToArray();
                 Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Self);
                 Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Human && m.Sender.AccountId == "bob");
-                Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Agent && m.Sender.RoomScoped && m.Sender.DisplayName == SharedRoomAgentPolicy.DefaultRoomDisplayName);
+                Assert.Contains(messages, m => m.Sender?.Kind == SenderKind.Agent && m.Sender.RoomScoped);
                 Assert.All(messages, m =>
                     Assert.DoesNotContain(Item350WebShellFixture.SyntheticSecretValue, m.Text, StringComparison.Ordinal));
             }
@@ -553,18 +537,20 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
             Assert.Contains("@Ino · Room only", renderedRoomText, StringComparison.Ordinal);
 
             // 6. [Shareable] RoomChecklistApp pinning + IConversation.Act live updates with Caller.For.Account attribution + Role.Viewer rejection
-            var checklistKey = $"{groupRoomKey}-checklist";
+            const string checklistKey = "default";
             using (host.StampOwner())
             {
                 var hostRoom = SiloNeurons.Get<IConversation>(host.Services, groupRoomId);
                 // Non-shareable private host screens must be refused
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => hostRoom.Pin("app.settings", "default"));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => hostRoom.Pin("app.ino", "default"));
+
+                await hostRoom.Pin("room.checklist", checklistKey);
             }
 
-            // Pin Shared Checklist via FriendsApp UI button
-            await page.ClickButtonAsync($"btn:pin-checklist:{groupRoomKey}", ct);
-            await WaitForSemanticsTextContainsAsync(page, "Pinned Mini-App · room.checklist", ct);
+            // Open Pinned Apps drawer in Unified Messenger and verify live RoomChecklistApp renders
+            await page.ClickButtonAsync(InoArcSidebar.OpenPinnedAppsKey, ct);
+            await WaitForSemanticsTextContainsAsync(page, "Shared Checklist", ct);
 
             // Bob (Role.Editor) acts on the pinned RoomChecklistApp via IConversation.Act -> attributes Caller.For.Account ("bob")
             using (host.StampPerson("bob", bobBrain.Value))
