@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../connections/connect_window.dart';
 import '../desktop/command_palette.dart';
-import '../desktop/guest_status_pill.dart';
+import '../desktop/desktop_overlays.dart';
 import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
 import 'apps/app_activations.dart';
@@ -77,13 +77,13 @@ class WorkspaceAppState extends State<WorkspaceApp>
             preferences.writePreferences(widget.persistenceKey, value),
       );
   late final _localPreferences = WorkspaceLocalPreferences(store);
-  bool _guestDownloadModalOpen = false;
 
-  bool get _isGuestSession =>
-      widget.isGuest ??
-      widget.isEphemeral ??
-      ((widget.programmingClient?.isGuestSession ?? false) ||
-          (_brain?.startsWith('try-') ?? false));
+  bool get _isGuestSession => resolveIsGuestSession(
+    isGuest: widget.isGuest,
+    isEphemeral: widget.isEphemeral,
+    clientIsGuest: widget.programmingClient?.isGuestSession ?? false,
+    brainId: _brain,
+  );
 
   Duration? get _guestRemaining =>
       widget.guestRemaining ?? widget.programmingClient?.guestRemaining;
@@ -908,23 +908,15 @@ class WorkspaceAppState extends State<WorkspaceApp>
                     });
                   },
                 ),
-              if ((_isGuestSession &&
-                      !_isDesktopRoot &&
-                      widget.programmingClient?.chromeless != true) ||
-                  _guestDownloadModalOpen)
-                Positioned.fill(
-                  child: GuestChromeOverlay(
+              Positioned.fill(
+                child: DesktopChromeOverlayHost(
+                  guestChrome: DesktopGuestChromeConfig(
                     showPill:
                         _isGuestSession &&
                         !_isDesktopRoot &&
                         widget.programmingClient?.chromeless != true,
-                    downloadModalOpen: _guestDownloadModalOpen,
                     remaining: _guestRemaining,
                     onSaveBrain: _triggerSaveGuestBrain,
-                    onDownloadApp: () =>
-                        setState(() => _guestDownloadModalOpen = true),
-                    onCloseDownloadModal: () =>
-                        setState(() => _guestDownloadModalOpen = false),
                     onOpenUrl: widget.onOpenUrl == null
                         ? null
                         : (uri) => unawaited(widget.onOpenUrl!(uri)),
@@ -932,6 +924,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                     useSafeArea: true,
                   ),
                 ),
+              ),
             ],
           ),
         ),
