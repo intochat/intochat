@@ -12,6 +12,7 @@ using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Surface;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.AI.Agents.Tools;
 
@@ -95,6 +96,7 @@ internal static class ToolSourceTools
             return [];
         }
 
+        var ownerBrain = ResolveOwnerBrain(edge, conversation);
         var resolvedSources = new List<(string ContractName, string Key)>(sourceKeys.Count);
         Dictionary<string, string>? fallbackKeyToContract = null;
 
@@ -106,6 +108,16 @@ internal static class ToolSourceTools
             }
 
             var key = rawKey.Trim();
+            if (!IsSameBrainSource(key, ownerBrain))
+            {
+                OsConsoleLog.For<ToolSourceFunction>().LogWarning(
+                    "Denied cross-brain tool source '{SourceKey}' for conversation '{Conversation}' (owner brain '{OwnerBrain}').",
+                    key,
+                    conversation,
+                    ownerBrain);
+                continue;
+            }
+
             if (ConnectionKeys.TryParse(key, out var parsed)
                 && byConnectorAlias.TryGetValue(parsed.ConnectorId, out var contractName))
             {
@@ -143,13 +155,30 @@ internal static class ToolSourceTools
         ArgumentNullException.ThrowIfNull(call);
         ArgumentNullException.ThrowIfNull(sources);
 
+        var ownerBrain = ResolveOwnerBrain(edge, conversation);
         var tools = new List<AIFunction>();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var (contractName, key) in sources)
+        foreach (var (contractName, rawKey) in sources)
         {
-            if (string.IsNullOrWhiteSpace(contractName) || string.IsNullOrWhiteSpace(key) || !seenKeys.Add(key))
+            if (string.IsNullOrWhiteSpace(contractName) || string.IsNullOrWhiteSpace(rawKey))
+            {
+                continue;
+            }
+
+            var key = rawKey.Trim();
+            if (!IsSameBrainSource(key, ownerBrain))
+            {
+                OsConsoleLog.For<ToolSourceFunction>().LogWarning(
+                    "Denied cross-brain tool source '{SourceKey}' for conversation '{Conversation}' (owner brain '{OwnerBrain}').",
+                    key,
+                    conversation,
+                    ownerBrain);
+                continue;
+            }
+
+            if (!seenKeys.Add(key))
             {
                 continue;
             }
@@ -158,6 +187,35 @@ internal static class ToolSourceTools
         }
 
         return tools;
+    }
+
+    private static string ResolveOwnerBrain(EdgeAuthority? edge, string? conversation)
+    {
+        if (!string.IsNullOrWhiteSpace(conversation) && conversation.Contains('/', StringComparison.Ordinal))
+        {
+            var fromConversation = DigitalBrain.Brains.BrainKey.BrainOf(conversation);
+            if (!string.IsNullOrWhiteSpace(fromConversation))
+            {
+                return fromConversation;
+            }
+        }
+
+        if (edge?.Current?.Brain.Value is { Length: > 0 } callerBrain)
+        {
+            return callerBrain;
+        }
+
+        return string.Empty;
+    }
+
+    internal static bool IsSameBrainSource(string key, string ownerBrain)
+    {
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(ownerBrain))
+        {
+            return false;
+        }
+
+        return key.StartsWith(ownerBrain + "/", StringComparison.Ordinal);
     }
 
     internal static async Task<IReadOnlyList<AIFunction>> For(

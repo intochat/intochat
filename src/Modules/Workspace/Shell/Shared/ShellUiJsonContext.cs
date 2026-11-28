@@ -10,6 +10,8 @@ internal sealed record ConnectResponse(ViewRef? Root, string? ActivationApp);
 
 internal sealed record ActDeliveredResponse(bool Delivered);
 
+internal sealed record SpecialistOpenPayload(string AppId);
+
 internal sealed record UiErrorResponse(
     string Error,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason = null);
@@ -34,6 +36,7 @@ internal sealed record TargetedViewportResponse(
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, MaxDepth = 128)]
 [JsonSerializable(typeof(ConnectResponse))]
 [JsonSerializable(typeof(ActDeliveredResponse))]
+[JsonSerializable(typeof(SpecialistOpenPayload))]
 [JsonSerializable(typeof(UiErrorResponse))]
 [JsonSerializable(typeof(UnitViewportResponse))]
 [JsonSerializable(typeof(EmptyViewportResponse))]

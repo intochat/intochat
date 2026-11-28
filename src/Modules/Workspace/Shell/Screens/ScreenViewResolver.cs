@@ -239,7 +239,7 @@ internal static class ScreenViewResolver
         var unit = new NeuronId(brainId, normalizedApp, "default");
         if (string.Equals(kind, IScreenTargetResolver.AgentAppKind, StringComparison.Ordinal))
         {
-            return [new NeuronId(brainId, "agentapp", normalizedApp)];
+            return [new NeuronId(brainId, "app.ino", "default")];
         }
         if (string.Equals(kind, IScreenTargetResolver.UnitKind, StringComparison.Ordinal))
         {

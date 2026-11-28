@@ -25,6 +25,10 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.pin-artifact")] public sealed record InoPinArtifact(string? FlowId = null, string? Alias = null, string? Title = null) : Signal;
 [Signal("ino.clear-context")] public sealed record InoClearContext : Signal;
 [Signal("ino.answer-task-ask")] public sealed record InoAnswerTaskAsk(string? TaskId = null, string? Option = null, int? OptionIndex = null, string? PlanId = null) : Signal;
+[Signal("ino.new-specialist")] public sealed record InoCreateSpecialist(string? Title = null, string? Handle = null, string? Instructions = null, string? Description = null, string[]? AllowedContracts = null, string[]? ToolSources = null, string? MemoryScope = null, string[]? Starters = null, Dictionary<string, string>? Settings = null, Dictionary<string, string>? Connections = null) : Signal;
+[Signal("ino.import-skill")] public sealed record InoImportSkill(string? FileName = null, string? Content = null, string? Handle = null, string[]? AllowedContracts = null, string[]? ToolSources = null, string? MemoryScope = null) : Signal;
+[Signal("ino.open-specialist")] public sealed record InoOpenSpecialist(string? AppId = null) : Signal;
+[Signal("ino.specialist-panel")] public sealed record InoToggleSpecialistPanel(string? Mode = null) : Signal;
 
 [Signal("ino.send")]
 public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : Signal

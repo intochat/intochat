@@ -72,12 +72,17 @@ public static partial class InoView
         ArgumentNullException.ThrowIfNull(voice);
         var shown = Thread(s, view);
         var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
+        var isSpecialist = !string.IsNullOrWhiteSpace(s.ActiveSpecialistAppId);
         var placeholder = hasDraft
             ? $"Ask Ino: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 96)}"
-            : "Ask anything.";
+            : isSpecialist
+                ? $"Message {s.Title}..."
+                : "Ask anything.";
         var emptyText = hasDraft
             ? $"Ready to ask: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 120)}"
-            : "What do you need?";
+            : isSpecialist
+                ? (string.IsNullOrWhiteSpace(s.ActiveSpecialistDescription) ? $"Start chatting with {s.Title}." : s.ActiveSpecialistDescription)
+                : "What do you need?";
         ChatThreadError? explicitError = null;
         if (s.Error is { } error)
         {
@@ -305,6 +310,16 @@ public static partial class InoView
                         .Style(OsMixStyles.PrimaryButton(small: true).Motion(UiMotion.Spring))
                         .Key(NewKey)
                         .Sends(new InoNew())
+                        .ToNode(),
+                    Button("+ New Specialist", Icons.Sparkles)
+                        .Small()
+                        .Key("ino:new-specialist")
+                        .Sends(new InoToggleSpecialistPanel("new"))
+                        .ToNode(),
+                    Button("Import SKILL.md", "upload")
+                        .Small()
+                        .Key("ino:import-skill")
+                        .Sends(new InoToggleSpecialistPanel("import"))
                         .ToNode()
                 ],
                 VStack(Space.Xs, navs),
@@ -357,6 +372,14 @@ public static partial class InoView
         {
             navAboveList.Add(Sessions(sessions, s.ConversationId));
         }
+        if (s.SpecialistPanelMode is "new" or "import" || !string.IsNullOrWhiteSpace(s.SpecialistError))
+        {
+            navAboveList.Add(RenderSpecialistAuthoringPanel(s));
+        }
+        if (!string.IsNullOrWhiteSpace(s.ActiveSpecialistAppId))
+        {
+            navAboveList.Add(RenderSpecialistBanner(s, view));
+        }
         navAboveList.AddRange(RenderNavigationSeedNodes(s, departureRejection));
         Node[] navAbove = [.. navAboveList];
 
@@ -387,6 +410,67 @@ public static partial class InoView
         }
 
         return leftColumn;
+    }
+
+    private static Node RenderSpecialistBanner(InoAppState s, ConversationView? view)
+    {
+        var titleRow = new List<Node>(2) { Heading(s.Title, 3) };
+        if (!string.IsNullOrWhiteSpace(s.ActiveSpecialistHandle))
+        {
+            titleRow.Add(MutedText(s.ActiveSpecialistHandle));
+        }
+
+        var headerChildren = new List<Node>(3) { HStack(Space.Sm, [.. titleRow]) };
+        if (!string.IsNullOrWhiteSpace(s.ActiveSpecialistDescription))
+        {
+            headerChildren.Add(MutedText(s.ActiveSpecialistDescription));
+        }
+
+        var hasMessages = view is { Entries.Length: > 0 };
+        if (!hasMessages && s.SpecialistStarters is { Length: > 0 })
+        {
+            var starterButtons = s.SpecialistStarters
+                .Select((starter, index) => Button(starter)
+                    .Key($"starter:{index}")
+                    .Small()
+                    .Sends(new InoSend(Message: starter))
+                    .ToNode())
+                .ToArray();
+            headerChildren.Add(HStack(Space.Sm, starterButtons));
+        }
+
+        return Surface(SurfaceKind.Acrylic)
+            .Style(Mix.Style().Tone(UiTone.Elevated).Padding(12).Radius(14))[
+            VStack(Space.Xs, [.. headerChildren])
+        ];
+    }
+
+    private static Node RenderSpecialistAuthoringPanel(InoAppState s)
+    {
+        var isImport = string.Equals(s.SpecialistPanelMode, "import", StringComparison.Ordinal);
+        var children = new List<Node>(4)
+        {
+            HStack(Space.Sm)[
+                Heading(isImport ? "Import SKILL.md Specialist" : "New Custom Specialist", 3),
+                Button("Close", "x")
+                    .Small()
+                    .Key("ino:specialist-panel-close")
+                    .Sends(new InoToggleSpecialistPanel(null))
+                    .ToNode()
+            ],
+            MutedText(isImport
+                ? "Paste or upload a SKILL.md file to create a least-privilege custom specialist bot in Unified Messenger."
+                : "Create a custom specialist bot with a unique @handle, curated least-privilege contracts, optional MCP tool sources, and optional isolated memory."),
+        };
+        if (!string.IsNullOrWhiteSpace(s.SpecialistError))
+        {
+            children.Add(Text(s.SpecialistError));
+        }
+
+        return Surface(SurfaceKind.Acrylic)
+            .Style(Mix.Style().Tone(UiTone.Elevated).Padding(14).Radius(16))[
+            VStack(Space.Sm, [.. children])
+        ];
     }
 
     internal static Node? BuildWaitingChoice(InoAppState s)

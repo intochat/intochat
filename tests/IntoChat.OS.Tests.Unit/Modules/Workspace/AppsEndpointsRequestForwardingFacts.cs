@@ -135,11 +135,11 @@ public sealed class AppsEndpointsRequestForwardingFacts
     public async Task ReadViewAsyncUsesScreenViewResolverAndAppliesChildKeysScreen()
     {
         var brainId = new BrainId("owner");
-        var resolvedId = new NeuronId(brainId, "agentapp", "custom");
+        var resolvedId = new NeuronId(brainId, "app.ino", "default");
         var viewJson = JsonDocument.Parse(
-            """{"title":"Custom","root":{"kind":"column","children":[{"key":"c1","kind":"neuronRef","refKind":"child","neuronUri":"owner/agentapp/custom/panel"}]}}""")
+            """{"title":"Custom","root":{"kind":"column","children":[{"key":"c1","kind":"neuronRef","refKind":"child","neuronUri":"owner/app.ino/default/panel"}]}}""")
             .RootElement.Clone();
-        var published = new PublishedView("agentapp", 3L, viewJson);
+        var published = new PublishedView("app.ino", 3L, viewJson);
 
         var brain = new StubBrain();
         brain.RegisterScreen(resolvedId, new StubScreen(published));
@@ -156,7 +156,7 @@ public sealed class AppsEndpointsRequestForwardingFacts
         var body = await new StreamReader(http.Response.Body).ReadToEndAsync(Ct);
 
         using var doc = JsonDocument.Parse(body);
-        Assert.Equal("agentapp", doc.RootElement.GetProperty("alias").GetString());
+        Assert.Equal("app.ino", doc.RootElement.GetProperty("alias").GetString());
         Assert.Equal(3L, doc.RootElement.GetProperty("generation").GetInt64());
         var view = doc.RootElement.GetProperty("view");
         Assert.Equal(View.ActRoute, view.GetProperty("acts").GetString());
@@ -178,8 +178,8 @@ public sealed class AppsEndpointsRequestForwardingFacts
     public async Task ForwardScreenRequestDelegatesTargetResolutionToScreenViewResolver()
     {
         var brainId = new BrainId("owner");
-        var resolvedId = new NeuronId(brainId, "agentapp", "custom");
-        var screen = new StubScreen(new PublishedView("agentapp", 1L, JsonDocument.Parse("{}").RootElement.Clone()));
+        var resolvedId = new NeuronId(brainId, "app.ino", "default");
+        var screen = new StubScreen(new PublishedView("app.ino", 1L, JsonDocument.Parse("{}").RootElement.Clone()));
         var brain = new StubBrain();
         brain.RegisterScreen(resolvedId, screen);
         var resolver = new StubTargetResolver(new ScreenTarget(resolvedId, IScreenTargetResolver.AgentAppKind));

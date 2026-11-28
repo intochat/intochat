@@ -129,6 +129,12 @@ internal static class AppUiEndpoints
         var screen = brain.Get<IScreen>(screenId);
         try
         {
+            if (resolved.IsAgentApp)
+            {
+                var appId = ScreenViewResolver.NormalizeAppId(scope, input.Neuron);
+                var openArgs = JsonSerializer.SerializeToElement(new SpecialistOpenPayload(appId), ShellUiJsonContext.Default.SpecialistOpenPayload);
+                await screen.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", openArgs)).WaitAsync(ct);
+            }
             await screen.Dispatch(new DigitalBrain.UI.Command(input.Target, input.Signal, args)).WaitAsync(ct);
         }
         catch (ActivationRefusedException refused)

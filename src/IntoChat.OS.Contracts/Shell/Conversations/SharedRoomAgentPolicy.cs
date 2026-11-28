@@ -216,6 +216,7 @@ public static partial class SharedRoomAgentPolicy
             IncludeComponentOperations = false,
             OperationApps = null,
             ToolSources = null,
+            MemoryScopeKey = null,
         };
     }
 
@@ -227,6 +228,7 @@ public static partial class SharedRoomAgentPolicy
             || definition.IncludeComponentOperations
             || definition.OperationApps is not null
             || definition.ToolSources is not null
+            || definition.MemoryScopeKey is not null
             || definition.Contracts.Any(c => !IsRoomSafeContract(c)))
         {
             throw new InvalidOperationException("SharedRoomAgentPolicy violated private-brain isolation invariants.");

@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context, answer-task-ask
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel
 */
 using IntoChat.OS.Host.Apps;
 using System.Text.Json;
@@ -59,6 +59,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<ICodeOrchestration> CodeOrchestrations { get; }
     [Slot(Key = ITasks.DefaultKey, Required = false)] private partial ITasks? Tasks { get; }
+    [Slot(Key = IInstalledApps.DefaultKey, Required = false)] private partial IInstalledApps? InstalledApps { get; }
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
@@ -146,24 +147,18 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             var targetConversationId = InoModel.ConversationIdOf(args.ConversationId);
             if (!string.Equals(targetConversationId, State.ConversationId, StringComparison.Ordinal))
             {
+                if (attached)
+                {
+                    await SwitchConversationAsync(targetConversationId, allowSameThreadRefresh: true);
+                    var withArgs = State.ApplyNavigation(args);
+                    if (!Equals(withArgs, State))
+                    {
+                        await Commit(withArgs);
+                    }
+                    return;
+                }
+
                 ResetConversationCache(targetConversationId);
-                if (attached)
-                {
-                    await InoModelSetup.OpenSessionAsync(Setup, targetConversationId);
-                    await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(InoModel.ConversationKeyOf(targetConversationId)));
-                }
-
-                var recents = attached
-                    ? await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations)
-                    : State.RecentConversations;
-                var switched = (InoModel.SwitchConversation(State, targetConversationId, recents) with { DraftPrompt = null })
-                    .ApplyNavigation(args);
-                if (attached)
-                {
-                    await Commit(switched);
-                    await RefreshConversationAsync(full: true);
-                }
-
                 return;
             }
         }
@@ -380,6 +375,160 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [On] public Task OnFlowsChanged(FlowsChanged? changed) => changed is { FlowId.Length: > 0 } ? RefreshApprovalsAsync(skipWhenBothEmpty: true) : Task.CompletedTask;
     [On] public Task OnTasksChanged(TasksChanged? changed) => changed is { TaskId.Length: > 0 } ? RefreshTasksAsync() : Task.CompletedTask;
     [On] public Task OnTaskAsked(TaskAsked? asked) => asked is { TaskId.Length: > 0 } ? RefreshTasksAsync() : Task.CompletedTask;
+
+    [On]
+    public Task ToggleSpecialistPanel(InoToggleSpecialistPanel request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var mode = string.IsNullOrWhiteSpace(request.Mode) ? null : request.Mode.Trim().ToLowerInvariant();
+        var nextMode = mode is "new" or "import"
+            ? (string.Equals(State.SpecialistPanelMode, mode, StringComparison.Ordinal) ? null : mode)
+            : null;
+        return Commit(State with { SpecialistPanelMode = nextMode, SpecialistError = null });
+    }
+
+    [On]
+    public async Task CreateSpecialist(InoCreateSpecialist request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var existing = await ReadExistingSpecialistsAsync();
+        var draft = new SpecialistDraft(
+            Title: request.Title,
+            Handle: request.Handle,
+            Instructions: request.Instructions,
+            Description: request.Description,
+            AllowedContracts: request.AllowedContracts,
+            ToolSources: request.ToolSources,
+            MemoryScope: request.MemoryScope,
+            Starters: request.Starters,
+            Settings: request.Settings,
+            Connections: request.Connections);
+        var prepared = SpecialistAuthoring.PrepareCreate(draft, existing, brainId: CurrentBrain.Value);
+        await CompleteSpecialistAuthoringAsync(prepared, request.Settings, request.Connections, panelMode: "new");
+    }
+
+    [On]
+    public async Task ImportSkill(InoImportSkill request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var existing = await ReadExistingSpecialistsAsync();
+        var prepared = SpecialistAuthoring.PrepareSkillImport(
+            fileName: request.FileName,
+            markdown: request.Content,
+            existingSpecialists: existing,
+            handleOverride: request.Handle,
+            allowedContractsOverride: request.AllowedContracts,
+            toolSourcesOverride: request.ToolSources,
+            memoryScopeOverride: request.MemoryScope,
+            includeTregSlot: false,
+            brainId: CurrentBrain.Value);
+        await CompleteSpecialistAuthoringAsync(prepared, settings: null, connections: null, panelMode: "import");
+    }
+
+    [On]
+    public Task OpenSpecialist(InoOpenSpecialist request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.AppId))
+        {
+            return RecordRejectionAsync(new Rejected("open-specialist", ["invalid_specialist"], ["Specify a specialist app id to open."]));
+        }
+
+        string conversationId;
+        try
+        {
+            conversationId = AgentAppPolicy.ConversationOf(request.AppId.Trim()).Value;
+        }
+        catch (ArgumentException error)
+        {
+            return RecordRejectionAsync(new Rejected("open-specialist", ["invalid_specialist"], [error.Message]));
+        }
+
+        return SwitchConversationAsync(conversationId, allowSameThreadRefresh: true);
+    }
+
+    private async Task CompleteSpecialistAuthoringAsync(
+        SpecialistAuthoringResult prepared,
+        Dictionary<string, string>? settings,
+        Dictionary<string, string>? connections,
+        string panelMode)
+    {
+        if (!prepared.Succeeded || string.IsNullOrWhiteSpace(prepared.AppId) || prepared.Manifest is null)
+        {
+            var message = prepared.Error ?? "Could not validate specialist configuration.";
+            await Commit(State with
+            {
+                SpecialistPanelMode = panelMode,
+                SpecialistError = message,
+                Status = message,
+            });
+            await RecordRejectionAsync(new Rejected("specialist-authoring", ["invalid_specialist"], [message]));
+            return;
+        }
+
+        try
+        {
+            await SpecialistAuthoring.CreateAndConfigureAsync(
+                prepared.AppId,
+                prepared.Manifest,
+                appId => Apps[AppNeuronIdOf(appId)],
+                settings,
+                connections);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            LogOptional(error, "specialist-create");
+            await Commit(State with
+            {
+                SpecialistPanelMode = panelMode,
+                SpecialistError = error.Message,
+                Status = error.Message,
+            });
+            await RecordRejectionAsync(new Rejected("specialist-authoring", ["specialist_create_failed"], [error.Message]));
+            return;
+        }
+
+        var conversationId = AgentAppPolicy.ConversationOf(prepared.AppId).Value;
+        await InoModelSetup.OpenSessionAsync(Setup, conversationId, prepared.Title);
+        await Commit(State with { SpecialistPanelMode = null, SpecialistError = null });
+        await SwitchConversationAsync(conversationId, allowSameThreadRefresh: true);
+    }
+
+    private async Task<List<(string AppId, string? Handle)>> ReadExistingSpecialistsAsync()
+    {
+        var result = new List<(string AppId, string? Handle)>();
+        if (InstalledApps is null || CurrentBrain.Value is not { Length: > 0 })
+        {
+            return result;
+        }
+
+        var tiles = await ReadOptionalAsync<AppTile[]>("installed-apps", [], InstalledApps.List);
+        foreach (var tile in tiles)
+        {
+            if (!string.Equals(tile.Kind, "agent", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(tile.Id))
+            {
+                continue;
+            }
+
+            AppSnapshot? snapshot = null;
+            await TryOptionalAsync("specialist-read", async () => snapshot = await Apps[AppNeuronIdOf(tile.Id)].Read());
+            if (snapshot?.Manifest?.Agent is { } agent)
+            {
+                result.Add((tile.Id, agent.Handle));
+            }
+        }
+
+        return result;
+    }
+
+    private NeuronId AppNeuronIdOf(string appId)
+    {
+        var fullKey = IntoChat.OS.Host.Primitives.AppRef.Of(CurrentBrain, appId).Key;
+        return new NeuronId(CurrentBrain, AppGrainType.Name, fullKey[(CurrentBrain.Value.Length + 1)..]);
+    }
+
+    private IApp? TryGetAppNeuron(string appId)
+        => CurrentBrain.Value is { Length: > 0 } ? Apps[AppNeuronIdOf(appId)] : null;
 
     [On]
     public async Task AnswerTaskAsk(InoAnswerTaskAsk request)
@@ -919,7 +1068,14 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         InoRuntimeSnapshot? snapshot = null)
     {
         var settings = cachedSettings ?? await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await UserSettings.Read());
-        if (settings is null) { return; }
+        if (settings is null)
+        {
+            if (AgentAppPolicy.IsSpecialistConversationId(conversationId))
+            {
+                await InoModelSetup.EnsureSeatedAsync(Setup, conversationId, new UserSettingsState(), effectiveModel: null);
+            }
+            return;
+        }
         var (_, effectiveModel, _) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings, snapshot);
         await InoModelSetup.EnsureSeatedAsync(Setup, conversationId, settings, effectiveModel);
     }
@@ -965,7 +1121,8 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         ReadOptionalAsync,
         ReadOptionalAsync,
         LogOptional,
-        Logger);
+        Logger,
+        TryGetAppNeuron);
 
     private async Task StartConversationAsync()
     {
@@ -981,12 +1138,12 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         await RefreshConversationAsync(full: true);
     }
 
-    private async Task SwitchConversationAsync(string? rawConversationId)
+    private async Task SwitchConversationAsync(string? rawConversationId, bool allowSameThreadRefresh = false)
     {
-        if (Decision.Check(
-                "switch-conversation",
-                InoAppState.ValidThreadSelectionRule(rawConversationId),
-                State.DistinctThreadSelectionRule(rawConversationId)) is { } refused)
+        Rule[] rules = allowSameThreadRefresh
+            ? [InoAppState.ValidThreadSelectionRule(rawConversationId)]
+            : [InoAppState.ValidThreadSelectionRule(rawConversationId), State.DistinctThreadSelectionRule(rawConversationId)];
+        if (Decision.Check("switch-conversation", rules) is { } refused)
         {
             await RecordRejectionAsync(refused.Rejection);
             return;
@@ -994,11 +1151,43 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         var conversationId = InoModel.ConversationIdOf(rawConversationId!);
         var conversationKey = InoModel.ConversationKeyOf(conversationId);
         ResetConversationCache(conversationId);
-        await InoModelSetup.OpenSessionAsync(Setup, conversationId);
+
+        string? specialistAppId = null;
+        string? specialistHandle = null;
+        string? specialistTitle = null;
+        string? specialistDescription = null;
+        string[] specialistStarters = [];
+        if (AgentAppPolicy.TryAppIdOf(conversationId, out var parsedAppId) && TryGetAppNeuron(parsedAppId) is { } specialistApp)
+        {
+            specialistAppId = parsedAppId;
+            AppSnapshot? appSnapshot = null;
+            await TryOptionalAsync("specialist-app-read", async () => appSnapshot = await specialistApp.Read());
+            if (appSnapshot?.Manifest is { Agent: not null } manifest)
+            {
+                specialistTitle = string.IsNullOrWhiteSpace(manifest.Title) ? parsedAppId : manifest.Title.Trim();
+                specialistDescription = manifest.Description;
+                specialistHandle = manifest.Agent.Handle;
+                specialistStarters = manifest.Agent.Starters ?? [];
+            }
+        }
+
+        await InoModelSetup.OpenSessionAsync(Setup, conversationId, specialistTitle);
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
         var snapshot = await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations);
-        await Commit(InoModel.SwitchConversation(State, conversationId, recents) with { DraftPrompt = null });
+        var baseSwitched = InoModel.SwitchConversation(State, conversationId, recents);
+        var nextState = baseSwitched with
+        {
+            DraftPrompt = null,
+            Title = specialistTitle ?? baseSwitched.Title,
+            ActiveSpecialistAppId = specialistAppId,
+            ActiveSpecialistHandle = specialistHandle,
+            ActiveSpecialistDescription = specialistDescription,
+            SpecialistStarters = specialistStarters,
+            SpecialistPanelMode = null,
+            SpecialistError = null,
+        };
+        await Commit(nextState);
         await TrySeatFromSettingsAsync(conversationId, snapshot: snapshot);
         await RefreshConversationAsync(full: true);
     }

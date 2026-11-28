@@ -185,6 +185,7 @@ public sealed record InoAppState(
     private readonly string[] _detectedLocalModels = [];
     private readonly string[] _recentConversations = [];
     private readonly InoTaskSummary[] _activeTasks = [];
+    private readonly string[] _specialistStarters = [];
 
     public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 
@@ -270,6 +271,20 @@ public sealed record InoAppState(
         get => _activeTasks;
         init => _activeTasks = value ?? [];
     }
+
+    public string? ActiveSpecialistAppId { get; init; }
+    public string? ActiveSpecialistHandle { get; init; }
+    public string? ActiveSpecialistDescription { get; init; }
+
+    [AllowNull]
+    public string[] SpecialistStarters
+    {
+        get => _specialistStarters;
+        init => _specialistStarters = value ?? [];
+    }
+
+    public string? SpecialistPanelMode { get; init; }
+    public string? SpecialistError { get; init; }
 
     // ── Domain Invariants ────────────────────────────────────────────────────
 

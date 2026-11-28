@@ -128,4 +128,60 @@ public sealed class AgentAppManifestFacts
         var agentBundle = new AppBundle("notes", "1.0.0", withAgent, "spec", new());
         Assert.NotEqual(AppPublicationDigest.Of(plainBundle), AppPublicationDigest.Of(agentBundle));
     }
+
+    [Fact]
+    public void SpecialistAgentFieldsNormalizeValidateAndRoundTripAsConcreteArrays()
+    {
+        var manifest = new AppManifest(
+            Title: "Code Reviewer",
+            Description: "Reviews PRs",
+            Operations: [],
+            Settings: [],
+            Slots: [],
+            Agent: new AppAgent(
+                Instructions: "Review diffs carefully.",
+                Handle: " Reviewer ",
+                AllowedContracts: ["IntoChat.OS.Modules.Microsoft.GitHub.IRepository"],
+                ToolSources: ["b1/connection/mcp/github"],
+                MemoryScope: MemoryScope.IsolatedBotScope)).Validated();
+
+        Assert.Equal("@reviewer", manifest.Agent!.Handle);
+        Assert.Equal(["IntoChat.OS.Modules.Microsoft.GitHub.IRepository"], manifest.Agent.AllowedContracts ?? []);
+        Assert.Equal(["b1/connection/mcp/github"], manifest.Agent.ToolSources ?? []);
+        Assert.Equal(MemoryScope.IsolatedBotScope, manifest.Agent.MemoryScope);
+
+        var roundTripped = RuntimeProtocol.Deserialize(
+            RuntimeProtocol.SerializeToElement(manifest, typeof(AppManifest)),
+            typeof(AppManifest)) as AppManifest;
+
+        Assert.NotNull(roundTripped);
+        Assert.Equal(manifest.Title, roundTripped.Title);
+        Assert.Equal(manifest.Description, roundTripped.Description);
+        Assert.Equal(manifest.Agent, roundTripped.Agent);
+    }
+
+    [Fact]
+    public void ManifestValidationRejectsReservedHandleAndDisallowedContracts()
+    {
+        var reserved = ValidAgentManifest(agent: new AppAgent("Help", Handle: "@ino"));
+        Assert.Throws<InvalidDataException>(reserved.Validated);
+
+        var disallowed = ValidAgentManifest(agent: new AppAgent(
+            "Help",
+            Handle: "@helper",
+            AllowedContracts: ["DigitalBrain.Capabilities.Secrets.ISecretVault"]));
+        Assert.Throws<InvalidDataException>(disallowed.Validated);
+
+        var malformedToolSource = ValidAgentManifest(agent: new AppAgent(
+            "Help",
+            Handle: "@helper",
+            ToolSources: ["not-a-canonical-connection-key"]));
+        Assert.Throws<InvalidDataException>(malformedToolSource.Validated);
+
+        var traversalToolSource = ValidAgentManifest(agent: new AppAgent(
+            "Help",
+            Handle: "@helper",
+            ToolSources: ["b1/connection/mcp/../secret"]));
+        Assert.Throws<InvalidDataException>(traversalToolSource.Validated);
+    }
 }

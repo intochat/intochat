@@ -328,6 +328,12 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
 
     private IKnowledgeStore? TryGetStore()
     {
+        // Isolated specialist bot memory (memory/bots/{appId}) must NEVER read from or write to the shared host knowledge store.
+        if (IntoChat.OS.Modules.Apps.BotMemoryScope.IsBotMemoryKey(Id.Key))
+        {
+            return null;
+        }
+
         try
         {
             return Get<IKnowledgeStore>(new NeuronId(Id.Brain, "ai.knowledge-store", KnowledgeGraphSource.StoreKey));

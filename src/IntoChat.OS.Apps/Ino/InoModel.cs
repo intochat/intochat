@@ -184,6 +184,11 @@ public static class InoModel
             Error = null,
             ActiveSection = "chat",
             RecentConversations = recentConversations ?? s.RecentConversations,
+            ActiveSpecialistAppId = null,
+            ActiveSpecialistHandle = null,
+            ActiveSpecialistDescription = null,
+            SpecialistStarters = [],
+            SpecialistError = null,
         };
     }
 

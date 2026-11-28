@@ -2,7 +2,7 @@
 # Desktop
 Role: Shell
 Shipped: true
-Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, focus, tab, newtab, unpin, favourite, widget-open, widget-close, settings
+Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, focus, tab, newtab, unpin, favourite, widget-open, widget-close, settings, new-specialist, import-skill
 
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
@@ -76,6 +76,28 @@ public sealed record DesktopWidgetClose(string? Widget = null) : Signal;
 [Signal("desktop.settings")]
 public sealed record DesktopSettings : Signal;
 
+[Signal("desktop.new-specialist")]
+public sealed record DesktopCreateSpecialist(
+    string? Title = null,
+    string? Handle = null,
+    string? Instructions = null,
+    string? Description = null,
+    string[]? AllowedContracts = null,
+    string[]? ToolSources = null,
+    string? MemoryScope = null,
+    string[]? Starters = null,
+    Dictionary<string, string>? Settings = null,
+    Dictionary<string, string>? Connections = null) : Signal;
+
+[Signal("desktop.import-skill")]
+public sealed record DesktopImportSkill(
+    string? FileName = null,
+    string? Content = null,
+    string? Handle = null,
+    string[]? AllowedContracts = null,
+    string[]? ToolSources = null,
+    string? MemoryScope = null) : Signal;
+
 [Neuron("app.desktop")]
 [Screen("app.desktop", Title = "Desktop", Icon = Icons.LayoutGrid)]
 public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesktopShell
@@ -118,6 +140,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesk
             new("widget-open", "Open the widget named by Input."),
             new("widget-close", "Close the widget named by Input."),
             new("settings", "Open the settings."),
+            new("new-specialist", "Create a new custom specialist bot from Apps and open it in Unified Messenger."),
+            new("import-skill", "Import a SKILL.md specialist bot from Apps and open it in Unified Messenger."),
         ]);
 
     [Slot(Key = IDesktopRecords.Key, Required = false)] private partial IDesktopRecords? Records { get; }
@@ -428,6 +452,10 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesk
         }
 
         var app = request.App.Trim().ToLowerInvariant();
+        if (await TryRouteSpecialistToInoAsync(app))
+        {
+            return;
+        }
         if (request.View is { } view)
         {
             try
@@ -456,6 +484,168 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesk
 
                 return Decision.Check("open", DesktopAppState.WindowLimitInRule(ws.Windows))?.Rejection;
             });
+    }
+
+    [On]
+    public async Task CreateSpecialist(DesktopCreateSpecialist request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var existing = await ReadExistingSpecialistsAsync();
+        var prepared = IntoChat.OS.Apps.AgentApp.SpecialistAuthoring.PrepareCreate(
+            new IntoChat.OS.Apps.AgentApp.SpecialistDraft(
+                Title: request.Title,
+                Handle: request.Handle,
+                Instructions: request.Instructions,
+                Description: request.Description,
+                AllowedContracts: request.AllowedContracts,
+                ToolSources: request.ToolSources,
+                MemoryScope: request.MemoryScope,
+                Starters: request.Starters,
+                Settings: request.Settings,
+                Connections: request.Connections),
+            existing,
+            brainId: TryCurrentBrain());
+        await CompleteDesktopSpecialistAuthoringAsync(prepared, request.Settings, request.Connections);
+    }
+
+    [On]
+    public async Task ImportSkill(DesktopImportSkill request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var existing = await ReadExistingSpecialistsAsync();
+        var prepared = IntoChat.OS.Apps.AgentApp.SpecialistAuthoring.PrepareSkillImport(
+            fileName: request.FileName,
+            markdown: request.Content,
+            existingSpecialists: existing,
+            handleOverride: request.Handle,
+            allowedContractsOverride: request.AllowedContracts,
+            toolSourcesOverride: request.ToolSources,
+            memoryScopeOverride: request.MemoryScope,
+            includeTregSlot: false,
+            brainId: TryCurrentBrain());
+        await CompleteDesktopSpecialistAuthoringAsync(prepared, settings: null, connections: null);
+    }
+
+    private async Task CompleteDesktopSpecialistAuthoringAsync(
+        IntoChat.OS.Apps.AgentApp.SpecialistAuthoringResult prepared,
+        Dictionary<string, string>? settings,
+        Dictionary<string, string>? connections)
+    {
+        if (!prepared.Succeeded || string.IsNullOrWhiteSpace(prepared.AppId) || prepared.Manifest is null)
+        {
+            var message = prepared.Error ?? "Could not validate specialist configuration.";
+            await Show(State with { SpecialistError = message, Status = message });
+            await RecordRejectionAsync(new Rejected("specialist-authoring", ["invalid_specialist"], [message]));
+            return;
+        }
+
+        try
+        {
+            await IntoChat.OS.Apps.AgentApp.SpecialistAuthoring.CreateAndConfigureAsync(
+                prepared.AppId,
+                prepared.Manifest,
+                appId => Apps[$"apps/{appId}"],
+                settings,
+                connections);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogSwallowed(error, "Desktop specialist authoring failed.");
+            await Show(State with { SpecialistError = error.Message, Status = error.Message });
+            await RecordRejectionAsync(new Rejected("specialist-authoring", ["specialist_create_failed"], [error.Message]));
+            return;
+        }
+
+        RecordedRejection = null;
+        await Show(State with { SpecialistError = null, Status = $"Created specialist {prepared.Handle ?? prepared.Title}" });
+        await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
+        await TryRouteSpecialistToInoAsync(prepared.AppId, forceAgent: true);
+    }
+
+    private async Task<bool> TryRouteSpecialistToInoAsync(string appId, bool forceAgent = false)
+    {
+        var isAgent = forceAgent
+            || (State.Tiles ?? []).Any(t =>
+                string.Equals(t.Id, appId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(t.Kind, "agent", StringComparison.OrdinalIgnoreCase));
+
+        if (!isAgent)
+        {
+            try
+            {
+                var snapshot = await Apps[$"apps/{appId}"].Read();
+                isAgent = snapshot?.Manifest?.Agent is not null;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, $"Could not check whether app '{appId}' is a specialist.");
+            }
+        }
+
+        if (!isAgent)
+        {
+            return false;
+        }
+
+        try
+        {
+            var command = Sends(new IntoChat.OS.Apps.Ino.InoOpenSpecialist(appId));
+            if (InoScreen is { } inoScreen)
+            {
+                await inoScreen.Dispatch(command);
+            }
+            else
+            {
+                await Screens["app.ino"].Dispatch(command);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogSwallowed(error, $"Could not route specialist '{appId}' to InoApp.");
+        }
+
+        var brain = TryCurrentBrain();
+        await ApplyDesktopWorkspaceChangeAsync(
+            s => DesktopAppState.OpenWorkspaceApp(s, "ino", brain: brain),
+            _ => null);
+        return true;
+    }
+
+    private async Task<List<(string AppId, string? Handle)>> ReadExistingSpecialistsAsync()
+    {
+        var result = new List<(string AppId, string? Handle)>();
+        var tiles = State.Tiles;
+        if (tiles is null && InstalledApps is not null)
+        {
+            try { tiles = await InstalledApps.List(); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "Could not list installed apps for handle uniqueness check.");
+            }
+        }
+
+        foreach (var tile in tiles ?? [])
+        {
+            if (!string.Equals(tile.Kind, "agent", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(tile.Id))
+            {
+                continue;
+            }
+
+            try
+            {
+                var snapshot = await Apps[$"apps/{tile.Id}"].Read();
+                if (snapshot?.Manifest?.Agent is { } agent)
+                {
+                    result.Add((tile.Id, agent.Handle));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, $"Could not read specialist app '{tile.Id}'.");
+            }
+        }
+
+        return result;
     }
 
     [On]

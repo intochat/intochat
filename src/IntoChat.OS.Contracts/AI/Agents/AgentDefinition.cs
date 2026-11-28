@@ -33,4 +33,9 @@ public sealed record AgentDefinition
     /// without granting <see cref="Contracts"/> or meta discovery tools. Null uses the legacy <see cref="Contracts"/> path.
     /// </summary>
     public string[]? ToolSources { get; init; }
+    /// <summary>
+    /// Optional isolated bot memory scope key (e.g. <c>memory/bots/{appId}</c>). When set, memory recall and episode
+    /// persistence are strictly confined to that bot's isolated memory neuron and never touch host memory or other bots.
+    /// </summary>
+    public string? MemoryScopeKey { get; init; }
 }

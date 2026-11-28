@@ -57,7 +57,7 @@ internal sealed class ScreenTargetResolver(
                 var snapshot = await proxies.Get<IApp>(PlainNeuronContracts.IdOf(typeof(IApp), appRef.Key)).Read().WaitAsync(ct);
                 if (snapshot?.Manifest?.Agent is not null)
                 {
-                    return new ScreenTarget(new NeuronId(brainId, "agentapp", appRef.Name), IScreenTargetResolver.AgentAppKind);
+                    return new ScreenTarget(new NeuronId(brainId, "app.ino", "default"), IScreenTargetResolver.AgentAppKind);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
