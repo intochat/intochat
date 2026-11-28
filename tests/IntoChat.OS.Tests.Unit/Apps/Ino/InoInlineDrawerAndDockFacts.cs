@@ -354,7 +354,7 @@ public sealed class InoInlineDrawerAndDockFacts
         public Task<TaskRecord?> Read(string taskId)
             => Task.FromResult<TaskRecord?>(CurrentRecord());
 
-        public Task<TaskRecord> Create(string title, string description = "", string tag = "Task", string? flowId = null, string[]? allowedContracts = null)
+        public Task<TaskRecord> Create(string title, string description = "", string tag = "Task", string? flowId = null, string[]? allowedContracts = null, string? conversationId = null)
             => Task.FromResult(CurrentRecord());
 
         public Task<TaskRecord> Transition(string taskId, TaskStatus status, string? summary = null)

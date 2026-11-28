@@ -155,9 +155,10 @@ public static class AgentAppPolicy
             throw new InvalidOperationException($"Unsupported specialist memory scope '{agent.MemoryScope}'.");
         }
 
+        string? normalizedHandle = null;
         if (agent.Handle is not null)
         {
-            _ = AppAgentHandle.Normalize(agent.Handle);
+            normalizedHandle = AppAgentHandle.Normalize(agent.Handle);
         }
 
         var allowedContracts = ValidateAllowedContracts(agent.AllowedContracts);
@@ -230,6 +231,7 @@ public static class AgentAppPolicy
             IncludeComponentOperations = false,
             ToolSources = [.. sources],
             MemoryScopeKey = memoryScopeKey,
+            Handle = normalizedHandle,
         };
     }
 
@@ -245,6 +247,7 @@ public static class AgentAppPolicy
         return string.Equals(seated.DisplayName, wanted.DisplayName, StringComparison.Ordinal)
             && string.Equals(seated.Description, wanted.Description, StringComparison.Ordinal)
             && string.Equals(seated.Instructions, wanted.Instructions, StringComparison.Ordinal)
+            && string.Equals(seated.Handle, wanted.Handle, StringComparison.Ordinal)
             && Equals(seated.Model, wanted.Model)
             && seated.IncludeComponentOperations == wanted.IncludeComponentOperations
             && (seated.Contracts ?? []).SequenceEqual(wanted.Contracts ?? [], StringComparer.Ordinal)

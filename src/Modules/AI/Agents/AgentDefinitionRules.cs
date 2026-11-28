@@ -42,12 +42,14 @@ internal static class AgentDefinitionRules
         OperationApps = definition.OperationApps is null ? null : [.. definition.OperationApps],
         ToolSources = definition.ToolSources is null ? null : [.. definition.ToolSources],
         MemoryScopeKey = definition.MemoryScopeKey?.Trim(),
+        Handle = string.IsNullOrWhiteSpace(definition.Handle) ? null : definition.Handle.Trim(),
     };
 
     public static bool AreEqual(AgentDefinition a, AgentDefinition b)
         => string.Equals(a.DisplayName, b.DisplayName, StringComparison.Ordinal)
             && string.Equals(a.Description, b.Description, StringComparison.Ordinal)
             && string.Equals(a.Instructions, b.Instructions, StringComparison.Ordinal)
+            && string.Equals(a.Handle, b.Handle, StringComparison.Ordinal)
             && Equals(a.Model, b.Model)
             && Equals(a.Options, b.Options)
             && a.MaxModelCalls == b.MaxModelCalls

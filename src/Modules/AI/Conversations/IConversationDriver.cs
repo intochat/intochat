@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.AI.Conversations;
 internal interface IConversationDriver
 {
     [OneWayCall, Interleaves]
-    Task Drive(string runId, string? model, string? replaces, string? targetAgentId = null, int depth = 0);
+    Task Drive(string runId, string? model, string? replaces, string? targetAgentId = null, int depth = 0, string[]? queuedAgentIds = null);
 
     [OneWayCall, Interleaves]
     Task DriveSharedRoomAgent(long triggerRevision, string agentId);

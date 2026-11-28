@@ -528,6 +528,12 @@ internal static class InoModelSetup
             return;
         }
 
+        // Squad rooms manage their own explicit 2..N SeatedAgents roster; never auto-seat @ino unexpectedly.
+        if (conversationId.StartsWith("squad-", StringComparison.Ordinal))
+        {
+            return;
+        }
+
         var effectiveSettings = string.IsNullOrWhiteSpace(effectiveModel)
             ? settings
             : settings with { DefaultModel = effectiveModel.Trim() };

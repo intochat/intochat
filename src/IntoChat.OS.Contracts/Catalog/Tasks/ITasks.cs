@@ -126,7 +126,8 @@ public interface ITasks
         string description = "",
         string tag = "Task",
         string? flowId = null,
-        string[]? allowedContracts = null);
+        string[]? allowedContracts = null,
+        string? conversationId = null);
 
     /// <summary>Transitions a task to a new lifecycle status, optionally recording a summary.</summary>
     Task<TaskRecord> Transition(

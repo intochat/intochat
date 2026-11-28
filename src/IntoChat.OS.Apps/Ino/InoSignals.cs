@@ -29,6 +29,12 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.import-skill")] public sealed record InoImportSkill(string? FileName = null, string? Content = null, string? Handle = null, string[]? AllowedContracts = null, string[]? ToolSources = null, string? MemoryScope = null) : Signal;
 [Signal("ino.open-specialist")] public sealed record InoOpenSpecialist(string? AppId = null) : Signal;
 [Signal("ino.specialist-panel")] public sealed record InoToggleSpecialistPanel(string? Mode = null) : Signal;
+[Signal("ino.new-squad")] public sealed record InoCreateSquad(string? Title = null, string[]? AgentIds = null, string? LeadAgentId = null, string[]? ExternalAccounts = null) : Signal;
+[Signal("ino.open-squad-plan")] public sealed record InoOpenSquadPlan : Signal;
+[Signal("ino.squad-add-task")] public sealed record InoAddSquadTask(string? Title = null, string? Description = null, string? Tag = null) : Signal;
+[Signal("ino.squad-move-task")] public sealed record InoMoveSquadTask(string? TaskId = null, string? ColumnId = null, int Index = 0) : Signal;
+[Signal("ino.squad-toggle-task")] public sealed record InoToggleSquadTask(string? TaskId = null, bool? Checked = null) : Signal;
+[Signal("ino.chat-about-choice")] public sealed record InoChatAboutChoice(string? TaskId = null, bool Active = true) : Signal;
 
 [Signal("ino.send")]
 public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : Signal

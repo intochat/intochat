@@ -27,6 +27,8 @@ internal sealed record ConversationState
     public string? Title { get; init; }
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LeadAgentId { get; init; }
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HandoffLimitNotice { get; init; }
     public PinnedScreen[] PinnedScreens { get; init; } = [];
     public SeatedMember[] Members { get; init; } = [];
 }

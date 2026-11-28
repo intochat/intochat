@@ -174,7 +174,7 @@ public sealed record InoAppState(
     public const int MinProviderCredentialLength = 4;
 
     public static readonly string[] SupportedSections = ["chat", "chats", "approvals", "setup", "data"];
-    public static readonly string[] SupportedDrawerTabs = ["preview", "diff", "logs"];
+    public static readonly string[] SupportedDrawerTabs = ["preview", "diff", "logs", "plan"];
     public static readonly string[] SupportedProviders = ["openai", "anthropic", "google", "openrouter", "ollama"];
 
     private readonly InoTurn[] _turns = Turns ?? [];
@@ -186,6 +186,7 @@ public sealed record InoAppState(
     private readonly string[] _recentConversations = [];
     private readonly InoTaskSummary[] _activeTasks = [];
     private readonly string[] _specialistStarters = [];
+    private readonly InoEngineerRunSummary[] _squadEngineerRuns = [];
 
     public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 
@@ -286,9 +287,20 @@ public sealed record InoAppState(
     public string? SpecialistPanelMode { get; init; }
     public string? SpecialistError { get; init; }
 
+    [AllowNull]
+    public InoEngineerRunSummary[] SquadEngineerRuns
+    {
+        get => _squadEngineerRuns;
+        init => _squadEngineerRuns = value ?? [];
+    }
+
+    public string? SelectedSquadTaskId { get; init; }
+    public string? ChattingAboutChoiceTaskId { get; init; }
+    public string? SquadError { get; init; }
+
     // ── Domain Invariants ────────────────────────────────────────────────────
 
-    [Invariant("DrawerTab is always preview, diff, or logs."), JsonIgnore]
+    [Invariant("DrawerTab is always preview, diff, logs, or plan."), JsonIgnore]
     public bool ValidDrawerTabInvariant =>
         SupportedDrawerTabs.Contains(DrawerTab, StringComparer.Ordinal);
 
@@ -316,7 +328,8 @@ public sealed record InoAppState(
         && Approvals is not null
         && DetectedLocalModels is not null
         && RecentConversations is not null
-        && ActiveTasks is not null;
+        && ActiveTasks is not null
+        && SquadEngineerRuns is not null;
 
     [Invariant("Blocked sessions hold neither an active run nor a pending prompt."), JsonIgnore]
     public bool ConsistentSessionRunInvariant =>
@@ -573,10 +586,10 @@ public sealed record InoAppState(
         "invalid_drawer_tab",
         tab,
         static t => string.IsNullOrWhiteSpace(t) || !SupportedDrawerTabs.Contains(t.Trim().ToLowerInvariant(), StringComparer.Ordinal),
-        "Drawer tab must be preview, diff, or logs.");
+        "Drawer tab must be preview, diff, logs, or plan.");
 
     public Decision<InoAppState> SelectDrawerTab(
-        [Sample("preview", "diff", "logs", "invalid-tab")] string tab)
+        [Sample("preview", "diff", "logs", "plan", "invalid-tab")] string tab)
     {
         if (Decision.Check("drawer-tab", SupportedDrawerTabRule(tab)) is { } refused)
         {

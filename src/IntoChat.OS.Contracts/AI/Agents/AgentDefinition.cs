@@ -38,4 +38,8 @@ public sealed record AgentDefinition
     /// persistence are strictly confined to that bot's isolated memory neuron and never touch host memory or other bots.
     /// </summary>
     public string? MemoryScopeKey { get; init; }
+    /// <summary>
+    /// Optional normalized <c>@handle</c> (e.g. <c>@architect</c>, <c>@coder</c>) used for Squad <c>@mention</c> routing and participant chips.
+    /// </summary>
+    public string? Handle { get; init; }
 }

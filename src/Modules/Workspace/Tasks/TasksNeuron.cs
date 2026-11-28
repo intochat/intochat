@@ -42,7 +42,8 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         string description = "",
         string tag = "Task",
         string? flowId = null,
-        string[]? allowedContracts = null)
+        string[]? allowedContracts = null,
+        string? conversationId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         var now = Context.Time.GetUtcNow();
@@ -55,7 +56,9 @@ internal sealed class TasksNeuron : Neuron<TasksNeuronState>, ITasks
         }
 
         var resolvedOwner = CallerRules.ActsFor(Context.Caller) ?? "owner";
-        var resolvedConversation = Context.Caller?.Conversation;
+        var resolvedConversation = !string.IsNullOrWhiteSpace(conversationId)
+            ? conversationId.Trim()
+            : Context.Caller?.Conversation;
 
         var record = new TaskRecord(
             TaskId: taskId,
