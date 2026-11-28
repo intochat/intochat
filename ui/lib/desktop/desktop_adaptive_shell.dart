@@ -26,7 +26,6 @@ class DesktopAdaptiveShell extends StatelessWidget {
     required this.mode,
     required this.stylePreset,
     required this.barLayout,
-    required this.desk,
     required this.mruWindows,
     required this.visibleWindows,
     required this.topWindow,
@@ -59,7 +58,6 @@ class DesktopAdaptiveShell extends StatelessWidget {
   final DesktopAdaptiveLayoutMode mode;
   final IcStylePreset stylePreset;
   final BarLayout barLayout;
-  final Size desk;
   final List<DesktopWindowProjection> mruWindows;
   final List<DesktopWindowProjection> visibleWindows;
   final DesktopWindowProjection? topWindow;
@@ -275,41 +273,44 @@ class DesktopAdaptiveShell extends StatelessWidget {
               itemCount: launcherApps.length,
               itemBuilder: (_, idx) {
                 final spec = launcherApps[idx];
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    Navigator.of(sheetCtx).pop();
-                    onLaunchApp(spec.id);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: uiColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: uiColors.hairline),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IcAppIcon(
-                          appId: spec.id,
-                          icon: spec.icon,
-                          accentHex: spec.accentHex,
-                          size: 26,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          spec.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: uiColors.strong,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
+                return Material(
+                  color: uiColors.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: uiColors.hairline),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      onLaunchApp(spec.id);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IcAppIcon(
+                            appId: spec.id,
+                            icon: spec.icon,
+                            accentHex: spec.accentHex,
+                            size: 26,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          Text(
+                            spec.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: uiColors.strong,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

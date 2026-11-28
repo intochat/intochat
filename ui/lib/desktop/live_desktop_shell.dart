@@ -511,7 +511,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 : DesktopAdaptiveLayoutMode.medium,
             stylePreset: widget.stylePreset,
             barLayout: widget.barLayout,
-            desk: desk,
             mruWindows: mruWindows,
             visibleWindows: visibleWindows,
             topWindow: topWindow,

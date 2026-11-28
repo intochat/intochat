@@ -237,7 +237,6 @@ void main() {
                 mode: DesktopAdaptiveLayoutMode.compact,
                 stylePreset: IcStylePreset.warmPaper,
                 barLayout: BarLayout.floatingGlass,
-                desk: const Size(390, 780),
                 mruWindows: const [sampleWindow],
                 visibleWindows: const [sampleWindow],
                 topWindow: sampleWindow,
@@ -295,6 +294,74 @@ void main() {
     );
 
     testWidgets(
+      'Compact shell opens All Apps sheet without throwing and launches selected app',
+      (tester) async {
+        const size = Size(390, 844);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        String? launchedAppId;
+
+        await tester.pumpWidget(
+          MediaQuery(
+            data: const MediaQueryData(size: size),
+            child: _wrapOverlay(
+              DesktopAdaptiveShell(
+                mode: DesktopAdaptiveLayoutMode.compact,
+                stylePreset: IcStylePreset.warmPaper,
+                barLayout: BarLayout.floatingGlass,
+                mruWindows: const [sampleWindow],
+                visibleWindows: const [sampleWindow],
+                topWindow: sampleWindow,
+                dockApps: const [],
+                launcherApps: const [_filesAppTile],
+                openWidgets: const [],
+                showDesktopOnly: false,
+                allAppsOpen: false,
+                themeStudioOpen: false,
+                presenceState: PresenceState.idle,
+                buildWindowViewHost: (w) => Center(child: Text('View:${w.id}')),
+                onLaunchApp: (id) => launchedAppId = id,
+                onToggleShowDesktop: () {},
+                onFocusWindow: (_) {},
+                onCloseWindow: (_) {},
+                onOpenWidget: (_) {},
+                onCloseWidget: (_) {},
+                onAutoArrange: () {},
+                onTogglePalette: () {},
+                onSelectPreset: (_) {},
+                onCycleBarLayout: () {},
+                onSetAllAppsOpen: (_) {},
+                onSetThemeStudioOpen: (_) {},
+                onClearOverlays: () {},
+                guestChrome: const DesktopGuestChromeConfig(showPill: false),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        await tester.tap(find.byKey(const ValueKey('ui_nav_item_apps')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('1 available'), findsOneWidget);
+        expect(find.text('Files'), findsOneWidget);
+
+        await tester.tap(find.text('Files'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        expect(launchedAppId, 'files');
+        expect(find.text('1 available'), findsNothing);
+      },
+    );
+
+    testWidgets(
       'Medium shell renders left nav rail, presence layer, modal overlays, and GuestStatusPill via DesktopChromeOverlayHost',
       (tester) async {
         const size = Size(768, 1024);
@@ -311,7 +378,6 @@ void main() {
                 mode: DesktopAdaptiveLayoutMode.medium,
                 stylePreset: IcStylePreset.warmPaper,
                 barLayout: BarLayout.floatingGlass,
-                desk: const Size(768, 960),
                 mruWindows: const [sampleWindow],
                 visibleWindows: const [sampleWindow],
                 topWindow: sampleWindow,
