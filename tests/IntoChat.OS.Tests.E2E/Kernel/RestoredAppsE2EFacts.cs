@@ -18,7 +18,6 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;

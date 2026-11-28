@@ -4,7 +4,6 @@ using DigitalBrain.Neurons;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -36,7 +35,6 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [InlineData(typeof(DesktopApp), "app.desktop")]
     [InlineData(typeof(GalleryApp), "app.gallery")]
     [InlineData(typeof(InoApp), "app.ino")]
-    [InlineData(typeof(FriendsApp), "app.friends")]
     public void ShellAppScreenNeuronsMatchNeuronAliasContract(Type screenType, string expectedNeuronType)
     {
         Assert.True(typeof(IScreen).IsAssignableFrom(screenType), $"{screenType.Name} must implement IScreen.");

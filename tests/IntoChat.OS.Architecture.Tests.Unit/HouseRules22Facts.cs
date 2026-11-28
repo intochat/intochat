@@ -932,7 +932,6 @@ public sealed class HouseRules22Facts
         var detachedFallbackAllowlist = new HashSet<string>(StringComparer.Ordinal)
         {
             "InoApp",
-            "FriendsApp",
             "CreatorApp",
             "AggregateScreenBase",
         };

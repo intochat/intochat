@@ -6,6 +6,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' hide Focus;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../core/mention_parser.dart';
 import '../primitives/display_primitives.dart';
 import '../design/keys.dart';
 import '../primitives/button.dart';
@@ -106,6 +107,9 @@ class _ConversationViewState extends State<ConversationView> {
   bool _hadWaiting = false;
   bool _suppressWaitingDefault = false;
   bool _chattingAboutWaiting = false;
+  String _lastDraftText = '';
+  int? _mentionDismissOffset;
+  int _mentionSelectedIndex = 0;
 
   late final ConversationController _conversation;
   final List<AttachmentNode> _stagedAttachments = <AttachmentNode>[];
@@ -208,7 +212,37 @@ class _ConversationViewState extends State<ConversationView> {
   }
 
   void _onDraftChange() {
+    final currentText = _controller.text;
+    if (currentText != _lastDraftText) {
+      _lastDraftText = currentText;
+      _mentionDismissOffset = null;
+      _mentionSelectedIndex = 0;
+    }
     if (mounted) setState(() {});
+  }
+
+  ActiveMentionToken? _activeMentionToken() => parseActiveMentionToken(
+    _controller.text,
+    _controller.selection,
+    dismissedOffset: _mentionDismissOffset,
+  );
+
+  List<String> _mentionCandidates(String query) =>
+      resolveMentionCandidates(widget.node.messages, query);
+
+  void _insertMention(ActiveMentionToken token, String handle) {
+    final text = _controller.text;
+    final replacement = '@$handle ';
+    final next = text.replaceRange(token.start, token.end, replacement);
+    final nextOffset = token.start + replacement.length;
+    _lastDraftText = next;
+    _mentionDismissOffset = null;
+    _mentionSelectedIndex = 0;
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: nextOffset),
+    );
+    _composerFocus.requestFocus();
   }
 
   void _appendDictationDraft(String text) {
@@ -317,6 +351,9 @@ class _ConversationViewState extends State<ConversationView> {
       if (sent == ActivationOutcome.accepted &&
           mounted &&
           _controller.text == draft) {
+        _mentionDismissOffset = null;
+        _mentionSelectedIndex = 0;
+        _lastDraftText = '';
         _controller.clear();
       }
     } finally {
@@ -365,6 +402,43 @@ class _ConversationViewState extends State<ConversationView> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
+    final activeMention = _activeMentionToken();
+    if (activeMention != null) {
+      final candidates = _mentionCandidates(activeMention.query);
+      if (candidates.isNotEmpty) {
+        if (key == LogicalKeyboardKey.escape) {
+          setState(() => _mentionDismissOffset = activeMention.start);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown ||
+            key == LogicalKeyboardKey.arrowRight) {
+          setState(
+            () => _mentionSelectedIndex =
+                (_mentionSelectedIndex + 1) % candidates.length,
+          );
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowLeft) {
+          setState(
+            () => _mentionSelectedIndex =
+                (_mentionSelectedIndex - 1 + candidates.length) %
+                candidates.length,
+          );
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.tab ||
+            ((key == LogicalKeyboardKey.enter ||
+                    key == LogicalKeyboardKey.numpadEnter) &&
+                !HardwareKeyboard.instance.isShiftPressed)) {
+          if (event is KeyDownEvent) {
+            final idx = _mentionSelectedIndex.clamp(0, candidates.length - 1);
+            _insertMention(activeMention, candidates[idx]);
+          }
+          return KeyEventResult.handled;
+        }
+      }
+    }
     final isEnter =
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter;
@@ -630,8 +704,12 @@ class _ConversationViewState extends State<ConversationView> {
                                   ),
                                 ),
                               ),
-                              GestureDetector(
-                                onTap: () {
+                              UiMixButton.preset(
+                                key: const ValueKey('return-to-choice'),
+                                label: 'Return to choice',
+                                style: UiMixButtonStyle.link,
+                                compact: true,
+                                onPressed: () {
                                   setState(() => _chattingAboutWaiting = false);
                                   WidgetsBinding.instance.addPostFrameCallback((
                                     _,
@@ -641,14 +719,6 @@ class _ConversationViewState extends State<ConversationView> {
                                     }
                                   });
                                 },
-                                child: Text(
-                                  'Return to choice',
-                                  style: UiType.textStyle(
-                                    12,
-                                    weight: FontWeight.w600,
-                                    color: c.accent,
-                                  ),
-                                ),
                               ),
                             ],
                           ),
@@ -681,6 +751,39 @@ class _ConversationViewState extends State<ConversationView> {
                           ),
                         ),
                       ),
+                    if (_activeMentionToken() case final mentionToken?)
+                      if (_mentionCandidates(mentionToken.query)
+                          case final candidates when candidates.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Wrap(
+                            key: const ValueKey('composer-mention-pills'),
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (var i = 0; i < candidates.length; i++)
+                                UiMixButton.preset(
+                                  key: ValueKey(
+                                    'composer-mention-${candidates[i]}',
+                                  ),
+                                  label: '@${candidates[i]}',
+                                  style:
+                                      i ==
+                                          _mentionSelectedIndex.clamp(
+                                            0,
+                                            candidates.length - 1,
+                                          )
+                                      ? UiMixButtonStyle.primary
+                                      : UiMixButtonStyle.secondary,
+                                  compact: true,
+                                  onPressed: () => _insertMention(
+                                    mentionToken,
+                                    candidates[i],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                     if (_stagedAttachments.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),

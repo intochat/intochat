@@ -505,7 +505,7 @@ public sealed class InoViewFacts
         Assert.False(conversation.Composer.Dictation);
 
         var screen = InoDrawing.Screen(state);
-        var rootConversation = Assert.IsType<Conversation>(Assert.Single(Assert.IsType<Column>(screen.Root).Children));
+        var rootConversation = Assert.Single(Assert.IsType<Column>(screen.Root).Children.OfType<Conversation>());
         Assert.False(rootConversation.Composer.Dictation);
     }
 
@@ -518,7 +518,7 @@ public sealed class InoViewFacts
         Assert.True(conversation.Composer.Dictation);
 
         var screen = InoDrawing.Screen(state, dictation: true);
-        var rootConversation = Assert.IsType<Conversation>(Assert.Single(Assert.IsType<Column>(screen.Root).Children));
+        var rootConversation = Assert.Single(Assert.IsType<Column>(screen.Root).Children.OfType<Conversation>());
         Assert.True(rootConversation.Composer.Dictation);
     }
 
@@ -526,8 +526,8 @@ public sealed class InoViewFacts
     public void TheThreadAloneStillFlexes()
     {
         var root = Assert.IsType<Column>(InoDrawing.Screen(new InoAppState()).Root);
-        Assert.Equal([1d], root.Extents);
-        Assert.IsType<Conversation>(Assert.Single(root.Children));
+        Assert.Equal([-1d, 1d], root.Extents);
+        Assert.Single(root.Children.OfType<Conversation>());
     }
 
     [Fact]

@@ -32,7 +32,7 @@ public sealed class AspireAppFacts
     private static readonly string[] PreMoveShippedApps =
     [
         "artcraft", "aspire", "cadcraft", "calculator", "creator", "customer-researcher", "data", "deckcraft", "designcraft", "desktop", "devui",
-        "effectcraft", "figcraft", "files", "filmcraft", "friends", "gallery", "gridcraft", "ino", "lightcraft", "markdraw",
+        "effectcraft", "figcraft", "files", "filmcraft", "gallery", "gridcraft", "ino", "lightcraft", "markdraw",
         "materialcraft", "orleans", "pdfcraft", "photocraft", "settings", "solidcraft", "soundcraft", "tasks", "texturecraft", "usage",
         "vectorcraft", "widgetbook", "wordcraft",
     ];

@@ -10,7 +10,6 @@ using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Apps.Calculator;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Usage;
@@ -56,18 +55,6 @@ public sealed class StudioAndCraftReactorFacts
         Assert.True(graph.IsHealthy);
         Assert.Contains(graph.AcceptedTransitions, t => t.Command.Contains("ApplyBudgetCap(10000000)", StringComparison.Ordinal));
         Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("non_positive_budget"));
-    }
-
-    [Fact]
-    public void FriendsAggregateExplorerVerifiesFeedScopeTabsAndRefusesInvalidScope()
-    {
-        var graph = AggregateExplorer<FriendsAppState>.ExploreScreen<FriendsApp>(maxStates: 16);
-        graph.EnsureHealthy();
-
-        Assert.True(graph.IsHealthy);
-        Assert.Contains(graph.AcceptedTransitions, t => t.Command.Contains("SelectScope(\"public\")", StringComparison.Ordinal));
-        Assert.Contains(graph.AcceptedTransitions, t => t.Command.Contains("SelectScope(\"friends\")", StringComparison.Ordinal));
-        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_scope"));
     }
 
     [Fact]

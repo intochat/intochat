@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, approve-engineer-pr, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel, new-squad, open-squad-plan, squad-add-task, squad-move-task, squad-toggle-task, chat-about-choice
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, approve-engineer-pr, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel, new-squad, open-squad-plan, squad-add-task, squad-move-task, squad-toggle-task, chat-about-choice, toggle-sidebar, toggle-new-menu, toggle-history, toggle-favourite, toggle-pin, set-folder, archive-thread, restore-thread, clear-today, create-room, open-pinned-apps
 Note: approve-engineer-pr is a [PersonOnly] UI-only drawer command and is intentionally omitted from InoModelSetup.BuildBundle.
 */
 using IntoChat.OS.Host.Apps;
@@ -126,7 +126,10 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             PickerAvailability,
             DeviceSnapshot,
             Child<IKanbanControl, KanbanProps>,
-            Child<ICheckBoxControl, CheckBoxProps>);
+            Child<ICheckBoxControl, CheckBoxProps>,
+            ThreadShelfSnapshot,
+            ArchivedSessionsPage,
+            CurrentBrain.Value);
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
     {
@@ -342,6 +345,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         await TrySeatFromSettingsAsync(State.ConversationId, settings, snapshot);
         await RefreshTasksAsync(commit: false);
         await RefreshConversationAsync(full: true);
+        await ActivateArcSidebarAsync();
     }
 
     [On]
@@ -1494,6 +1498,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         var hadRunningOrPending = State.ActiveRunId is not null || State.Pending is not null;
         ConversationView = merged;
         SeenRevision = merged.Revision;
+        await MarkCurrentThreadReadAsync(merged.Revision);
 
         await LoadAttachmentsAsync(merged);
 

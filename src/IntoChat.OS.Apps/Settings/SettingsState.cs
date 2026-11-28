@@ -140,6 +140,11 @@ public sealed record SettingsAppState(
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
     public DeviceView? Device { get; init; }
     public Friend[]? TeamRoster { get; init; }
+    public string? ActiveFriendCode { get; init; }
+    public DateTimeOffset? ActiveFriendCodeExpiresAt { get; init; }
+    public string? HandleLookupResult { get; init; }
+    public string? TeamError { get; init; }
+    public string[] FriendConnectionGrants { get; init; } = [];
     public McpServerRow[] McpServers { get; init; } = [];
     public string? WebSearchProvider { get; init; }
     public string? WebSearxngUrl { get; init; }

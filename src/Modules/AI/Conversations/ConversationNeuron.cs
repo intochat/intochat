@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
@@ -1379,17 +1380,39 @@ internal sealed class ConversationNeuron(
                 aiMessages.Add(new AiMessage(role, [new AiText(body)]) { Sender = msgSender });
             }
 
+            var roomTools = BuildRoomSafeTools(State.PinnedScreens);
             try
             {
-                var result = await inference.Generate(
-                    new InferenceRequest(aiMessages, definition.Model, definition.Options),
-                    model: null,
-                    CancellationToken.None,
-                    brainId: Id.Brain.Value);
-                replyText = string.Concat(result.Messages
-                    .SelectMany(static m => m.Content)
-                    .OfType<AiText>()
-                    .Select(static t => t.Text)).Trim();
+                const int maxRoomToolRounds = 4;
+                for (var round = 0; round < maxRoomToolRounds; round++)
+                {
+                    var result = await inference.Generate(
+                        new InferenceRequest(aiMessages, definition.Model, definition.Options, roomTools),
+                        model: null,
+                        CancellationToken.None,
+                        brainId: Id.Brain.Value);
+                    var toolCalls = result.Messages
+                        .SelectMany(static m => m.Content)
+                        .OfType<AiToolCall>()
+                        .ToArray();
+                    if (toolCalls.Length == 0)
+                    {
+                        replyText = string.Concat(result.Messages
+                            .SelectMany(static m => m.Content)
+                            .OfType<AiText>()
+                            .Select(static t => t.Text)).Trim();
+                        break;
+                    }
+
+                    aiMessages.Add(new AiMessage("assistant", toolCalls));
+                    var toolResults = new List<AiContent>(toolCalls.Length);
+                    foreach (var call in toolCalls)
+                    {
+                        var toolOutput = await ExecuteRoomSafeToolAsync(call);
+                        toolResults.Add(new AiToolResult(call.CallId, toolOutput));
+                    }
+                    aiMessages.Add(new AiMessage("tool", toolResults));
+                }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -1740,6 +1763,118 @@ internal sealed class ConversationNeuron(
         => State.PinnedScreens.Any(p =>
             string.Equals(p.ScreenType, screenType, StringComparison.Ordinal)
             && string.Equals(p.ScreenKey, screenKey, StringComparison.Ordinal));
+
+    private static IReadOnlyList<InferenceTool>? BuildRoomSafeTools(PinnedScreen[] pinnedScreens)
+    {
+        if (pinnedScreens.Length == 0)
+        {
+            return null;
+        }
+
+        return
+        [
+            new InferenceTool(
+                SharedRoomAgentPolicy.RoomListPinnedAppsToolName,
+                "Lists the [Shareable] mini-apps currently pinned in this shared room.",
+                """{"type":"object","properties":{},"additionalProperties":false}"""),
+            new InferenceTool(
+                SharedRoomAgentPolicy.RoomActToolName,
+                "Dispatches a room-safe command onto a pinned [Shareable] mini-app in this room (e.g. room.checklist add/toggle).",
+                """{"type":"object","properties":{"screenType":{"type":"string"},"screenKey":{"type":"string"},"target":{"type":"string"},"signal":{"type":"string"},"args":{"type":"object"}},"required":["screenType","signal"],"additionalProperties":false}"""),
+        ];
+    }
+
+    private async Task<string> ExecuteRoomSafeToolAsync(AiToolCall call)
+    {
+        if (string.Equals(call.Name, SharedRoomAgentPolicy.RoomListPinnedAppsToolName, StringComparison.Ordinal))
+        {
+            var array = new System.Text.Json.Nodes.JsonArray();
+            foreach (var pinned in State.PinnedScreens)
+            {
+                var entry = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["screenType"] = pinned.ScreenType,
+                    ["screenKey"] = pinned.ScreenKey,
+                };
+                array.Add(entry);
+            }
+
+            return new System.Text.Json.Nodes.JsonObject
+            {
+                ["pinnedApps"] = array,
+            }.ToJsonString();
+        }
+
+        if (!string.Equals(call.Name, SharedRoomAgentPolicy.RoomActToolName, StringComparison.Ordinal))
+        {
+            return new System.Text.Json.Nodes.JsonObject
+            {
+                ["error"] = $"Tool '{call.Name}' is not allowed in a CrossBrainShared room.",
+            }.ToJsonString();
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson);
+            var root = doc.RootElement;
+            var screenType = root.TryGetProperty("screenType", out var st) && st.ValueKind == JsonValueKind.String ? st.GetString()?.Trim() : null;
+            var screenKey = root.TryGetProperty("screenKey", out var sk) && sk.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(sk.GetString())
+                ? sk.GetString()!.Trim()
+                : "default";
+            var target = root.TryGetProperty("target", out var tg) && tg.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(tg.GetString())
+                ? tg.GetString()!.Trim()
+                : ".";
+            var signal = root.TryGetProperty("signal", out var sg) && sg.ValueKind == JsonValueKind.String ? sg.GetString()?.Trim() : null;
+            JsonElement? args = root.TryGetProperty("args", out var ar) && ar.ValueKind != JsonValueKind.Null && ar.ValueKind != JsonValueKind.Undefined
+                ? ar.Clone()
+                : null;
+
+            if (string.IsNullOrWhiteSpace(screenType) || string.IsNullOrWhiteSpace(signal))
+            {
+                return new System.Text.Json.Nodes.JsonObject
+                {
+                    ["error"] = "room_act requires non-empty screenType and signal.",
+                }.ToJsonString();
+            }
+
+            if (!IsPinned(screenType, screenKey))
+            {
+                return new System.Text.Json.Nodes.JsonObject
+                {
+                    ["error"] = $"Screen '{screenType}/{screenKey}' is not pinned in this room.",
+                }.ToJsonString();
+            }
+
+            // Fail-closed: enforce host-private denylist, [Shareable], and category rules before dispatch.
+            RequirePinnableScreen(screenType);
+
+            var screen = Context.Get<IScreen>(new NeuronId(Id.Brain, screenType, screenKey));
+            await screen.Dispatch(new DigitalBrain.UI.Command(target, signal, args));
+            var view = await screen.Read();
+            using (OwnModuleIfForeign())
+            {
+                await Persist(State);
+            }
+            await NudgeDirectoriesAsync(State.Revision);
+
+            return new System.Text.Json.Nodes.JsonObject
+            {
+                ["ok"] = true,
+                ["screenType"] = screenType,
+                ["screenKey"] = screenKey,
+                ["signal"] = signal,
+                ["generation"] = view?.Generation ?? 0L,
+            }.ToJsonString();
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Logger.LogSwallowed(error, "room_act tool execution failed");
+            return new System.Text.Json.Nodes.JsonObject
+            {
+                ["error"] = error.Message,
+            }.ToJsonString();
+        }
+    }
 
     private void RequirePinnableScreen(string screenType)
     {

@@ -532,7 +532,7 @@ public sealed class CadCraftApp : ArtCraftStudioAppBase
 }
 
 [Neuron("app.gridcraft")]
-[Screen("app.gridcraft", Title = "GridCraft", Icon = "artcraft:gridcraft", Category = "Workspace", Dock = 4, Launch = AppLaunch.Maximized)]
+[Screen("app.gridcraft", Title = "GridCraft", Icon = "artcraft:gridcraft", Category = "Workspace", Dock = 3, Launch = AppLaunch.Maximized)]
 public sealed class GridCraftApp : ArtCraftStudioAppBase
 {
     public GridCraftApp() : this(null) { }

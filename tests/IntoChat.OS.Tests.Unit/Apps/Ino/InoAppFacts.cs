@@ -18,7 +18,6 @@ using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -274,8 +273,6 @@ public sealed class InoAppFacts
         Assert.NotNull(await filmCraftScreen.Read());
         var inoScreen = checkOs.Get<IScreen>(new NeuronId(Brain, "app.ino", "default"));
         Assert.NotNull(await inoScreen.Read());
-        var friendsScreen = checkOs.Get<IScreen>(new NeuronId(Brain, "app.friends", "default"));
-        Assert.NotNull(await friendsScreen.Read());
 
         await using var os = TestOS.Local();
         os.RegisterCatalog();

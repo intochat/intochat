@@ -20,6 +20,8 @@ public static partial class SharedRoomAgentPolicy
 {
     public const string DefaultRoomAgentId = "room-ino";
     public const string DefaultRoomDisplayName = "@Ino · Room only";
+    public const string RoomListPinnedAppsToolName = "room_list_pinned_apps";
+    public const string RoomActToolName = "room_act";
     public const int MaxSquadHandoffDepth = 3;
 
     public static readonly SenderIdentity RoomAgentSender = new(DefaultRoomAgentId, DefaultRoomDisplayName, SenderKind.Agent, RoomScoped: true);

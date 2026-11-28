@@ -244,7 +244,7 @@ public sealed record InoAppState(
     public const int MinProviderCredentialLength = 4;
 
     public static readonly string[] SupportedSections = ["chat", "chats", "approvals", "setup", "data"];
-    public static readonly string[] SupportedDrawerTabs = ["preview", "diff", "logs", "plan"];
+    public static readonly string[] SupportedDrawerTabs = ["preview", "diff", "logs", "plan", "pinned-apps"];
     public static readonly string[] SupportedProviders = ["openai", "anthropic", "google", "openrouter", "ollama"];
 
     private readonly InoTurn[] _turns = Turns ?? [];
@@ -367,6 +367,9 @@ public sealed record InoAppState(
     public string? SelectedSquadTaskId { get; init; }
     public string? ChattingAboutChoiceTaskId { get; init; }
     public string? SquadError { get; init; }
+    public bool SidebarCollapsed { get; init; }
+    public bool NewMenuOpen { get; init; }
+    public bool HistoryOpen { get; init; }
 
     // ── Domain Invariants ────────────────────────────────────────────────────
 

@@ -166,7 +166,7 @@ public sealed class InstalledAppsFacts
         var files = Assert.Single(tiles, t => t.Id == "files");
         Assert.Equal("Files", files.Title);
         Assert.Equal("Workspace", files.Category);
-        Assert.Equal(3, files.Dock);
+        Assert.Equal(2, files.Dock);
         Assert.Equal("compiled", files.Kind);
 
         var photo = Assert.Single(tiles, t => t.Id == "photocraft");
@@ -205,7 +205,7 @@ public sealed class InstalledAppsFacts
 
         // Docked apps come first in Dock order
         var docked = tiles.Where(t => t.Dock is not null).ToArray();
-        Assert.True(docked.Length >= 5);
+        Assert.True(docked.Length >= 4);
         for (var i = 1; i < docked.Length; i++)
         {
             Assert.True(docked[i - 1].Dock <= docked[i].Dock);

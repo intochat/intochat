@@ -10,7 +10,7 @@ namespace IntoChat.OS.Modules.Apps;
 internal static class PersonActs
 {
     // Neuron types of shipped screens a person may act through. A unit or any other neuron is refused.
-    public static readonly string[] Surfaces = ["app.friends"];
+    public static readonly string[] Surfaces = ["app.files", "app.settings"];
 
     public static async Task<(string Account, BrainId Brain)> Require(Caller? caller, IBrainOwners owners)
     {
