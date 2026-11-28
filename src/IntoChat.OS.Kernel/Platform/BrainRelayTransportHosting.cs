@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -670,8 +671,8 @@ public static class BrainRelayTransportHosting
                     ? kernelDirectory.GetPinnedKeysForAsync
                     : (_, sender, ct) => directory.GetPinnedKeysAsync(sender, ct),
                 edge: edge,
-                invoke: (target, call, ct) => InvokeLocalOrleansAsync(sp, target, call, ct),
-                post: (target, call) => PostLocalOrleansAsync(sp, target, call),
+                invoke: (target, call, ct) => ResolveLocalDispatcher(sp).InvokeAsync(target, call, ct),
+                post: (target, call) => ResolveLocalDispatcher(sp).PostAsync(target, call),
                 timeProvider: time,
                 maxClockSkew: skew,
                 scopedVerifyCallerAccount: kernelDirectory is not null
@@ -722,29 +723,11 @@ public static class BrainRelayTransportHosting
         }
     }
 
-    private static async Task<JsonElement?> InvokeLocalOrleansAsync(
-        IServiceProvider services,
-        NeuronId target,
-        RuntimeInvocation call,
-        CancellationToken ct)
-    {
-        var grains = services.GetRequiredService<IGrainFactory>();
-        var grainType = await grains.GetGrain<INeuronHostCatalog>("/").HostType(target.Type).WaitAsync(ct).ConfigureAwait(false)
-            ?? "neuron.host";
-        var host = grains.GetGrain<INeuronHost>(GrainId.Create(grainType, target.ToString()));
-        var interleaved = await host.IsInterleaved(call).WaitAsync(ct).ConfigureAwait(false);
-        return await (interleaved ? host.InvokeInterleaved(call, ct) : host.Invoke(call, ct)).ConfigureAwait(false);
-    }
-
-    private static async Task PostLocalOrleansAsync(IServiceProvider services, NeuronId target, RuntimeInvocation call)
-    {
-        var grains = services.GetRequiredService<IGrainFactory>();
-        var grainType = await grains.GetGrain<INeuronHostCatalog>("/").HostType(target.Type).ConfigureAwait(false)
-            ?? "neuron.host";
-        var host = grains.GetGrain<INeuronHost>(GrainId.Create(grainType, target.ToString()));
-        var interleaved = await host.IsInterleaved(call).ConfigureAwait(false);
-        await (interleaved ? host.PostInterleaved(call) : host.Post(call)).ConfigureAwait(false);
-    }
+    private static OrleansNeuronDispatcher ResolveLocalDispatcher(IServiceProvider services)
+        => services.GetService<OrleansNeuronDispatcher>()
+            ?? new OrleansNeuronDispatcher(
+                services.GetRequiredService<IGrainFactory>(),
+                services.GetService<IHostedNeuronTypes>());
 
     internal sealed class BrainRelayPollService(
         IOptions<BrainRelayOptions> options,

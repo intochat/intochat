@@ -28,6 +28,9 @@ internal static class NeuronHosting
                 .Concat(Capabilities.CapabilityHosting.RegisteredPortModules(sp))
                 .Distinct()));
         silo.Services.TryAddSingleton<DigitalBrain.Components.IHostedNeuronTypes>(sp => sp.GetRequiredService<NeuronTypeRegistry>());
+        silo.Services.TryAddSingleton(sp => new OrleansNeuronDispatcher(
+            sp.GetRequiredService<IGrainFactory>(),
+            sp.GetService<DigitalBrain.Components.IHostedNeuronTypes>()));
         return silo;
     }
 
