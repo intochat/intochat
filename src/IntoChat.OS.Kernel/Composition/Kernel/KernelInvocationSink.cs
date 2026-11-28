@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
@@ -21,13 +22,16 @@ public sealed class KernelInvocationSink(
     IGrainFactory grains,
     string caller,
     Func<DigitalBrain.NeuronId, DigitalBrain.Invocation.RuntimeInvocation, Task>? streamAccess = null,
-    EdgeAuthority? edge = null) : IInvocationSink
+    EdgeAuthority? edge = null,
+    IHostedNeuronTypes? types = null) : IInvocationSink
 {
     // The runtime's provenance key (DigitalBrain.Runtime.Orleans HostNeuronContext.CallerKey), read by every host grain.
     public const string CallerKey = "db.caller";
 
     private static readonly ConcurrentDictionary<string, Type> Contracts = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string?> HostTypes = new(StringComparer.Ordinal);
+
+    private readonly OrleansNeuronDispatcher _dispatcher = new(grains, types);
 
     // A sink over the grain factory of services (a silo or a cluster client), calling as caller.
     public static KernelInvocationSink For(IServiceProvider services, string caller)
@@ -36,7 +40,8 @@ public sealed class KernelInvocationSink(
         return new(
             Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services),
             caller,
-            edge: services.GetService(typeof(EdgeAuthority)) as EdgeAuthority);
+            edge: services.GetService(typeof(EdgeAuthority)) as EdgeAuthority,
+            types: services.GetService(typeof(IHostedNeuronTypes)) as IHostedNeuronTypes);
     }
 
     internal static void Register(Type contract) => Contracts.TryAdd(NeuronProxy.ContractName(contract), contract);
@@ -46,22 +51,18 @@ public sealed class KernelInvocationSink(
         ArgumentNullException.ThrowIfNull(call);
         using var _ = edge?.EnterInProcess();
         // Preserve the grain scheduler until dispatch: source-origin guards use Orleans' physical caller identity.
-        var host = await Host(target, cancellationToken).ConfigureAwait(true);
+        var resolved = await ResolveHostAsync(target, cancellationToken).ConfigureAwait(true);
         Stamp();
-        var stamped = Stamped(call);
-        var interleaved = await host.IsInterleaved(stamped).WaitAsync(cancellationToken).ConfigureAwait(true);
-        return await (interleaved ? host.InvokeInterleaved(stamped, cancellationToken) : host.Invoke(stamped, cancellationToken)).ConfigureAwait(false);
+        return await OrleansNeuronDispatcher.InvokeAsync(resolved, Stamped(call), continueOnCapturedContext: true, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
     public async Task Post(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
         using var _ = edge?.EnterInProcess();
-        var host = await Host(target, CancellationToken.None).ConfigureAwait(true);
+        var resolved = await ResolveHostAsync(target, CancellationToken.None).ConfigureAwait(true);
         Stamp();
-        var stamped = Stamped(call);
-        if (await host.IsInterleaved(stamped).ConfigureAwait(true)) { await host.PostInterleaved(stamped).ConfigureAwait(false); }
-        else { await host.Post(stamped).ConfigureAwait(false); }
+        await OrleansNeuronDispatcher.PostAsync(resolved, Stamped(call), continueOnCapturedContext: true).ConfigureAwait(false);
     }
 
     public async IAsyncEnumerable<JsonElement> Stream(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -71,8 +72,8 @@ public sealed class KernelInvocationSink(
         Stamp();
         // A host grain's stream passes no incoming filter, so the os access policy is asked before it starts (06-06d).
         if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(true); }
-        var host = await Host(target, cancellationToken).ConfigureAwait(true);
-        await foreach (var item in host.Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
+        var resolved = await ResolveHostAsync(target, cancellationToken).ConfigureAwait(true);
+        await foreach (var item in resolved.Host.Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
     }
 
     // A contract by its wire name: one registered, else a loaded interface of that full name or [NeuronAlias] via LoadedContracts.
@@ -84,15 +85,15 @@ public sealed class KernelInvocationSink(
         return found;
     }
 
-    private async Task<INeuronHost> Host(DigitalBrain.NeuronId target, CancellationToken cancellationToken)
-    {
+    private ValueTask<ResolvedNeuronHost> ResolveHostAsync(DigitalBrain.NeuronId target, CancellationToken cancellationToken)
         // Cluster clients carry contracts without implementation classes. Only the serving kernel can answer their host
         // policy; a guessed affine host would address reentrant and stateless neurons incorrectly.
-        var grainType = HostTypeOf(target.Type)
-            ?? await grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).HostType(target.Type).WaitAsync(cancellationToken).ConfigureAwait(true)
-            ?? throw new InvalidOperationException($"No neuron class is hosted for type '{target.Type}'.");
-        return grains.GetGrain<INeuronHost>(GrainId.Create(grainType, target.ToString()));
-    }
+        => _dispatcher.ResolveAsync(
+            target,
+            requireHosted: true,
+            localHostTypeLookup: HostTypeOf,
+            continueOnCapturedContext: true,
+            cancellationToken: cancellationToken);
 
     // The host grain of the plain [Neuron] class of a type, by the runtime's policy (NeuronTypeRegistry.PolicyOf); null when no
     // loaded class has that type.

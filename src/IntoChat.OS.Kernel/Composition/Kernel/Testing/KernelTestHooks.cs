@@ -60,25 +60,18 @@ public static class KernelTestHooks
 
     private sealed class CallerlessSink(IGrainFactory grains, string hostType) : IInvocationSink
     {
-        private INeuronHost Host(DigitalBrain.NeuronId target) => grains.GetGrain<INeuronHost>(GrainId.Create(hostType, target.ToString()));
+        private readonly OrleansNeuronDispatcher _dispatcher = new(grains);
 
-        public async Task<JsonElement?> Invoke(DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
-        {
-            var host = Host(target);
-            var interleaved = await host.IsInterleaved(call).WaitAsync(cancellationToken).ConfigureAwait(true);
-            return await (interleaved ? host.InvokeInterleaved(call, cancellationToken) : host.Invoke(call, cancellationToken)).ConfigureAwait(false);
-        }
+        public Task<JsonElement?> Invoke(DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
+            => OrleansNeuronDispatcher.InvokeAsync(_dispatcher.ResolveFixedHost(target, hostType), call, continueOnCapturedContext: true, cancellationToken: cancellationToken);
 
-        public async Task Post(DigitalBrain.NeuronId target, RuntimeInvocation call)
-        {
-            var host = Host(target);
-            if (await host.IsInterleaved(call).ConfigureAwait(true)) { await host.PostInterleaved(call).ConfigureAwait(false); }
-            else { await host.Post(call).ConfigureAwait(false); }
-        }
+        public Task Post(DigitalBrain.NeuronId target, RuntimeInvocation call)
+            => OrleansNeuronDispatcher.PostAsync(_dispatcher.ResolveFixedHost(target, hostType), call, continueOnCapturedContext: true);
 
         public async IAsyncEnumerable<JsonElement> Stream(DigitalBrain.NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await foreach (var item in Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
+            var resolved = _dispatcher.ResolveFixedHost(target, hostType);
+            await foreach (var item in resolved.Host.Stream(call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
         }
     }
 }
