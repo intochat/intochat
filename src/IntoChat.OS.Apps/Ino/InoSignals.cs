@@ -23,6 +23,7 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.close-drawer")] public sealed record InoCloseDrawer : Signal;
 [Signal("ino.drawer-tab")] public sealed record InoSelectDrawerTab(string? Tab = null) : Signal;
 [Signal("ino.pin-artifact")] public sealed record InoPinArtifact(string? FlowId = null, string? Alias = null, string? Title = null) : Signal;
+[Signal("ino.approve-engineer-pr")] public sealed record InoApproveEngineerPr(string? FlowId = null, string? ExpectedCommitSha = null, string? BaseBranch = null) : Signal;
 [Signal("ino.clear-context")] public sealed record InoClearContext : Signal;
 [Signal("ino.answer-task-ask")] public sealed record InoAnswerTaskAsk(string? TaskId = null, string? Option = null, int? OptionIndex = null, string? PlanId = null) : Signal;
 [Signal("ino.new-specialist")] public sealed record InoCreateSpecialist(string? Title = null, string? Handle = null, string? Instructions = null, string? Description = null, string[]? AllowedContracts = null, string[]? ToolSources = null, string? MemoryScope = null, string[]? Starters = null, Dictionary<string, string>? Settings = null, Dictionary<string, string>? Connections = null) : Signal;

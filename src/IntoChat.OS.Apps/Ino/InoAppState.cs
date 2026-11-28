@@ -40,6 +40,24 @@ public sealed record InoError(
     string Code,
     string? Detail = null);
 
+public sealed record InoEngineerCandidate(
+    int InstanceIndex,
+    int Rank,
+    string StrategyLabel,
+    string Status,
+    int TotalScore,
+    int ChangedLines,
+    bool IsSelected,
+    bool BuildPassed,
+    bool TestsPassed,
+    bool LiveVerifyPassed,
+    bool ZeroTelemetryErrors,
+    bool SelfReviewPassed,
+    string? SelfReviewSummary = null,
+    string? CommitSha = null,
+    string? BranchName = null,
+    string? FailureDetail = null);
+
 public sealed record InoDrawerArtifact(
     string Id,
     string Title,
@@ -54,15 +72,40 @@ public sealed record InoDrawerArtifact(
     string[]? ScopedContracts = null,
     string? PinnedAppAlias = null,
     string? PinError = null,
-    string? ExecutionTarget = null)
+    string? ExecutionTarget = null,
+    string? CandidateSha = null,
+    string? RepoSlug = null,
+    string? HeadBranch = null,
+    string? BaseBranch = null,
+    string? PullRequestUrl = null,
+    bool SelfReviewPassed = false,
+    string? SelfReviewSummary = null,
+    string? ApprovalError = null,
+    string? VerificationSummary = null,
+    InoEngineerCandidate[]? TournamentCandidates = null,
+    bool BuildVerified = false,
+    bool LiveVerified = false,
+    bool HasVerificationReceipt = false,
+    string? ConfirmationPlanId = null,
+    string? PushedRef = null)
 {
+    public const string EngineerPrKind = "engineer-pr";
+
     private readonly string[] _scopedContracts = ScopedContracts ?? [];
+    private readonly InoEngineerCandidate[] _tournamentCandidates = TournamentCandidates ?? [];
 
     [AllowNull]
     public string[] ScopedContracts
     {
         get => _scopedContracts;
         init => _scopedContracts = value ?? [];
+    }
+
+    [AllowNull]
+    public InoEngineerCandidate[] TournamentCandidates
+    {
+        get => _tournamentCandidates;
+        init => _tournamentCandidates = value ?? [];
     }
 
     public bool Equals(InoDrawerArtifact? other) =>
@@ -80,7 +123,22 @@ public sealed record InoDrawerArtifact(
         && string.Equals(PinnedAppAlias, other.PinnedAppAlias, StringComparison.Ordinal)
         && string.Equals(PinError, other.PinError, StringComparison.Ordinal)
         && string.Equals(ExecutionTarget, other.ExecutionTarget, StringComparison.Ordinal)
-        && _scopedContracts.SequenceEqual(other._scopedContracts, StringComparer.Ordinal);
+        && string.Equals(CandidateSha, other.CandidateSha, StringComparison.Ordinal)
+        && string.Equals(RepoSlug, other.RepoSlug, StringComparison.Ordinal)
+        && string.Equals(HeadBranch, other.HeadBranch, StringComparison.Ordinal)
+        && string.Equals(BaseBranch, other.BaseBranch, StringComparison.Ordinal)
+        && string.Equals(PullRequestUrl, other.PullRequestUrl, StringComparison.Ordinal)
+        && SelfReviewPassed == other.SelfReviewPassed
+        && string.Equals(SelfReviewSummary, other.SelfReviewSummary, StringComparison.Ordinal)
+        && string.Equals(ApprovalError, other.ApprovalError, StringComparison.Ordinal)
+        && string.Equals(VerificationSummary, other.VerificationSummary, StringComparison.Ordinal)
+        && BuildVerified == other.BuildVerified
+        && LiveVerified == other.LiveVerified
+        && HasVerificationReceipt == other.HasVerificationReceipt
+        && string.Equals(ConfirmationPlanId, other.ConfirmationPlanId, StringComparison.Ordinal)
+        && string.Equals(PushedRef, other.PushedRef, StringComparison.Ordinal)
+        && _scopedContracts.SequenceEqual(other._scopedContracts, StringComparer.Ordinal)
+        && _tournamentCandidates.SequenceEqual(other._tournamentCandidates);
 
     public override int GetHashCode()
     {
@@ -93,7 +151,19 @@ public sealed record InoDrawerArtifact(
         hash.Add(LiveViewPath, StringComparer.Ordinal);
         hash.Add(PinnedAppAlias, StringComparer.Ordinal);
         hash.Add(PinError, StringComparer.Ordinal);
+        hash.Add(CandidateSha, StringComparer.Ordinal);
+        hash.Add(RepoSlug, StringComparer.Ordinal);
+        hash.Add(PullRequestUrl, StringComparer.Ordinal);
+        hash.Add(SelfReviewPassed);
+        hash.Add(SelfReviewSummary, StringComparer.Ordinal);
+        hash.Add(ApprovalError, StringComparer.Ordinal);
+        hash.Add(BuildVerified);
+        hash.Add(LiveVerified);
+        hash.Add(HasVerificationReceipt);
+        hash.Add(ConfirmationPlanId, StringComparer.Ordinal);
+        hash.Add(PushedRef, StringComparer.Ordinal);
         foreach (var c in _scopedContracts) { hash.Add(c, StringComparer.Ordinal); }
+        foreach (var candidate in _tournamentCandidates) { hash.Add(candidate); }
         return hash.ToHashCode();
     }
 }
@@ -585,7 +655,16 @@ public sealed record InoAppState(
     public static Rule SupportedDrawerTabRule(string? tab) => Decision.Rule(
         "invalid_drawer_tab",
         tab,
-        static t => string.IsNullOrWhiteSpace(t) || !SupportedDrawerTabs.Contains(t.Trim().ToLowerInvariant(), StringComparer.Ordinal),
+        static t =>
+        {
+            if (string.IsNullOrWhiteSpace(t))
+            {
+                return true;
+            }
+
+            var normalized = NormalizeDrawerTab(t);
+            return !SupportedDrawerTabs.Contains(normalized, StringComparer.Ordinal);
+        },
         "Drawer tab must be preview, diff, logs, or plan.");
 
     public Decision<InoAppState> SelectDrawerTab(
@@ -596,7 +675,13 @@ public sealed record InoAppState(
             return refused;
         }
 
-        return Decision.Accept(this with { DrawerTab = tab.Trim().ToLowerInvariant() });
+        return Decision.Accept(this with { DrawerTab = NormalizeDrawerTab(tab) });
+    }
+
+    private static string NormalizeDrawerTab(string raw)
+    {
+        var trimmed = raw.Trim().ToLowerInvariant();
+        return string.Equals(trimmed, "tournament", StringComparison.Ordinal) ? "preview" : trimmed;
     }
 
     [IgnoreExplore]

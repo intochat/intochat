@@ -32,6 +32,8 @@ public static partial class InoView
     public const string DrawerPinKey = "ino:drawer-pin";
     public const string DrawerPopoutKey = "ino:drawer-popout";
     public const string DrawerCloseKey = "ino:drawer-close";
+    public const string DrawerApprovePrKey = "ino:drawer-approve-pr";
+    public const string DrawerOpenPrKey = "ino:drawer-open-pr";
     public const string DrawerTabPreviewKey = "ino:drawer-tab-preview";
     public const string DrawerTabDiffKey = "ino:drawer-tab-diff";
     public const string DrawerTabLogsKey = "ino:drawer-tab-logs";
@@ -553,7 +555,9 @@ public static partial class InoView
                     FlowId: task.FlowId,
                     Title: string.IsNullOrWhiteSpace(task.ArtifactLabel) ? task.Title : task.ArtifactLabel,
                     LiveViewPath: task.ArtifactUri,
-                    Kind: !string.IsNullOrWhiteSpace(task.FlowId) ? "code-orchestration" : "artifact"))
+                    Kind: InoCards.IsEngineerFlowId(task.FlowId)
+                        ? InoDrawerArtifact.EngineerPrKind
+                        : (!string.IsNullOrWhiteSpace(task.FlowId) ? "code-orchestration" : "artifact")))
                 .ToButton()
             : null;
 
@@ -615,16 +619,20 @@ public static partial class InoView
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(artifact);
 
+        var isEngineerPr = string.Equals(artifact.Kind, InoDrawerArtifact.EngineerPrKind, StringComparison.Ordinal);
+
         var statusKind = artifact.Status switch
         {
             "done" => StatusKind.Done,
             "failed" => StatusKind.Error,
+            "waiting" => StatusKind.NeedsYou,
             _ => StatusKind.Working,
         };
         var statusLabel = artifact.Status switch
         {
             "done" => "Done",
             "failed" => "Failed",
+            "waiting" => "Awaiting Approval",
             _ => "Working",
         };
 
@@ -639,6 +647,17 @@ public static partial class InoView
                 .Style(OsMixStyles.FilterPill(selected: string.Equals(activeTab, id, StringComparison.Ordinal)))
                 .Sends(new InoSelectDrawerTab(id))
                 .ToNode();
+
+        Node closeAction = GhostButton("Close", "x")
+            .Small()
+            .Key(DrawerCloseKey)
+            .Sends(new InoCloseDrawer())
+            .ToNode();
+
+        if (isEngineerPr)
+        {
+            return RenderEngineerPrDrawer(artifact, activeTab, statusKind, statusLabel, TabButton, closeAction);
+        }
 
         var isPinned = !string.IsNullOrWhiteSpace(artifact.PinnedAppAlias);
         var canPin = !string.IsNullOrWhiteSpace(artifact.FlowId);
@@ -673,12 +692,6 @@ public static partial class InoView
                 .Disabled(true)
                 .Tooltip("Pin as App to pop out")
                 .ToNode();
-
-        Node closeAction = GhostButton("Close", "x")
-            .Small()
-            .Key(DrawerCloseKey)
-            .Sends(new InoCloseDrawer())
-            .ToNode();
 
         var header = VStack(Space.Xs)[
             HStack(Space.Sm)[
@@ -747,6 +760,189 @@ public static partial class InoView
 
     private static Node FallbackCheckBoxNode(string key, CheckBoxProps props)
         => StatusPill(props.IsOn == true ? StatusKind.Done : StatusKind.Idle, props.Label);
+
+    private static Node RenderEngineerPrDrawer(
+        InoDrawerArtifact artifact,
+        string activeTab,
+        StatusKind statusKind,
+        string statusLabel,
+        Func<string, string, string, Node> tabButton,
+        Node closeAction)
+    {
+        var hasValidPrUrl = InoCards.TryNormalizeHttpsPullRequestUrl(artifact.PullRequestUrl, out var validPrUrl);
+        var hasSha = !string.IsNullOrWhiteSpace(artifact.CandidateSha);
+        var canApprove = !hasValidPrUrl
+            && !string.IsNullOrWhiteSpace(artifact.FlowId)
+            && string.Equals(artifact.Status, "waiting", StringComparison.Ordinal)
+            && artifact.HasVerificationReceipt
+            && artifact.BuildVerified
+            && artifact.LiveVerified
+            && artifact.SelfReviewPassed
+            && hasSha;
+
+        Node prAction = hasValidPrUrl
+            ? PrimaryButton("Open PR on GitHub", "external-link")
+                .Small()
+                .Style(OsMixStyles.PrimaryButton(small: true))
+                .Key(DrawerOpenPrKey)
+                .Tooltip($"Copy PR URL ({validPrUrl})")
+                .WithIntent(IntentKind.Copy, validPrUrl)
+                .ToNode()
+            : PrimaryButton("Approve & Open Draft PR", "git-pull-request")
+                .Small()
+                .Style(OsMixStyles.PrimaryButton(small: true))
+                .Key(DrawerApprovePrKey)
+                .Disabled(!canApprove)
+                .Sends(new InoApproveEngineerPr(artifact.FlowId, artifact.CandidateSha))
+                .ToNode();
+
+        var shortSha = hasSha
+            ? (artifact.CandidateSha!.Length <= 8 ? artifact.CandidateSha : artifact.CandidateSha[..8])
+            : "pending";
+
+        var header = VStack(Space.Xs)[
+            HStack(Space.Sm)[
+                Text(artifact.Title).Strong(),
+                StatusPill(statusKind, statusLabel),
+                StatusPill(StatusKind.Idle, $"SHA · {shortSha}")
+            ],
+            HStack(Space.Xs)[
+                tabButton("preview", "Tournament", DrawerTabPreviewKey),
+                tabButton("diff", "Diff", DrawerTabDiffKey),
+                tabButton("logs", "Logs", DrawerTabLogsKey),
+                prAction,
+                closeAction
+            ]
+        ];
+
+        var banners = new List<Node>();
+        if (!artifact.SelfReviewPassed)
+        {
+            banners.Add(Banner(
+                "Self-Review Gate Failed",
+                string.IsNullOrWhiteSpace(artifact.SelfReviewSummary)
+                    ? "LocalSelfReview did not pass. Approval is blocked until self-review passes."
+                    : artifact.SelfReviewSummary,
+                tone: "error"));
+        }
+        else if (!string.IsNullOrWhiteSpace(artifact.SelfReviewSummary))
+        {
+            banners.Add(Banner("Self-Review Passed", artifact.SelfReviewSummary, tone: "done"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(artifact.ApprovalError))
+        {
+            banners.Add(Banner("Draft PR Approval Blocked", artifact.ApprovalError, tone: "error"));
+        }
+
+        if (hasValidPrUrl)
+        {
+            banners.Add(Banner("Draft PR Opened", $"SHA-locked Draft PR ready at {validPrUrl}", tone: "done"));
+        }
+        else if (canApprove && !string.IsNullOrWhiteSpace(artifact.ConfirmationPlanId))
+        {
+            banners.Add(new ApprovalCardNode(
+                $"engineer-pr-approval-{artifact.ConfirmationPlanId}",
+                artifact.ConfirmationPlanId!,
+                "Approve & Open Draft PR",
+                $"Push branch '{artifact.HeadBranch ?? "candidate"}' and open a Draft PR for commit {shortSha} on {artifact.RepoSlug ?? "os"}.",
+                [
+                    new ApprovalRowNode("Commit SHA", "", artifact.CandidateSha ?? shortSha),
+                    new ApprovalRowNode("Repository", "", artifact.RepoSlug ?? "os"),
+                    new ApprovalRowNode("Self-Review", "", artifact.SelfReviewSummary ?? "passed"),
+                ],
+                SystemName: "Ino",
+                Status: "pending",
+                CapabilityLabel: "GitHub Draft PR"));
+        }
+
+        Node body = activeTab switch
+        {
+            "diff" => Card(
+                "Winning Unified Diff",
+                $"Repository: {artifact.RepoSlug ?? "os"} · Commit: {shortSha}")
+                .Style(OsMixStyles.Card())[
+                Text(string.IsNullOrWhiteSpace(artifact.DiffText)
+                    ? "No unified diff available yet."
+                    : artifact.DiffText).Tabular()
+            ],
+            "logs" => Card(
+                "Verification & Audit Logs",
+                "Roslyn build, TRX tests, MCP probe, Playwright check, and OTel spans")
+                .Style(OsMixStyles.Card())[
+                Text(string.IsNullOrWhiteSpace(artifact.LogsText)
+                    ? $"Status: {statusLabel}"
+                    : artifact.LogsText).Tabular()
+            ],
+            _ => RenderEngineerTournamentTab(artifact, shortSha),
+        };
+
+        return Surface(SurfaceKind.Elevated)
+            .Style(Mix.Style()
+                .Tone(UiTone.Elevated)
+                .Padding(12)
+                .Radius(14))[
+            VStack(Space.Sm, [header, .. banners, body]).Extents([-1d, .. banners.Select(static _ => -1d), 1d])
+        ];
+    }
+
+    private static Node RenderEngineerTournamentTab(InoDrawerArtifact artifact, string shortSha)
+    {
+        var candidates = artifact.TournamentCandidates;
+        var summarySubtitle = string.Create(
+            CultureInfo.InvariantCulture,
+            $"Repo: {artifact.RepoSlug ?? "os"} · Branch: {artifact.HeadBranch ?? "pending"} · Reviewed SHA: {shortSha}");
+
+        var children = new List<Node>(3);
+        if (!string.IsNullOrWhiteSpace(artifact.VerificationSummary))
+        {
+            children.Add(MutedText(artifact.VerificationSummary));
+        }
+
+        if (candidates is { Length: > 0 })
+        {
+            string[] columns = ["Rank", "Candidate", "Score", "Gates", "Self-Review", "Delta", "SHA", "Status"];
+            IReadOnlyList<string>[] rows = [.. candidates.Select(static c =>
+            {
+                var rankCell = c.IsSelected ? $"#{c.Rank} Winner" : $"#{c.Rank}";
+                var gates = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"B:{(c.BuildPassed ? "OK" : "FAIL")} T:{(c.TestsPassed ? "OK" : "FAIL")} L:{(c.LiveVerifyPassed ? "OK" : "FAIL")} O:{(c.ZeroTelemetryErrors ? "OK" : "FAIL")}");
+                var selfReview = c.SelfReviewPassed
+                    ? (string.IsNullOrWhiteSpace(c.SelfReviewSummary) ? "PASS" : $"PASS · {c.SelfReviewSummary}")
+                    : (string.IsNullOrWhiteSpace(c.SelfReviewSummary) ? "FAIL" : $"FAIL · {c.SelfReviewSummary}");
+                var sha = string.IsNullOrWhiteSpace(c.CommitSha)
+                    ? "pending"
+                    : (c.CommitSha.Length <= 8 ? c.CommitSha : c.CommitSha[..8]);
+                return (IReadOnlyList<string>)
+                [
+                    rankCell,
+                    c.StrategyLabel,
+                    c.TotalScore.ToString(CultureInfo.InvariantCulture),
+                    gates,
+                    selfReview,
+                    string.Create(CultureInfo.InvariantCulture, $"{c.ChangedLines} lines"),
+                    sha,
+                    c.Status,
+                ];
+            })];
+            children.Add(new DataTable(
+                "Candidate Tournament Scoreboard",
+                columns,
+                rows,
+                SourceNeuronUri: artifact.FlowId,
+                From: artifact.RepoSlug ?? "os"));
+        }
+        else
+        {
+            children.Add(MutedText(artifact.Summary ?? "No tournament candidates recorded yet."));
+        }
+
+        return Card("Tournament Scoreboard", summarySubtitle)
+            .Style(OsMixStyles.Card())[
+            VStack(Space.Sm, [.. children])
+        ];
+    }
 
     private static Button WithRootTarget(Button button)
         => button.Command is null ? button : button with { Command = button.Command with { Target = "/" } };
@@ -1168,7 +1364,7 @@ public static partial class InoView
                         .Small()
                         .Style(OsMixStyles.LinkAction())
                         .Key($"open-run-drawer:{card.Id}")
-                        .Sends(new InoOpenDrawer(ArtifactId: card.Id, FlowId: card.Id, Title: card.Title, Kind: "code-orchestration"))
+                        .Sends(new InoOpenDrawer(ArtifactId: card.Id, FlowId: card.Id, Title: card.Title, Kind: InoDrawerArtifact.EngineerPrKind))
                         .ToButton()));
                 break;
 

@@ -2,11 +2,14 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel, new-squad, open-squad-plan, squad-add-task, squad-move-task, squad-toggle-task, chat-about-choice
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, approve-engineer-pr, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel, new-squad, open-squad-plan, squad-add-task, squad-move-task, squad-toggle-task, chat-about-choice
+Note: approve-engineer-pr is a [PersonOnly] UI-only drawer command and is intentionally omitted from InoModelSetup.BuildBundle.
 */
 using IntoChat.OS.Host.Apps;
+using IntoChat.OS.Host.Surface;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Catalog;
 using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Identity.Local.Machine;
@@ -30,6 +33,7 @@ using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
+using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 
@@ -59,8 +63,11 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<ICodeOrchestration> CodeOrchestrations { get; }
     [Slot(Key = ITasks.DefaultKey, Required = false)] private partial ITasks? Tasks { get; }
-    [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = IInstalledApps.DefaultKey, Required = false)] private partial IInstalledApps? InstalledApps { get; }
+    [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
+    [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationRequests? ConfirmationRequests { get; }
+    [Slot(Key = "main", Required = false)] private partial IConnectionCatalog? ConnectionCatalog { get; }
+    [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
@@ -375,8 +382,22 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [On] public Task NewConversation(InoNewConversation request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
     [On] public Task SwitchConversation(InoSwitchConversation request) { ArgumentNullException.ThrowIfNull(request); return SwitchConversationAsync(request.ConversationId); }
     [On] public Task OnConfirmationRequested(ConfirmationRequested? requested) => requested is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
-    [On] public Task OnConfirmationResolved(ConfirmationResolved? resolved) => resolved is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
-    [On] public Task OnFlowsChanged(FlowsChanged? changed) => changed is { FlowId.Length: > 0 } ? RefreshApprovalsAsync(skipWhenBothEmpty: true) : Task.CompletedTask;
+
+    [On]
+    public async Task OnConfirmationResolved(ConfirmationResolved? resolved)
+    {
+        if (resolved is not { PlanId.Length: > 0 }) { return; }
+        await RefreshApprovalsAsync();
+        await RefreshActiveEngineerDrawerIfMatchingAsync(planId: resolved.PlanId, flowId: null);
+    }
+
+    [On]
+    public async Task OnFlowsChanged(FlowsChanged? changed)
+    {
+        if (changed is not { FlowId.Length: > 0 }) { return; }
+        await RefreshApprovalsAsync(skipWhenBothEmpty: true);
+        await RefreshActiveEngineerDrawerIfMatchingAsync(planId: null, flowId: changed.FlowId);
+    }
     [On] public Task OnTasksChanged(TasksChanged? changed) => changed is { TaskId.Length: > 0 } ? RefreshTasksAsync() : Task.CompletedTask;
     [On] public Task OnTaskAsked(TaskAsked? asked) => asked is { TaskId.Length: > 0 } ? RefreshTasksAsync() : Task.CompletedTask;
 
@@ -652,10 +673,61 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     public async Task OpenDrawer(InoOpenDrawer request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        InoDrawerArtifact? artifact = null;
-        if (!string.IsNullOrWhiteSpace(request.FlowId) && CurrentBrain.Value is { Length: > 0 })
+        var explicitEngineerPr = string.Equals(request.Kind, InoDrawerArtifact.EngineerPrKind, StringComparison.OrdinalIgnoreCase);
+        var flowId = string.IsNullOrWhiteSpace(request.FlowId) ? null : request.FlowId.Trim();
+
+        if (explicitEngineerPr || InoCards.IsEngineerFlowId(flowId))
         {
-            var flowId = request.FlowId.Trim();
+            if (string.IsNullOrWhiteSpace(flowId))
+            {
+                await RecordRejectionAsync(new Rejected(
+                    "open-drawer",
+                    ["invalid_engineer_flow"],
+                    ["A valid engineer run flowId is required to open the Engineer PR drawer."]));
+                return;
+            }
+
+            if (EngineerRuns is not { } runs)
+            {
+                await RecordRejectionAsync(new Rejected(
+                    "open-drawer",
+                    ["engineer_runs_unavailable"],
+                    ["Engineer runs service is not available."]));
+                return;
+            }
+
+            EngineerRunSummary? summary = null;
+            try
+            {
+                summary = await runs.InspectEngineerRun(flowId);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                LogOptional(error, "engineer-run-inspect");
+                await RecordRejectionAsync(new Rejected(
+                    "open-drawer",
+                    ["engineer_run_inspect_failed"],
+                    [$"Could not inspect engineer run '{flowId}': {error.Message}"]));
+                return;
+            }
+
+            if (summary is null || !summary.Ok || string.IsNullOrWhiteSpace(summary.FlowId))
+            {
+                var detail = !string.IsNullOrWhiteSpace(summary?.SummaryText)
+                    ? summary.SummaryText
+                    : $"Engineer run '{flowId}' was not found.";
+                await RecordRejectionAsync(new Rejected("open-drawer", ["engineer_run_not_found"], [detail]));
+                return;
+            }
+
+            var hydrated = InoCards.FromEngineerRunSummary(summary);
+            await Commit(State.OpenArtifactDrawer(hydrated) with { DrawerTab = "preview" });
+            return;
+        }
+
+        InoDrawerArtifact? artifact = null;
+        if (!string.IsNullOrWhiteSpace(flowId) && CurrentBrain.Value is { Length: > 0 })
+        {
             var live = await ReadOptionalAsync<CodeOrchestrationView?>(
                 "code-orchestration-read",
                 null,
@@ -668,17 +740,452 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
 
         artifact ??= State.ActiveArtifact is { } current
             && ((!string.IsNullOrWhiteSpace(request.ArtifactId) && string.Equals(current.Id, request.ArtifactId, StringComparison.Ordinal))
-                || (!string.IsNullOrWhiteSpace(request.FlowId) && string.Equals(current.FlowId, request.FlowId, StringComparison.Ordinal)))
+                || (!string.IsNullOrWhiteSpace(flowId) && string.Equals(current.FlowId, flowId, StringComparison.Ordinal)))
             ? current
             : new InoDrawerArtifact(
-                Id: !string.IsNullOrWhiteSpace(request.ArtifactId) ? request.ArtifactId.Trim() : (request.FlowId?.Trim() ?? "artifact"),
-                Title: !string.IsNullOrWhiteSpace(request.Title) ? request.Title.Trim() : (request.FlowId?.Trim() ?? "Live Artifact"),
+                Id: !string.IsNullOrWhiteSpace(request.ArtifactId) ? request.ArtifactId.Trim() : (flowId ?? "artifact"),
+                Title: !string.IsNullOrWhiteSpace(request.Title) ? request.Title.Trim() : (flowId ?? "Live Artifact"),
                 Kind: !string.IsNullOrWhiteSpace(request.Kind) ? request.Kind.Trim() : "artifact",
                 Status: "done",
-                FlowId: string.IsNullOrWhiteSpace(request.FlowId) ? null : request.FlowId.Trim(),
+                FlowId: flowId,
                 LiveViewPath: string.IsNullOrWhiteSpace(request.LiveViewPath) ? null : request.LiveViewPath.Trim());
 
         await Commit(State.OpenArtifactDrawer(artifact));
+    }
+
+    [On]
+    [PersonOnly("Approving an Engineer Draft PR publishes a SHA-locked candidate pull request on behalf of the brain owner.")]
+    public async Task ApproveEngineerPr(InoApproveEngineerPr request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (Context.Caller is null
+            || !Answerer.Of(Context.Caller, CurrentBrain).IsPerson)
+        {
+            throw new UnauthorizedAccessException("ApproveEngineerPr is [PersonOnly] and may only be invoked directly by the brain owner.");
+        }
+
+        var flowId = !string.IsNullOrWhiteSpace(request.FlowId)
+            ? request.FlowId.Trim()
+            : State.ActiveArtifact is { Kind: InoDrawerArtifact.EngineerPrKind } activeFlow
+                ? activeFlow.FlowId?.Trim()
+                : null;
+        if (string.IsNullOrWhiteSpace(flowId))
+        {
+            await RejectEngineerApprovalAsync("invalid_engineer_flow", "A valid engineer run flowId is required to approve a Draft PR.");
+            return;
+        }
+
+        // Fail closed: caller must explicitly echo the reviewed commit SHA; never fall back to cached drawer state.
+        var expectedSha = request.ExpectedCommitSha?.Trim();
+        if (string.IsNullOrWhiteSpace(expectedSha))
+        {
+            await RejectEngineerApprovalAsync("missing_commit_sha", "An explicit reviewed candidate commit SHA is required before approving a Draft PR.");
+            return;
+        }
+
+        if (EngineerRuns is not { } runs)
+        {
+            await RejectEngineerApprovalAsync("engineer_runs_unavailable", "Engineer runs service is not available.");
+            return;
+        }
+
+        EngineerRunSummary? liveSummary;
+        try
+        {
+            liveSummary = await runs.InspectEngineerRun(flowId);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            LogOptional(error, "engineer-run-inspect-approve");
+            await RejectEngineerApprovalAsync("engineer_run_inspect_failed", $"Could not inspect engineer run '{flowId}': {error.Message}");
+            return;
+        }
+
+        if (liveSummary is null || !liveSummary.Ok || string.IsNullOrWhiteSpace(liveSummary.FlowId))
+        {
+            var detail = !string.IsNullOrWhiteSpace(liveSummary?.SummaryText)
+                ? liveSummary.SummaryText
+                : $"Engineer run '{flowId}' was not found.";
+            await RejectEngineerApprovalAsync("engineer_run_not_found", detail);
+            return;
+        }
+
+        var liveArtifact = InoCards.FromEngineerRunSummary(liveSummary);
+
+        if (InoCards.TryNormalizeHttpsPullRequestUrl(liveArtifact.PullRequestUrl, out var existingPrUrl))
+        {
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { PullRequestUrl = existingPrUrl, ApprovalError = null, Status = "done" }) with
+            {
+                Status = $"Draft PR ready: {existingPrUrl}",
+            });
+            return;
+        }
+
+        if (liveSummary.Status != DigitalBrain.Flows.FlowStatus.Waiting)
+        {
+            var message = $"Cannot approve Draft PR: engineer run is in status '{liveSummary.Status}' rather than awaiting approval.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["flow_not_waiting"], [message]));
+            return;
+        }
+
+        if (liveSummary.Receipt is not { } receipt)
+        {
+            var message = "Cannot approve Draft PR: EngineerVerificationReceipt is missing.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["missing_receipt"], [message]));
+            return;
+        }
+
+        if (!receipt.BuildVerified)
+        {
+            var message = "Cannot approve Draft PR: build verification gate did not pass.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["build_not_verified"], [message]));
+            return;
+        }
+
+        if (!receipt.LiveVerified)
+        {
+            var message = "Cannot approve Draft PR: live verification gate did not pass.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["live_not_verified"], [message]));
+            return;
+        }
+
+        if (!receipt.SelfReviewPassed || liveSummary.SelfReview is { HasBlocking: true })
+        {
+            var message = $"Cannot approve Draft PR: LocalSelfReview gate failed ({liveArtifact.SelfReviewSummary ?? "blocking findings present"}).";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["self_review_failed"], [message]));
+            return;
+        }
+
+        var liveReceiptSha = receipt.CommitSha?.Trim();
+        if (string.IsNullOrWhiteSpace(liveReceiptSha)
+            || !string.Equals(liveReceiptSha, expectedSha, StringComparison.OrdinalIgnoreCase))
+        {
+            var message = $"Commit SHA mismatch: reviewed '{ShortSha(expectedSha)}' no longer matches live run '{ShortSha(liveReceiptSha)}'. Re-inspect the updated diff and re-confirm before approving.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["sha_mismatch"], [message]));
+            return;
+        }
+
+        // Primary path: EngineerFlow owns the approval-gate -> push -> pr pipeline via its direct-person ConfirmationPlanId.
+        // Apps must never relay ConfirmationInbox.Resolve (07 D-09 / D-19 would deny as SelfApproval); instead, verify
+        // the authoritative confirmation outcome on IConfirmationRequests and refresh the drawer from EngineerFlow.
+        if (!string.IsNullOrWhiteSpace(liveSummary.ConfirmationPlanId))
+        {
+            var planId = liveSummary.ConfirmationPlanId.Trim();
+            if (ConfirmationRequests is not { } confirmationRequests)
+            {
+                var message = "Confirmation service is unavailable; cannot verify EngineerFlow approval gate.";
+                await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+                await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["confirmations_unavailable"], [message]));
+                return;
+            }
+
+            ConfirmationResult? outcome;
+            try
+            {
+                outcome = await confirmationRequests.Outcome(planId);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                LogOptional(error, "engineer-pr-confirm-outcome");
+                var message = $"Could not read Draft PR confirmation gate outcome: {error.Message}";
+                await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+                await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["confirmation_failed"], [message]));
+                return;
+            }
+
+            if (outcome is null)
+            {
+                var message = $"Approve the SHA-locked confirmation card (plan '{planId}') in the drawer so EngineerFlow can push the branch and open the Draft PR.";
+                await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+                await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["confirmation_required"], [message]));
+                return;
+            }
+
+            if (!outcome.Approved)
+            {
+                var message = $"Draft PR confirmation plan '{planId}' was denied ({outcome.Reason}).";
+                await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+                await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["confirmation_denied"], [message]));
+                return;
+            }
+
+            var refreshedSummary = await ReadOptionalAsync<EngineerRunSummary?>(
+                "engineer-run-reinspect",
+                null,
+                async () => await runs.InspectEngineerRun(flowId));
+            var refreshedArtifact = refreshedSummary is { Ok: true }
+                ? InoCards.FromEngineerRunSummary(refreshedSummary)
+                : liveArtifact;
+
+            if (InoCards.TryNormalizeHttpsPullRequestUrl(refreshedArtifact.PullRequestUrl, out var publishedPrUrl))
+            {
+                await Commit(State.OpenArtifactDrawer(refreshedArtifact with
+                {
+                    PullRequestUrl = publishedPrUrl,
+                    ApprovalError = null,
+                    Status = "done",
+                }) with
+                {
+                    Status = $"Opened Draft PR: {publishedPrUrl}",
+                });
+            }
+            else
+            {
+                await Commit(State.OpenArtifactDrawer(refreshedArtifact with
+                {
+                    ApprovalError = null,
+                    Status = string.Equals(refreshedArtifact.Status, "waiting", StringComparison.Ordinal) ? "running" : refreshedArtifact.Status,
+                }) with
+                {
+                    Status = "Approved Draft PR · pushing branch and creating PR...",
+                });
+            }
+
+            return;
+        }
+
+        // Fallback path ONLY when no ConfirmationPlanId exists AND the branch is already pushed.
+        if (string.IsNullOrWhiteSpace(liveArtifact.PushedRef))
+        {
+            var message = "Cannot open Draft PR directly: no confirmation plan is active and the candidate branch has not been pushed yet.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["branch_not_pushed"], [message]));
+            return;
+        }
+
+        var baseBranch = !string.IsNullOrWhiteSpace(request.BaseBranch)
+            ? request.BaseBranch.Trim()
+            : liveArtifact.BaseBranch?.Trim();
+        if (string.IsNullOrWhiteSpace(baseBranch))
+        {
+            var message = "Cannot open Draft PR directly without an explicit base branch when no confirmation plan is active.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["missing_base_branch"], [message]));
+            return;
+        }
+
+        var repo = await TryResolveRepositoryAsync(liveArtifact.RepoSlug);
+        if (repo is null)
+        {
+            var message = "No unambiguous connected native GitHub repository matched this run. Connect or disambiguate GitHub in Settings before opening a Draft PR.";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["repository_unavailable"], [message]));
+            return;
+        }
+
+        var headBranch = !string.IsNullOrWhiteSpace(liveArtifact.HeadBranch)
+            ? liveArtifact.HeadBranch
+            : $"ino/engineer-{liveSummary.RunId}";
+        var prTitle = !string.IsNullOrWhiteSpace(liveSummary.Goal)
+            ? (liveSummary.Goal.Trim().Length <= 120 ? liveSummary.Goal.Trim() : liveSummary.Goal.Trim()[..119] + "…")
+            : liveArtifact.Title;
+        var prBody = BuildEngineerDraftPrBody(liveSummary, liveArtifact);
+
+        try
+        {
+            var created = await repo.CreatePullRequest(new CreatePullRequest(
+                Title: prTitle,
+                HeadBranch: headBranch,
+                BaseBranch: baseBranch,
+                Body: prBody,
+                Draft: true));
+            if (!InoCards.TryNormalizeHttpsPullRequestUrl(created.Url, out var validatedPrUrl))
+            {
+                var invalidUrlMessage = "GitHub repository returned an invalid or non-HTTPS pull request URL.";
+                await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = invalidUrlMessage }));
+                await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["invalid_pr_url"], [invalidUrlMessage]));
+                return;
+            }
+
+            var openedArtifact = liveArtifact with
+            {
+                PullRequestUrl = validatedPrUrl,
+                ApprovalError = null,
+                Status = "done",
+            };
+            await Commit(State.OpenArtifactDrawer(openedArtifact) with
+            {
+                Status = $"Opened Draft PR: {validatedPrUrl}",
+            });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            LogOptional(error, "engineer-pr-create");
+            var message = $"Could not open Draft PR: {error.Message}";
+            await Commit(State.OpenArtifactDrawer(liveArtifact with { ApprovalError = message }));
+            await RecordRejectionAsync(new Rejected("approve-engineer-pr", ["pr_create_failed"], [message]));
+        }
+    }
+
+    private async Task RefreshActiveEngineerDrawerIfMatchingAsync(string? planId, string? flowId)
+    {
+        if (!State.DrawerOpen
+            || State.ActiveArtifact is not { Kind: InoDrawerArtifact.EngineerPrKind, FlowId.Length: > 0 } active
+            || EngineerRuns is not { } runs)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(flowId)
+            && !string.Equals(active.FlowId, flowId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(planId)
+            && !string.IsNullOrWhiteSpace(active.ConfirmationPlanId)
+            && !string.Equals(active.ConfirmationPlanId, planId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var refreshedSummary = await ReadOptionalAsync<EngineerRunSummary?>(
+            "engineer-run-refresh",
+            null,
+            async () => await runs.InspectEngineerRun(active.FlowId));
+        if (refreshedSummary is not { Ok: true })
+        {
+            return;
+        }
+
+        var refreshedArtifact = InoCards.FromEngineerRunSummary(refreshedSummary);
+        if (!active.Equals(refreshedArtifact))
+        {
+            await Commit(State.OpenArtifactDrawer(refreshedArtifact));
+        }
+    }
+
+    private async Task RejectEngineerApprovalAsync(string code, string message)
+    {
+        if (State.ActiveArtifact is { Kind: InoDrawerArtifact.EngineerPrKind } active)
+        {
+            await Commit(State with { ActiveArtifact = active with { ApprovalError = message } });
+        }
+
+        await RecordRejectionAsync(new Rejected("approve-engineer-pr", [code], [message]));
+    }
+
+    private async Task<IRepository?> TryResolveRepositoryAsync(string? repoSlug)
+    {
+        if (CurrentBrain.Value is not { Length: > 0 } || string.IsNullOrWhiteSpace(repoSlug))
+        {
+            return null;
+        }
+
+        var normalizedSlug = repoSlug.Trim();
+        var isOwnerRepoSlug = normalizedSlug.Contains('/', StringComparison.Ordinal);
+
+        var candidateKeys = new List<string>(6)
+        {
+            $"connection/github/{normalizedSlug}",
+        };
+        if (isOwnerRepoSlug)
+        {
+            var slash = normalizedSlug.IndexOf('/', StringComparison.Ordinal);
+            if (slash > 0 && slash + 1 < normalizedSlug.Length)
+            {
+                candidateKeys.Add($"connection/github/{normalizedSlug[(slash + 1)..]}");
+            }
+        }
+
+        if (ConnectionCatalog is { } catalog)
+        {
+            await TryOptionalAsync("connection-catalog", async () =>
+            {
+                var view = await catalog.Read();
+                foreach (var row in view.Rows)
+                {
+                    if (string.Equals(row.ConnectorId, "github", StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(row.ConnectionId))
+                    {
+                        candidateKeys.Add($"connection/github/{Uri.EscapeDataString(row.ConnectionId.Trim())}");
+                    }
+                }
+            });
+        }
+
+        candidateKeys.Add("connection/github/main");
+
+        var matched = new List<(IRepository Repo, string CanonicalRepo)>(2);
+        foreach (var key in candidateKeys.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var candidate = Repositories[new NeuronId(CurrentBrain, "github", key)];
+                var repoView = await candidate.Read();
+                if (!repoView.Connected || string.IsNullOrWhiteSpace(repoView.Repository))
+                {
+                    continue;
+                }
+
+                var canonicalRepo = repoView.Repository.Trim();
+                bool isMatch;
+                if (isOwnerRepoSlug)
+                {
+                    isMatch = string.Equals(canonicalRepo, normalizedSlug, StringComparison.OrdinalIgnoreCase);
+                }
+                else
+                {
+                    var repoSlash = canonicalRepo.LastIndexOf('/');
+                    var repoNameSegment = repoSlash >= 0 && repoSlash + 1 < canonicalRepo.Length
+                        ? canonicalRepo[(repoSlash + 1)..]
+                        : canonicalRepo;
+                    isMatch = string.Equals(repoView.ConnectionId?.Trim(), normalizedSlug, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(repoNameSegment, normalizedSlug, StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (!isMatch)
+                {
+                    continue;
+                }
+
+                if (!matched.Any(m => string.Equals(m.CanonicalRepo, canonicalRepo, StringComparison.OrdinalIgnoreCase)))
+                {
+                    matched.Add((candidate, canonicalRepo));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                LogOptional(error, $"github-repository:{key}");
+            }
+        }
+
+        // Fail closed when zero or multiple distinct connected repositories match (ambiguous short slug).
+        return matched.Count == 1 ? matched[0].Repo : null;
+    }
+
+    private static string BuildEngineerDraftPrBody(EngineerRunSummary summary, InoDrawerArtifact artifact)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("## Goal\n").AppendLine(string.IsNullOrWhiteSpace(summary.Goal) ? artifact.Title : summary.Goal.Trim());
+        sb.AppendLine();
+        sb.Append("- **Flow ID**: `").Append(summary.FlowId).AppendLine("`");
+        sb.Append("- **Reviewed Commit SHA**: `").Append(artifact.CandidateSha).AppendLine("`");
+        sb.Append("- **Local Self-Review**: ").AppendLine(artifact.SelfReviewSummary ?? "passed");
+        if (!string.IsNullOrWhiteSpace(artifact.VerificationSummary))
+        {
+            sb.Append("- **Verification**: ").AppendLine(artifact.VerificationSummary);
+        }
+
+        return sb.ToString().Trim();
+    }
+
+    private static string ShortSha(string? sha)
+    {
+        if (string.IsNullOrWhiteSpace(sha))
+        {
+            return "none";
+        }
+
+        var trimmed = sha.Trim();
+        return trimmed.Length <= 8 ? trimmed : trimmed[..8];
     }
 
     [On]
