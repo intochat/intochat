@@ -397,13 +397,28 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
             return false;
         }
 
-        // The thread may be wrapped in a single-child filling column; clean means nothing above/below it and no messages yet.
+        // Unwrap the persistent 264px Arc sidebar splitPane (trailing holds the main conversation column).
+        if (node.TryGetProperty("kind", out var paneKind) && paneKind.GetString() == "splitPane"
+            && node.TryGetProperty("trailing", out var trailing))
+        {
+            node = trailing;
+        }
+
+        // The thread may be wrapped in a filling column (with an optional trust-header row above it); clean means no extra cards and no messages yet.
         if (node.TryGetProperty("kind", out var rootKind) && rootKind.GetString() == "column"
             && node.TryGetProperty("children", out var children)
-            && children.ValueKind == JsonValueKind.Array
-            && children.GetArrayLength() == 1)
+            && children.ValueKind == JsonValueKind.Array)
         {
-            node = children[0];
+            if (children.GetArrayLength() == 1)
+            {
+                node = children[0];
+            }
+            else if (children.GetArrayLength() == 2
+                && children[0].TryGetProperty("kind", out var headerKind)
+                && headerKind.GetString() == "row")
+            {
+                node = children[1];
+            }
         }
 
         return node.TryGetProperty("kind", out var kind) && kind.GetString() == "chatThreadView"

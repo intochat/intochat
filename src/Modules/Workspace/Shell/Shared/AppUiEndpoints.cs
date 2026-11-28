@@ -106,7 +106,7 @@ internal static class AppUiEndpoints
         if (!isOwnScreen)
         {
             foreignGuestScreenId = TryParseForeignScreenAddress(scope, input.Neuron, out var targetBrain, out var screenType, out var screenKey)
-                ? await AuthorizeGuestShareableScreenAsync(
+                ? await ResolveGuestShareableScreenAsync(
                     brain, caller, targetBrain, screenType, screenKey, requireEditor: true, hostedNeurons, edge, ct)
                 : throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
         }
@@ -164,7 +164,12 @@ internal static class AppUiEndpoints
         }
         catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
         {
-            (logger ?? ConsoleLog).LogWarning(error, "Act {Signal} on {Target} of {Neuron} failed.", input.Signal, input.Target, input.Neuron);
+            (logger ?? ConsoleLog).LogWarning(
+                error,
+                "Act {Signal} on {Target} of {Neuron} failed.",
+                SanitizeLogValue(input.Signal),
+                SanitizeLogValue(input.Target),
+                SanitizeLogValue(input.Neuron));
             return ErrorJson(StatusCodes.Status422UnprocessableEntity, error.Message, "HandlerFailed");
         }
         return OkJson(new ActDeliveredResponse(true), ShellUiJsonContext.Default.ActDeliveredResponse);
@@ -252,7 +257,7 @@ internal static class AppUiEndpoints
             if (kind == UIVocabulary.ViewType
                 && TryParseForeignScreenAddress(scope, name, out var foreignBrain, out var foreignType, out var foreignKey))
             {
-                var guestScreenId = await AuthorizeGuestShareableScreenAsync(
+                var guestScreenId = await ResolveGuestShareableScreenAsync(
                     brain, caller, foreignBrain, foreignType, foreignKey, requireEditor: false, hostedNeurons, edge, ct);
                 // Preserve caller identity strictly — zero authority elevation.
                 var published = await brain.Get<IScreen>(guestScreenId).Read().WaitAsync(ct);
@@ -499,7 +504,12 @@ internal static class AppUiEndpoints
         return true;
     }
 
-    internal static async Task<NeuronId> AuthorizeGuestShareableScreenAsync(
+    private static string SanitizeLogValue(string? value)
+        => string.IsNullOrEmpty(value)
+            ? string.Empty
+            : value.Replace("\r", string.Empty, StringComparison.Ordinal).Replace("\n", string.Empty, StringComparison.Ordinal);
+
+    internal static async Task<NeuronId> ResolveGuestShareableScreenAsync(
         INeuronProxies brain,
         Caller? caller,
         BrainId targetBrain,

@@ -219,33 +219,13 @@
                 },
                 {
                   "kind": "appTile",
-                  "key": "dock-friends",
-                  "appId": "friends",
-                  "title": "Friends",
-                  "icon": "users",
-                  "category": "Social",
-                  "launch": 0,
-                  "dock": 2,
-                  "appKind": "compiled",
-                  "description": "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
-                  "command": {
-                    "target": ".",
-                    "signal": "desktop.open",
-                    "args": {
-                      "app": "friends"
-                    }
-                  },
-                  "automationName": "Friends"
-                },
-                {
-                  "kind": "appTile",
                   "key": "dock-files",
                   "appId": "files",
                   "title": "Files",
                   "icon": "folder",
                   "category": "Workspace",
                   "launch": 0,
-                  "dock": 3,
+                  "dock": 2,
                   "appKind": "compiled",
                   "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
                   "command": {
@@ -265,7 +245,7 @@
                   "icon": "artcraft:gridcraft",
                   "category": "Workspace",
                   "launch": 1,
-                  "dock": 4,
+                  "dock": 3,
                   "appKind": "compiled",
                   "description": "Excel-compatible reactive spreadsheet engine for formula evaluation, pivot tables, financial modeling, and CSV/XLSX/Parquet workflows.",
                   "command": {
@@ -456,33 +436,13 @@
             },
             {
               "kind": "appTile",
-              "key": "catalog-friends",
-              "appId": "friends",
-              "title": "Friends",
-              "icon": "users",
-              "category": "Social",
-              "launch": 0,
-              "dock": 2,
-              "appKind": "compiled",
-              "description": "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
-              "command": {
-                "target": ".",
-                "signal": "desktop.open",
-                "args": {
-                  "app": "friends"
-                }
-              },
-              "automationName": "Friends"
-            },
-            {
-              "kind": "appTile",
               "key": "catalog-files",
               "appId": "files",
               "title": "Files",
               "icon": "folder",
               "category": "Workspace",
               "launch": 0,
-              "dock": 3,
+              "dock": 2,
               "appKind": "compiled",
               "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
               "command": {
@@ -502,7 +462,7 @@
               "icon": "artcraft:gridcraft",
               "category": "Workspace",
               "launch": 1,
-              "dock": 4,
+              "dock": 3,
               "appKind": "compiled",
               "description": "Excel-compatible reactive spreadsheet engine for formula evaluation, pivot tables, financial modeling, and CSV/XLSX/Parquet workflows.",
               "command": {
