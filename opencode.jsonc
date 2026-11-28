@@ -46,7 +46,7 @@
         "/c",
         "npx",
         "-y",
-        "@colbymchenry/codegraph@1.6.0",
+        "@colbymchenry/codegraph@1.6.5",
         "serve",
         "--mcp"
       ],

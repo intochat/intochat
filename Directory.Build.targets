@@ -26,8 +26,8 @@
     <ProjectReference Remove="@(ProjectReference)" />
   </ItemGroup>
 
-  <!-- Pinned to CodeGraph 1.6.0 in Directory.Build.props until the Windows fix ships:
-       https://github.com/colbymchenry/codegraph/issues/2094 -->
+  <!-- Opt-in CodeGraph refresh (set -p:CodeGraphRefresh=true). Pinned to CodeGraph 1.6.5 in
+       Directory.Build.props (includes the Windows hidden-subprocess fix from colbymchenry/codegraph#2094). -->
   <Target Name="RefreshCodeGraph"
           BeforeTargets="BeforeBuild"
           Inputs="@(Compile);$(MSBuildProjectFullPath)"
