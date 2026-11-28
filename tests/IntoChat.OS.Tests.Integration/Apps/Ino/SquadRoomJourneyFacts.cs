@@ -173,6 +173,35 @@ public sealed class SquadRoomJourneyFacts(InoSiloFixture fixture)
             Within,
             ct);
         Assert.Equal(TaskStatus.InProgress, afterHumanUncheck.Status);
+
+        // B4: Duplicate aliases resolving to the same AgentId ("@alpha" and "agent-alpha") must be rejected with invalid_squad.
+        var dupSquadArgs = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+            new InoCreateSquad("Duplicate Alias Squad", ["@alpha", "agent-alpha"]),
+            typeof(InoCreateSquad));
+        await ino.Dispatch(new Command(".", "ino.new-squad", dupSquadArgs));
+        var pageAfterDup = await directory.List();
+        Assert.DoesNotContain(pageAfterDup.Entries, e => e.Title == "Duplicate Alias Squad");
+
+        // B3: Moving a Completed task to Waiting via KanbanNeuron + SyncSquadCheckBoxesAsync must NOT clobber Waiting back to InProgress.
+        await tasks.Transition(createdTask.TaskId, TaskStatus.Completed, "Done again");
+        var moveWaitingArgs = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+            new InoMoveSquadTask(createdTask.TaskId, "waiting", 0),
+            typeof(InoMoveSquadTask));
+        await ino.Dispatch(new Command(".", "ino.squad-move-task", moveWaitingArgs));
+
+        var afterWaitingMove = await WaitUntilAsync(
+            async () =>
+            {
+                var r = await tasks.Read(createdTask.TaskId);
+                return r?.Status == TaskStatus.Waiting ? r : null;
+            },
+            Within,
+            ct);
+        Assert.Equal(TaskStatus.Waiting, afterWaitingMove.Status);
+        // Allow any checkbox sync signals to settle and assert Waiting is preserved (not overwritten to InProgress).
+        await Task.Delay(150, ct);
+        var settledWaiting = await tasks.Read(createdTask.TaskId);
+        Assert.Equal(TaskStatus.Waiting, settledWaiting?.Status);
     }
 
     private static async Task<ConversationView> WaitForAssistantCountAsync(IConversation conv, int expectedCount, CancellationToken ct)

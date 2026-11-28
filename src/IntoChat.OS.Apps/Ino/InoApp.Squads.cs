@@ -118,6 +118,7 @@ public sealed partial class InoApp
         var (_, effectiveModel, _) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings, snapshot);
 
         var seatedDefinitions = new List<(string AgentId, AgentDefinition Definition)>(plan.SeatedAgentIds.Length);
+        var seenResolvedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? resolvedLeadId = null;
 
         foreach (var token in plan.SeatedAgentIds)
@@ -131,11 +132,23 @@ public sealed partial class InoApp
                 return;
             }
 
-            seatedDefinitions.Add(resolved.Value);
+            if (seenResolvedIds.Add(resolved.Value.AgentId))
+            {
+                seatedDefinitions.Add(resolved.Value);
+            }
+
             if (string.Equals(token, plan.LeadAgentId, StringComparison.OrdinalIgnoreCase))
             {
                 resolvedLeadId = resolved.Value.AgentId;
             }
+        }
+
+        if (seatedDefinitions.Count < 2)
+        {
+            const string duplicateError = "A Squad Room requires at least 2 distinct seated agents (duplicate aliases resolved to the same agent).";
+            await Commit(State with { SquadError = duplicateError, Status = duplicateError });
+            await RecordRejectionAsync(new Rejected("new-squad", ["invalid_squad"], [duplicateError]));
+            return;
         }
 
         resolvedLeadId ??= seatedDefinitions[0].AgentId;
@@ -385,10 +398,17 @@ public sealed partial class InoApp
         if (Tasks is { } tasks)
         {
             var existing = await ReadOptionalAsync<TaskRecord?>("squad-check-read", null, () => tasks.Read(taskId));
-            var desired = toggled.IsOn ? TaskStatus.Completed : TaskStatus.InProgress;
-            if (existing is not null && existing.Status != desired)
+            if (existing is null)
             {
-                await TryOptionalAsync("squad-check-transition", () => tasks.Transition(taskId, desired));
+                return;
+            }
+
+            TaskStatus? desired = toggled.IsOn
+                ? (existing.Status != TaskStatus.Completed ? TaskStatus.Completed : null)
+                : (existing.Status == TaskStatus.Completed ? TaskStatus.InProgress : null);
+            if (desired is { } nextStatus)
+            {
+                await TryOptionalAsync("squad-check-transition", () => tasks.Transition(taskId, nextStatus));
                 await RefreshTasksAsync();
             }
         }

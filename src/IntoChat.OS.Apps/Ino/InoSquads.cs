@@ -219,9 +219,18 @@ public static class InoSquads
     public static string NormalizeAgentToken(string raw)
     {
         var token = raw.Trim().TrimStart('@').Trim();
-        if (string.IsNullOrEmpty(token) || token.Any(char.IsWhiteSpace) || token.Contains('/') || token.Contains('\\'))
+        if (string.IsNullOrEmpty(token) || token.Length > 64)
         {
             return string.Empty;
+        }
+
+        for (var i = 0; i < token.Length; i++)
+        {
+            var c = token[i];
+            if (!char.IsAsciiLetterOrDigit(c) && !(i > 0 && c is '-' or '_'))
+            {
+                return string.Empty;
+            }
         }
 
         return token.ToLowerInvariant();
@@ -323,7 +332,7 @@ public static class InoSquads
                 ArtifactId: run.FlowId,
                 FlowId: run.FlowId,
                 Title: run.Title,
-                Kind: "engineer-run"))
+                Kind: "engineer-pr"))
             .ToButton();
 
         return new JobCardNode(

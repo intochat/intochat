@@ -1451,6 +1451,9 @@ internal sealed class ConversationNeuron(
         string? handoffText = null;
         var handoffDepth = depth + 1;
         string[]? nextQueue = null;
+        string? postCommitSummary = null;
+        string? postCommitUserText = null;
+        string? postCommitVisible = null;
 
         using (var activeRun = BeginRun(runId, definition.Timeout))
         {
@@ -1599,7 +1602,7 @@ internal sealed class ConversationNeuron(
                                 var replyId = EntryIds.Reply(runId);
                                 newEntries.Add(new Said(replyId, agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
 
-                                // Multi-agent Squad handoff with strict maxDepth = 3 loop guard and clean limit summary.
+                                // Multi-agent Squad handoff with strict cumulative maxDepth = 3 budget across both multi-mentions and handoffs.
                                 string? handoffLimitNotice = null;
                                 var requestedHandoff = ResolveSquadHandoffAgent(turnState.Visible, seated.AgentId);
                                 if (requestedHandoff is not null)
@@ -1624,15 +1627,26 @@ internal sealed class ConversationNeuron(
                                 }
                                 else if (queuedAgentIds is { Length: > 0 })
                                 {
-                                    handoffTarget = queuedAgentIds[0];
-                                    handoffText = latestHumanSaid?.Text ?? turnState.Run.UserText;
-                                    handoffDepth = 0;
-                                    nextQueue = queuedAgentIds.Length > 1 ? queuedAgentIds[1..] : null;
+                                    if (depth + 1 < SharedRoomAgentPolicy.MaxSquadHandoffDepth)
+                                    {
+                                        handoffTarget = queuedAgentIds[0];
+                                        handoffText = latestHumanSaid?.Text ?? turnState.Run.UserText;
+                                        handoffDepth = depth + 1;
+                                        nextQueue = queuedAgentIds.Length > 1 ? queuedAgentIds[1..] : null;
+                                    }
+                                    else
+                                    {
+                                        var haltedNext = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, queuedAgentIds[0], StringComparison.OrdinalIgnoreCase));
+                                        var haltedToken = haltedNext is not null ? FormatHandleToken(haltedNext) : queuedAgentIds[0];
+                                        handoffLimitNotice = $"Squad delegation limit reached (maxDepth = {SharedRoomAgentPolicy.MaxSquadHandoffDepth}): halted queued turn for @{haltedToken}. Reply or @mention a seated agent to continue.";
+                                        newEntries.Add(new Summarized(
+                                            EntryIds.Summary(runId + "-handoff-limit"),
+                                            agentParticipant,
+                                            now,
+                                            handoffLimitNotice,
+                                            replyId));
+                                    }
                                 }
-
-                                if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
-                                await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
-                                await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, turnState.Run.UserText, turnState.Visible);
 
                                 var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
                                 storeCount++;
@@ -1644,6 +1658,9 @@ internal sealed class ConversationNeuron(
                                     Runs = Keep(State.Runs, turnState.Run),
                                     HandoffLimitNotice = handoffLimitNotice ?? State.HandoffLimitNotice,
                                 });
+                                postCommitSummary = summarized ? nextSummary : null;
+                                postCommitUserText = turnState.Run.UserText;
+                                postCommitVisible = turnState.Visible;
                                 committed = true;
                                 break;
                             }
@@ -1680,6 +1697,13 @@ internal sealed class ConversationNeuron(
                         runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
                 }
             }
+        }
+
+        if (committed)
+        {
+            if (!string.IsNullOrEmpty(postCommitSummary)) { await Runner.WriteSummary(definition.Contexts, postCommitSummary); }
+            await Runner.RecordMilestone(definition.Contexts, postCommitUserText, postCommitVisible ?? string.Empty);
+            await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, postCommitUserText ?? string.Empty, postCommitVisible ?? string.Empty);
         }
 
         if (committed && handoffTarget is not null && handoffText is not null && !IsBlocked)

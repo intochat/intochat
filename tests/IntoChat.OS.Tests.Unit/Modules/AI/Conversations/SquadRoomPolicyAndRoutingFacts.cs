@@ -112,6 +112,12 @@ public sealed class SquadRoomPolicyAndRoutingFacts
         // Reject unknown lead not in seated agents.
         var badLead = InoSquads.PrepareCreate("Squad", ["@ino", "@architect"], rawLeadAgentId: "@qa");
         Assert.False(badLead.Succeeded);
+
+        // Reject traversal segments and control chars in agent tokens.
+        Assert.Equal(string.Empty, InoSquads.NormalizeAgentToken(".."));
+        Assert.Equal(string.Empty, InoSquads.NormalizeAgentToken("."));
+        Assert.Equal(string.Empty, InoSquads.NormalizeAgentToken("a..b"));
+        Assert.Equal(string.Empty, InoSquads.NormalizeAgentToken("alpha\0beta"));
     }
 
     [Fact]
@@ -235,6 +241,46 @@ public sealed class SquadRoomPolicyAndRoutingFacts
             Assert.Contains("@alpha", view.HandoffLimitNotice!, StringComparison.Ordinal);
             Assert.Contains("@beta", view.HandoffLimitNotice!, StringComparison.Ordinal);
             Assert.Contains(view.Entries.OfType<Summarized>(), s => s.Summary.Contains("maxDepth = 3", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task SquadDelegation_CumulativeMaxDepthThree_CapsCombinedMultiMentionAndHandoffs()
+    {
+        var client = new ScriptedChatClient((messages, options) =>
+        {
+            var sys = (options?.Instructions ?? "") + "\n" + string.Concat(messages.Where(m => m.Role == ChatRole.System).Select(m => m.Text));
+            if (sys.Contains("ALPHA_PERSONA", StringComparison.Ordinal)) { return "Alpha done, handing off to @beta"; }
+            if (sys.Contains("BETA_PERSONA", StringComparison.Ordinal)) { return "Beta done, handing off to @gamma"; }
+            if (sys.Contains("GAMMA_PERSONA", StringComparison.Ordinal)) { return "Gamma done."; }
+            return "Ino done.";
+        });
+
+        var services = CreateServices(client);
+        await using var os = TestOS.Local(options => options.Services = services)
+            .Register<ConversationNeuron>();
+
+        var convId = new NeuronId(OwnerBrain, IConversation.Type, "conversations/squad-cumulative-depth");
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", OwnerBrain)))
+        {
+            var conv = os.Get<IConversation>(convId);
+            await conv.Configure(ThreadTrustPosture.OwnerTrusted, ThreadKind.Squad, "Cumulative Guard Squad", leadAgentId: "ino");
+            await conv.Seat("ino", new AgentDefinition { DisplayName = "Ino", Handle = "@ino", Instructions = "INO_PERSONA" });
+            await conv.Seat("agent-alpha", new AgentDefinition { DisplayName = "Alpha", Handle = "@alpha", Instructions = "ALPHA_PERSONA" });
+            await conv.Seat("agent-beta", new AgentDefinition { DisplayName = "Beta", Handle = "@beta", Instructions = "BETA_PERSONA" });
+            await conv.Seat("agent-gamma", new AgentDefinition { DisplayName = "Gamma", Handle = "@gamma", Instructions = "GAMMA_PERSONA" });
+
+            // Human mentions 4 agents while @alpha -> @beta -> @gamma also chain handoffs.
+            // Cumulative budget must cap total turns at MaxSquadHandoffDepth = 3 (never 3*K) and surface HandoffLimitNotice.
+            await conv.Say("@alpha @beta @gamma @ino coordinate the launch");
+            await os.Idle();
+
+            var view = await conv.Read();
+            var replies = view.Entries.OfType<Said>().Where(static s => s.By is Participant.Assistant).ToArray();
+            Assert.Equal(SharedRoomAgentPolicy.MaxSquadHandoffDepth, replies.Length);
+            Assert.Equal(["agent-alpha", "agent-beta", "agent-gamma"], replies.Select(static r => ((Participant.Assistant)r.By).AgentId));
+            Assert.False(string.IsNullOrWhiteSpace(view.HandoffLimitNotice));
+            Assert.Contains("maxDepth = 3", view.HandoffLimitNotice!, StringComparison.Ordinal);
         }
     }
 
