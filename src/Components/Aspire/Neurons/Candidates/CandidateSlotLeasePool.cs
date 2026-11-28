@@ -30,7 +30,9 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         "intochat-home",
     ];
 
-    private static readonly ConcurrentDictionary<int, byte> ProcessReservedPorts = new();
+    // Bounded lock-free reservation bitmap over the closed TCP port space [0..65535] so concurrent
+    // real-OS pools in the same process never hand out overlapping host port ranges.
+    private static readonly int[] ProcessReservedPorts = new int[ushort.MaxValue + 1];
 
     private readonly CandidateSlotPoolOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -41,7 +43,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
     private readonly ConcurrentQueue<SlotEntry> _coldSlots = new();
     private readonly ConcurrentDictionary<string, CandidateSlotLease> _activeByOwner = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, SlotEntry> _slotsById = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<int, byte> _reservedPorts;
+    private readonly int[] _reservedPorts;
     private readonly ConcurrentDictionary<int, CandidateSlotPortRange> _ownedRanges = new();
     private int _portCursor;
     private int _disposed;
@@ -64,7 +66,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         _options.Validate();
         _timeProvider = timeProvider ?? TimeProvider.System;
         _isPortInUse = isPortInUse ?? IsTcpPortInUse;
-        _reservedPorts = isPortInUse is null ? ProcessReservedPorts : new ConcurrentDictionary<int, byte>();
+        _reservedPorts = isPortInUse is null ? ProcessReservedPorts : new int[ushort.MaxValue + 1];
         _onLeaseReclaimed = onLeaseReclaimed;
         _availableSlots = new SemaphoreSlim(_options.MaxSlots, _options.MaxSlots);
 
@@ -506,11 +508,11 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
     {
         for (var port = range.BasePort; port < range.EndPortExclusive; port++)
         {
-            if (!_reservedPorts.TryAdd(port, 0))
+            if (Interlocked.CompareExchange(ref _reservedPorts[port], 1, 0) != 0)
             {
                 for (var rollback = range.BasePort; rollback < port; rollback++)
                 {
-                    _reservedPorts.TryRemove(rollback, out _);
+                    Volatile.Write(ref _reservedPorts[rollback], 0);
                 }
 
                 return false;
@@ -527,7 +529,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         {
             for (var port = range.BasePort; port < range.EndPortExclusive; port++)
             {
-                _reservedPorts.TryRemove(port, out _);
+                Volatile.Write(ref _reservedPorts[port], 0);
             }
         }
     }
