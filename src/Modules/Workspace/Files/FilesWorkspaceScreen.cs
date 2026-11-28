@@ -78,7 +78,7 @@ internal sealed record FilesWorkspaceState
 // state, the operations it started and its view. Every button sends FilesRun to "." through POST /act; every field sends FilesType
 // with its text, which the screen keeps in its state (Typed) until the request that uses it.
 [Neuron("app.files", State = "files-workspace")]
-[Screen("app.files", Title = "Files", Icon = "folder", Category = "Workspace", Dock = 3)]
+[Screen("app.files", Title = "Files", Icon = "folder", Category = "Workspace", Dock = 2)]
 [Description("Browse, search, create and manage files across connected storages, with safe confirmations.")]
 internal sealed partial class FilesWorkspaceScreen(
     ICapabilityBroker broker,

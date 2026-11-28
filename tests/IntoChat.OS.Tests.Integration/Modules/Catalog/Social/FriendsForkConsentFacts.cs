@@ -8,7 +8,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Social;

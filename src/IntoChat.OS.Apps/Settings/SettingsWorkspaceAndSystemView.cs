@@ -124,51 +124,155 @@ internal static class SettingsWorkspaceAndSystemView
 
     public static Node RenderTeamSection(SettingsAppState state, string? subPage)
     {
+        var roster = state.TeamRoster ?? [];
+        var grants = state.FriendConnectionGrants ?? [];
+
         if (!string.IsNullOrWhiteSpace(subPage))
         {
-            return SettingsViewRenderer.DetailSubPage(
-                $"Team / {subPage}",
-                $"PersonPage · {subPage}",
-                "Individual group role and capability grant overrides.",
-                [
-                    ["Member", subPage],
-                    ["Role", "Owner · Full brain administration"],
-                    ["Write policy", "Gate 2.0 ApprovalCard required"],
-                ],
-                "back-to-team",
-                "Back to Team");
+            var isOwner = string.Equals(subPage, "owner", StringComparison.OrdinalIgnoreCase);
+            var matchedFriend = roster.FirstOrDefault(f =>
+                string.Equals(f.Account.Value, subPage, StringComparison.OrdinalIgnoreCase));
+            var displayLabel = isOwner
+                ? state.DisplayName
+                : matchedFriend is not null && !string.IsNullOrWhiteSpace(matchedFriend.Name)
+                    ? $"{matchedFriend.Name} (@{matchedFriend.Account.Value})"
+                    : subPage;
+            var canReadFiles = grants.Contains($"{subPage}:files.read", StringComparer.OrdinalIgnoreCase);
+            var canUseRooms = grants.Contains($"{subPage}:rooms.edit", StringComparer.OrdinalIgnoreCase);
+
+            var detailChildren = new List<Node>
+            {
+                Heading($"PersonPage · {displayLabel}", 3, "Individual role, connection permissions, and friend access"),
+                Table(
+                    displayLabel,
+                    ["Property", "Value"],
+                    [
+                        ["Member", displayLabel],
+                        ["Role", isOwner ? "Owner · Full brain administration" : "Friend · Cross-brain E2EE peer"],
+                        ["Write policy", isOwner ? "Gate 2.0 ApprovalCard required" : "Scoped to offered resources only"],
+                    ]),
+            };
+
+            if (!isOwner)
+            {
+                detailChildren.Add(HStack(Space.Sm)[
+                    Button(canReadFiles ? "Revoke Files Read" : "Allow Files Read", "folder")
+                        .Key($"team:perm-files:{subPage}")
+                        .Small()
+                        .Sends(new SettingsSetFriendPermission(subPage, "files.read", !canReadFiles))
+                        .ToNode(),
+                    Button(canUseRooms ? "Revoke Room Apps Edit" : "Allow Room Apps Edit", "check-square")
+                        .Key($"team:perm-rooms:{subPage}")
+                        .Small()
+                        .Sends(new SettingsSetFriendPermission(subPage, "rooms.edit", !canUseRooms))
+                        .ToNode(),
+                    DangerButton("Unfriend", Icons.Trash2)
+                        .Key($"team:unfriend:{subPage}")
+                        .Small()
+                        .Sends(new SettingsUnfriend(subPage))
+                        .ToNode()
+                ]);
+            }
+
+            detailChildren.Add(HStack(Space.Sm)[
+                Button("Back to People & Team", "arrow-left")
+                    .Key("back-to-team")
+                    .Small()
+                    .Sends(new SettingsGoBack())
+                    .ToNode()
+            ]);
+
+            return Surface(SurfaceKind.Elevated, $"People & Team / {displayLabel}", "Connection permissions and member controls")
+                .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
+                VStack(Space.Md, [.. detailChildren])
+            ];
         }
 
         IReadOnlyList<string>[] memberRows =
         [
             [state.DisplayName, "Owner", "Active"],
-            .. (state.TeamRoster ?? []).Select(static friend =>
+            .. roster.Select(static friend =>
             {
                 var label = string.IsNullOrWhiteSpace(friend.Name) ? $"@{friend.Account.Value}" : $"{friend.Name} (@{friend.Account.Value})";
-                return (IReadOnlyList<string>)[label, "friend", "Verified"];
+                return (IReadOnlyList<string>)[label, "Friend", "Verified"];
             }),
         ];
 
-        return Surface(SurfaceKind.Elevated, "Team and permissions", "Manage group members, roles (Owner, Member, Guest), and capability grants")
+        var rosterActions = roster.Select(static friend => Button(
+                string.IsNullOrWhiteSpace(friend.Name) ? $"Manage @{friend.Account.Value}" : $"Manage {friend.Name}",
+                "user")
+            .Key($"team:person:{friend.Account.Value}")
+            .Small()
+            .Sends(new SettingsNavigate("team", friend.Account.Value))
+            .ToNode()).ToArray();
+
+        var sectionNodes = new List<Node>
+        {
+            StatusPill(StatusKind.Done, $"{memberRows.Length} member(s)"),
+        };
+
+        if (!string.IsNullOrWhiteSpace(state.TeamError))
+        {
+            sectionNodes.Add(Banner("People & Team", state.TeamError, tone: "error"));
+        }
+
+        // Friend Codes (24h Mint / Redeem + @handle lookup)
+        var codeChildren = new List<Node>
+        {
+            HStack(Space.Sm)[
+                PrimaryButton("Mint 24h friend code", "key-round")
+                    .Key("team:mint-code")
+                    .Small()
+                    .Sends(new SettingsMintFriendCode())
+                    .ToNode(),
+                Button("Invite teammate", "user-plus")
+                    .Key("team:invite")
+                    .Small()
+                    .Sends(new SettingsNavigate("team", "", "invite"))
+                    .ToNode(),
+                Button("Inspect owner grants", "shield-check")
+                    .Key("team:owner-grants")
+                    .Small()
+                    .Sends(new SettingsNavigate("team", "owner"))
+                    .ToNode()
+            ],
+        };
+        if (!string.IsNullOrWhiteSpace(state.ActiveFriendCode))
+        {
+            codeChildren.Add(Banner(
+                "Active 24h friend code",
+                state.ActiveFriendCode,
+                tone: "done"));
+        }
+        if (!string.IsNullOrWhiteSpace(state.HandleLookupResult))
+        {
+            codeChildren.Add(MutedText($"Lookup: {state.HandleLookupResult}"));
+        }
+
+        sectionNodes.Add(Card("Friend codes & @handle lookup", "Mint or redeem a 24h friend code to establish an E2EE cross-brain peer connection")
+            .Style(OsMixStyles.Card())[
+            VStack(Space.Sm, [.. codeChildren])
+        ]);
+
+        sectionNodes.Add(Table(
+            "People & Team",
+            ["Member", "Role", "Status"],
+            memberRows,
+            sourceNeuronUri: "neuron://local/identity/directory"));
+
+        if (rosterActions.Length > 0)
+        {
+            sectionNodes.Add(HStack(Space.Xs, rosterActions));
+        }
+
+        sectionNodes.Add(Card(
+            "Ino and apps act as the person who asked",
+            "Nobody gets more access than their connection allows. Friends only reach explicitly offered rooms, posts, and [Shareable] mini-apps.")
+            .Style(OsMixStyles.Card()));
+
+        return Surface(SurfaceKind.Elevated, "People & Team", "Manage friends, 24h friend codes, @handle lookup, roles, and connection permissions")
             .Style(OsMixStyles.Surface(SurfaceKind.Elevated))[
-            VStack(Space.Md)[
-                StatusPill(StatusKind.Done, $"{memberRows.Length} member(s)"),
-                Table(
-                    "Brain members",
-                    ["Member", "Role", "Status"],
-                    memberRows,
-                    sourceNeuronUri: "neuron://local/identity/directory"),
-                HStack(Space.Sm)[
-                    PrimaryButton("Invite teammate", "user-plus")
-                        .Key("team:invite")
-                        .Small()
-                        .Sends(new SettingsNavigate("team", "", "invite")),
-                    Button("Inspect owner grants", "shield-check")
-                        .Key("team:owner-grants")
-                        .Small()
-                        .Sends(new SettingsNavigate("team", "owner"))
-                ]
-            ]
+            VStack(Space.Md, [.. sectionNodes])
         ];
     }
 

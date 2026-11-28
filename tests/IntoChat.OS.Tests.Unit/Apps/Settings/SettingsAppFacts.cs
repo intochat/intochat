@@ -241,7 +241,6 @@ public sealed class SettingsAppFacts
                 .Register<InMemoryPortableSynapseStudio>();
 
             var settings = await os.Install<SettingsApp>();
-            var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
 
             await os.Get<IntoChat.OS.Modules.Apps.ISynapseStudio>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "ino.synapses", "ino/synapses"))
                 .DeployFiles("watch.web", IntoChat.OS.Apps.ShippedUnits.Files("watch.web"), new Dictionary<string, string>(StringComparer.Ordinal));
@@ -285,7 +284,6 @@ public sealed class SettingsAppFacts
             FriendsDefaults.Id("local"),
             """{"pending":[],"refused":0,"friends":[{"account":"grace","brain":"grace-brain","name":"Grace Hopper","since":"2026-01-01T00:00:00+00:00"}]}""");
         var settings = await os.Install<SettingsApp>();
-        var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
 
         await settings.Request("set-variable", new SettingsSetVariable("OLLAMA_HOST", "http://127.0.0.1:11434"));
         Assert.Equal("variables", settings.App.State.Section);
@@ -384,7 +382,6 @@ public sealed class SettingsAppFacts
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Desktop.DesktopApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<SettingsApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Usage.UsageApp, View>(app => app.Render()),
-            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Friends.FriendsApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Data.DataStudioApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Markdraw.MarkdrawApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.FilmCraft.FilmCraftApp, View>(app => app.Render()),

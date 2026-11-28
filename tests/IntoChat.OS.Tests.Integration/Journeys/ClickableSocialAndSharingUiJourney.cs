@@ -1,6 +1,5 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.CustomerResearcher;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.Tests.Support.Fakes;
 
@@ -43,44 +42,5 @@ public sealed class ClickableSocialAndSharingUiJourney
         await bobApp.Click("btn:use-mine", ct);
         bobApp.ShouldDisplayText("No companies researched yet");
         bobApp.ShouldNotDisplayText("Acme");
-    }
-
-    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
-    public async Task AliceAndBobPostFeedAndChatInRoomUsingFriendsAppUi(NeuronRuntimeKind kind)
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var os = await Journey.Start(kind, _ => { }, ct);
-
-        var alice = os.Person("alice");
-        var bob = os.Person("bob");
-        await alice.Befriend(bob, ct);
-
-        await using var aliceFriends = await alice.Open<FriendsApp>(ct: ct);
-        await aliceFriends.Type("input:social-post", "Hello from Alice!", ct);
-        await aliceFriends.Click("btn:social-publish", ct);
-        aliceFriends.ShouldDisplayText("Hello from Alice!");
-
-        await using var bobFriends = await bob.Open<FriendsApp>(ct: ct);
-        await bobFriends.Click("btn:social-refresh-feed", ct);
-        bobFriends.ShouldDisplayText("Hello from Alice!");
-
-        await aliceFriends.Click($"btn:open-dm:{bob.Account}", ct);
-        await aliceFriends.Type("input:room-message", "Grabbing coffee?", ct);
-        aliceFriends.ShouldDisplayText("Grabbing coffee?");
-
-        await os.Idle();
-        await bobFriends.Click("btn:social-refresh-feed", ct);
-        await bobFriends.Click($"btn:switch-room:{alice.Brain.Value}:dm-{bob.Account.ToLowerInvariant()}", ct);
-        bobFriends.ShouldDisplayText("Grabbing coffee?");
-        await bobFriends.Type("input:room-message", "On my way!", ct);
-        bobFriends.ShouldDisplayText("On my way!");
-        bobFriends.ShouldDisplayText(bob.Account);
-
-        await os.Idle();
-        await aliceFriends.Click($"btn:switch-room:{alice.Brain.Value}:dm-{bob.Account.ToLowerInvariant()}", ct);
-        aliceFriends.ShouldDisplayText("Grabbing coffee?");
-        aliceFriends.ShouldDisplayText("On my way!");
-        aliceFriends.ShouldDisplayText(alice.Account);
-        aliceFriends.ShouldDisplayText(bob.Account);
     }
 }

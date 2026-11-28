@@ -130,405 +130,667 @@
   "main": {
     "title": "Ino",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "neuronRef",
-          "refKind": "child",
-          "neuronUri": "conversation",
-          "props": {
-            "placeholder": "Ask anything.",
-            "canSend": true,
-            "activeModelLabel": "Gemma 4 12B",
-            "activeProviderIcon": "provider:ollama",
-            "dictation": false,
-            "status": "ready",
-            "working": false,
-            "emptyText": "What do you need?",
-            "error": null,
-            "models": [
+      "kind": "splitPane",
+      "leading": {
+        "kind": "surface",
+        "children": [
+          {
+            "kind": "column",
+            "children": [
               {
-                "id": "gpt-5.6-sol",
-                "label": "GPT-5.6 Sol",
-                "section": "cloud",
-                "icon": "provider:openai",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "key": "ino:sidebar-toggle",
+                    "label": "Hide",
+                    "command": {
+                      "target": ".",
+                      "signal": "ino.toggle-sidebar",
+                      "args": {}
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "ino:sidebar-toggle",
+                    "style": {
+                      "tone": "ghost",
+                      "typography": "label",
+                      "motion": "snappy",
+                      "paddingX": 9,
+                      "paddingY": 5,
+                      "radius": 8,
+                      "hover": {
+                        "tone": "subtle"
+                      },
+                      "press": {
+                        "scale": 0.97
+                      }
+                    },
+                    "icon": "panel-left-close",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "ino:new-split-menu",
+                    "label": "+ New",
+                    "command": {
+                      "target": ".",
+                      "signal": "ino.toggle-new-menu",
+                      "args": {}
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "accent",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "ino:new-split-menu",
+                    "style": {
+                      "tone": "accent",
+                      "typography": "label",
+                      "elevation": "subtle",
+                      "motion": "snappy",
+                      "paddingX": 10,
+                      "paddingY": 5,
+                      "radius": 8,
+                      "hover": {
+                        "tone": "accentStrong",
+                        "elevation": "raised"
+                      },
+                      "press": {
+                        "scale": 0.97
+                      },
+                      "focus": {
+                        "elevation": "raised"
+                      }
+                    },
+                    "icon": "plus",
+                    "small": true
+                  }
                 ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
+                "gap": 4,
+                "padding": 0
               },
               {
-                "id": "gpt-5.6-terra",
-                "label": "GPT-5.6 Terra",
-                "section": "cloud",
-                "icon": "provider:openai",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "value": "Favourites",
+                    "tone": "muted",
+                    "tabular": false,
+                    "mono": false
+                  },
+                  {
+                    "kind": "grid",
+                    "columns": 2,
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "fav-ino-default",
+                        "label": "@Ino",
+                        "command": {
+                          "target": ".",
+                          "signal": "ino.switch-conversation",
+                          "args": {
+                            "conversationId": "main"
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "neutral",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "fav-ino-default",
+                        "style": {
+                          "tone": "accentTint",
+                          "typography": "label",
+                          "elevation": "flat",
+                          "motion": "snappy",
+                          "paddingX": 12,
+                          "paddingY": 5,
+                          "radius": 999,
+                          "hover": {
+                            "tone": "accent"
+                          },
+                          "press": {
+                            "scale": 0.97
+                          },
+                          "focus": {
+                            "elevation": "subtle"
+                          }
+                        },
+                        "icon": "sparkles",
+                        "small": true
+                      }
+                    ],
+                    "gap": 6
+                  }
                 ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
+                "gap": 2,
+                "padding": 0
               },
               {
-                "id": "gpt-5.6-luna",
-                "label": "GPT-5.6 Luna",
-                "section": "cloud",
-                "icon": "provider:openai",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
+                "kind": "divider",
+                "label": null
               },
               {
-                "id": "gpt-5.4",
-                "label": "GPT-5.4",
-                "section": "cloud",
-                "icon": "provider:openai",
-                "abilities": [
-                  "tools",
-                  "vision"
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "text",
+                    "value": "Today",
+                    "tone": "muted",
+                    "tabular": false,
+                    "mono": false
+                  },
+                  {
+                    "kind": "button",
+                    "key": "ino:clear-today",
+                    "label": "Clear",
+                    "command": {
+                      "target": ".",
+                      "signal": "ino.clear-today",
+                      "args": {}
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "ino:clear-today",
+                    "style": {
+                      "tone": "ghost",
+                      "typography": "label",
+                      "motion": "snappy",
+                      "paddingX": 9,
+                      "paddingY": 5,
+                      "radius": 8,
+                      "hover": {
+                        "tone": "subtle"
+                      },
+                      "press": {
+                        "scale": 0.97
+                      }
+                    },
+                    "small": true
+                  }
                 ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
+                "gap": 4,
+                "padding": 0
               },
               {
-                "id": "gpt-5.4-mini",
-                "label": "GPT-5.4 Mini",
-                "section": "cloud",
-                "icon": "provider:openai",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
+                "kind": "navItem",
+                "key": "session-today-main",
+                "label": "New chat",
+                "icon": "sparkles",
+                "action": "switch-conversation",
+                "selected": true,
+                "badge": "Current",
+                "command": {
+                  "target": ".",
+                  "signal": "ino.switch-conversation",
+                  "args": {
+                    "conversationId": "main"
+                  }
+                },
+                "automationName": "New chat"
               },
               {
-                "id": "gpt-5.4-nano",
-                "label": "GPT-5.4 Nano",
-                "section": "cloud",
-                "icon": "provider:openai",
-                "abilities": [
-                  "tools"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
+                "kind": "divider",
+                "label": null
               },
               {
-                "id": "claude-fable-5",
-                "label": "Fable 5",
-                "section": "cloud",
-                "icon": "provider:anthropic",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "claude-opus-5",
-                "label": "Opus 5",
-                "section": "cloud",
-                "icon": "provider:anthropic",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "claude-opus-4-6",
-                "label": "Opus 4.6",
-                "section": "cloud",
-                "icon": "provider:anthropic",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "claude-sonnet-5",
-                "label": "Sonnet 5",
-                "section": "cloud",
-                "icon": "provider:anthropic",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "claude-sonnet-4-6",
-                "label": "Sonnet 4.6",
-                "section": "cloud",
-                "icon": "provider:anthropic",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "claude-haiku-4-5",
-                "label": "Haiku 4.5",
-                "section": "cloud",
-                "icon": "provider:anthropic",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "gemini-3.1-pro-preview",
-                "label": "Gemini 3.1 Pro",
-                "section": "cloud",
-                "icon": "provider:google",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "gemini-3.6-pro",
-                "label": "Gemini 3.6 Pro",
-                "section": "cloud",
-                "icon": "provider:google",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "gemini-3.6-flash",
-                "label": "Gemini 3.6 Flash",
-                "section": "cloud",
-                "icon": "provider:google",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "grok-4.6",
-                "label": "Grok 4.6",
-                "section": "cloud",
-                "icon": "provider:xai",
-                "abilities": [
-                  "tools",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "deepseek/deepseek-v4.1-flash",
-                "label": "DeepSeek V4.1 Flash",
-                "section": "cloud",
-                "icon": "provider:openrouter",
-                "abilities": [
-                  "tools"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "qwen/qwen3.8-27b",
-                "label": "Qwen 3.8 27B",
-                "section": "cloud",
-                "icon": "provider:openrouter",
-                "abilities": [
-                  "tools",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "z-ai/glm-5.3",
-                "label": "GLM 5.3",
-                "section": "cloud",
-                "icon": "provider:openrouter",
-                "abilities": [
-                  "tools",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "z-ai/glm-5.3-flash",
-                "label": "GLM 5.3 Flash",
-                "section": "cloud",
-                "icon": "provider:openrouter",
-                "abilities": [
-                  "tools"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "moonshotai/kimi-k3.1-pro",
-                "label": "Kimi K3.1 Pro",
-                "section": "cloud",
-                "icon": "provider:openrouter",
-                "abilities": [
-                  "tools",
-                  "vision",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "minimax/minimax-m3.1-flash",
-                "label": "MiniMax M3.1 Flash",
-                "section": "cloud",
-                "icon": "provider:openrouter",
-                "abilities": [
-                  "tools"
-                ],
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "gemma4:12b",
-                "label": "Gemma 4 12B",
-                "section": "local",
-                "icon": "provider:ollama",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Ollama is not running",
-                "progress": null
-              },
-              {
-                "id": "gemma4:e2b",
-                "label": "Gemma 4 E2B",
-                "section": "local",
-                "icon": "provider:ollama",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Ollama is not running",
-                "progress": null
-              },
-              {
-                "id": "qwen3.5:4b",
-                "label": "Qwen 3.5 4B",
-                "section": "local",
-                "icon": "provider:ollama",
-                "abilities": [
-                  "tools",
-                  "vision"
-                ],
-                "available": false,
-                "note": "Ollama is not running",
-                "progress": null
-              },
-              {
-                "id": "qwen2.5-coder:14b",
-                "label": "Qwen 2.5 Coder 14B",
-                "section": "local",
-                "icon": "provider:ollama",
-                "abilities": [
-                  "tools"
-                ],
-                "available": false,
-                "note": "Ollama is not running",
-                "progress": null
-              },
-              {
-                "id": "DeepSeek-V3.2",
-                "label": "DeepSeek-V3.2 (Azure AI Foundry)",
-                "section": "cloud",
-                "icon": "provider:foundry",
-                "abilities": [
-                  "tools"
-                ],
-                "available": false,
-                "note": "Not configured",
-                "progress": null
-              },
-              {
-                "id": "DeepSeek-R1",
-                "label": "DeepSeek-R1 (Azure AI Foundry)",
-                "section": "cloud",
-                "icon": "provider:foundry",
-                "abilities": [
-                  "tools",
-                  "reasoning"
-                ],
-                "available": false,
-                "note": "Not configured",
-                "progress": null
+                "kind": "navItem",
+                "key": "ino:history-toggle",
+                "label": "History",
+                "icon": "archive",
+                "action": "toggle-history",
+                "selected": false,
+                "badge": null,
+                "command": {
+                  "target": ".",
+                  "signal": "ino.toggle-history",
+                  "args": {}
+                },
+                "automationName": "History"
               }
             ],
-            "activeModelId": "gemma4:12b",
-            "conversation": "conversations/main",
-            "readAloud": false,
-            "talkConversation": null,
-            "isEnabled": true,
-            "automationName": null
+            "gap": 4,
+            "padding": 0
           }
+        ],
+        "surfaceKind": "acrylic",
+        "title": null,
+        "subtitle": null,
+        "padding": 18,
+        "style": {
+          "tone": "subtle",
+          "paddingX": 10,
+          "paddingY": 10,
+          "radius": 14
         }
-      ],
-      "gap": 12,
-      "padding": 0,
-      "extents": [
-        1
-      ]
+      },
+      "trailing": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "tagPill",
+                "label": "OwnerTrusted · Private",
+                "tone": "neutral",
+                "icon": null
+              }
+            ],
+            "gap": 4,
+            "padding": 0
+          },
+          {
+            "kind": "neuronRef",
+            "refKind": "child",
+            "neuronUri": "conversation",
+            "props": {
+              "placeholder": "Ask anything.",
+              "canSend": true,
+              "activeModelLabel": "Gemma 4 12B",
+              "activeProviderIcon": "provider:ollama",
+              "dictation": false,
+              "status": "ready",
+              "working": false,
+              "emptyText": "What do you need?",
+              "error": null,
+              "models": [
+                {
+                  "id": "gpt-5.6-sol",
+                  "label": "GPT-5.6 Sol",
+                  "section": "cloud",
+                  "icon": "provider:openai",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gpt-5.6-terra",
+                  "label": "GPT-5.6 Terra",
+                  "section": "cloud",
+                  "icon": "provider:openai",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gpt-5.6-luna",
+                  "label": "GPT-5.6 Luna",
+                  "section": "cloud",
+                  "icon": "provider:openai",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gpt-5.4",
+                  "label": "GPT-5.4",
+                  "section": "cloud",
+                  "icon": "provider:openai",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gpt-5.4-mini",
+                  "label": "GPT-5.4 Mini",
+                  "section": "cloud",
+                  "icon": "provider:openai",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gpt-5.4-nano",
+                  "label": "GPT-5.4 Nano",
+                  "section": "cloud",
+                  "icon": "provider:openai",
+                  "abilities": [
+                    "tools"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "claude-fable-5",
+                  "label": "Fable 5",
+                  "section": "cloud",
+                  "icon": "provider:anthropic",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "claude-opus-5",
+                  "label": "Opus 5",
+                  "section": "cloud",
+                  "icon": "provider:anthropic",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "claude-opus-4-6",
+                  "label": "Opus 4.6",
+                  "section": "cloud",
+                  "icon": "provider:anthropic",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "claude-sonnet-5",
+                  "label": "Sonnet 5",
+                  "section": "cloud",
+                  "icon": "provider:anthropic",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "claude-sonnet-4-6",
+                  "label": "Sonnet 4.6",
+                  "section": "cloud",
+                  "icon": "provider:anthropic",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "claude-haiku-4-5",
+                  "label": "Haiku 4.5",
+                  "section": "cloud",
+                  "icon": "provider:anthropic",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gemini-3.1-pro-preview",
+                  "label": "Gemini 3.1 Pro",
+                  "section": "cloud",
+                  "icon": "provider:google",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gemini-3.6-pro",
+                  "label": "Gemini 3.6 Pro",
+                  "section": "cloud",
+                  "icon": "provider:google",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gemini-3.6-flash",
+                  "label": "Gemini 3.6 Flash",
+                  "section": "cloud",
+                  "icon": "provider:google",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "grok-4.6",
+                  "label": "Grok 4.6",
+                  "section": "cloud",
+                  "icon": "provider:xai",
+                  "abilities": [
+                    "tools",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "deepseek/deepseek-v4.1-flash",
+                  "label": "DeepSeek V4.1 Flash",
+                  "section": "cloud",
+                  "icon": "provider:openrouter",
+                  "abilities": [
+                    "tools"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "qwen/qwen3.8-27b",
+                  "label": "Qwen 3.8 27B",
+                  "section": "cloud",
+                  "icon": "provider:openrouter",
+                  "abilities": [
+                    "tools",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "z-ai/glm-5.3",
+                  "label": "GLM 5.3",
+                  "section": "cloud",
+                  "icon": "provider:openrouter",
+                  "abilities": [
+                    "tools",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "z-ai/glm-5.3-flash",
+                  "label": "GLM 5.3 Flash",
+                  "section": "cloud",
+                  "icon": "provider:openrouter",
+                  "abilities": [
+                    "tools"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "moonshotai/kimi-k3.1-pro",
+                  "label": "Kimi K3.1 Pro",
+                  "section": "cloud",
+                  "icon": "provider:openrouter",
+                  "abilities": [
+                    "tools",
+                    "vision",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "minimax/minimax-m3.1-flash",
+                  "label": "MiniMax M3.1 Flash",
+                  "section": "cloud",
+                  "icon": "provider:openrouter",
+                  "abilities": [
+                    "tools"
+                  ],
+                  "available": false,
+                  "note": "Add a key in API keys",
+                  "progress": null
+                },
+                {
+                  "id": "gemma4:12b",
+                  "label": "Gemma 4 12B",
+                  "section": "local",
+                  "icon": "provider:ollama",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Install · 7.5 GB",
+                  "progress": null
+                },
+                {
+                  "id": "gemma4:e2b",
+                  "label": "Gemma 4 E2B",
+                  "section": "local",
+                  "icon": "provider:ollama",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Install · 4.8 GB",
+                  "progress": null
+                },
+                {
+                  "id": "qwen3.5:4b",
+                  "label": "Qwen 3.5 4B",
+                  "section": "local",
+                  "icon": "provider:ollama",
+                  "abilities": [
+                    "tools",
+                    "vision"
+                  ],
+                  "available": false,
+                  "note": "Install · 3.2 GB",
+                  "progress": null
+                },
+                {
+                  "id": "qwen2.5-coder:14b",
+                  "label": "Qwen 2.5 Coder 14B",
+                  "section": "local",
+                  "icon": "provider:ollama",
+                  "abilities": [
+                    "tools"
+                  ],
+                  "available": false,
+                  "note": "Install · 8.4 GB",
+                  "progress": null
+                },
+                {
+                  "id": "DeepSeek-V3.2",
+                  "label": "DeepSeek-V3.2 (Azure AI Foundry)",
+                  "section": "cloud",
+                  "icon": "provider:foundry",
+                  "abilities": [
+                    "tools"
+                  ],
+                  "available": false,
+                  "note": "Not configured",
+                  "progress": null
+                },
+                {
+                  "id": "DeepSeek-R1",
+                  "label": "DeepSeek-R1 (Azure AI Foundry)",
+                  "section": "cloud",
+                  "icon": "provider:foundry",
+                  "abilities": [
+                    "tools",
+                    "reasoning"
+                  ],
+                  "available": false,
+                  "note": "Not configured",
+                  "progress": null
+                }
+              ],
+              "activeModelId": "gemma4:12b",
+              "conversation": "conversations/main",
+              "readAloud": false,
+              "talkConversation": null,
+              "isEnabled": true,
+              "automationName": null
+            }
+          }
+        ],
+        "gap": 12,
+        "padding": 0,
+        "extents": [
+          -1,
+          1
+        ]
+      },
+      "leadingExtent": 264,
+      "gap": 0,
+      "collapseBreakpoint": 720
     }
   }
 }

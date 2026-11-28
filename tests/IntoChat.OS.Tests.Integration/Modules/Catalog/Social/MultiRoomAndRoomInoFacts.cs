@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Components;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Social;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -28,8 +27,6 @@ public sealed class MultiRoomAndRoomInoFacts
         await alice.Befriend(bob, Ct);
         await alice.Befriend(carol, Ct);
 
-        await using var aliceFriends = await alice.Open<FriendsApp>("default", Ct);
-
         var aliceIndex = alice.Get<IThreadDirectory>(IndexOf(alice));
         var dmId = await aliceIndex.CreateShared("Bob", ThreadKind.DirectPerson, "dm-bob");
         var groupId = await aliceIndex.CreateShared("Weekend Trip", ThreadKind.SharedRoom, "trip-group");
@@ -54,13 +51,6 @@ public sealed class MultiRoomAndRoomInoFacts
         Assert.All(bobRooms, r => Assert.False(r.IsHost));
         Assert.Contains(bobRooms, r => r.Thread == dmId && r.Kind == ThreadKind.DirectPerson && r.Title == "Bob");
         Assert.Contains(bobRooms, r => r.Thread == groupId && r.Kind == ThreadKind.SharedRoom && r.Title == "Weekend Trip");
-
-        await using var bobFriends = await bob.Open<FriendsApp>("default", Ct);
-        await bobFriends.Send(new OpenDirectRoom(alice.Account), Ct);
-        var bobRoomsAfterOpenDirect = (await bobIndex.List(archived: false)).Entries
-            .Where(static e => e.TrustPosture == ThreadTrustPosture.CrossBrainShared)
-            .ToArray();
-        Assert.Equal(2, bobRoomsAfterOpenDirect.Length);
 
         await bob.Get<IConversation>(groupId).Leave();
         await bobIndex.Leave(groupId);

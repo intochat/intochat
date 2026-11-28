@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, connection-probe, connection-disconnect, device-flow-start, device-flow-complete, mcp-add, mcp-remove
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, connection-probe, connection-disconnect, device-flow-start, device-flow-complete, mcp-add, mcp-remove, mint-friend-code, redeem-friend-code, unfriend, lookup-handle, set-friend-permission
 
 Declarative macOS Sonoma-style System Settings application for IntoChat OS (`UK-16` / `INT-1364`).
 Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, `ConnectionPage`,
@@ -32,6 +32,7 @@ using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Identity.Contracts.Connections;
+using IntoChat.OS.Modules.Identity.Contracts.Handles;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
@@ -135,6 +136,21 @@ public sealed record SettingsConfirmPendingEnrollment : Signal;
 [Signal("settings.cancel-pending-enrollment")]
 public sealed record SettingsCancelPendingEnrollment : Signal;
 
+[Signal("settings.mint-friend-code")]
+public sealed record SettingsMintFriendCode : Signal;
+
+[Signal("settings.redeem-friend-code")]
+public sealed record SettingsRedeemFriendCode(string? Code = null) : Signal;
+
+[Signal("settings.unfriend")]
+public sealed record SettingsUnfriend(string? Account = null) : Signal;
+
+[Signal("settings.lookup-handle")]
+public sealed record SettingsLookupHandle(string? Handle = null) : Signal;
+
+[Signal("settings.set-friend-permission")]
+public sealed record SettingsSetFriendPermission(string? Account = null, string? Permission = null, bool Allowed = true) : Signal;
+
 [Neuron("app.settings")]
 [Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 5)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
@@ -155,6 +171,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Required = false)] private partial SlotCollection<IConnection> Connections { get; }
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<IMcpToolConnection> McpServers { get; }
+    [Slot(Required = false)] private partial SlotCollection<IHandleDirectory> Handles { get; }
 
     internal SettingsHostServices Services { get; }
 

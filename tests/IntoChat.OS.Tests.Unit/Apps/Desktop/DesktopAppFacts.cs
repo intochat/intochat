@@ -125,7 +125,7 @@ public sealed class DesktopAppFacts
             view,
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Contains("dock-ino", viewJson, StringComparison.Ordinal);
-        Assert.Contains("dock-friends", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("dock-friends", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-files", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-gridcraft", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-settings", viewJson, StringComparison.Ordinal);

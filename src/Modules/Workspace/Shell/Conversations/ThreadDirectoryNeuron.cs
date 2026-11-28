@@ -7,6 +7,8 @@ using DigitalBrain.State;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity.Contracts;
+using IntoChat.OS.Modules.Notifications;
+using IntoChat.Sdk;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Conversations;
@@ -290,6 +292,8 @@ internal sealed class ThreadDirectoryNeuron(
         var existing = FindByThreadOrId(thread, entryId);
         var cleanTitle = !string.IsNullOrWhiteSpace(title) ? title.Trim() : existing?.Title ?? entryId;
         var resolvedKind = kind ?? existing?.Kind ?? ThreadKind.SharedRoom;
+        var previousUnread = existing?.UnreadCount ?? 0;
+        var inviteUnread = Math.Max(previousUnread, 1);
         var entry = existing is not null
             ? existing with
             {
@@ -299,6 +303,7 @@ internal sealed class ThreadDirectoryNeuron(
                 Thread = thread,
                 UpdatedAt = Now(),
                 Archived = false,
+                UnreadCount = inviteUnread,
                 IsHost = thread.Brain == Id.Brain,
             }
             : new ThreadEntry(
@@ -309,11 +314,18 @@ internal sealed class ThreadDirectoryNeuron(
                 Thread: thread,
                 TrustPosture: ThreadTrustPosture.CrossBrainShared,
                 Kind: resolvedKind,
+                UnreadCount: inviteUnread,
                 IsHost: thread.Brain == Id.Brain);
 
         var next = Snapshot.Entries.Where(e => e.Id != entry.Id).Append(entry).ToArray();
         using var scope = OwnModuleIfForeign();
         await Write(next, Snapshot.Current, thread, "invited");
+        await EmitNotificationAsync(
+            title: resolvedKind == ThreadKind.DirectPerson ? $"New direct message: {cleanTitle}" : $"Room invite: {cleanTitle}",
+            body: $"You were invited to '{cleanTitle}'.",
+            category: "messenger.invite",
+            actionUrl: $"os://app/ino?conversation={Uri.EscapeDataString(entry.Id)}",
+            dedupeKey: $"thread-invite:{entry.Id}");
     }
 
     public async Task Changed(NeuronId thread, long revision)
@@ -321,6 +333,7 @@ internal sealed class ThreadDirectoryNeuron(
         await RequireNoticeOf(thread);
         var entryId = Threads.EntryIdFor(Id.Brain, thread);
         var existing = FindByThreadOrId(thread, entryId);
+        var previousUnread = existing?.UnreadCount ?? 0;
         var nextRevision = Math.Max(existing?.LastRevision ?? 0, revision);
         var lastRead = existing?.LastReadRevision ?? 0;
         var unread = ComputeUnread(nextRevision, lastRead);
@@ -354,6 +367,42 @@ internal sealed class ThreadDirectoryNeuron(
         };
         using var scope = OwnModuleIfForeign();
         await Save(nextState, new ThreadRevisionChanged(thread, nextRevision));
+
+        if (unread > previousUnread && !string.Equals(Snapshot.Current, entry.Id, StringComparison.Ordinal))
+        {
+            var isDm = entry.Kind == ThreadKind.DirectPerson;
+            var label = string.IsNullOrWhiteSpace(entry.Title) ? entry.Id : entry.Title;
+            await EmitNotificationAsync(
+                title: isDm ? $"New message from {label}" : $"New activity in {label}",
+                body: $"{unread} unread update(s) in '{label}'.",
+                category: isDm ? "messenger.dm" : "messenger.mention",
+                actionUrl: $"os://app/ino?conversation={Uri.EscapeDataString(entry.Id)}",
+                dedupeKey: $"thread-rev:{entry.Id}:{nextRevision}");
+        }
+    }
+
+    private async Task EmitNotificationAsync(
+        string title,
+        string body,
+        string category,
+        string actionUrl,
+        string dedupeKey)
+    {
+        try
+        {
+            var inbox = Context.Get<INotificationsInbox>(INotificationsInbox.Key(Id.Brain.Value));
+            await inbox.SendAsync(new NotificationRequest(
+                Title: title,
+                Body: body,
+                Priority: NotificationPriority.Normal,
+                Category: category,
+                ActionUrl: actionUrl,
+                DedupeKey: dedupeKey));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Logger.LogSwallowed(error, "messenger notification inbox unavailable");
+        }
     }
 
     public Task<long> LastRevision(NeuronId thread)

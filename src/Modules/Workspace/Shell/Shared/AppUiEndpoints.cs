@@ -2,21 +2,26 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Host.Apps;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.WebBrowser;
 using IntoChat.OS.Runtime;
+using IntoChat.OS.UI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -50,12 +55,12 @@ internal static class AppUiEndpoints
         });
         apps.MapGet("/desktop/projection", (HttpContext http, INeuronProxies brain, CancellationToken ct)
             => ReadDesktopProjection(brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http)));
-        apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
-            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
-        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
-            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
-        BrainRouteGroups.Brain(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
-            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
+        apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, [FromServices] IEnumerable<EdgeAuthority> edges, CancellationToken ct)
+            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault(), edges.FirstOrDefault()));
+        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, [FromServices] IEnumerable<EdgeAuthority> edges, CancellationToken ct)
+            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault(), edges.FirstOrDefault()));
+        BrainRouteGroups.Brain(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, [FromServices] IEnumerable<EdgeAuthority> edges, CancellationToken ct)
+            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault(), edges.FirstOrDefault()));
     }
 
     internal static async Task<IResult> ReadDesktopProjection(
@@ -87,7 +92,7 @@ internal static class AppUiEndpoints
     // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded, NoChildren);
     // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
     internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
-        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
+        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null, EdgeAuthority? edge = null)
     {
         ArgumentNullException.ThrowIfNull(input);
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person acts on a screen."); }
@@ -96,9 +101,14 @@ internal static class AppUiEndpoints
             return ErrorJson(StatusCodes.Status400BadRequest, "An act names its neuron, target and signal.");
         }
         var unit = ScreenViewResolver.UnitAlias(scope, input.Neuron);
-        if (unit is null && ScreenViewResolver.ScreenAlias(scope, input.Neuron) is null)
+        var isOwnScreen = unit is not null || ScreenViewResolver.ScreenAlias(scope, input.Neuron) is not null;
+        NeuronId? foreignGuestScreenId = null;
+        if (!isOwnScreen)
         {
-            throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+            foreignGuestScreenId = TryParseForeignScreenAddress(scope, input.Neuron, out var targetBrain, out var screenType, out var screenKey)
+                ? await ResolveGuestShareableScreenAsync(
+                    brain, caller, targetBrain, screenType, screenKey, requireEditor: true, hostedNeurons, edge, ct)
+                : throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
         }
         JsonElement? args;
         try
@@ -112,24 +122,35 @@ internal static class AppUiEndpoints
             return ErrorJson(StatusCodes.Status400BadRequest, error.Message);
         }
 
-        var resolved = await ScreenViewResolver.ResolveAsync(new BrainId(scope), input.Neuron, resolver, hosted, ct, hostedNeurons);
-        if (resolved is { Kind: ScreenResolutionKind.Confirmation })
+        NeuronId screenId;
+        bool isAgentApp = false;
+        if (foreignGuestScreenId is { } guestTarget)
         {
-            throw new UnauthorizedAccessException("A confirmation is answered on its own route, not by a command.");
+            screenId = guestTarget;
         }
-        if (resolved is { Kind: ScreenResolutionKind.NotLoaded })
+        else
         {
-            return ErrorJson(StatusCodes.Status409Conflict, $"{input.Neuron} is not loaded.", "NotLoaded");
-        }
-        if (resolved?.ScreenId is not { } screenId)
-        {
-            throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+            var resolved = await ScreenViewResolver.ResolveAsync(new BrainId(scope), input.Neuron, resolver, hosted, ct, hostedNeurons);
+            if (resolved is { Kind: ScreenResolutionKind.Confirmation })
+            {
+                throw new UnauthorizedAccessException("A confirmation is answered on its own route, not by a command.");
+            }
+            if (resolved is { Kind: ScreenResolutionKind.NotLoaded })
+            {
+                return ErrorJson(StatusCodes.Status409Conflict, $"{input.Neuron} is not loaded.", "NotLoaded");
+            }
+            if (resolved?.ScreenId is not { } ownScreenId)
+            {
+                throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+            }
+            screenId = ownScreenId;
+            isAgentApp = resolved.IsAgentApp;
         }
 
         var screen = brain.Get<IScreen>(screenId);
         try
         {
-            if (resolved.IsAgentApp)
+            if (isAgentApp)
             {
                 var appId = ScreenViewResolver.NormalizeAppId(scope, input.Neuron);
                 var openArgs = JsonSerializer.SerializeToElement(new SpecialistOpenPayload(appId), ShellUiJsonContext.Default.SpecialistOpenPayload);
@@ -143,7 +164,12 @@ internal static class AppUiEndpoints
         }
         catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
         {
-            (logger ?? ConsoleLog).LogWarning(error, "Act {Signal} on {Target} of {Neuron} failed.", input.Signal, input.Target, input.Neuron);
+            (logger ?? ConsoleLog).LogWarning(
+                error,
+                "Act {Signal} on {Target} of {Neuron} failed.",
+                SanitizeLogValue(input.Signal),
+                SanitizeLogValue(input.Target),
+                SanitizeLogValue(input.Neuron));
             return ErrorJson(StatusCodes.Status422UnprocessableEntity, error.Message, "HandlerFailed");
         }
         return OkJson(new ActDeliveredResponse(true), ShellUiJsonContext.Default.ActDeliveredResponse);
@@ -155,18 +181,11 @@ internal static class AppUiEndpoints
     // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed
     // (an ArgumentException from the handler included: 400 is only for the path checked before it runs).
     internal static async Task<IResult> ReadChild(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
-        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
+        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null, EdgeAuthority? edge = null)
     {
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
-        // The brain route admitted the caller to this brain; a caller acting in another brain never reads its screens.
-        if (!BrainId.IsValid(scope) || caller.Brain != new BrainId(scope)) { throw new UnauthorizedAccessException("The screen belongs to another brain."); }
+        if (!BrainId.IsValid(scope)) { throw new UnauthorizedAccessException("The screen belongs to another brain."); }
         var brainId = new BrainId(scope);
-        if (!HostAppRef.TryOf(brainId, name, out var appRef) || !ScreenViewResolver.OwnsUi(scope, appRef.ViewKey))
-        {
-            throw new UnauthorizedAccessException($"{name} is not a screen of this brain.");
-        }
-        var neuron = appRef.Key;
-        var alias = ScreenViewResolver.ScreenAlias(scope, neuron) ?? throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
         if (string.IsNullOrWhiteSpace(path)
             || path.Contains('\\', StringComparison.Ordinal)
             || path.StartsWith("./", StringComparison.Ordinal)
@@ -175,20 +194,37 @@ internal static class AppUiEndpoints
             return ErrorJson(StatusCodes.Status400BadRequest, "A child path is one or more keys separated by '/'.");
         }
 
-        var resolved = await ScreenViewResolver.ResolveAsync(brainId, neuron, resolver, hosted, ct, hostedNeurons);
         NeuronId screenId;
-        if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } resolvedId })
+        string neuron;
+        if (caller.Brain != brainId)
         {
-            screenId = resolvedId;
-        }
-        else if (resolved is { Kind: ScreenResolutionKind.NotLoaded }
-            || (ScreenViewResolver.AppOf(scope, neuron) is { } appKey && !(hosted?.IsHostLoaded(appKey) ?? true)))
-        {
-            return ErrorJson(StatusCodes.Status409Conflict, $"{neuron} is not loaded.", "NotLoaded");
+            // Seated cross-brain guests may read child views ONLY on [Shareable] screens they hold an active offer for.
+            screenId = await ResolveGuestShareableScreenAsync(
+                brain, caller, brainId, name, "default", requireEditor: false, hostedNeurons, edge, ct);
+            neuron = screenId.ToString();
         }
         else
         {
-            screenId = new NeuronId(brainId, alias, "default");
+            if (!HostAppRef.TryOf(brainId, name, out var appRef) || !ScreenViewResolver.OwnsUi(scope, appRef.ViewKey))
+            {
+                throw new UnauthorizedAccessException($"{name} is not a screen of this brain.");
+            }
+            neuron = appRef.Key;
+            var alias = ScreenViewResolver.ScreenAlias(scope, neuron) ?? throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
+            var resolved = await ScreenViewResolver.ResolveAsync(brainId, neuron, resolver, hosted, ct, hostedNeurons);
+            if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } resolvedId })
+            {
+                screenId = resolvedId;
+            }
+            else if (resolved is { Kind: ScreenResolutionKind.NotLoaded }
+                || (ScreenViewResolver.AppOf(scope, neuron) is { } appKey && !(hosted?.IsHostLoaded(appKey) ?? true)))
+            {
+                return ErrorJson(StatusCodes.Status409Conflict, $"{neuron} is not loaded.", "NotLoaded");
+            }
+            else
+            {
+                screenId = new NeuronId(brainId, alias, "default");
+            }
         }
 
         try
@@ -215,7 +251,7 @@ internal static class AppUiEndpoints
     internal sealed record ActRequest(string? Neuron, string? Target, string? Signal, JsonElement? Args = null, string? Value = null);
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
-    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
+    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null, EdgeAuthority? edge = null)
     {
         var log = logger ?? ConsoleLog;
         if (kind == UIVocabulary.ConfirmationType)
@@ -226,7 +262,10 @@ internal static class AppUiEndpoints
                 ShellUiJsonContext.Default.View);
         }
         var unit = kind is UIVocabulary.ViewType or "viewport" ? ScreenViewResolver.UnitAlias(scope, name) : null;
-        if (unit is null && !ScreenViewResolver.OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
+        if (unit is null && !ScreenViewResolver.OwnsUi(scope, name))
+        {
+            return await ReadForeignShareableNodeAsync(kind, name, brain, scope, caller, hostedNeurons, edge, ct);
+        }
         var brainId = new BrainId(scope);
 
         if (kind == "viewport")
@@ -402,6 +441,157 @@ internal static class AppUiEndpoints
     internal static string? UnitAlias(string scope, string name) => ScreenViewResolver.UnitAlias(scope, name);
 
     internal static bool OwnsUi(string scope, string name) => ScreenViewResolver.OwnsUi(scope, name);
+
+    internal static bool TryParseForeignScreenAddress(
+        string scope,
+        string address,
+        out BrainId targetBrain,
+        out string screenType,
+        out string screenKey)
+    {
+        targetBrain = default;
+        screenType = string.Empty;
+        screenKey = "default";
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return false;
+        }
+
+        var parts = address.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // Expected: {brain}/apps/{screenType} [/view | /{screenKey} | /{screenKey}/view]
+        if (parts.Length < 3 || parts.Length > 5 || !string.Equals(parts[1], "apps", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var rawBrain = parts[0];
+        if (!BrainId.IsValid(rawBrain) || string.Equals(rawBrain, scope, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var rawType = parts[2];
+        if (!HostSafeRelativePath.TryParse(rawType, out _))
+        {
+            return false;
+        }
+
+        var rawKey = "default";
+        if (parts.Length == 4)
+        {
+            if (!string.Equals(parts[3], "view", StringComparison.Ordinal))
+            {
+                rawKey = parts[3];
+            }
+        }
+        else if (parts.Length == 5)
+        {
+            if (!string.Equals(parts[4], "view", StringComparison.Ordinal))
+            {
+                return false;
+            }
+            rawKey = parts[3];
+        }
+
+        if (!HostSafeRelativePath.TryParse(rawKey, out _))
+        {
+            return false;
+        }
+
+        targetBrain = new BrainId(rawBrain);
+        screenType = rawType;
+        screenKey = rawKey;
+        return true;
+    }
+
+    private static string SanitizeLogValue(string? value)
+        => string.IsNullOrEmpty(value)
+            ? string.Empty
+            : value.Replace("\r", string.Empty, StringComparison.Ordinal).Replace("\n", string.Empty, StringComparison.Ordinal);
+
+    private static async Task<IResult> ReadForeignShareableNodeAsync(
+        string kind,
+        string name,
+        INeuronProxies brain,
+        string scope,
+        Caller? caller,
+        IHostedNeuronTypes? hostedNeurons,
+        EdgeAuthority? edge,
+        CancellationToken ct)
+    {
+        if (!string.Equals(kind, UIVocabulary.ViewType, StringComparison.Ordinal)
+            || !TryParseForeignScreenAddress(scope, name, out var foreignBrain, out var foreignType, out var foreignKey))
+        {
+            throw new UnauthorizedAccessException("The UI belongs to another brain.");
+        }
+
+        var guestScreenId = await ResolveGuestShareableScreenAsync(
+            brain, caller, foreignBrain, foreignType, foreignKey, requireEditor: false, hostedNeurons, edge, ct);
+        // Preserve caller identity strictly — zero authority elevation.
+        var published = await brain.Get<IScreen>(guestScreenId).Read().WaitAsync(ct);
+        return OkJson(ChildKeys.Screen(published), ShellUiJsonContext.Default.PublishedView);
+    }
+
+    internal static async Task<NeuronId> ResolveGuestShareableScreenAsync(
+        INeuronProxies brain,
+        Caller? caller,
+        BrainId targetBrain,
+        string screenType,
+        string screenKey,
+        bool requireEditor,
+        IHostedNeuronTypes? hostedNeurons,
+        EdgeAuthority? edge,
+        CancellationToken ct)
+    {
+        if (caller?.For?.Principal is not { Length: > 0 } || caller.For.Account is not { Length: > 0 } account)
+        {
+            throw new UnauthorizedAccessException("Only a signed-in person may access a shared mini-app.");
+        }
+
+        var normalizedType = screenType.Trim();
+        var appPrefixedType = normalizedType.Contains('.', StringComparison.Ordinal) ? normalizedType : "app." + normalizedType;
+
+        if (hostedNeurons is null)
+        {
+            throw new UnauthorizedAccessException("Hosted neuron type catalog is required to verify [Shareable] cross-brain mini-app access.");
+        }
+
+        string resolvedType = normalizedType;
+        Type? screenClass = null;
+        if (hostedNeurons.TryGetNeuronClass(normalizedType, out var directClass) && directClass is not null)
+        {
+            screenClass = directClass;
+            resolvedType = normalizedType;
+        }
+        else if (hostedNeurons.TryGetNeuronClass(appPrefixedType, out var prefixedClass) && prefixedClass is not null)
+        {
+            screenClass = prefixedClass;
+            resolvedType = appPrefixedType;
+        }
+
+        SharedRoomAgentPolicy.ValidateShareableScreenClass(normalizedType, screenClass, "cross-brain guest access");
+
+        var screenId = new NeuronId(targetBrain, resolvedType, screenKey.Trim());
+        Role? offerRole;
+        using (edge?.Enter(edge.Kernel(targetBrain)))
+        {
+            offerRole = await brain.Get<IOffers>(new NeuronId(targetBrain, "component.offers", IOffers.DefaultKey))
+                .RoleOf(screenId, account, ct)
+                .WaitAsync(ct);
+        }
+
+        if (offerRole is null)
+        {
+            throw new UnauthorizedAccessException($"Caller '{account}' has no active offer for shared mini-app '{screenId}'.");
+        }
+
+        if (requireEditor && offerRole != Role.Editor)
+        {
+            throw new UnauthorizedAccessException($"Caller '{account}' does not have editor permission on shared mini-app '{screenId}'.");
+        }
+
+        return screenId;
+    }
 
     internal static string? UnitError(PublishedView? view, TraceEntry? failing)
     {

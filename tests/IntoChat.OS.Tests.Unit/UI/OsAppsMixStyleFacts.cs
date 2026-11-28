@@ -9,7 +9,6 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Apps.Tasks;
@@ -86,10 +85,6 @@ public sealed class OsAppsMixStyleFacts
             [],
             Inspection.None).Root;
         AssertStructuredMixStyles("Creator", creatorNode, expectedMinStyles: 2);
-
-        // 6. Friends
-        var friendsNode = AggregateExplorer<FriendsAppState>.PreviewNode<FriendsApp>(new FriendsAppState());
-        AssertStructuredMixStyles("Friends", friendsNode, expectedMinStyles: 3);
 
         // 7. Tasks (board, list, details)
         foreach (var tab in new[] { "board", "list", "details" })

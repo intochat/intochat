@@ -18,7 +18,6 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -92,12 +91,11 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
         Assert.Equal("FilmCraft", filmSnapshot.Manifest.Title);
         Assert.Equal(AppStatus.Live, filmSnapshot.Status);
 
-        // 3. Open Gallery, Creator, and Friends via IApp on the silo and verify their app snapshots.
+        // 3. Open Gallery and Creator via IApp on the silo and verify their app snapshots.
         foreach (var (appName, bundle) in new (string Name, AppBundle Bundle)[]
         {
             ("gallery", GalleryApp.Bundle),
             ("creator", CreatorApp.Bundle),
-            ("friends", FriendsApp.Bundle),
         })
         {
             var appNeuron = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/{appName}");

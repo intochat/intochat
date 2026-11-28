@@ -4,7 +4,6 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Tests.Unit.Desktop;
 using IntoChat.OS.Modules.Apps;
 
@@ -47,40 +46,6 @@ public sealed class SelectionChildrenFacts
     {
         var view = await screen.Read() ?? throw new InvalidOperationException("The screen has no view.");
         return ChildProps(view.View, key) ?? throw new InvalidOperationException($"The view has no child '{key}'.");
-    }
-
-    [Fact]
-    public async Task Friends_section_and_scope_round_trip_through_their_tab_strip_children()
-    {
-        using var person = Edge.AsPerson();
-        await using var os = TestOS.Local().RegisterCatalog();
-        var friends = await os.Install<FriendsApp>();
-        Assert.Equal("all", (await PropsOf(friends.Screen, FriendsApp.SectionKey)).GetProperty("selectedId").GetString());
-
-        await friends.Screen.Dispatch(new Command(FriendsApp.SectionKey, "control.select", Select("feed")));
-        await os.Idle();
-        await friends.Screen.Dispatch(new Command(FriendsApp.ScopeKey, "control.select", Select("public")));
-        await os.Idle();
-
-        Assert.Equal("feed", friends.App.State.ActiveTab);
-        Assert.Equal("public", friends.App.State.SelectedScope);
-        Assert.Equal("feed", (await PropsOf(friends.Screen, FriendsApp.SectionKey)).GetProperty("selectedId").GetString());
-        Assert.Equal("public", (await PropsOf(friends.Screen, FriendsApp.ScopeKey)).GetProperty("selectedId").GetString());
-    }
-
-    [Fact]
-    public async Task Friends_refuses_a_section_its_props_do_not_list()
-    {
-        using var person = Edge.AsPerson();
-        await using var os = TestOS.Local().RegisterCatalog();
-        var friends = await os.Install<FriendsApp>();
-        _ = await friends.Screen.Read();
-
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(
-            () => friends.Screen.Dispatch(new Command(FriendsApp.SectionKey, "control.select", Select("unknown-tab"))));
-
-        Assert.Equal(SelectionRefusals.UnknownItem, refused.Reason);
-        Assert.Equal("all", friends.App.State.ActiveTab);
     }
 
     [Fact]

@@ -360,7 +360,10 @@ public static partial class InoView
         IReadOnlyList<ModelAvailability>? availability = null,
         DeviceView? device = null,
         Func<string, KanbanProps, Node>? kanban = null,
-        Func<string, CheckBoxProps, Node>? checkBox = null)
+        Func<string, CheckBoxProps, Node>? checkBox = null,
+        ThreadShelf? shelf = null,
+        ThreadPage? archivedSessions = null,
+        string? hostBrainId = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(voice);
@@ -375,8 +378,11 @@ public static partial class InoView
             .. s.ActiveTasks.Select(RenderTaskJobCard),
             .. s.SquadEngineerRuns.Select(InoSquads.RenderEngineerRunJobCard),
         ];
-        var navAboveList = new List<Node>();
-        if (string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
+        var navAboveList = new List<Node>
+        {
+            InoArcSidebar.RenderTrustHeader(s, view),
+        };
+        if (shelf is null && string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
         {
             navAboveList.Add(Sessions(sessions, s.ConversationId));
         }
@@ -418,16 +424,20 @@ public static partial class InoView
         }
 
         var isPlanDrawer = string.Equals(s.DrawerTab, InoSquads.DrawerTabPlan, StringComparison.Ordinal);
-        if (s.DrawerOpen && (s.ActiveArtifact is not null || isPlanDrawer))
+        var isPinnedAppsDrawer = string.Equals(s.DrawerTab, InoArcSidebar.DrawerTabPinnedApps, StringComparison.Ordinal);
+        Node mainPane = leftColumn;
+        if (s.DrawerOpen && (s.ActiveArtifact is not null || isPlanDrawer || isPinnedAppsDrawer))
         {
             var effectiveArtifact = s.ActiveArtifact ?? new InoDrawerArtifact(
-                Id: $"squad-plan:{s.ConversationId}",
-                Title: string.IsNullOrWhiteSpace(s.Title) ? "Squad Plan" : $"{s.Title} · Plan",
-                Kind: "squad-plan",
+                Id: isPinnedAppsDrawer ? $"pinned-apps:{s.ConversationId}" : $"squad-plan:{s.ConversationId}",
+                Title: isPinnedAppsDrawer
+                    ? (string.IsNullOrWhiteSpace(s.Title) ? "Pinned Apps" : $"{s.Title} · Pinned Apps")
+                    : (string.IsNullOrWhiteSpace(s.Title) ? "Squad Plan" : $"{s.Title} · Plan"),
+                Kind: isPinnedAppsDrawer ? "pinned-apps" : "squad-plan",
                 Status: "done");
-            return new SplitPane(
+            mainPane = new SplitPane(
                 leftColumn,
-                RenderArtifactDrawer(s, effectiveArtifact, kanban, checkBox),
+                RenderArtifactDrawer(s, effectiveArtifact, kanban, checkBox, view, hostBrainId),
                 LeadingExtent: 520,
                 Gap: 16,
                 TrailingDrawer: true,
@@ -435,7 +445,17 @@ public static partial class InoView
                 TrailingFraction: 0.58);
         }
 
-        return leftColumn;
+        if (shelf is not null && !s.SidebarCollapsed)
+        {
+            return new SplitPane(
+                InoArcSidebar.RenderSidebar(s, shelf, archivedSessions, s.ConversationId),
+                mainPane,
+                LeadingExtent: InoArcSidebar.SidebarWidth,
+                Gap: 0,
+                CollapseBreakpoint: 720);
+        }
+
+        return mainPane;
     }
 
     private static Node RenderSpecialistBanner(InoAppState s, ConversationView? view)
@@ -614,7 +634,9 @@ public static partial class InoView
         InoAppState s,
         InoDrawerArtifact artifact,
         Func<string, KanbanProps, Node>? kanban = null,
-        Func<string, CheckBoxProps, Node>? checkBox = null)
+        Func<string, CheckBoxProps, Node>? checkBox = null,
+        ConversationView? view = null,
+        string? hostBrainId = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(artifact);
@@ -639,6 +661,9 @@ public static partial class InoView
         var activeTab = InoAppState.SupportedDrawerTabs.Contains(s.DrawerTab, StringComparer.Ordinal)
             ? s.DrawerTab
             : "preview";
+        var showPinnedAppsTab = view is { TrustPosture: ThreadTrustPosture.CrossBrainShared }
+            || (view?.PinnedScreens.Length ?? 0) > 0
+            || string.Equals(activeTab, InoArcSidebar.DrawerTabPinnedApps, StringComparison.Ordinal);
 
         Node TabButton(string id, string label, string key) =>
             Button(label)
@@ -693,19 +718,27 @@ public static partial class InoView
                 .Tooltip("Pin as App to pop out")
                 .ToNode();
 
+        var tabNodes = new List<Node>(5)
+        {
+            TabButton("preview", "Preview", DrawerTabPreviewKey),
+            TabButton("diff", "Diff", DrawerTabDiffKey),
+            TabButton("logs", "Logs", DrawerTabLogsKey),
+            TabButton(InoSquads.DrawerTabPlan, "Plan / Board", InoSquads.DrawerTabPlanKey),
+        };
+        if (showPinnedAppsTab)
+        {
+            tabNodes.Add(TabButton(InoArcSidebar.DrawerTabPinnedApps, "Pinned Apps", InoArcSidebar.DrawerTabPinnedAppsKey));
+        }
         var header = VStack(Space.Xs)[
             HStack(Space.Sm)[
                 Text(artifact.Title).Strong(),
-                StatusPill(statusKind, statusLabel)
-            ],
-            HStack(Space.Xs)[
-                TabButton("preview", "Preview", DrawerTabPreviewKey),
-                TabButton("diff", "Diff", DrawerTabDiffKey),
-                TabButton("logs", "Logs", DrawerTabLogsKey),
-                TabButton(InoSquads.DrawerTabPlan, "Plan / Board", InoSquads.DrawerTabPlanKey),
-                pinAction,
-                popoutAction,
+                StatusPill(statusKind, statusLabel),
                 closeAction
+            ],
+            HStack(Space.Xs, [.. tabNodes]),
+            HStack(Space.Xs)[
+                pinAction,
+                popoutAction
             ]
         ];
 
@@ -725,6 +758,7 @@ public static partial class InoView
 
         Node body = activeTab switch
         {
+            InoArcSidebar.DrawerTabPinnedApps => InoArcSidebar.RenderPinnedAppsDrawerBody(s, view, hostBrainId),
             InoSquads.DrawerTabPlan => InoSquads.RenderSquadPlanBody(s, s.ActiveTasks, effectiveKanban, effectiveCheckBox),
             "diff" => Card("Artifact Summary & Script", artifact.Summary ?? "Compiled script and artifact changes.")
                 .Style(OsMixStyles.Card())[

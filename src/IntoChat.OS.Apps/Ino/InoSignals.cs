@@ -36,6 +36,17 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.squad-move-task")] public sealed record InoMoveSquadTask(string? TaskId = null, string? ColumnId = null, int Index = 0) : Signal;
 [Signal("ino.squad-toggle-task")] public sealed record InoToggleSquadTask(string? TaskId = null, bool? Checked = null) : Signal;
 [Signal("ino.chat-about-choice")] public sealed record InoChatAboutChoice(string? TaskId = null, bool Active = true) : Signal;
+[Signal("ino.toggle-sidebar")] public sealed record InoToggleSidebar : Signal;
+[Signal("ino.toggle-new-menu")] public sealed record InoToggleNewMenu : Signal;
+[Signal("ino.toggle-history")] public sealed record InoToggleHistory : Signal;
+[Signal("ino.toggle-favourite")] public sealed record InoToggleFavourite(string? ConversationId = null, bool Favourite = true) : Signal;
+[Signal("ino.toggle-pin")] public sealed record InoTogglePin(string? ConversationId = null, bool Pinned = true) : Signal;
+[Signal("ino.set-folder")] public sealed record InoSetFolder(string? ConversationId = null, string? Folder = null) : Signal;
+[Signal("ino.archive-thread")] public sealed record InoArchiveThread(string? ConversationId = null) : Signal;
+[Signal("ino.restore-thread")] public sealed record InoRestoreThread(string? ConversationId = null) : Signal;
+[Signal("ino.clear-today")] public sealed record InoClearToday : Signal;
+[Signal("ino.create-room")] public sealed record InoCreateRoom(string? Title = null, string? Kind = null, string? FriendAccount = null) : Signal;
+[Signal("ino.open-pinned-apps")] public sealed record InoOpenPinnedApps : Signal;
 
 [Signal("ino.send")]
 public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : Signal

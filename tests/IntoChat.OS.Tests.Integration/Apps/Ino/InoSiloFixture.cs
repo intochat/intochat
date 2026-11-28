@@ -378,6 +378,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
                 services.AddSecretsCapability<DigitalBrain.Identity.Local.Vault.LocalVaultPort>();
                 services.AddIdentityCapability<TestIdentityDirectoryPort>();
+                services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Codes.ICodeBook, IntoChat.OS.Modules.Identity.Codes.CodeBook>();
                 services.AddSingleton<ICapabilityConnections>(
                     new SingleStorageConnections("local-disk", "Workspace Disk", _storage));
             });

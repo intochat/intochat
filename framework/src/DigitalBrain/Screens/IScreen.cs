@@ -51,7 +51,7 @@ public interface IScreen
     /// <param name="path">The key path, relative to this screen.</param>
     /// <exception cref="ActivationRefusedException">A hop names no child of its view (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     /// <exception cref="ArgumentException">The path is empty or has an empty, "." or ".." hop.</exception>
-    [ReadOnlyCall]
+    [Shared, ReadOnlyCall]
     Task<PublishedView?> ReadChild(string path);
 }
 

@@ -13,7 +13,6 @@ using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
@@ -41,7 +40,6 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(DesktopApp),
         typeof(IntoChat.OS.Apps.DevUI.DevUiApp),
         typeof(FilmCraftApp),
-        typeof(FriendsApp),
         typeof(GalleryApp),
         typeof(InoApp),
         typeof(MarkdrawApp),
@@ -102,7 +100,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(34, concreteScreens.Count);
+        Assert.Equal(33, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);

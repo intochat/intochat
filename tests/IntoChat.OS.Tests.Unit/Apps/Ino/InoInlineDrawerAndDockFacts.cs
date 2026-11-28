@@ -186,7 +186,7 @@ public sealed class InoInlineDrawerAndDockFacts
         var manifests = await ShippedManifests.Of(catalog);
         var dock = manifests.DockApps();
 
-        Assert.Equal(["ino", "friends", "files", "gridcraft", "settings"], dock);
+        Assert.Equal(["ino", "files", "gridcraft", "settings"], dock);
         Assert.DoesNotContain("creator", dock);
         Assert.DoesNotContain("engineer", dock);
         Assert.DoesNotContain("tasks", dock);
