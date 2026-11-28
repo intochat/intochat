@@ -108,17 +108,17 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
     }
 
     [Fact]
-    public void GitHubRepositorySource_RejectsMaliciousGitPushInputsAndNonGitWorktrees()
+    public void GitCommandRunner_RejectsMaliciousGitPushInputsAndNonGitWorktrees()
     {
         var validSha = new string('a', 40);
         var validSha256 = new string('f', 64);
-        GitHubRepositorySource.ValidateGitPushInputs("ino/feat-clean", validSha);
-        GitHubRepositorySource.ValidateGitPushInputs("ino/feat-sha256", validSha256);
+        GitCommandRunner.ValidateGitPushInputs("ino/feat-clean", validSha);
+        GitCommandRunner.ValidateGitPushInputs("ino/feat-sha256", validSha256);
 
         // Invalid commit SHAs (short, non-hex, flag injection).
         foreach (var badSha in new[] { "", "abc1234", "--force", "+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", new string('g', 40) })
         {
-            Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateGitPushInputs("ino/feat-ok", badSha));
+            Assert.Throws<ArgumentException>(() => GitCommandRunner.ValidateGitPushInputs("ino/feat-ok", badSha));
         }
 
         // Invalid / injection branch names.
@@ -145,18 +145,18 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
             "has\nnewline",
         })
         {
-            Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateGitPushInputs(badBranch, validSha));
+            Assert.Throws<ArgumentException>(() => GitCommandRunner.ValidateGitPushInputs(badBranch, validSha));
         }
 
         // Unrooted and non-git LocalWorktreePath must be rejected to prevent `git -C` parent-repo traversal.
-        Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateLocalWorktreePath("relative/path"));
+        Assert.Throws<ArgumentException>(() => GitCommandRunner.ValidateLocalWorktreePath("relative/path"));
         var nonGitDir = Path.Combine(_tempDir, "not-a-repo");
         Directory.CreateDirectory(nonGitDir);
-        Assert.Throws<ArgumentException>(() => GitHubRepositorySource.ValidateLocalWorktreePath(nonGitDir));
+        Assert.Throws<ArgumentException>(() => GitCommandRunner.ValidateLocalWorktreePath(nonGitDir));
     }
 
     [Fact]
-    public async Task GitHubRepositorySource_RunGitProcessAsync_KillsChildProcessOnTimeout()
+    public async Task GitCommandRunner_ExecuteProcessAsync_KillsChildProcessOnTimeout()
     {
         var psi = new ProcessStartInfo
         {
@@ -178,8 +178,8 @@ public sealed class EngineerFlowNativeRepositoryFacts : IDisposable
             psi.ArgumentList.Add("sleep 10");
         }
 
-        var ex = await Assert.ThrowsAsync<GitHubUnavailableException>(() =>
-            GitHubRepositorySource.RunGitProcessAsync(psi, TimeSpan.FromMilliseconds(150), Ct));
+        var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
+            GitCommandRunner.ExecuteProcessAsync(psi, TimeSpan.FromMilliseconds(150), logger: null, Ct));
         Assert.Contains("timed out", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
