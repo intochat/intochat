@@ -5,4 +5,5 @@ public sealed record ReleaseManifest(
     string Commit,
     string OsImage,
     string? CloudImage = null,
-    string? SandboxImage = null);
+    string? SandboxImage = null,
+    string? DevSlotImage = null);

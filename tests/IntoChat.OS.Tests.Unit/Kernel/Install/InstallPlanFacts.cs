@@ -1,5 +1,8 @@
+using System.Text.Json;
+using IntoChat.Aspire;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Kernel.Install;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Install;
 
@@ -835,6 +838,11 @@ public sealed class InstallPlanFacts
             subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2");
         Assert.False(disabledConfig.DevSlotJob.Enabled);
         Assert.Null(InstallPlan.DevSlotJob(disabledConfig));
+        var disabledOsApp = InstallPlan.OsApp(disabledConfig, new Dictionary<string, string>(), []);
+        Assert.False(disabledOsApp.Variables.ContainsKey(InstallPlan.CandidateHostModeVariable));
+        Assert.DoesNotContain(
+            InstallPlan.Foundation(disabledConfig).OfType<RoleGrantSpec>(),
+            static g => g.Scope.Contains("/providers/Microsoft.App/jobs/", StringComparison.OrdinalIgnoreCase));
         var disabledPlan = PulumiStackSynthesizer.Synthesize(disabledConfig, OperatingSystemModules.Modules);
         Assert.DoesNotContain("azure-native:app:Job", disabledPlan.PulumiYaml, StringComparison.Ordinal);
 
@@ -864,6 +872,44 @@ public sealed class InstallPlanFacts
         var acrGrant = Assert.Single(devSlotGrants);
         Assert.Contains("/Microsoft.ContainerRegistry/registries/", acrGrant.Scope, StringComparison.OrdinalIgnoreCase);
 
+        // Least-privilege single-job Contributor RBAC granted to the OS Container App UAMI.
+        var expectedJobScope = "/subscriptions/2a985480-6bb9-44ff-959d-edd5efe2cdb2/resourceGroups/intochat-test/providers/Microsoft.App/jobs/intochat-test-devslot";
+        var osJobGrant = Assert.Single(
+            foundation.OfType<RoleGrantSpec>(),
+            g => g.Principal == enabledConfig.IdentityName && g.Scope == expectedJobScope);
+        Assert.Equal(InstallPlan.Contributor, osJobGrant.RoleDefinitionId);
+        Assert.Equal($"{enabledConfig.OsName}-devslot-job-contributor", osJobGrant.Name);
+
+        // OS ContainerApp projects all AcaJobCandidateHost options and binds cleanly to AspireOptions.
+        var osApp = InstallPlan.OsApp(enabledConfig, new Dictionary<string, string>(), []);
+        Assert.Equal("AcaJob", osApp.Variables[InstallPlan.CandidateHostModeVariable]);
+        Assert.Equal("2a985480-6bb9-44ff-959d-edd5efe2cdb2", osApp.Variables[InstallPlan.AcaJobSubscriptionIdVariable]);
+        Assert.Equal("intochat-test", osApp.Variables[InstallPlan.AcaJobResourceGroupVariable]);
+        Assert.Equal("intochat-test-devslot", osApp.Variables[InstallPlan.AcaJobNameVariable]);
+        Assert.Equal("2", osApp.Variables[InstallPlan.AcaJobCpuVariable]);
+        Assert.Equal("4Gi", osApp.Variables[InstallPlan.AcaJobMemoryVariable]);
+        Assert.Equal("1", osApp.Variables[InstallPlan.AcaJobParallelismVariable]);
+        Assert.Equal("900", osApp.Variables[InstallPlan.AcaJobReplicaTimeoutSecondsVariable]);
+
+        var envSeparator = new string('_', 2);
+        var boundConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(osApp.Variables.ToDictionary(
+                kv => kv.Key.Replace(envSeparator, ConfigurationPath.KeyDelimiter, StringComparison.Ordinal),
+                static kv => (string?)kv.Value,
+                StringComparer.OrdinalIgnoreCase))
+            .Build();
+        var aspireOptions = new AspireOptions();
+        boundConfig.GetSection(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("aspire")).Bind(aspireOptions);
+        Assert.Equal(CandidateHostMode.AcaJob, aspireOptions.CandidateHostMode);
+        Assert.Equal("2a985480-6bb9-44ff-959d-edd5efe2cdb2", aspireOptions.AcaJob.SubscriptionId);
+        Assert.Equal("intochat-test", aspireOptions.AcaJob.ResourceGroup);
+        Assert.Equal("intochat-test-devslot", aspireOptions.AcaJob.JobName);
+        Assert.Equal(2.0, aspireOptions.AcaJob.Cpu);
+        Assert.Equal("4Gi", aspireOptions.AcaJob.Memory);
+        Assert.Equal(1, aspireOptions.AcaJob.Parallelism);
+        Assert.Equal(900, aspireOptions.AcaJob.ReplicaTimeoutSeconds);
+        aspireOptions.Validate();
+
         var plan = PulumiStackSynthesizer.Synthesize(enabledConfig, OperatingSystemModules.Modules);
         var jobBlock = ResourceBlock(plan.PulumiYaml, "container-apps-job-intochat-test-devslot");
         Assert.Contains("type: azure-native:app:Job", jobBlock, StringComparison.Ordinal);
@@ -882,10 +928,78 @@ public sealed class InstallPlanFacts
         Assert.DoesNotContain("secrets:", jobBlock, StringComparison.Ordinal);
         Assert.DoesNotContain("secretRef:", jobBlock, StringComparison.Ordinal);
         Assert.DoesNotContain("master-key", jobBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("role-grant-intochat-test-os-devslot-job-contributor", jobBlock, StringComparison.Ordinal);
+
+        // RoleAssignment for the single ACA Job depends on the ContainerAppsJob resource, and the OS app depends on the grant.
+        var osJobGrantBlock = ResourceBlock(plan.PulumiYaml, "role-grant-intochat-test-os-devslot-job-contributor");
+        Assert.Contains("type: azure-native:authorization:RoleAssignment", osJobGrantBlock, StringComparison.Ordinal);
+        Assert.Contains("dependsOn: [\"${container-apps-job-intochat-test-devslot}\"]", osJobGrantBlock, StringComparison.Ordinal);
+        Assert.Contains($"scope: \"{expectedJobScope}\"", osJobGrantBlock, StringComparison.Ordinal);
+        Assert.Contains($"roleDefinitionId: \"/subscriptions/2a985480-6bb9-44ff-959d-edd5efe2cdb2/providers/Microsoft.Authorization/roleDefinitions/{InstallPlan.Contributor}\"", osJobGrantBlock, StringComparison.Ordinal);
+        Assert.Contains("principalId: \"${identity-intochat-test-id.principalId}\"", osJobGrantBlock, StringComparison.Ordinal);
+
+        var osBlock = ResourceBlock(plan.PulumiYaml, "container-app-intochat-test-os");
+        Assert.Contains("\"${role-grant-intochat-test-os-devslot-job-contributor}\"", osBlock, StringComparison.Ordinal);
+        Assert.Contains($"name: \"{InstallPlan.CandidateHostModeVariable}\"", osBlock, StringComparison.Ordinal);
+        Assert.Contains($"name: \"{InstallPlan.AcaJobNameVariable}\"", osBlock, StringComparison.Ordinal);
 
         var importJson = PulumiStackSynthesizer.ExportImportEntries(plan).ToJsonString();
         Assert.Contains("azure-native:app:Job", importJson, StringComparison.Ordinal);
         Assert.Contains("/providers/Microsoft.App/jobs/intochat-test-devslot", importJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseManifestDevSlotImageRoundTripsAndWithManifestRewritesDevSlotRegistryOnlyWhenEnabled()
+    {
+        var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        // Backwards-compatible deserialization when devSlotImage is absent.
+        const string legacyJson = """
+            {
+              "version": "0.24.6",
+              "commit": "abc1234",
+              "osImage": "acrintochattest.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "sandboxImage": "acrintochattest.azurecr.io/sandbox@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+            }
+            """;
+        var legacy = JsonSerializer.Deserialize<ReleaseManifest>(legacyJson, jsonOptions);
+        Assert.NotNull(legacy);
+        Assert.Null(legacy.DevSlotImage);
+
+        // Round-trip when devSlotImage is present.
+        var manifest = new ReleaseManifest(
+            Version: "0.24.7",
+            Commit: "def5678",
+            OsImage: "acrintochattest.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            SandboxImage: "acrintochattest.azurecr.io/sandbox@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            DevSlotImage: "acrintochattest.azurecr.io/devslot@sha256:3333333333333333333333333333333333333333333333333333333333333333");
+        var serialized = JsonSerializer.Serialize(manifest, jsonOptions);
+        Assert.Contains("\"devSlotImage\":", serialized, StringComparison.Ordinal);
+        var roundTripped = JsonSerializer.Deserialize<ReleaseManifest>(serialized, jsonOptions);
+        Assert.Equal(manifest, roundTripped);
+
+        // WithManifest rewrites DevSlotJob.Image to target registry login server when DevSlotJob is enabled.
+        var enabledProd = InstallConfig.Universal(
+            env: "prod",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeDevSlotJob: true);
+        var updatedEnabled = enabledProd.WithManifest(manifest);
+        Assert.Equal(
+            "acrintochatprod.azurecr.io/devslot@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            updatedEnabled.DevSlotJob.Image);
+
+        // WithManifest leaves DevSlotJob.Image unchanged when legacy manifest has no devSlotImage.
+        var updatedWithLegacy = enabledProd.WithManifest(legacy);
+        Assert.Equal("acrintochatprod.azurecr.io/devslot:latest", updatedWithLegacy.DevSlotJob.Image);
+
+        // WithManifest leaves DevSlotJob untouched when DevSlotJob is disabled.
+        var disabledProd = InstallConfig.Universal(
+            env: "prod",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeDevSlotJob: false);
+        var updatedDisabled = disabledProd.WithManifest(manifest);
+        Assert.False(updatedDisabled.DevSlotJob.Enabled);
+        Assert.Equal("", updatedDisabled.DevSlotJob.Image);
     }
 
     [Fact]

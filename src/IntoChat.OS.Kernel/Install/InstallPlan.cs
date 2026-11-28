@@ -18,6 +18,14 @@ public static class InstallPlan
     public const string FoundryEndpointVariable = "IntoChatOS__Modules__ai__Options__AzureFoundry__Endpoint";
     public const string SandboxUrlVariable = "IntoChatOS__Modules__sandbox__Options__Url";
     public const string SandboxKernelCallbackUrlVariable = "IntoChatOS__Modules__sandbox__Options__KernelCallbackUrl";
+    public const string CandidateHostModeVariable = "IntoChatOS__Modules__aspire__Options__CandidateHostMode";
+    public const string AcaJobSubscriptionIdVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__SubscriptionId";
+    public const string AcaJobResourceGroupVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__ResourceGroup";
+    public const string AcaJobNameVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__JobName";
+    public const string AcaJobCpuVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__Cpu";
+    public const string AcaJobMemoryVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__Memory";
+    public const string AcaJobParallelismVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__Parallelism";
+    public const string AcaJobReplicaTimeoutSecondsVariable = "IntoChatOS__Modules__aspire__Options__AcaJob__ReplicaTimeoutSeconds";
     public const string GhcrTokenSecret = "ghcr-read-token";
     public const string SandboxEnrollKeySecret = "sandbox-enroll-key";
     public const string GhcrServer = "ghcr.io";
@@ -36,6 +44,7 @@ public static class InstallPlan
     private const string StorageTableDataContributor = "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3";
     public const string CognitiveServicesOpenAIUser = "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd";
     public const string CognitiveServicesUser = "a97b65f3-24c7-4388-baec-2e87135dc908";
+    public const string Contributor = "b24988ac-6180-42a0-ab88-20f7382dd24c";
     private const string BrainLogVolume = "brainlog";
     private const int AppUid = 1654;
     private const int AppGid = 1654;
@@ -289,6 +298,7 @@ public static class InstallPlan
         }
         if (c.DevSlotJob.Enabled)
         {
+            var devSlotJobScope = $"{scopePrefix}/Microsoft.App/jobs/{c.DevSlotJobName}";
             // Dedicated least-privilege UAMI (AcrPull only): never shares the OS cluster UAMI's KeyVault/Storage/Foundry grants.
             specs.Add(In(new IdentitySpec { Name = c.DevSlotIdentityName }));
             if (c.Registry.Enabled)
@@ -301,6 +311,9 @@ public static class InstallPlan
                     Scope = registryScope,
                 }));
             }
+            // Least-privilege RBAC for the OS Container App UAMI strictly scoped to this single ACA Job resource
+            // so AcaJobCandidateHost can start, poll, list, and stop executions.
+            specs.Add(Grant("devslot-job-contributor", Contributor, devSlotJobScope));
             specs.Add(In(new ContainerAppsJobSpec
             {
                 Name = c.DevSlotJobName,
@@ -485,6 +498,17 @@ public static class InstallPlan
         if (!string.IsNullOrWhiteSpace(c.SandboxImage))
         {
             variables[SandboxUrlVariable] = $"http://{c.SandboxName}";
+        }
+        if (c.DevSlotJob.Enabled)
+        {
+            variables[CandidateHostModeVariable] = "AcaJob";
+            variables[AcaJobSubscriptionIdVariable] = c.Subscription;
+            variables[AcaJobResourceGroupVariable] = c.GroupName;
+            variables[AcaJobNameVariable] = c.DevSlotJobName;
+            variables[AcaJobCpuVariable] = c.DevSlotJob.Cpu.ToString(CultureInfo.InvariantCulture);
+            variables[AcaJobMemoryVariable] = c.DevSlotJob.Memory;
+            variables[AcaJobParallelismVariable] = c.DevSlotJob.Parallelism.ToString(CultureInfo.InvariantCulture);
+            variables[AcaJobReplicaTimeoutSecondsVariable] = c.DevSlotJob.ReplicaTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
         }
         foreach (var (name, value) in extra) { variables[name] = value; }
         return variables;

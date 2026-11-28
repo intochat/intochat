@@ -147,13 +147,16 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("type=gha", package, StringComparison.Ordinal);
         Assert.Contains("acrintochattest.azurecr.io/os:", package, StringComparison.Ordinal);
         Assert.Contains("acrintochattest.azurecr.io/sandbox:", package, StringComparison.Ordinal);
+        Assert.Contains("acrintochattest.azurecr.io/devslot:", package, StringComparison.Ordinal);
         Assert.DoesNotContain("acrintochattest.azurecr.io/os-ui:", package, StringComparison.Ordinal);
         Assert.DoesNotContain("acrintochattest.azurecr.io/os-sandbox:", package, StringComparison.Ordinal);
         Assert.Contains("release-manifest.json", package, StringComparison.Ordinal);
         Assert.Contains("\"sandboxImage\"", package, StringComparison.Ordinal);
+        Assert.Contains("\"devSlotImage\"", package, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.Kernel.csproj", package, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.Kernel/Dockerfile", package, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.Sandbox/Dockerfile", package, StringComparison.Ordinal);
+        Assert.Contains(".devcontainer/Dockerfile", package, StringComparison.Ordinal);
 
         // Deploy jobs and deploy config live in the private cloud repository.
         Assert.DoesNotContain("deploy-test", release, StringComparison.Ordinal);

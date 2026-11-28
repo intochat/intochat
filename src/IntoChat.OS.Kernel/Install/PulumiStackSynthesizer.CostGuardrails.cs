@@ -190,7 +190,6 @@ public static partial class PulumiStackSynthesizer
         string rgLogical,
         IReadOnlyDictionary<string, string> tags)
     {
-        var subscriptionScope = $"/subscriptions/{c.Subscription}";
         var intoChatRgScope = $"/subscriptions/{c.Subscription}/resourceGroups/{c.GroupName}";
         var aaName = string.IsNullOrWhiteSpace(spec.AutomationAccountName)
             ? ResourceNames.For(c.Prefix, c.Env, "cost-aa")
@@ -332,17 +331,17 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("          useCommonAlertSchema: true");
         AppendTags(sb, tags, indent: 6);
 
-        // 8. Subscription-scoped Azure Consumption Budget (50%, 80%, 90% Forecasted email; 95% & 100% Actual email + ActionGroup kill-switch).
+        // 8. Resource-group-scoped Azure Consumption Budget (50%, 80%, 90% Forecasted email; 95% & 100% Actual email + ActionGroup kill-switch).
         sb.AppendLine($"  {budgetLogical}:");
         sb.AppendLine("    type: azure-native:consumption:Budget");
         sb.AppendLine("    options:");
-        sb.AppendLine($"      dependsOn: [\"${{{agLogical}}}\"]");
+        sb.AppendLine($"      dependsOn: [\"${{{rgLogical}}}\", \"${{{agLogical}}}\"]");
         sb.AppendLine("      ignoreChanges:");
         sb.AppendLine("        - timePeriod.startDate");
         sb.AppendLine("        - timePeriod.endDate");
         sb.AppendLine("    properties:");
         sb.AppendLine($"      budgetName: \"{budgetName}\"");
-        sb.AppendLine($"      scope: \"{subscriptionScope}\"");
+        sb.AppendLine($"      scope: \"{intoChatRgScope}\"");
         sb.AppendLine("      category: Cost");
         sb.AppendLine($"      amount: {spec.MonthlyBudgetEur.ToString(CultureInfo.InvariantCulture)}");
         sb.AppendLine("      timeGrain: Monthly");

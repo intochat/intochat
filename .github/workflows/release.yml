@@ -120,6 +120,19 @@ jobs:
           cache-from: type=gha,scope=sandbox
           cache-to: type=gha,mode=max,scope=sandbox
 
+      - name: Build and push DevSlot container image
+        id: build-devslot
+        uses: docker/build-push-action@v7
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          push: true
+          tags: |
+            acrintochattest.azurecr.io/devslot:${{ steps.version.outputs.version }}
+            acrintochattest.azurecr.io/devslot:latest
+          cache-from: type=gha,scope=devslot
+          cache-to: type=gha,mode=max,scope=devslot
+
       - name: Write release manifest
         id: manifest
         run: |
@@ -127,12 +140,14 @@ jobs:
           COMMIT="${{ github.sha }}"
           OS_DIGEST="acrintochattest.azurecr.io/os@${{ steps.build-os.outputs.digest }}"
           SANDBOX_DIGEST="acrintochattest.azurecr.io/sandbox@${{ steps.build-sandbox.outputs.digest }}"
+          DEVSLOT_DIGEST="acrintochattest.azurecr.io/devslot@${{ steps.build-devslot.outputs.digest }}"
           cat <<EOF > release-manifest.json
           {
             "version": "${VERSION}",
             "commit": "${COMMIT}",
             "osImage": "${OS_DIGEST}",
-            "sandboxImage": "${SANDBOX_DIGEST}"
+            "sandboxImage": "${SANDBOX_DIGEST}",
+            "devSlotImage": "${DEVSLOT_DIGEST}"
           }
           EOF
           cat release-manifest.json
