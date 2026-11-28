@@ -36,7 +36,8 @@ public static class SpecialistAuthoring
 {
     public static SpecialistAuthoringResult PrepareCreate(
         SpecialistDraft draft,
-        IEnumerable<(string AppId, string? Handle)> existingSpecialists)
+        IEnumerable<(string AppId, string? Handle)> existingSpecialists,
+        string? brainId = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
@@ -86,8 +87,8 @@ public static class SpecialistAuthoring
                     ToolSources: cleanToolSources.Length > 0 ? cleanToolSources : null,
                     MemoryScope: memoryScope));
 
-            // Verify AgentAppPolicy projection succeeds before any write.
-            _ = AgentAppPolicy.Definition(manifest, draft.Connections, appId);
+            // Verify AgentAppPolicy projection (including same-brain ToolSources) succeeds before any write.
+            _ = AgentAppPolicy.Definition(manifest, draft.Connections, appId, brainId);
 
             return new SpecialistAuthoringResult(
                 Succeeded: true,
@@ -110,7 +111,8 @@ public static class SpecialistAuthoring
         string[]? allowedContractsOverride = null,
         string[]? toolSourcesOverride = null,
         string? memoryScopeOverride = null,
-        bool includeTregSlot = false)
+        bool includeTregSlot = false,
+        string? brainId = null)
     {
         if (string.IsNullOrWhiteSpace(markdown))
         {
@@ -155,7 +157,7 @@ public static class SpecialistAuthoring
                 ? manifest
                 : (manifest with { Agent = manifest.Agent! with { Handle = resolvedHandle } }).Validated();
 
-            _ = AgentAppPolicy.Definition(finalManifest, null, appId);
+            _ = AgentAppPolicy.Definition(finalManifest, null, appId, brainId);
 
             return new SpecialistAuthoringResult(
                 Succeeded: true,

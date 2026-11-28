@@ -202,9 +202,9 @@ public sealed class SkillImportFacts
     }
 
     [Fact]
-    public void SkillImportParsesSpecialistHandleContractsToolSourcesAndMemoryScopeAndRejectsMalformedInput()
+    public void SkillImportDoesNotAutoGrantUntrustedFrontmatterAndValidatesExplicitOwnerOverrides()
     {
-        const string validSkill = """
+        const string untrustedSkill = """
             ---
             name: "sql-analyst"
             handle: "@sql-analyst"
@@ -212,7 +212,8 @@ public sealed class SkillImportFacts
             memory_scope: isolated
             allowed_contracts:
               - "IntoChat.OS.Modules.Apps.IData"
-            tool_sources: ["local/connection/mcp/sql"]
+              - "DigitalBrain.Capabilities.Secrets.ISecretVault"
+            tool_sources: ["other-brain/connection/mcp/sql"]
             ---
 
             # SQL Analyst
@@ -220,11 +221,21 @@ public sealed class SkillImportFacts
             Run read-only analytical queries and explain findings clearly.
             """;
 
-        var manifest = SkillImport.ToApp(new SkillFile("skills/sql-analyst/SKILL.md", validSkill), includeTregSlot: false);
-        Assert.Equal("@sql-analyst", manifest.Agent!.Handle);
-        Assert.Equal(MemoryScope.IsolatedBotScope, manifest.Agent.MemoryScope);
-        Assert.Equal(["IntoChat.OS.Modules.Apps.IData"], manifest.Agent.AllowedContracts ?? []);
-        Assert.Equal(["local/connection/mcp/sql"], manifest.Agent.ToolSources ?? []);
+        // Untrusted SKILL.md frontmatter MUST NOT self-grant AllowedContracts or ToolSources.
+        var untrustedManifest = SkillImport.ToApp(new SkillFile("skills/sql-analyst/SKILL.md", untrustedSkill), includeTregSlot: false);
+        Assert.Equal("@sql-analyst", untrustedManifest.Agent!.Handle);
+        Assert.Equal(MemoryScope.IsolatedBotScope, untrustedManifest.Agent.MemoryScope);
+        Assert.Empty(untrustedManifest.Agent.AllowedContracts ?? []);
+        Assert.Empty(untrustedManifest.Agent.ToolSources ?? []);
+
+        // Explicit owner-supplied overrides ARE applied and validated fail-closed.
+        var ownerGranted = SkillImport.ToApp(
+            new SkillFile("skills/sql-analyst/SKILL.md", untrustedSkill),
+            allowedContracts: ["IntoChat.OS.Modules.Apps.IData"],
+            toolSources: ["local/connection/mcp/sql"],
+            includeTregSlot: false);
+        Assert.Equal(["IntoChat.OS.Modules.Apps.IData"], ownerGranted.Agent!.AllowedContracts ?? []);
+        Assert.Equal(["local/connection/mcp/sql"], ownerGranted.Agent.ToolSources ?? []);
 
         // Unclosed frontmatter fence fails cleanly.
         Assert.Throws<InvalidDataException>(() =>
@@ -234,13 +245,68 @@ public sealed class SkillImportFacts
         Assert.Throws<InvalidDataException>(() =>
             SkillImport.ToApp(new SkillFile("ino/SKILL.md", "---\nhandle: @ino\n---\nInstructions.")));
 
-        // Disallowed secret contract fails closed.
+        // Explicit disallowed secret contract fails closed.
         Assert.Throws<InvalidDataException>(() =>
-            SkillImport.ToApp(new SkillFile("bad/SKILL.md", "---\nhandle: @bad-bot\nallowed_contracts: [\"DigitalBrain.Capabilities.Secrets.ISecretVault\"]\n---\nInstructions.")));
+            SkillImport.ToApp(
+                new SkillFile("bad/SKILL.md", "---\nhandle: @bad-bot\n---\nInstructions."),
+                allowedContracts: ["DigitalBrain.Capabilities.Secrets.ISecretVault"]));
+
+        // Explicit malformed tool source fails closed.
+        Assert.Throws<InvalidDataException>(() =>
+            SkillImport.ToApp(
+                new SkillFile("bad/SKILL.md", "---\nhandle: @bad-bot\n---\nInstructions."),
+                toolSources: ["not-a-valid-key"]));
 
         // Unknown memory_scope fails cleanly.
         Assert.Throws<InvalidDataException>(() =>
             SkillImport.ToApp(new SkillFile("bad/SKILL.md", "---\nhandle: @bad-bot\nmemory_scope: host-secrets\n---\nInstructions.")));
+    }
+
+    [Fact]
+    public async Task AppNeuronRejectsDuplicateSpecialistHandleAndInoAppRejectsMalformedAppId()
+    {
+        TestOS? osRef = null;
+        var services = new ServiceCollection();
+        services.AddOptions<AppsOptions>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<DigitalBrain.Kernel.IBrainObserver>(_ => osRef!);
+        services.AddSingleton<DigitalBrain.Neurons.INeuronProxies>(_ => osRef!.Proxies);
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
+        osRef = os;
+        os.RegisterCatalog();
+        os.Register<AppNeuron>();
+        os.Register<RecordingConversation>();
+        os.Register<ChatThreadNeuron>();
+        os.Register<IntoChat.OS.Modules.Flutter.Conversations.ThreadDirectoryNeuron>();
+        os.Register<IntoChat.OS.Apps.Ino.InoApp>();
+
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+
+        var firstApp = os.Get<IApp>(new NeuronId(Brain, AppGrainType.Name, "apps/first-bot"));
+        var firstManifest = AppManifest.ForSpecialist(
+            "First Bot",
+            "First specialist",
+            new AppAgent("Be first.", Handle: "@unique-bot"));
+        var created = await firstApp.Create(firstManifest, "");
+        Assert.Equal(AppStatus.Live, created.Status);
+
+        // Creating a second AppNeuron claiming the same @handle must fail closed.
+        var secondApp = os.Get<IApp>(new NeuronId(Brain, AppGrainType.Name, "apps/second-bot"));
+        var duplicateManifest = AppManifest.ForSpecialist(
+            "Second Bot",
+            "Duplicate handle",
+            new AppAgent("Be second.", Handle: "@unique-bot"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => secondApp.Create(duplicateManifest, ""));
+
+        // Malformed AppId in InoApp.OpenSpecialist must NOT throw an unhandled exception (records rejection cleanly).
+        var ino = os.Get<IScreen>(new NeuronId(Brain, "app.ino", "default"));
+        var badArgs = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+            new IntoChat.OS.Apps.Ino.InoOpenSpecialist("---"),
+            typeof(IntoChat.OS.Apps.Ino.InoOpenSpecialist));
+        await ino.Dispatch(new Command(".", "ino.open-specialist", badArgs));
+        var viewAfterBad = await ino.Read();
+        Assert.NotNull(viewAfterBad);
+        Assert.Contains("conversations/main", viewAfterBad.View.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]

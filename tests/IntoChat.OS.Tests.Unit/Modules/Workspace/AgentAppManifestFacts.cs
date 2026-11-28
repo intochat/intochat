@@ -171,5 +171,17 @@ public sealed class AgentAppManifestFacts
             Handle: "@helper",
             AllowedContracts: ["DigitalBrain.Capabilities.Secrets.ISecretVault"]));
         Assert.Throws<InvalidDataException>(disallowed.Validated);
+
+        var malformedToolSource = ValidAgentManifest(agent: new AppAgent(
+            "Help",
+            Handle: "@helper",
+            ToolSources: ["not-a-canonical-connection-key"]));
+        Assert.Throws<InvalidDataException>(malformedToolSource.Validated);
+
+        var traversalToolSource = ValidAgentManifest(agent: new AppAgent(
+            "Help",
+            Handle: "@helper",
+            ToolSources: ["b1/connection/mcp/../secret"]));
+        Assert.Throws<InvalidDataException>(traversalToolSource.Validated);
     }
 }

@@ -132,7 +132,8 @@ internal static class AppUiEndpoints
             if (resolved.IsAgentApp)
             {
                 var appId = ScreenViewResolver.NormalizeAppId(scope, input.Neuron);
-                await screen.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId }))).WaitAsync(ct);
+                var openArgs = JsonSerializer.SerializeToElement(new SpecialistOpenPayload(appId), ShellUiJsonContext.Default.SpecialistOpenPayload);
+                await screen.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", openArgs)).WaitAsync(ct);
             }
             await screen.Dispatch(new DigitalBrain.UI.Command(input.Target, input.Signal, args)).WaitAsync(ct);
         }
@@ -192,12 +193,7 @@ internal static class AppUiEndpoints
 
         try
         {
-            var screen = brain.Get<IScreen>(screenId);
-            if (resolved is { IsAgentApp: true })
-            {
-                await screen.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = appRef.Name }))).WaitAsync(ct);
-            }
-            var view = await screen.ReadChild(path).WaitAsync(ct);
+            var view = await brain.Get<IScreen>(screenId).ReadChild(path).WaitAsync(ct);
             return OkJson(ChildKeys.Screen(view), ShellUiJsonContext.Default.PublishedView);
         }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.UnknownChild)
@@ -372,12 +368,6 @@ internal static class AppUiEndpoints
             }
             if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } viewScreenId })
             {
-                if (resolved.IsAgentApp)
-                {
-                    var withoutView = name.EndsWith("/view", StringComparison.Ordinal) ? name[..^5] : name;
-                    var appId = ScreenViewResolver.NormalizeAppId(scope, withoutView);
-                    await brain.Get<IScreen>(viewScreenId).Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId }))).WaitAsync(ct);
-                }
                 if (await ScreenViewResolver.TryReadScreenAsync(brain, viewScreenId, log, "Screen view could not be read.", ct, hostedNeurons) is { } published)
                 {
                     return OkJson(ChildKeys.Screen(published), ShellUiJsonContext.Default.PublishedView);

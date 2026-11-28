@@ -401,13 +401,7 @@ public sealed record AppManifest(
             var cleanSources = new string[rawSources.Length];
             for (var i = 0; i < rawSources.Length; i++)
             {
-                var entry = rawSources[i];
-                if (string.IsNullOrWhiteSpace(entry) || entry.Length > 512 || entry.Any(char.IsControl))
-                {
-                    throw new InvalidDataException("Every agent tool source must be a non-empty MCP connection key.");
-                }
-
-                var trimmed = entry.Trim();
+                var (trimmed, _) = AppAgentToolSourcePolicy.ValidateKeyFormat(rawSources[i]);
                 if (!seenSources.Add(trimmed))
                 {
                     throw new InvalidDataException($"Agent tool source '{trimmed}' is listed more than once.");

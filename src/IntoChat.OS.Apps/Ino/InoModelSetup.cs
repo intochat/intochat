@@ -554,7 +554,7 @@ internal static class InoModelSetup
             return;
         }
 
-        var definition = IntoChat.OS.Apps.AgentApp.AgentAppPolicy.Definition(manifest, snapshot.Connections, specialistAppId);
+        var definition = IntoChat.OS.Apps.AgentApp.AgentAppPolicy.Definition(manifest, snapshot.Connections, specialistAppId, host.GetBrain().Value);
         if (definition.Model is null && !string.IsNullOrWhiteSpace(effectiveModel))
         {
             definition = definition with { Model = new ModelSelection(effectiveModel.Trim()) };

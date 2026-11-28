@@ -1505,7 +1505,6 @@ internal sealed class ConversationNeuron(
                                 ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
                                 newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
 
-                                await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, turnState.Run.UserText, turnState.Visible);
                                 var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
                                 storeCount++;
                                 await Persist(State with
@@ -1517,6 +1516,7 @@ internal sealed class ConversationNeuron(
                                 });
                                 if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
                                 await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
+                                await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, turnState.Run.UserText, turnState.Visible);
                                 committed = true;
 
                                 // Multi-agent Squad handoff with strict maxDepth = 3 loop guard.

@@ -124,8 +124,12 @@ public static partial class BotMemoryScope
     /// <summary>Returns the canonical isolated memory root key <c>memory/bots/{appId}</c>.</summary>
     public static string RootFor(string appId) => RootPrefix + NormalizeAppId(appId);
 
-    /// <summary>Returns the isolated recall context key for a specialist bot so it never shares Ino's recall context.</summary>
-    public static string RecallContextKeyFor(string appId) => $"bots/{NormalizeAppId(appId)}/context/memory.recall";
+    /// <summary>
+    /// Returns the isolated recall context key for a specialist bot so it never shares Ino's recall context.
+    /// Starts with <c>context/</c> so <c>AgentTurnLoop.Absolute</c> resolves it under <c>{brain}/</c>, and ends with
+    /// <c>/context/memory.recall</c> so <c>TurnRunner.ContextsNamed("memory.recall")</c> hydrates it on every turn.
+    /// </summary>
+    public static string RecallContextKeyFor(string appId) => $"context/bots/{NormalizeAppId(appId)}/context/memory.recall";
 
     /// <summary>Returns <see langword="true"/> when <paramref name="memoryKey"/> lies under <c>memory/bots/</c>.</summary>
     public static bool IsBotMemoryKey(string? memoryKey)
@@ -151,7 +155,8 @@ public static partial class BotMemoryScope
         return SafeAppIdPattern().IsMatch(suffix);
     }
 
-    private static readonly Regex SegmentPattern = new("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.CultureInvariant)]
+    private static partial Regex SegmentPattern();
 
     /// <summary>
     /// Confines a relative memory path strictly inside <c>memory/bots/{appId}</c>.
@@ -193,7 +198,7 @@ public static partial class BotMemoryScope
 
         for (var i = 0; i < rawSegments.Length; i++)
         {
-            if (!SegmentPattern.IsMatch(rawSegments[i]) || !SegmentPattern.IsMatch(unescapedSegments[i]))
+            if (!SegmentPattern().IsMatch(rawSegments[i]) || !SegmentPattern().IsMatch(unescapedSegments[i]))
             {
                 throw new UnauthorizedAccessException($"Path '{relativePath}' contains invalid or traversal segments and cannot leave '{root}'.");
             }
@@ -258,7 +263,7 @@ public static partial class BotMemoryScope
 /// </summary>
 public static class AppAgentContractPolicy
 {
-    public static readonly string[] CuratedAllowedContracts =
+    private static readonly string[] CuratedContracts =
     [
         "IntoChat.OS.Modules.Web.IWebSearch",
         "IntoChat.OS.Modules.Web.IWebRead",
@@ -270,7 +275,9 @@ public static class AppAgentContractPolicy
         "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
     ];
 
-    private static readonly HashSet<string> AllowedSet = new(CuratedAllowedContracts, StringComparer.Ordinal);
+    public static string[] CuratedAllowedContracts => [.. CuratedContracts];
+
+    private static readonly HashSet<string> AllowedSet = new(CuratedContracts, StringComparer.Ordinal);
 
     /// <summary>Returns <see langword="true"/> only when <paramref name="contractFullName"/> is on the curated least-privilege allowlist.</summary>
     public static bool IsAllowedContract(string? contractFullName)
@@ -313,6 +320,71 @@ public static class AppAgentContractPolicy
         }
 
         return result;
+    }
+}
+
+/// <summary>
+/// Format and same-brain confinement rules for specialist <see cref="AppAgent.ToolSources"/> connection keys
+/// (<c>{brain}/connection/{connector}/{name}</c>).
+/// </summary>
+public static partial class AppAgentToolSourcePolicy
+{
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.CultureInvariant)]
+    private static partial Regex SafeSegmentPattern();
+
+    /// <summary>
+    /// Validates that <paramref name="rawKey"/> is a canonical, traversal-free connection key
+    /// (<c>{brain}/connection/{connector}/{name}</c>) and returns the trimmed key and owning brain id.
+    /// </summary>
+    public static (string Key, string BrainId) ValidateKeyFormat(string? rawKey)
+    {
+        if (string.IsNullOrWhiteSpace(rawKey) || rawKey.Length > 512 || rawKey.Any(char.IsControl))
+        {
+            throw new InvalidDataException("Every agent tool source must be a non-empty connection key of the form '{brain}/connection/{connector}/{name}'.");
+        }
+
+        var trimmed = rawKey.Trim();
+        var unescaped = Uri.UnescapeDataString(trimmed);
+        if (trimmed.Contains('\\', StringComparison.Ordinal)
+            || unescaped.Contains('\\', StringComparison.Ordinal)
+            || !string.Equals(trimmed, unescaped, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Agent tool source '{trimmed}' contains invalid or escaped path characters.");
+        }
+
+        var parts = trimmed.Split('/', StringSplitOptions.None);
+        if (parts.Length != 4
+            || !string.Equals(parts[1], "connection", StringComparison.Ordinal)
+            || !SafeSegmentPattern().IsMatch(parts[0])
+            || !SafeSegmentPattern().IsMatch(parts[2])
+            || !SafeSegmentPattern().IsMatch(parts[3]))
+        {
+            throw new InvalidDataException(
+                $"Agent tool source '{trimmed}' must match canonical connection key format '{{brain}}/connection/{{connector}}/{{name}}'.");
+        }
+
+        return (trimmed, parts[0]);
+    }
+
+    /// <summary>
+    /// Validates format and enforces same-brain ownership fail-closed: throws <see cref="UnauthorizedAccessException"/>
+    /// whenever <paramref name="rawKey"/> belongs to another brain.
+    /// </summary>
+    public static string ValidateSameBrain(string? rawKey, string expectedBrainId)
+    {
+        if (string.IsNullOrWhiteSpace(expectedBrainId))
+        {
+            throw new UnauthorizedAccessException("Cannot validate tool source ownership without an active brain id.");
+        }
+
+        var (key, sourceBrain) = ValidateKeyFormat(rawKey);
+        if (!string.Equals(sourceBrain, expectedBrainId.Trim(), StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                $"Tool source '{key}' belongs to brain '{sourceBrain}' and cannot be accessed from brain '{expectedBrainId.Trim()}'.");
+        }
+
+        return key;
     }
 }
 

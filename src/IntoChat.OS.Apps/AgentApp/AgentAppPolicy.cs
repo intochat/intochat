@@ -145,7 +145,7 @@ public static class AgentAppPolicy
     }
 
     /// <summary>Projects an agent app's manifest and bound connection slots into an isolated <see cref="AgentDefinition"/>.</summary>
-    public static AgentDefinition Definition(AppManifest app, IReadOnlyDictionary<string, string>? boundSlots, string? appId = null)
+    public static AgentDefinition Definition(AppManifest app, IReadOnlyDictionary<string, string>? boundSlots, string? appId = null, string? brainId = null)
     {
         ArgumentNullException.ThrowIfNull(app);
         var agent = app.Agent ?? throw new InvalidOperationException("App manifest does not declare an agent.");
@@ -166,6 +166,7 @@ public static class AgentAppPolicy
             (app.Slots ?? []).Where(static s => s is not null && !string.IsNullOrWhiteSpace(s.Name)).Select(static s => s.Name),
             StringComparer.Ordinal);
 
+        var hasBrain = !string.IsNullOrWhiteSpace(brainId);
         var sources = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         if (agent.Tools is { Length: > 0 } toolSlots && boundSlots is { Count: > 0 })
@@ -178,10 +179,15 @@ public static class AgentAppPolicy
                 }
 
                 if (boundSlots.TryGetValue(slotName, out var canonicalKey)
-                    && !string.IsNullOrWhiteSpace(canonicalKey)
-                    && seen.Add(canonicalKey.Trim()))
+                    && !string.IsNullOrWhiteSpace(canonicalKey))
                 {
-                    sources.Add(canonicalKey.Trim());
+                    var validated = hasBrain
+                        ? AppAgentToolSourcePolicy.ValidateSameBrain(canonicalKey, brainId!)
+                        : AppAgentToolSourcePolicy.ValidateKeyFormat(canonicalKey).Key;
+                    if (seen.Add(validated))
+                    {
+                        sources.Add(validated);
+                    }
                 }
             }
         }
@@ -190,9 +196,12 @@ public static class AgentAppPolicy
         {
             foreach (var source in directSources)
             {
-                if (!string.IsNullOrWhiteSpace(source) && seen.Add(source.Trim()))
+                var validated = hasBrain
+                    ? AppAgentToolSourcePolicy.ValidateSameBrain(source, brainId!)
+                    : AppAgentToolSourcePolicy.ValidateKeyFormat(source).Key;
+                if (seen.Add(validated))
                 {
-                    sources.Add(source.Trim());
+                    sources.Add(validated);
                 }
             }
         }

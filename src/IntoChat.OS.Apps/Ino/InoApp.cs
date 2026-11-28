@@ -159,8 +159,6 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
                 }
 
                 ResetConversationCache(targetConversationId);
-                var switched = (InoModel.SwitchConversation(State, targetConversationId, State.RecentConversations) with { DraftPrompt = null })
-                    .ApplyNavigation(args);
                 return;
             }
         }
@@ -405,7 +403,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             Starters: request.Starters,
             Settings: request.Settings,
             Connections: request.Connections);
-        var prepared = SpecialistAuthoring.PrepareCreate(draft, existing);
+        var prepared = SpecialistAuthoring.PrepareCreate(draft, existing, brainId: CurrentBrain.Value);
         await CompleteSpecialistAuthoringAsync(prepared, request.Settings, request.Connections, panelMode: "new");
     }
 
@@ -422,7 +420,8 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             allowedContractsOverride: request.AllowedContracts,
             toolSourcesOverride: request.ToolSources,
             memoryScopeOverride: request.MemoryScope,
-            includeTregSlot: false);
+            includeTregSlot: false,
+            brainId: CurrentBrain.Value);
         await CompleteSpecialistAuthoringAsync(prepared, settings: null, connections: null, panelMode: "import");
     }
 
@@ -435,7 +434,16 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             return RecordRejectionAsync(new Rejected("open-specialist", ["invalid_specialist"], ["Specify a specialist app id to open."]));
         }
 
-        var conversationId = AgentAppPolicy.ConversationOf(request.AppId.Trim()).Value;
+        string conversationId;
+        try
+        {
+            conversationId = AgentAppPolicy.ConversationOf(request.AppId.Trim()).Value;
+        }
+        catch (ArgumentException error)
+        {
+            return RecordRejectionAsync(new Rejected("open-specialist", ["invalid_specialist"], [error.Message]));
+        }
+
         return SwitchConversationAsync(conversationId, allowSameThreadRefresh: true);
     }
 
@@ -1167,10 +1175,11 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
         var snapshot = await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations);
-        var nextState = InoModel.SwitchConversation(State, conversationId, recents) with
+        var baseSwitched = InoModel.SwitchConversation(State, conversationId, recents);
+        var nextState = baseSwitched with
         {
             DraftPrompt = null,
-            Title = specialistTitle ?? InoModel.SwitchConversation(State, conversationId, recents).Title,
+            Title = specialistTitle ?? baseSwitched.Title,
             ActiveSpecialistAppId = specialistAppId,
             ActiveSpecialistHandle = specialistHandle,
             ActiveSpecialistDescription = specialistDescription,

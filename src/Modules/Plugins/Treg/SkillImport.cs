@@ -13,9 +13,13 @@ namespace IntoChat.Treg;
 public static class SkillImport
 {
     private const int MaxDerivedDescriptionLength = 240;
+    public const int MaxSkillContentLength = 128 * 1024;
 
     /// <summary>
     /// Parses a <see cref="SkillFile"/> into a validated Rung 1 agent <see cref="AppManifest"/>.
+    /// Untrusted <c>SKILL.md</c> frontmatter never self-grants <see cref="AppAgent.AllowedContracts"/>
+    /// or <see cref="AppAgent.ToolSources"/>; those are only granted when explicitly supplied by the owner
+    /// via <paramref name="allowedContracts"/> or <paramref name="toolSources"/>.
     /// </summary>
     public static AppManifest ToApp(
         SkillFile file,
@@ -28,6 +32,10 @@ public static class SkillImport
         bool includeTregSlot = true)
     {
         ArgumentNullException.ThrowIfNull(file);
+        if ((file.Content?.Length ?? 0) > MaxSkillContentLength)
+        {
+            throw new InvalidDataException($"Skill file exceeds the {MaxSkillContentLength:N0}-character limit.");
+        }
 
         var parsed = Parse(file);
         if (string.IsNullOrWhiteSpace(parsed.Instructions))
@@ -44,16 +52,10 @@ public static class SkillImport
         var description = ResolveDescription(parsed, title);
         var resolvedStarters = ResolveStarters(starters, parsed.FrontmatterStarters, parsed.BodyStarters);
         var resolvedHandle = !string.IsNullOrWhiteSpace(handle) ? handle : parsed.Handle;
-        var resolvedContracts = allowedContracts is not null
-            ? allowedContracts
-            : parsed.AllowedContracts.Length > 0
-                ? parsed.AllowedContracts
-                : null;
-        var resolvedToolSources = toolSources is not null
-            ? toolSources
-            : parsed.ToolSources.Length > 0
-                ? parsed.ToolSources
-                : null;
+        // Security: untrusted SKILL.md frontmatter must NEVER auto-grant contracts or MCP tool sources.
+        // Only explicit owner-supplied overrides are adopted (validated fail-closed by AppManifest.Validated).
+        var resolvedContracts = allowedContracts is { Length: > 0 } ? allowedContracts : null;
+        var resolvedToolSources = toolSources is { Length: > 0 } ? toolSources : null;
         var resolvedMemoryScope = memoryScope ?? parsed.MemoryScope;
 
         var manifest = new AppManifest(

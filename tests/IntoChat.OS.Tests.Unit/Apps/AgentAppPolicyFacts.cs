@@ -213,13 +213,43 @@ public sealed class AgentAppPolicyFacts
                 ToolSources: ["b1/connection/mcp/sql"],
                 MemoryScope: MemoryScope.IsolatedBotScope)).Validated();
 
-        var def = AgentAppPolicy.Definition(manifest, null, "sql-analyst");
+        var def = AgentAppPolicy.Definition(manifest, null, "sql-analyst", brainId: "b1");
 
         Assert.Equal(["IntoChat.OS.Modules.Apps.IData"], def.Contracts);
         Assert.Equal(["b1/connection/mcp/sql"], def.ToolSources ?? []);
         Assert.Equal("memory/bots/sql-analyst", def.MemoryScopeKey);
-        Assert.Equal(["bots/sql-analyst/context/memory.recall"], def.Contexts);
+        Assert.Equal(["context/bots/sql-analyst/context/memory.recall"], def.Contexts);
+        Assert.Equal(
+            "b1/context/bots/sql-analyst/context/memory.recall",
+            IntoChat.OS.Modules.AI.Agents.AgentTurnLoop.Absolute("b1", def.Contexts[0]));
         Assert.False(def.IncludeComponentOperations);
+
+        // Cross-brain tool source is denied fail-closed.
+        Assert.Throws<UnauthorizedAccessException>(() => AgentAppPolicy.Definition(manifest, null, "sql-analyst", brainId: "other-brain"));
+    }
+
+    [Fact]
+    public async Task ToolSourceToolsForKeysEnforcesSameBrainConfinementFailClosed()
+    {
+        var calledKeys = new List<string>();
+        var tools = await IntoChat.OS.Modules.AI.Agents.Tools.ToolSourceTools.ForKeys(
+            call: (_, key, _, _, _) =>
+            {
+                calledKeys.Add(key);
+                return Task.FromResult<System.Text.Json.JsonElement?>(null);
+            },
+            sources:
+            [
+                ("IntoChat.OS.Modules.Mcp.IMcpConnection", "brain-a/connection/mcp/allowed"),
+                ("IntoChat.OS.Modules.Mcp.IMcpConnection", "brain-b/connection/mcp/cross-brain-secret"),
+            ],
+            edge: null,
+            conversation: "brain-a/conversations/agent-reviewer",
+            ct: TestContext.Current.CancellationToken);
+
+        Assert.Empty(tools);
+        Assert.Equal(["brain-a/connection/mcp/allowed"], calledKeys);
+        Assert.DoesNotContain("brain-b/connection/mcp/cross-brain-secret", calledKeys);
     }
 
     [Fact]
@@ -229,26 +259,37 @@ public sealed class AgentAppPolicyFacts
 
         var reserved = SpecialistAuthoring.PrepareCreate(
             new SpecialistDraft("Ino Clone", "@ino", "Be ino."),
-            existing);
+            existing,
+            brainId: "b1");
         Assert.False(reserved.Succeeded);
         Assert.Contains("reserved", reserved.Error, StringComparison.OrdinalIgnoreCase);
 
         var duplicate = SpecialistAuthoring.PrepareCreate(
             new SpecialistDraft("Reviewer Two", "@reviewer", "Review PRs."),
-            existing);
+            existing,
+            brainId: "b1");
         Assert.False(duplicate.Succeeded);
         Assert.Contains("already used", duplicate.Error, StringComparison.OrdinalIgnoreCase);
 
         var escalation = SpecialistAuthoring.PrepareCreate(
             new SpecialistDraft("Vault Reader", "@vault-bot", "Read vault.", AllowedContracts: ["DigitalBrain.Capabilities.Secrets.ISecretVault"]),
-            existing);
+            existing,
+            brainId: "b1");
         Assert.False(escalation.Succeeded);
         Assert.Contains("denied", escalation.Error, StringComparison.OrdinalIgnoreCase);
+
+        var crossBrainTool = SpecialistAuthoring.PrepareCreate(
+            new SpecialistDraft("Cross Brain Bot", "@xbrain", "Use other brain tools.", ToolSources: ["other-brain/connection/mcp/secret"]),
+            existing,
+            brainId: "b1");
+        Assert.False(crossBrainTool.Succeeded);
+        Assert.Contains("belongs to brain", crossBrainTool.Error, StringComparison.OrdinalIgnoreCase);
 
         var malformedSkill = SpecialistAuthoring.PrepareSkillImport(
             "bad/SKILL.md",
             "---\nname: broken\nno closing fence",
-            existing);
+            existing,
+            brainId: "b1");
         Assert.False(malformedSkill.Succeeded);
         Assert.Contains("closing '---'", malformedSkill.Error, StringComparison.OrdinalIgnoreCase);
     }

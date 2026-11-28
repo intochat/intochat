@@ -108,7 +108,14 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
         Assert.Equal(IScreenTargetResolver.AgentAppKind, target.Kind);
         Assert.Equal(new NeuronId(brainId, "app.ino", "default"), target.ScreenId);
 
-        // Path 1: IScreenDirectory Read + Act routes into Unified Messenger (InoApp).
+        // Explicitly open the specialist in Unified Messenger (passive reads must NEVER mutate active InoApp state).
+        var ino = SiloNeurons.Get<IScreen>(fixture.Services, new NeuronId(brainId, "app.ino", "default"));
+        var openArgs = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+            new IntoChat.OS.Apps.Ino.InoOpenSpecialist("treg"),
+            typeof(IntoChat.OS.Apps.Ino.InoOpenSpecialist));
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", openArgs));
+
+        // Path 1: IScreenDirectory Read + Act reads Unified Messenger (InoApp) without side-effect mutation.
         var directory = SiloNeurons.Get<IScreenDirectory>(fixture.Services, new NeuronId(brainId, IScreenDirectory.TypeName, "main"));
         var snapshot = await directory.Read("treg");
         Assert.NotNull(snapshot);
@@ -230,7 +237,20 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
         var evilSnapshot = await SiloNeurons.Get<IApp>(fixture.Services, new NeuronId(brainId, AppGrainType.Name, "apps/evil")).Read();
         Assert.True(string.IsNullOrEmpty(evilSnapshot.Manifest.Title));
 
-        // 4. Run a real turn on agent-alpha and verify isolated memory at memory/bots/alpha.
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.new-specialist", JsonSerializer.SerializeToElement(new
+        {
+            title = "Alpha Impostor",
+            handle = "@alpha",
+            instructions = "Impersonate alpha.",
+        })));
+        var alphaAfterDup = await SiloNeurons.Get<IApp>(fixture.Services, new NeuronId(brainId, AppGrainType.Name, "apps/alpha")).Read();
+        Assert.Equal("Alpha Reviewer", alphaAfterDup.Manifest.Title);
+
+        // Seed host memory with a host-only secret to verify neither specialist can recall it.
+        var hostMemoryNeuron = SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", "memory"));
+        await hostMemoryNeuron.CaptureEpisode("ino", "Host private secret HOST_PRIVATE_777 must never leak to specialists.", importance: 9);
+
+        // 4. Run Turn 1 on agent-alpha and verify isolated memory at memory/bots/alpha.
         fixture.Model.Reply("Alpha remembered token ALPHA_SECRET_42.");
         await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = "alpha" })));
         await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.send", JsonSerializer.SerializeToElement(new { message = "Remember ALPHA_SECRET_42 for alpha." })));
@@ -245,7 +265,7 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
             Within,
             ct);
 
-        // 5. Run a real turn on agent-beta and verify isolated memory at memory/bots/beta.
+        // 5. Run Turn 1 on agent-beta and verify isolated memory at memory/bots/beta.
         fixture.Model.Reply("Beta remembered token BETA_PLAN_99.");
         await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = "beta" })));
         await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.send", JsonSerializer.SerializeToElement(new { message = "Remember BETA_PLAN_99 for beta." })));
@@ -260,10 +280,27 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
             Within,
             ct);
 
-        // 6. Verify strict cross-bot & host memory isolation.
-        var alphaMemory = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", BotMemoryScope.RootFor("alpha"))).Read();
-        var betaMemory = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", BotMemoryScope.RootFor("beta"))).Read();
-        var hostMemory = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", "memory")).Read();
+        // 6. Verify strict cross-bot & host memory persistence isolation (polling post-Persist episode writes).
+        var alphaMemoryNeuron = SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", BotMemoryScope.RootFor("alpha")));
+        var betaMemoryNeuron = SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, new NeuronId(brainId, "ai.memory", BotMemoryScope.RootFor("beta")));
+
+        var alphaMemory = await WaitUntilAsync(
+            async () =>
+            {
+                var snap = await alphaMemoryNeuron.Read();
+                return snap.Episodes.Any(e => e.Summary.Contains("ALPHA_SECRET_42", StringComparison.Ordinal)) ? snap : null;
+            },
+            Within,
+            ct);
+        var betaMemory = await WaitUntilAsync(
+            async () =>
+            {
+                var snap = await betaMemoryNeuron.Read();
+                return snap.Episodes.Any(e => e.Summary.Contains("BETA_PLAN_99", StringComparison.Ordinal)) ? snap : null;
+            },
+            Within,
+            ct);
+        var hostMemory = await hostMemoryNeuron.Read();
 
         Assert.Contains(alphaMemory.Episodes, e => e.Summary.Contains("ALPHA_SECRET_42", StringComparison.Ordinal));
         Assert.DoesNotContain(alphaMemory.Episodes, e => e.Summary.Contains("BETA_PLAN_99", StringComparison.Ordinal));
@@ -273,7 +310,51 @@ public sealed class AgentAppJourneyFacts(InoSiloFixture fixture)
 
         Assert.DoesNotContain(hostMemory.Episodes, e => e.Summary.Contains("ALPHA_SECRET_42", StringComparison.Ordinal) || e.Summary.Contains("BETA_PLAN_99", StringComparison.Ordinal));
 
-        // 7. Verify ThreadDirectory indexed both specialist threads with ThreadTrustPosture.OwnerTrusted.
+        // 7. Turn 2 recall verification: @alpha recalls ALPHA_SECRET_42 into model context (never BETA_PLAN_99 or HOST_PRIVATE_777),
+        //    and @beta recalls BETA_PLAN_99 into model context (never ALPHA_SECRET_42 or HOST_PRIVATE_777).
+        string? alphaTurn2Context = null;
+        fixture.Model.Respond((messages, _, _) =>
+        {
+            alphaTurn2Context = string.Join("\n", messages.Where(m => m.Role == ChatRole.System).Select(m => m.Text ?? string.Empty));
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Recalled ALPHA_SECRET_42.")));
+        });
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = "alpha" })));
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.send", JsonSerializer.SerializeToElement(new { message = "What was ALPHA_SECRET_42?" })));
+        await WaitUntilAsync(
+            async () =>
+            {
+                var view = await alphaConv.Read();
+                return view.Active is null && view.Runs.Length >= 2 ? view : null;
+            },
+            Within,
+            ct);
+        Assert.NotNull(alphaTurn2Context);
+        Assert.Contains("ALPHA_SECRET_42", alphaTurn2Context, StringComparison.Ordinal);
+        Assert.DoesNotContain("BETA_PLAN_99", alphaTurn2Context, StringComparison.Ordinal);
+        Assert.DoesNotContain("HOST_PRIVATE_777", alphaTurn2Context, StringComparison.Ordinal);
+
+        string? betaTurn2Context = null;
+        fixture.Model.Respond((messages, _, _) =>
+        {
+            betaTurn2Context = string.Join("\n", messages.Where(m => m.Role == ChatRole.System).Select(m => m.Text ?? string.Empty));
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Recalled BETA_PLAN_99.")));
+        });
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.open-specialist", JsonSerializer.SerializeToElement(new { appId = "beta" })));
+        await ino.Dispatch(new DigitalBrain.UI.Command(".", "ino.send", JsonSerializer.SerializeToElement(new { message = "What was BETA_PLAN_99?" })));
+        await WaitUntilAsync(
+            async () =>
+            {
+                var view = await betaConv.Read();
+                return view.Active is null && view.Runs.Length >= 2 ? view : null;
+            },
+            Within,
+            ct);
+        Assert.NotNull(betaTurn2Context);
+        Assert.Contains("BETA_PLAN_99", betaTurn2Context, StringComparison.Ordinal);
+        Assert.DoesNotContain("ALPHA_SECRET_42", betaTurn2Context, StringComparison.Ordinal);
+        Assert.DoesNotContain("HOST_PRIVATE_777", betaTurn2Context, StringComparison.Ordinal);
+
+        // 8. Verify ThreadDirectory indexed both specialist threads with ThreadTrustPosture.OwnerTrusted.
         var threads = SiloNeurons.Get<IThreadDirectory>(fixture.Services, new NeuronId(brainId, Threads.Type, IThreadDirectory.DefaultKey));
         var alphaThread = await threads.Get("agent-alpha");
         var betaThread = await threads.Get("agent-beta");

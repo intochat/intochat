@@ -25,7 +25,8 @@ internal static class InstalledApps
         List<string> names = [];
         await foreach (var instance in kernel.Instances<IApp>(ct))
         {
-            if (IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, instance.Key, out var app)
+            var candidateKey = NeuronId.TryParse(instance.Key, out var parsedId) ? parsedId.FullKey() : instance.Key;
+            if (IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, candidateKey, out var app)
                 && (skipNames is null || !skipNames.Contains(app.Name)))
             {
                 names.Add(app.Name);

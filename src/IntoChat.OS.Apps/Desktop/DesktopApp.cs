@@ -503,7 +503,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesk
                 Starters: request.Starters,
                 Settings: request.Settings,
                 Connections: request.Connections),
-            existing);
+            existing,
+            brainId: TryCurrentBrain());
         await CompleteDesktopSpecialistAuthoringAsync(prepared, request.Settings, request.Connections);
     }
 
@@ -520,7 +521,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>, IDesk
             allowedContractsOverride: request.AllowedContracts,
             toolSourcesOverride: request.ToolSources,
             memoryScopeOverride: request.MemoryScope,
-            includeTregSlot: false);
+            includeTregSlot: false,
+            brainId: TryCurrentBrain());
         await CompleteDesktopSpecialistAuthoringAsync(prepared, settings: null, connections: null);
     }
 
