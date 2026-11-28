@@ -6,10 +6,10 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Tests.Support;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 
@@ -203,13 +203,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
 
         host.Ollama.EnqueueReply("Recovered diagnostics: cluster heartbeat is 4ms.", model);
 
-        using var retryResponse = await host.Http.PostAsJsonAsync(
-            $"/brains/{host.Scope}/screens/ino/act",
-            new { key = retryKey, value = (string?)null, generation = errored.Generation },
-            Ct);
-        Assert.True(
-            retryResponse.IsSuccessStatusCode,
-            $"Retry action failed with {(int)retryResponse.StatusCode}: {await retryResponse.Content.ReadAsStringAsync(Ct)}");
+        await ActOnInoAsync(retryKey, value: null, initialGeneration: errored.Generation);
 
         var recovered = await WaitForScreenAsync(
             s => s.RawJson.Contains("Recovered diagnostics: cluster heartbeat is 4ms.", StringComparison.Ordinal)
@@ -427,16 +421,48 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
             && messages.GetArrayLength() == 0;
     }
 
-    private async Task SubmitInoPromptAsync(string prompt)
+    private Task SubmitInoPromptAsync(string prompt)
+        => ActOnInoAsync(ComposerControl, prompt);
+
+    private async Task ActOnInoAsync(string key, string? value, long? initialGeneration = null)
     {
-        var current = await ReadInoScreenAsync();
-        using var actResponse = await host.Http.PostAsJsonAsync(
-            $"/brains/{host.Scope}/screens/ino/act",
-            new { key = ComposerControl, value = prompt, generation = current.Generation },
-            Ct);
-        Assert.True(
-            actResponse.IsSuccessStatusCode,
-            $"POST /screens/ino/act failed with {(int)actResponse.StatusCode}: {await actResponse.Content.ReadAsStringAsync(Ct)}");
+        const int maxAttempts = 5;
+        HttpStatusCode lastStatus = default;
+        string lastBody = string.Empty;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var generation = attempt == 1 && initialGeneration is { } seen
+                ? seen
+                : (await ReadInoScreenAsync()).Generation;
+
+            using var actResponse = await host.Http.PostAsJsonAsync(
+                $"/brains/{host.Scope}/screens/ino/act",
+                new { key, value, generation },
+                Ct);
+
+            if (actResponse.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            lastStatus = actResponse.StatusCode;
+            lastBody = await actResponse.Content.ReadAsStringAsync(Ct);
+
+            // Background signals (e.g., StartConversationAsync's post-commit RefreshConversationAsync) can bump Ino's
+            // screen generation between GET /screens/ino and POST /screens/ino/act. Retry only transient Stale refusals.
+            if (lastStatus == HttpStatusCode.BadRequest
+                && lastBody.Contains("Action refused: Stale", StringComparison.Ordinal)
+                && attempt < maxAttempts)
+            {
+                await Task.Delay(50, Ct);
+                continue;
+            }
+
+            break;
+        }
+
+        Assert.Fail($"POST /screens/ino/act ({key}) failed with {(int)lastStatus}: {lastBody}");
     }
 
     private async Task<InoScreenSnapshot> ReadInoScreenAsync()
