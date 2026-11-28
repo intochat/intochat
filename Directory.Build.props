@@ -122,7 +122,7 @@
     <_CodeGraphRepositoryRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory).'))</_CodeGraphRepositoryRoot>
     <_CodeGraphIndex>$([System.IO.Path]::Combine('$(_CodeGraphRepositoryRoot)', '.codegraph'))</_CodeGraphIndex>
     <_CodeGraphStamp>$([System.IO.Path]::Combine('$(_CodeGraphIndex)', 'msbuild-refresh.stamp'))</_CodeGraphStamp>
-    <_CodeGraphCommand Condition="'$(_CodeGraphCommand)' == ''">npx -y @colbymchenry/codegraph@1.6.0</_CodeGraphCommand>
+    <_CodeGraphCommand Condition="'$(_CodeGraphCommand)' == ''">npx -y @colbymchenry/codegraph@1.6.5</_CodeGraphCommand>
   </PropertyGroup>
 
   <!-- Framework projects keep their own analyzer level and suppressions without changing either side's settings. -->
