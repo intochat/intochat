@@ -4,7 +4,7 @@
 .DESCRIPTION
     Resolves IntoChat-DevCert.cer locally (adjacent eng/release/windows/IntoChat-DevCert.cer
     or -CertPath) or downloads it over HTTPS from GitHub Releases, verifies its pinned SHA-1
-    thumbprint (3365BF08BBE6D23778CE1B61715C1AD6DDDDAD7E) and subject (CN=IntoChat Dev) before
+    thumbprint (8A52D9EC97CEBB40629C916C292C155A1F3292CB) and subject (CN=IntoChat Dev) before
     trusting anything, and installs the public certificate into Cert:\LocalMachine\TrustedPeople
     (elevating via UAC if required, or using Microsoft WinApp CLI when available).
     Pass -Uninstall to remove the pinned certificate from TrustedPeople and Root stores.
@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
-$ExpectedThumbprint = '3365BF08BBE6D23778CE1B61715C1AD6DDDDAD7E'
+$ExpectedThumbprint = '8A52D9EC97CEBB40629C916C292C155A1F3292CB'
 $ExpectedSubject = 'CN=IntoChat Dev'
 
 function Write-Step {
