@@ -299,9 +299,9 @@ public sealed partial record InstallConfig
             {
                 throw new InvalidOperationException("The devSlotJob config needs a non-empty 'image' (or a configured registryServer/registry).");
             }
-            if (double.IsNaN(DevSlotJob.Cpu) || double.IsInfinity(DevSlotJob.Cpu) || DevSlotJob.Cpu <= 0 || DevSlotJob.Cpu > DevSlotJobConfig.MaxCpu)
+            if (!DevSlotJobConfig.IsAllowedCpu(DevSlotJob.Cpu))
             {
-                throw new InvalidOperationException($"The devSlotJob config requires 0 < cpu <= {DevSlotJobConfig.MaxCpu} (Policy Rule B).");
+                throw new InvalidOperationException($"The devSlotJob config requires cpu <= {DevSlotJobConfig.MaxCpu} using a valid ACA Consumption tier (Policy Rule B).");
             }
             if (!DevSlotJobConfig.IsAllowedMemory(DevSlotJob.Memory))
             {
@@ -434,6 +434,7 @@ public sealed record LogWorkspaceConfig
 public sealed record CostGuardrailConfig
 {
     public static readonly string[] DefaultProtectedResourceGroups = ["LeedGenerator", "sv", "NetworkWatcherRG"];
+    public static readonly double[] AllowedContainerAppCpuTiers = [0.25, 0.5, 0.75, 1];
 
     public bool Enabled { get; init; } = true;
     public double MonthlyBudgetEur { get; init; } = 185.0;
@@ -451,6 +452,7 @@ public sealed record DevSlotJobConfig
     public const int MaxReplicaTimeoutSeconds = 900;
     public const int RequiredReplicaRetryLimit = 0;
 
+    public static readonly double[] AllowedCpuTiers = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
     public static readonly string[] AllowedMemoryTiers = ["0.5Gi", "1Gi", "1.5Gi", "2Gi", "2.5Gi", "3Gi", "3.5Gi", "4Gi"];
 
     public bool Enabled { get; init; }
@@ -460,6 +462,9 @@ public sealed record DevSlotJobConfig
     public int Parallelism { get; init; } = 1;
     public int ReplicaTimeoutSeconds { get; init; } = MaxReplicaTimeoutSeconds;
     public int ReplicaRetryLimit { get; init; } = RequiredReplicaRetryLimit;
+
+    public static bool IsAllowedCpu(double cpu)
+        => !double.IsNaN(cpu) && !double.IsInfinity(cpu) && Array.IndexOf(AllowedCpuTiers, cpu) >= 0;
 
     public static bool IsAllowedMemory(string? memory)
         => !string.IsNullOrWhiteSpace(memory)

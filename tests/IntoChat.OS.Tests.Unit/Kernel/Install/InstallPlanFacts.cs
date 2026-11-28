@@ -1014,11 +1014,13 @@ public sealed class InstallPlanFacts
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { ReplicaTimeoutSeconds = 901 } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { ReplicaRetryLimit = 1 } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = 2.5 } }).Validated());
+        Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = 0.3 } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = double.NaN } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = double.PositiveInfinity } }).Validated());
         Assert.Throws<InvalidOperationException>(() => (validBase with { DevSlotJob = validBase.DevSlotJob with { Memory = "8Gi" } }).Validated());
-        var trimmed = (validBase with { DevSlotJob = validBase.DevSlotJob with { Memory = " 4Gi " } }).Validated();
-        Assert.Equal("4Gi", trimmed.DevSlotJob.Memory);
+        var validFraction = (validBase with { DevSlotJob = validBase.DevSlotJob with { Cpu = 0.5, Memory = " 4Gi " } }).Validated();
+        Assert.Equal(0.5, validFraction.DevSlotJob.Cpu);
+        Assert.Equal("4Gi", validFraction.DevSlotJob.Memory);
     }
 
     private static string ResourceBlock(string yaml, string logicalName)

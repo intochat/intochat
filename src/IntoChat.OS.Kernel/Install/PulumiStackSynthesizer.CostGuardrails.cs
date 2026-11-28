@@ -90,7 +90,11 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("                        field: Microsoft.App/containerApps/template.containers[*]");
         sb.AppendLine("                        where:");
         sb.AppendLine("                          field: Microsoft.App/containerApps/template.containers[*].resources.cpu");
-        sb.AppendLine("                          greater: 1");
+        sb.AppendLine("                          notIn:");
+        foreach (var cpu in CostGuardrailConfig.AllowedContainerAppCpuTiers)
+        {
+            sb.AppendLine($"                            - {cpu.ToString(CultureInfo.InvariantCulture)}");
+        }
         sb.AppendLine("                      greater: 0");
         sb.AppendLine("            - allOf:");
         sb.AppendLine("                - field: type");
@@ -110,7 +114,11 @@ public static partial class PulumiStackSynthesizer
         sb.AppendLine("                        field: Microsoft.App/jobs/template.containers[*]");
         sb.AppendLine("                        where:");
         sb.AppendLine("                          field: Microsoft.App/jobs/template.containers[*].resources.cpu");
-        sb.AppendLine("                          greater: 2");
+        sb.AppendLine("                          notIn:");
+        foreach (var cpu in DevSlotJobConfig.AllowedCpuTiers)
+        {
+            sb.AppendLine($"                            - {cpu.ToString(CultureInfo.InvariantCulture)}");
+        }
         sb.AppendLine("                      greater: 0");
         sb.AppendLine("                    - count:");
         sb.AppendLine("                        field: Microsoft.App/jobs/template.containers[*]");
