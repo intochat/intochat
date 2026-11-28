@@ -397,8 +397,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     kind: 'viewport',
     name: spec.viewportUri,
     signals: _session.journalFor(spec.viewportUri),
-    onActivate: (activation) =>
-        unawaited(_router.activate(activation, sourceAppId: spec.appId)),
+    overrides: ViewHostOverrides(
+      onActivate: (activation) =>
+          unawaited(_router.activate(activation, sourceAppId: spec.appId)),
+    ),
   );
 
   Widget _buildPresenceLayer(BrainSessionController session) => PresenceLayer(

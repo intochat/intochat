@@ -12,25 +12,30 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
-            load: (kind, name) async => kind == 'viewport'
-                ? const ViewportPayload(
-                    revision: 1,
-                    root: UiViewRef(kind: 'view', name: 'local/apps/app/view'),
-                  )
-                : PublishedViewPayload.fromJson({
-                    'generation': 1,
-                    'view': {
-                      'title': 'App',
-                      'root': {'kind': 'text', 'value': 'App-owned content'},
-                    },
-                  }),
-            onAction: (_) async {
-              actions++;
-              return null;
-            },
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => kind == 'viewport'
+                  ? const ViewportPayload(
+                      revision: 1,
+                      root: UiViewRef(
+                        kind: 'view',
+                        name: 'local/apps/app/view',
+                      ),
+                    )
+                  : PublishedViewPayload.fromJson({
+                      'generation': 1,
+                      'view': {
+                        'title': 'App',
+                        'root': {'kind': 'text', 'value': 'App-owned content'},
+                      },
+                    }),
+              onAction: (_) async {
+                actions++;
+                return null;
+              },
+            ),
           ),
         ),
       ),
@@ -47,12 +52,14 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
-            load: (_, _) async => const ViewportPayload(
-              revision: 1,
-              root: UiViewRef(kind: 'viewport', name: 'canvas'),
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async => const ViewportPayload(
+                revision: 1,
+                root: UiViewRef(kind: 'viewport', name: 'canvas'),
+              ),
             ),
           ),
         ),
@@ -70,26 +77,31 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
-            load: (kind, name) async => kind == 'viewport'
-                ? const ViewportPayload(
-                    revision: 1,
-                    root: UiViewRef(kind: 'view', name: 'local/apps/app/view'),
-                    error: 'Poll failed: 503',
-                  )
-                : PublishedViewPayload.fromJson({
-                    'generation': 1,
-                    'view': {
-                      'title': 'App',
-                      'root': {'kind': 'text', 'value': 'App-owned content'},
-                    },
-                  }),
-            onAction: (_) async {
-              actions++;
-              return null;
-            },
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => kind == 'viewport'
+                  ? const ViewportPayload(
+                      revision: 1,
+                      root: UiViewRef(
+                        kind: 'view',
+                        name: 'local/apps/app/view',
+                      ),
+                      error: 'Poll failed: 503',
+                    )
+                  : PublishedViewPayload.fromJson({
+                      'generation': 1,
+                      'view': {
+                        'title': 'App',
+                        'root': {'kind': 'text', 'value': 'App-owned content'},
+                      },
+                    }),
+              onAction: (_) async {
+                actions++;
+                return null;
+              },
+            ),
           ),
         ),
       ),

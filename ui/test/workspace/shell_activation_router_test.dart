@@ -61,10 +61,10 @@ void main() {
           'os://window/open?app=aspire&args=${Uri.encodeQueryComponent(argsJson)}&transition=shared-axis-z';
 
       // 1. Opening a new window dispatches ui.navigate-to once.
-      final first = await router.activate({
-        'kind': 'os_uri',
-        'uri': uri,
-      }, sourceAppId: 'engineer');
+      final first = await router.activate(
+        OpenWindowActivation(uri: uri),
+        sourceAppId: 'engineer',
+      );
       expect(first.handled, isTrue);
       expect(first.openedNewWindow, isTrue);
       expect(first.dispatchedNavigateTo, isTrue);
@@ -80,10 +80,12 @@ void main() {
       expect(navigatedReloads, [(null, 'aspire')]);
 
       // 2. Focusing an already-open window dispatches ui.navigate-to once more (total 2, never double).
-      final second = await router.activate({
-        'kind': 'os_uri',
-        'uri': 'os://window/open?app=aspire&input=trace-456',
-      }, sourceAppId: 'engineer');
+      final second = await router.activate(
+        const OpenWindowActivation(
+          uri: 'os://window/open?app=aspire&input=trace-456',
+        ),
+        sourceAppId: 'engineer',
+      );
       expect(second.handled, isTrue);
       expect(second.focusedExistingWindow, isTrue);
       expect(second.dispatchedNavigateTo, isTrue);
@@ -129,10 +131,11 @@ void main() {
         onSwitchExplicitSurface: (_, app, _) => switchedTo.add(app),
       );
 
-      final blocked = await router.activate({
-        'kind': 'os_uri',
-        'uri': 'os://window/open?app=aspire&input=trace-1',
-      });
+      final blocked = await router.activate(
+        const OpenWindowActivation(
+          uri: 'os://window/open?app=aspire&input=trace-1',
+        ),
+      );
       expect(blocked.refusedByDepartureGuard, isTrue);
       expect(blocked.refusalMessage, 'Save draft first.');
       expect(refused, ['Save draft first.']);
@@ -142,10 +145,11 @@ void main() {
 
       // Now fail open when handler is unsupported.
       blockWithRule = false;
-      final allowed = await router.activate({
-        'kind': 'os_uri',
-        'uri': 'os://window/open?app=aspire&input=trace-1',
-      });
+      final allowed = await router.activate(
+        const OpenWindowActivation(
+          uri: 'os://window/open?app=aspire&input=trace-1',
+        ),
+      );
       expect(allowed.refusedByDepartureGuard, isFalse);
       expect(allowed.dispatchedNavigateTo, isTrue);
       expect(switchedTo, ['aspire']);
@@ -183,15 +187,16 @@ void main() {
         ),
       );
 
-      await router.activate({
-        'kind': 'os_uri',
-        'uri': 'os://window/open?app=settings&section=billing',
-      });
+      await router.activate(
+        const OpenWindowActivation(
+          uri: 'os://window/open?app=settings&section=billing',
+        ),
+      );
       expect(openedApps, ['settings']);
       expect(shellOps, [('settings', 'navigate', 'billing')]);
       expect(actEvents, isEmpty);
 
-      await router.activate({'kind': 'settings', 'tab': 'voice'});
+      await router.activateWire({'kind': 'settings', 'tab': 'voice'});
       expect(appRequests.last, ('brain-1', 'settings', 'open', 'voice'));
       expect(actEvents, isEmpty);
     });
@@ -211,22 +216,89 @@ void main() {
         onToast: (msg, {UiTone tone = UiTone.neutral}) => toasts.add(msg),
       );
 
-      await router.activate({
-        'kind': 'workspace',
-        'brainId': 'brain-unauthorized',
-        'application': 'ino',
-        'operation': 'open',
-      });
+      await router.activate(
+        const WorkspaceAppActivation(
+          brainId: 'brain-unauthorized',
+          application: 'ino',
+          operation: 'open',
+        ),
+      );
       expect(selectedBrains, isEmpty);
       expect(toasts, ['This account is not a member of that brain.']);
 
-      await router.activate({
-        'kind': 'workspace',
-        'brainId': 'brain-2',
-        'application': 'ino',
-        'operation': 'open',
-      });
+      await router.activate(
+        const WorkspaceAppActivation(
+          brainId: 'brain-2',
+          application: 'ino',
+          operation: 'open',
+        ),
+      );
       expect(selectedBrains, ['brain-2']);
+    });
+
+    test('onAskIno activation dispatches ui.navigate-to when prompt is non-empty and falls back when blank', () async {
+      final actEvents = <ActAction>[];
+      final appRequests = <(String, String, String, String)>[];
+      final openedApps = <String>[];
+
+      final router = ShellActivationRouter(
+        readState: () => const ShellRoutingState(
+          currentBrain: 'brain-1',
+          isDesktopRoot: true,
+        ),
+        sendAct: (_, event) async {
+          actEvents.add(event as ActAction);
+          return const {'delivered': true};
+        },
+        requestApp: (brain, app, op, input) async =>
+            appRequests.add((brain, app, op, input)),
+        desktopDelegate: DesktopActivationDelegate(
+          findOpenWindow: (_) => null,
+          focusWindow: (_) {},
+          openApp: (app) async => openedApps.add(app),
+          onShowDesktopCleared: () {},
+          onWindowNavigated: ({windowId, appId}) {},
+          requestShellOperation: (_, _, _) async {},
+        ),
+      );
+
+      // Mirrors WorkspaceApp's CommandPalette.onAskIno activation.
+      final nonEmpty = await router.activate(
+        const WorkspaceAppActivation(
+          application: 'ino',
+          operation: 'send',
+          input: 'Explain the failure',
+        ),
+      );
+      expect(nonEmpty.handled, isTrue);
+      expect(nonEmpty.dispatchedNavigateTo, isTrue);
+      expect(openedApps, ['ino']);
+      expect(
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
+        hasLength(1),
+      );
+      expect(actEvents.single.neuron, 'brain-1/apps/ino');
+      expect(
+        (actEvents.single.args as Map<String, Object?>)['input'],
+        'Explain the failure',
+      );
+      expect(appRequests, isEmpty);
+
+      // Blank prompt does not dispatch ui.navigate-to and falls back to requestApp.
+      final blank = await router.activate(
+        const WorkspaceAppActivation(
+          application: 'ino',
+          operation: 'send',
+          input: '   ',
+        ),
+      );
+      expect(blank.handled, isTrue);
+      expect(blank.dispatchedNavigateTo, isFalse);
+      expect(
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
+        hasLength(1),
+      );
+      expect(appRequests, [('brain-1', 'ino', 'send', '   ')]);
     });
   });
 }

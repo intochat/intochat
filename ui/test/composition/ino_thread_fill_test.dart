@@ -34,12 +34,14 @@ Future<void> _pumpHost(
         body: SizedBox(
           height: 900,
           child: ViewHost(
-            knowsApp: (_) => false,
             kind: kind,
             name: name,
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: load,
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: load,
+            ),
           ),
         ),
       ),

@@ -115,44 +115,47 @@ void main() {
         await tester.pumpWidget(
           host(
             ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/bank/view',
-              watch: (_, _) => const Stream.empty(),
-              onAction: (_) async => null,
-              load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {
-                  'title': 'Bank',
-                  'root': {
-                    'kind': 'row',
-                    'children': [
-                      {
-                        'kind': 'button',
-                        'key': 'cmd:Withdraw:100',
-                        'label': 'Withdraw €100',
-                        'style': 'primary',
-                        'enabled': false,
-                        'tooltip': 'Insufficient funds (balance €30).',
-                      },
-                      {
-                        'kind': 'button',
-                        'key': 'cmd:Close',
-                        'label': 'Close account',
-                        'style': 'secondary',
-                        'enabled': false,
-                        'command': {
-                          'target': '.',
-                          'signal': 'Close',
-                          'args': {
-                            'guardReason': 'Balance must be €0 before closing.',
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                watch: (_, _) => const Stream.empty(),
+                onAction: (_) async => null,
+                load: (_, _) async => PublishedViewPayload.fromJson({
+                  'generation': 1,
+                  'view': {
+                    'title': 'Bank',
+                    'root': {
+                      'kind': 'row',
+                      'children': [
+                        {
+                          'kind': 'button',
+                          'key': 'cmd:Withdraw:100',
+                          'label': 'Withdraw €100',
+                          'style': 'primary',
+                          'enabled': false,
+                          'tooltip': 'Insufficient funds (balance €30).',
+                        },
+                        {
+                          'kind': 'button',
+                          'key': 'cmd:Close',
+                          'label': 'Close account',
+                          'style': 'secondary',
+                          'enabled': false,
+                          'command': {
+                            'target': '.',
+                            'signal': 'Close',
+                            'args': {
+                              'guardReason':
+                                  'Balance must be €0 before closing.',
+                            },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
-                },
-              }),
+                }),
+              ),
             ),
           ),
         );

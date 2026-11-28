@@ -37,46 +37,48 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
       theme: UiTheme.intochat(Brightness.light),
       home: Scaffold(
         body: ViewHost(
-          knowsApp: (_) => false,
           kind: 'view',
           name: _parent,
-          watch: (_, _) => const Stream.empty(),
-          onAction: (event) async {
-            sent.add(event.toJson());
-            return {'delivered': true};
-          },
-          load: (kind, name) async =>
-              PublishedViewPayload.fromJson(switch (name) {
-                _parent => {
-                  'generation': 1,
-                  'view': {
-                    'title': 'Settings',
-                    'root': {
-                      'kind': 'column',
-                      'children': [
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'child',
-                          'neuronUri': 'terms',
-                          'props': props,
-                        },
-                      ],
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            watch: (_, _) => const Stream.empty(),
+            onAction: (event) async {
+              sent.add(event.toJson());
+              return {'delivered': true};
+            },
+            load: (kind, name) async =>
+                PublishedViewPayload.fromJson(switch (name) {
+                  _parent => {
+                    'generation': 1,
+                    'view': {
+                      'title': 'Settings',
+                      'root': {
+                        'kind': 'column',
+                        'children': [
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'child',
+                            'neuronUri': 'terms',
+                            'props': props,
+                          },
+                        ],
+                      },
                     },
                   },
-                },
-                _child => {
-                  'generation': 3,
-                  'view': {
-                    'title': 'terms',
-                    'root': {
-                      'kind': 'checkBoxView',
-                      'key': 'terms',
-                      'isOn': true,
+                  _child => {
+                    'generation': 3,
+                    'view': {
+                      'title': 'terms',
+                      'root': {
+                        'kind': 'checkBoxView',
+                        'key': 'terms',
+                        'isOn': true,
+                      },
                     },
                   },
-                },
-                _ => throw StateError('Unknown $name'),
-              }),
+                  _ => throw StateError('Unknown $name'),
+                }),
+          ),
         ),
       ),
     );

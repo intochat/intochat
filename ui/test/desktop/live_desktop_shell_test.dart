@@ -259,7 +259,7 @@ void main() {
 
       final backend = FakeDesktopBackend();
       final actions = <Map<String, dynamic>>[];
-      final activations = <Map<String, dynamic>>[];
+      final activations = <ShellActivation>[];
       final session = BrainSessionController(
         brainId: 'brain-1',
         loadProjection: (_) async => backend.snapshot(),
@@ -700,7 +700,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final backend = FakeDesktopBackend();
-      final activations = <Map<String, dynamic>>[];
+      final activations = <ShellActivation>[];
       final session = BrainSessionController(
         brainId: 'brain-1',
         loadProjection: (_) async => backend.snapshot(),
@@ -763,9 +763,10 @@ void main() {
       expect(
         activations.any(
           (a) =>
-              a['application'] == 'creator' &&
-              a['operation'] == 'open' &&
-              a['input'] == 'node:brain-1/apps/photocraft',
+              a is WorkspaceAppActivation &&
+              a.application == 'creator' &&
+              a.operation == 'open' &&
+              a.input == 'node:brain-1/apps/photocraft',
         ),
         isTrue,
       );
@@ -863,7 +864,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final backend = FakeDesktopBackend();
-      final activations = <Map<String, dynamic>>[];
+      final activations = <ShellActivation>[];
       final session = BrainSessionController(
         brainId: 'brain-1',
         loadProjection: (_) async => backend.snapshot(),
@@ -902,12 +903,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       final opened = activations
-          .where((a) => a['application'] == 'files')
+          .whereType<WorkspaceAppActivation>()
+          .where((a) => a.application == 'files')
           .toList();
       expect(opened, isNotEmpty);
-      expect(opened.last['operation'], 'open');
-      expect(opened.last['input'], 'javascript:alert(1)');
-      expect(activations.any((a) => '$a'.contains('evil.example')), isFalse);
+      expect(opened.last.operation, 'open');
+      expect(opened.last.input, 'javascript:alert(1)');
+      expect(
+        activations.any((a) => '${a.toWireMap()}'.contains('evil.example')),
+        isFalse,
+      );
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -919,7 +924,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final backend = FakeDesktopBackend();
-      final activations = <Map<String, dynamic>>[];
+      final activations = <ShellActivation>[];
       final session = BrainSessionController(
         brainId: 'brain-1',
         loadProjection: (_) async => backend.snapshot(),
@@ -976,7 +981,10 @@ void main() {
       );
       expect(
         activations.any(
-          (a) => a['application'] == 'vectorcraft' && a['operation'] == 'open',
+          (a) =>
+              a is WorkspaceAppActivation &&
+              a.application == 'vectorcraft' &&
+              a.operation == 'open',
         ),
         isTrue,
       );

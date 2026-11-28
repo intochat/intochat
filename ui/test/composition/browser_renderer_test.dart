@@ -19,13 +19,15 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async =>
-                const WebBrowserPayload(title: 'Customer Researcher'),
-            onAction: (_) async =>
-                fail('Unsupported browser must not send an attachment'),
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async =>
+                  const WebBrowserPayload(title: 'Customer Researcher'),
+              onAction: (_) async =>
+                  fail('Unsupported browser must not send an attachment'),
+            ),
           ),
         ),
       ),
@@ -49,11 +51,13 @@ void main() {
               body: SizedBox(
                 width: 360,
                 child: ViewHost(
-                  knowsApp: (_) => false,
                   kind: 'webbrowser',
                   name: 'workspace/app/browser',
-                  load: (_, _) async => WebBrowserPayload(title: title),
-                  onAction: (_) async => null,
+                  overrides: ViewHostOverrides(
+                    knowsApp: (_) => false,
+                    load: (_, _) async => WebBrowserPayload(title: title),
+                    onAction: (_) async => null,
+                  ),
                 ),
               ),
             ),
@@ -82,12 +86,14 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => const WebBrowserPayload(
-              title: 'Preview',
-              uri: 'http://intent/',
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async => const WebBrowserPayload(
+                title: 'Preview',
+                uri: 'http://intent/',
+              ),
             ),
           ),
         ),
@@ -109,14 +115,16 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => const WebBrowserPayload(
-              title: 'Browser',
-              uri: 'http://intent/',
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async => const WebBrowserPayload(
+                title: 'Browser',
+                uri: 'http://intent/',
+              ),
+              onAction: (event) async => events.add(event),
             ),
-            onAction: (event) async => events.add(event),
           ),
         ),
       ),
@@ -144,14 +152,16 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => const WebBrowserPayload(
-              title: 'Browser',
-              uri: 'http://intent/',
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async => const WebBrowserPayload(
+                title: 'Browser',
+                uri: 'http://intent/',
+              ),
+              onAction: (_) async => null,
             ),
-            onAction: (_) async => null,
           ),
         ),
       ),
@@ -171,16 +181,18 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
-            load: (_, _) async => const WebBrowserPayload(
-              title: 'Browser',
-              uri: 'http://intended.example/',
-              actualUrl: 'http://observed.example/page',
-              connection: 'attached',
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async => const WebBrowserPayload(
+                title: 'Browser',
+                uri: 'http://intended.example/',
+                actualUrl: 'http://observed.example/page',
+                connection: 'attached',
+              ),
+              onAction: (_) async => null,
             ),
-            onAction: (_) async => null,
           ),
         ),
       ),

@@ -724,25 +724,27 @@ void main() {
             ViewHost(
               kind: 'view',
               name: 'local/apps/data/ledger',
-              knowsApp: (_) => false,
-              load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {
-                  'title': 'Ledger',
-                  'root': {
-                    'kind': 'collection',
-                    'entries': [
-                      for (var i = 0; i < 1500; i++)
-                        {
-                          'id': 'item_$i',
-                          'title': 'Transaction #$i',
-                          'subtitle': 'Cleared',
-                          'trailing': '€${i * 10}',
-                        },
-                    ],
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (_, _) async => PublishedViewPayload.fromJson({
+                  'generation': 1,
+                  'view': {
+                    'title': 'Ledger',
+                    'root': {
+                      'kind': 'collection',
+                      'entries': [
+                        for (var i = 0; i < 1500; i++)
+                          {
+                            'id': 'item_$i',
+                            'title': 'Transaction #$i',
+                            'subtitle': 'Cleared',
+                            'trailing': '€${i * 10}',
+                          },
+                      ],
+                    },
                   },
-                },
-              }),
+                }),
+              ),
             ),
             brightness: Brightness.light,
             width: 800,

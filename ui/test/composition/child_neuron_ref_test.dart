@@ -20,102 +20,110 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/dashboard/view',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
-              loaded.add('$kind:$name');
-              return PublishedViewPayload.fromJson(switch (name) {
-                'local/apps/dashboard/view' => {
-                  'generation': 1,
-                  'view': {
-                    'title': 'Dashboard',
-                    'root': {
-                      'kind': 'column',
-                      'children': [
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'view',
-                          'neuronUri': 'local/views/summary',
-                        },
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'child',
-                          'neuronUri': 'orders.live',
-                        },
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'app',
-                          'neuronUri': 'billing',
-                        },
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'unit',
-                          'neuronUri': 'ledger',
-                        },
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': '',
-                          'neuronUri': 'neuron://local/metrics',
-                        },
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'browser',
-                          'neuronUri': 'local/browser/tab-1',
-                        },
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'confirmation',
-                          'neuronUri': 'local/confirmations',
-                        },
-                      ],
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
+                loaded.add('$kind:$name');
+                return PublishedViewPayload.fromJson(switch (name) {
+                  'local/apps/dashboard/view' => {
+                    'generation': 1,
+                    'view': {
+                      'title': 'Dashboard',
+                      'root': {
+                        'kind': 'column',
+                        'children': [
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'view',
+                            'neuronUri': 'local/views/summary',
+                          },
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'child',
+                            'neuronUri': 'orders.live',
+                          },
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'app',
+                            'neuronUri': 'billing',
+                          },
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'unit',
+                            'neuronUri': 'ledger',
+                          },
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': '',
+                            'neuronUri': 'neuron://local/metrics',
+                          },
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'browser',
+                            'neuronUri': 'local/browser/tab-1',
+                          },
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'confirmation',
+                            'neuronUri': 'local/confirmations',
+                          },
+                        ],
+                      },
                     },
                   },
-                },
-                'local/views/summary' => {
-                  'generation': 2,
-                  'view': {
-                    'title': 'Summary',
-                    'root': {'kind': 'text', 'value': 'Summary slot live'},
-                  },
-                },
-                // A bare-key slot is the view's child, read through its app's key path.
-                'local/apps/dashboard/children/orders.live' => {
-                  'generation': 3,
-                  'view': {
-                    'title': 'Orders',
-                    'root': {'kind': 'text', 'value': 'Orders slot live'},
-                  },
-                },
-                'local/apps/billing/view' => {
-                  'generation': 4,
-                  'view': {
-                    'title': 'Billing',
-                    'root': {'kind': 'text', 'value': 'Billing app slot live'},
-                  },
-                },
-                'local/ledger' => {
-                  'generation': 5,
-                  'view': {
-                    'title': 'Ledger',
-                    'root': {'kind': 'text', 'value': 'Ledger unit slot live'},
-                  },
-                },
-                'local/metrics' => {
-                  'generation': 6,
-                  'view': {
-                    'title': 'Metrics',
-                    'root': {
-                      'kind': 'text',
-                      'value': 'Metrics empty-kind live',
+                  'local/views/summary' => {
+                    'generation': 2,
+                    'view': {
+                      'title': 'Summary',
+                      'root': {'kind': 'text', 'value': 'Summary slot live'},
                     },
                   },
-                },
-                _ => throw StateError('Unexpected load $kind:$name'),
-              });
-            },
+                  // A bare-key slot is the view's child, read through its app's key path.
+                  'local/apps/dashboard/children/orders.live' => {
+                    'generation': 3,
+                    'view': {
+                      'title': 'Orders',
+                      'root': {'kind': 'text', 'value': 'Orders slot live'},
+                    },
+                  },
+                  'local/apps/billing/view' => {
+                    'generation': 4,
+                    'view': {
+                      'title': 'Billing',
+                      'root': {
+                        'kind': 'text',
+                        'value': 'Billing app slot live',
+                      },
+                    },
+                  },
+                  'local/ledger' => {
+                    'generation': 5,
+                    'view': {
+                      'title': 'Ledger',
+                      'root': {
+                        'kind': 'text',
+                        'value': 'Ledger unit slot live',
+                      },
+                    },
+                  },
+                  'local/metrics' => {
+                    'generation': 6,
+                    'view': {
+                      'title': 'Metrics',
+                      'root': {
+                        'kind': 'text',
+                        'value': 'Metrics empty-kind live',
+                      },
+                    },
+                  },
+                  _ => throw StateError('Unexpected load $kind:$name'),
+                });
+              },
+            ),
           ),
         ),
       );
@@ -149,36 +157,38 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/host/view',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
-              if (name == 'local/apps/host/view') {
-                return PublishedViewPayload.fromJson({
-                  'generation': 1,
-                  'view': {
-                    'title': 'Host',
-                    'root': {
-                      'kind': 'neuronRef',
-                      'refKind': 'child',
-                      'neuronUri': 'local/units/slow',
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
+                if (name == 'local/apps/host/view') {
+                  return PublishedViewPayload.fromJson({
+                    'generation': 1,
+                    'view': {
+                      'title': 'Host',
+                      'root': {
+                        'kind': 'neuronRef',
+                        'refKind': 'child',
+                        'neuronUri': 'local/units/slow',
+                      },
                     },
+                  });
+                }
+                slotAttempts++;
+                if (slotAttempts == 1) return slotLoad.future;
+                if (failSlot) throw StateError('unreachable neuron');
+                return PublishedViewPayload.fromJson({
+                  'generation': 9,
+                  'view': {
+                    'title': 'Recovered',
+                    'root': {'kind': 'text', 'value': 'Recovered slot content'},
                   },
                 });
-              }
-              slotAttempts++;
-              if (slotAttempts == 1) return slotLoad.future;
-              if (failSlot) throw StateError('unreachable neuron');
-              return PublishedViewPayload.fromJson({
-                'generation': 9,
-                'view': {
-                  'title': 'Recovered',
-                  'root': {'kind': 'text', 'value': 'Recovered slot content'},
-                },
-              });
-            },
+              },
+            ),
           ),
         ),
       );
@@ -229,69 +239,71 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/parent/view',
-            watch: (kind, name) => name == 'local/units/counter'
-                ? childWatch.stream
-                : const Stream.empty(),
-            onAction: (event) async {
-              events.add(event.toJson());
-              if (event is ActAction &&
-                  event.neuron == 'local/units/counter' &&
-                  event.signal == 'counter.increment') {
-                counter++;
-                slotGen++;
-              }
-              return {'delivered': true};
-            },
-            load: (kind, name) async {
-              if (name == 'local/apps/parent/view') {
-                return PublishedViewPayload.fromJson({
-                  'generation': 7,
-                  'view': {
-                    'title': 'Parent',
-                    'root': {
-                      'kind': 'column',
-                      'children': [
-                        {'kind': 'text', 'value': 'Parent header'},
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'child',
-                          'neuronUri': 'local/units/counter',
-                        },
-                      ],
-                    },
-                  },
-                });
-              }
-              if (name == 'local/units/counter') {
-                return PublishedViewPayload.fromJson({
-                  'generation': slotGen,
-                  'view': {
-                    'title': 'Counter',
-                    'root': {
-                      'kind': 'row',
-                      'children': [
-                        {'kind': 'text', 'value': 'Count: $counter'},
-                        {
-                          'kind': 'button',
-                          'key': 'cmd:Increment',
-                          'label': 'Increment',
-                          'command': {
-                            'target': '.',
-                            'signal': 'counter.increment',
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (kind, name) => name == 'local/units/counter'
+                  ? childWatch.stream
+                  : const Stream.empty(),
+              onAction: (event) async {
+                events.add(event.toJson());
+                if (event is ActAction &&
+                    event.neuron == 'local/units/counter' &&
+                    event.signal == 'counter.increment') {
+                  counter++;
+                  slotGen++;
+                }
+                return {'delivered': true};
+              },
+              load: (kind, name) async {
+                if (name == 'local/apps/parent/view') {
+                  return PublishedViewPayload.fromJson({
+                    'generation': 7,
+                    'view': {
+                      'title': 'Parent',
+                      'root': {
+                        'kind': 'column',
+                        'children': [
+                          {'kind': 'text', 'value': 'Parent header'},
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'child',
+                            'neuronUri': 'local/units/counter',
                           },
-                          'style': 'primary',
-                          'enabled': true,
-                        },
-                      ],
+                        ],
+                      },
                     },
-                  },
-                });
-              }
-              throw StateError('Unknown $name');
-            },
+                  });
+                }
+                if (name == 'local/units/counter') {
+                  return PublishedViewPayload.fromJson({
+                    'generation': slotGen,
+                    'view': {
+                      'title': 'Counter',
+                      'root': {
+                        'kind': 'row',
+                        'children': [
+                          {'kind': 'text', 'value': 'Count: $counter'},
+                          {
+                            'kind': 'button',
+                            'key': 'cmd:Increment',
+                            'label': 'Increment',
+                            'command': {
+                              'target': '.',
+                              'signal': 'counter.increment',
+                            },
+                            'style': 'primary',
+                            'enabled': true,
+                          },
+                        ],
+                      },
+                    },
+                  });
+                }
+                throw StateError('Unknown $name');
+              },
+            ),
           ),
         ),
       );
@@ -330,49 +342,51 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/slot-a',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async =>
-                PublishedViewPayload.fromJson(switch (name) {
-                  'local/slot-a' => {
-                    'generation': 1,
-                    'view': {
-                      'title': 'A',
-                      'root': {
-                        'kind': 'column',
-                        'children': [
-                          {'kind': 'text', 'value': 'Node A'},
-                          {
-                            'kind': 'neuronRef',
-                            'refKind': 'child',
-                            'neuronUri': 'local/slot-b',
-                          },
-                        ],
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async =>
+                  PublishedViewPayload.fromJson(switch (name) {
+                    'local/slot-a' => {
+                      'generation': 1,
+                      'view': {
+                        'title': 'A',
+                        'root': {
+                          'kind': 'column',
+                          'children': [
+                            {'kind': 'text', 'value': 'Node A'},
+                            {
+                              'kind': 'neuronRef',
+                              'refKind': 'child',
+                              'neuronUri': 'local/slot-b',
+                            },
+                          ],
+                        },
                       },
                     },
-                  },
-                  'local/slot-b' => {
-                    'generation': 1,
-                    'view': {
-                      'title': 'B',
-                      'root': {
-                        'kind': 'column',
-                        'children': [
-                          {'kind': 'text', 'value': 'Node B'},
-                          {
-                            'kind': 'neuronRef',
-                            'refKind': 'child',
-                            'neuronUri': 'local/slot-a',
-                          },
-                        ],
+                    'local/slot-b' => {
+                      'generation': 1,
+                      'view': {
+                        'title': 'B',
+                        'root': {
+                          'kind': 'column',
+                          'children': [
+                            {'kind': 'text', 'value': 'Node B'},
+                            {
+                              'kind': 'neuronRef',
+                              'refKind': 'child',
+                              'neuronUri': 'local/slot-a',
+                            },
+                          ],
+                        },
                       },
                     },
-                  },
-                  _ => throw StateError('Unexpected $name'),
-                }),
+                    _ => throw StateError('Unexpected $name'),
+                  }),
+            ),
           ),
         ),
       );
@@ -387,31 +401,33 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/d0',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
-              final idx = int.parse(name.substring('local/d'.length));
-              return PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {
-                  'title': 'D$idx',
-                  'root': {
-                    'kind': 'column',
-                    'children': [
-                      {'kind': 'text', 'value': 'Level $idx'},
-                      {
-                        'kind': 'neuronRef',
-                        'refKind': 'child',
-                        'neuronUri': 'local/d${idx + 1}',
-                      },
-                    ],
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
+                final idx = int.parse(name.substring('local/d'.length));
+                return PublishedViewPayload.fromJson({
+                  'generation': 1,
+                  'view': {
+                    'title': 'D$idx',
+                    'root': {
+                      'kind': 'column',
+                      'children': [
+                        {'kind': 'text', 'value': 'Level $idx'},
+                        {
+                          'kind': 'neuronRef',
+                          'refKind': 'child',
+                          'neuronUri': 'local/d${idx + 1}',
+                        },
+                      ],
+                    },
                   },
-                },
-              });
-            },
+                });
+              },
+            ),
           ),
         ),
       );
@@ -435,71 +451,73 @@ void main() {
           SizedBox(
             height: 640,
             child: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/ino/view',
-              watch: (_, _) => const Stream.empty(),
-              onAction: (event) async {
-                events.add(event.toJson());
-                return {'delivered': true};
-              },
-              load: (kind, name) async =>
-                  PublishedViewPayload.fromJson(switch (name) {
-                    'local/apps/ino/view' => {
-                      'generation': 3,
-                      'view': {
-                        'title': 'Ino',
-                        'root': {
-                          'kind': 'conversation',
-                          'composer': {
-                            'key': 'composer',
-                            'placeholder': 'Ask anything',
-                            'enabled': true,
-                          },
-                          'messages': [
-                            {
-                              'id': 'm1',
-                              'role': 'assistant',
-                              'text': 'Here is the live account widget:',
-                              'status': 'completed',
-                              'cards': [
-                                {
-                                  'kind': 'neuronRef',
-                                  'refKind': 'child',
-                                  'neuronUri': 'local/units/bank',
-                                },
-                              ],
-                            },
-                          ],
-                        },
-                      },
-                    },
-                    'local/units/bank' => {
-                      'generation': 12,
-                      'view': {
-                        'title': 'Bank',
-                        'root': {
-                          'kind': 'card',
-                          'title': 'Checking Account',
-                          'children': [
-                            {
-                              'kind': 'button',
-                              'key': 'cmd:Deposit:50',
-                              'label': 'Deposit €50',
-                              'command': {
-                                'target': '.',
-                                'signal': 'bank.deposit',
-                                'args': {'amount': 50},
-                              },
-                              'style': 'primary',
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                watch: (_, _) => const Stream.empty(),
+                onAction: (event) async {
+                  events.add(event.toJson());
+                  return {'delivered': true};
+                },
+                load: (kind, name) async =>
+                    PublishedViewPayload.fromJson(switch (name) {
+                      'local/apps/ino/view' => {
+                        'generation': 3,
+                        'view': {
+                          'title': 'Ino',
+                          'root': {
+                            'kind': 'conversation',
+                            'composer': {
+                              'key': 'composer',
+                              'placeholder': 'Ask anything',
                               'enabled': true,
                             },
-                          ],
+                            'messages': [
+                              {
+                                'id': 'm1',
+                                'role': 'assistant',
+                                'text': 'Here is the live account widget:',
+                                'status': 'completed',
+                                'cards': [
+                                  {
+                                    'kind': 'neuronRef',
+                                    'refKind': 'child',
+                                    'neuronUri': 'local/units/bank',
+                                  },
+                                ],
+                              },
+                            ],
+                          },
                         },
                       },
-                    },
-                    _ => throw StateError('Unknown $name'),
-                  }),
+                      'local/units/bank' => {
+                        'generation': 12,
+                        'view': {
+                          'title': 'Bank',
+                          'root': {
+                            'kind': 'card',
+                            'title': 'Checking Account',
+                            'children': [
+                              {
+                                'kind': 'button',
+                                'key': 'cmd:Deposit:50',
+                                'label': 'Deposit €50',
+                                'command': {
+                                  'target': '.',
+                                  'signal': 'bank.deposit',
+                                  'args': {'amount': 50},
+                                },
+                                'style': 'primary',
+                                'enabled': true,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                      _ => throw StateError('Unknown $name'),
+                    }),
+              ),
             ),
           ),
         ),

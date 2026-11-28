@@ -221,12 +221,14 @@ class FlutterDriver {
             key: rootKey,
             kind: 'view',
             name: ReplayHost.viewName(host.scenario.appId),
-            load: (kind, name) async =>
-                UiNodePayload.fromJson(kind, await host.load(kind, name)),
-            onAction: (action) => host.send(action.toJson()),
-            knowsApp: (_) => false,
-            watch: (_, _) => const Stream.empty(),
             revision: host.revision,
+            overrides: ViewHostOverrides(
+              load: (kind, name) async =>
+                  UiNodePayload.fromJson(kind, await host.load(kind, name)),
+              onAction: (action) => host.send(action.toJson()),
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+            ),
           ),
         ),
       ),

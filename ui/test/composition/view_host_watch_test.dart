@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,20 +16,22 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/hello/view',
-            load: (kind, name) async {
-              loads++;
-              return PublishedViewPayload.fromJson({
-                'generation': loads,
-                'view': {
-                  'title': 'Hello',
-                  'root': {'kind': 'text', 'value': 'load $loads'},
-                },
-              });
-            },
-            watch: (kind, name) => events.stream,
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async {
+                loads++;
+                return PublishedViewPayload.fromJson({
+                  'generation': loads,
+                  'view': {
+                    'title': 'Hello',
+                    'root': {'kind': 'text', 'value': 'load $loads'},
+                  },
+                });
+              },
+              watch: (kind, name) => events.stream,
+            ),
           ),
         ),
       ),
@@ -64,24 +66,26 @@ void _resubscribe() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/hello/view',
-            load: (kind, name) async {
-              loads++;
-              return PublishedViewPayload.fromJson({
-                'generation': loads,
-                'view': {
-                  'title': 'Hello',
-                  'root': {'kind': 'text', 'value': 'load $loads'},
-                },
-              });
-            },
-            // Each subscription delivers one event and ends, as a proxy idle-close would.
-            watch: (kind, name) {
-              subscriptions++;
-              return Stream<void>.fromIterable([null]);
-            },
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async {
+                loads++;
+                return PublishedViewPayload.fromJson({
+                  'generation': loads,
+                  'view': {
+                    'title': 'Hello',
+                    'root': {'kind': 'text', 'value': 'load $loads'},
+                  },
+                });
+              },
+              // Each subscription delivers one event and ends, as a proxy idle-close would.
+              watch: (kind, name) {
+                subscriptions++;
+                return Stream<void>.fromIterable([null]);
+              },
+            ),
           ),
         ),
       ),

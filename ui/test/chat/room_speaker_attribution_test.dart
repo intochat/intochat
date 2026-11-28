@@ -71,15 +71,17 @@ void main() {
           theme: UiTheme.light('intochat'),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/friends/view',
-              load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {'title': 'Friends', 'root': root},
-              }),
-              watch: (_, _) => const Stream.empty(),
-              onAction: (_) async => null,
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (_, _) async => PublishedViewPayload.fromJson({
+                  'generation': 1,
+                  'view': {'title': 'Friends', 'root': root},
+                }),
+                watch: (_, _) => const Stream.empty(),
+                onAction: (_) async => null,
+              ),
             ),
           ),
         ),
@@ -197,15 +199,17 @@ void main() {
           theme: UiTheme.light('intochat'),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/friends/view',
-              load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {'title': 'Friends', 'root': root},
-              }),
-              watch: (_, _) => const Stream.empty(),
-              onAction: (_) async => null,
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (_, _) async => PublishedViewPayload.fromJson({
+                  'generation': 1,
+                  'view': {'title': 'Friends', 'root': root},
+                }),
+                watch: (_, _) => const Stream.empty(),
+                onAction: (_) async => null,
+              ),
             ),
           ),
         ),

@@ -21,15 +21,17 @@ Future<void> _host(
       theme: UiTheme.light('intochat'),
       home: Scaffold(
         body: ViewHost(
-          knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async => _published(root),
-          watch: (kind, name) => const Stream.empty(),
-          onAction: (event) async {
-            events?.add(event.toJson());
-            return null;
-          },
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            load: (kind, name) async => _published(root),
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async {
+              events?.add(event.toJson());
+              return null;
+            },
+          ),
         ),
       ),
     ),

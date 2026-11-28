@@ -1,6 +1,8 @@
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+
 // External links open an app in the signed-in account's selected brain.
 // App-owned input stays opaque to the connector.
-Map<String, dynamic>? workspaceLink(Uri? location) {
+WorkspaceAppActivation? workspaceLinkActivation(Uri? location) {
   if (location == null) return null;
   final route = location.fragment.startsWith('/')
       ? Uri.tryParse(location.fragment)
@@ -21,12 +23,12 @@ Map<String, dynamic>? workspaceLink(Uri? location) {
     if (!RegExp(r'^[a-z0-9][a-z0-9-]{0,79}$').hasMatch(application)) {
       return null;
     }
-    return {
-      'kind': 'workspace',
-      'application': application,
-      'operation': 'open',
-      'input': input,
-    };
+    return WorkspaceAppActivation(
+      application: application,
+      operation: 'open',
+      input: input,
+      hasNavigationPayload: input.trim().isNotEmpty,
+    );
   }
   // Names follow the Apps app's grammar: letter first, "_" allowed, at most 64.
   final name = RegExp(r'^[a-z][a-z0-9_-]{0,63}$');
@@ -36,10 +38,15 @@ Map<String, dynamic>? workspaceLink(Uri? location) {
     return null;
   }
   // A shared app link opens that app's detail in Apps; the input is not carried.
-  return {
-    'kind': 'workspace',
-    'application': 'apps',
-    'operation': 'open',
-    'input': 'app:$publisher/$application${release == null ? '' : '@$release'}',
-  };
+  return WorkspaceAppActivation(
+    application: 'apps',
+    operation: 'open',
+    input: 'app:$publisher/$application${release == null ? '' : '@$release'}',
+    hasNavigationPayload: true,
+  );
 }
+
+/// Wire-map projection of [workspaceLinkActivation] for callers and tests
+/// asserting the canonical wire shape.
+Map<String, dynamic>? workspaceLink(Uri? location) =>
+    workspaceLinkActivation(location)?.toWireMap();

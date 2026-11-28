@@ -1,4 +1,4 @@
-﻿@Tags(['golden'])
+@Tags(['golden'])
 library;
 
 import 'dart:io';
@@ -11,37 +11,39 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 // A copy button: the server answers its activation with a Copy intent the client performs.
 Widget _copy() => ViewHost(
-  knowsApp: (_) => false,
   kind: 'view',
   name: 'local/apps/share/view',
-  load: (kind, name) async => PublishedViewPayload.fromJson({
-    'generation': 1,
-    'view': {
-      'title': 'Share',
-      'root': {
-        'kind': 'column',
-        'children': [
-          {
-            'kind': 'button',
-            'key': 'copy',
-            'label': 'Copy link',
-            'intent': {
-              'intentKind': 'Copy',
-              'arg': 'https://example.test/#/open?app=fixture-app',
+  overrides: ViewHostOverrides(
+    knowsApp: (_) => false,
+    load: (kind, name) async => PublishedViewPayload.fromJson({
+      'generation': 1,
+      'view': {
+        'title': 'Share',
+        'root': {
+          'kind': 'column',
+          'children': [
+            {
+              'kind': 'button',
+              'key': 'copy',
+              'label': 'Copy link',
+              'intent': {
+                'intentKind': 'Copy',
+                'arg': 'https://example.test/#/open?app=fixture-app',
+              },
+              'icon': 'copy',
             },
-            'icon': 'copy',
-          },
-        ],
+          ],
+        },
+      },
+    }),
+    watch: (kind, name) => const Stream.empty(),
+    onAction: (event) async => {
+      'intent': {
+        'kind': 'Copy',
+        'arg': 'https://example.test/#/open?app=fixture-app',
       },
     },
-  }),
-  watch: (kind, name) => const Stream.empty(),
-  onAction: (event) async => {
-    'intent': {
-      'kind': 'Copy',
-      'arg': 'https://example.test/#/open?app=fixture-app',
-    },
-  },
+  ),
 );
 
 void main() {

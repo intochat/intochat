@@ -9,11 +9,13 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'test',
-            watch: (_, _) => const Stream<void>.empty(),
-            load: (_, _) async => const PublishedViewPayload(),
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream<void>.empty(),
+              load: (_, _) async => const PublishedViewPayload(),
+            ),
           ),
         ),
       ),
@@ -28,11 +30,13 @@ void main() {
     Widget view(String name) => MaterialApp(
       home: Scaffold(
         body: ViewHost(
-          knowsApp: (_) => false,
           kind: 'view',
           name: name,
-          watch: (_, _) => const Stream<void>.empty(),
-          load: (_, _) async => const PublishedViewPayload(),
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            watch: (_, _) => const Stream<void>.empty(),
+            load: (_, _) async => const PublishedViewPayload(),
+          ),
         ),
       ),
     );

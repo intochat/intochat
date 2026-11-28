@@ -9,6 +9,7 @@ import '../theme/wire_node_values.dart';
 import '../widgets/voice/audio_out.dart';
 import '../widgets/voice/mic_stream.dart';
 import '../widgets/voice/talk_socket.dart';
+import '../composition/shell_activation.dart';
 import '../core/neuron_method_caller.dart';
 
 /// Watches one signal type on a neuron contract, yielding decoded JSON payloads.
@@ -153,7 +154,7 @@ class NodeContext {
   final NeuronMethodCaller? callNeuron;
 
   /// The shell's activation handler: an `os_uri` opens a window or the settings.
-  final ValueChanged<Map<String, dynamic>>? onActivate;
+  final ValueChanged<ShellActivation>? onActivate;
 
   /// The app keys the shell knows; an `OpenWindow` intent for any other is refused.
   final bool Function(String app)? knowsApp;
@@ -352,7 +353,9 @@ class NodeContext {
         return false;
       }
     }
-    onActivate?.call(action);
+    final activation = ShellActivation.tryFromWireMap(action);
+    if (activation == null) return false;
+    onActivate?.call(activation);
     return onActivate != null;
   }
 

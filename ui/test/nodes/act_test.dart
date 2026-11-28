@@ -56,31 +56,33 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: view,
-            watch: (_, _) => const Stream.empty(),
-            onAction: (event) async {
-              sent.add(event.toJson());
-              return {'delivered': true};
-            },
-            load: (kind, name) async => PublishedViewPayload.fromJson({
-              'generation': 4,
-              'view': {
-                'title': 'Root',
-                'acts': ?acts,
-                'root': {
-                  'kind': 'button',
-                  'key': 'append',
-                  'label': 'Append point',
-                  'command': {
-                    'target': '.',
-                    'signal': 'gallery.append',
-                    'args': <String, Object?>{},
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (event) async {
+                sent.add(event.toJson());
+                return {'delivered': true};
+              },
+              load: (kind, name) async => PublishedViewPayload.fromJson({
+                'generation': 4,
+                'view': {
+                  'title': 'Root',
+                  'acts': ?acts,
+                  'root': {
+                    'kind': 'button',
+                    'key': 'append',
+                    'label': 'Append point',
+                    'command': {
+                      'target': '.',
+                      'signal': 'gallery.append',
+                      'args': <String, Object?>{},
+                    },
                   },
                 },
-              },
-            }),
+              }),
+            ),
           ),
         ),
       ),
@@ -140,37 +142,38 @@ void main() {
     tester,
   ) async {
     final sent = <Map<String, dynamic>>[];
-    final performed = <Map<String, dynamic>>[];
+    final performed = <ShellActivation>[];
     await tester.pumpWidget(
       MaterialApp(
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (app) => app == 'trace',
             kind: 'view',
             name: 'local/units/bank',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (event) async {
-              sent.add(event.toJson());
-              return {'delivered': true};
-            },
-            onActivate: performed.add,
-            load: (kind, name) async => PublishedViewPayload.fromJson({
-              'generation': 4,
-              'view': {
-                'title': 'Root',
-                'root': {
-                  'kind': 'button',
-                  'key': 'open',
-                  'label': 'Open trace',
-                  'intent': {
-                    'intentKind': 'OpenWindow',
-                    'arg':
-                        'os://window/open?app=trace&input=t-1&transition=fade',
+            overrides: ViewHostOverrides(
+              knowsApp: (app) => app == 'trace',
+              watch: (_, _) => const Stream.empty(),
+              onAction: (event) async {
+                sent.add(event.toJson());
+                return {'delivered': true};
+              },
+              onActivate: performed.add,
+              load: (kind, name) async => PublishedViewPayload.fromJson({
+                'generation': 4,
+                'view': {
+                  'title': 'Root',
+                  'root': {
+                    'kind': 'button',
+                    'key': 'open',
+                    'label': 'Open trace',
+                    'intent': {
+                      'intentKind': 'OpenWindow',
+                      'arg': 'os://window/open?app=trace&input=t-1&transition=fade',
+                    },
                   },
                 },
-              },
-            }),
+              }),
+            ),
           ),
         ),
       ),
@@ -180,7 +183,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sent, isEmpty);
-    expect(performed, [
+    expect(performed.map((a) => a.toWireMap()).toList(), [
       {
         'kind': 'os_uri',
         'uri': 'os://window/open?app=trace&input=t-1',
@@ -356,45 +359,47 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: parent,
-            watch: (_, name) => streams[name]?.stream ?? const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
-              loads[name] = (loads[name] ?? 0) + 1;
-              kinds[name] = kind;
-              return PublishedViewPayload.fromJson(switch (name) {
-                parent => {
-                  'generation': 1,
-                  'view': {
-                    'title': 'Settings',
-                    'root': {
-                      'kind': 'column',
-                      'children': [
-                        {'kind': 'text', 'value': 'Settings header'},
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'child',
-                          'neuronUri': 'dark-mode',
-                        },
-                      ],
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, name) => streams[name]?.stream ?? const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
+                loads[name] = (loads[name] ?? 0) + 1;
+                kinds[name] = kind;
+                return PublishedViewPayload.fromJson(switch (name) {
+                  parent => {
+                    'generation': 1,
+                    'view': {
+                      'title': 'Settings',
+                      'root': {
+                        'kind': 'column',
+                        'children': [
+                          {'kind': 'text', 'value': 'Settings header'},
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'child',
+                            'neuronUri': 'dark-mode',
+                          },
+                        ],
+                      },
                     },
                   },
-                },
-                child => {
-                  'generation': on ? 2 : 1,
-                  'view': {
-                    'title': 'Dark mode',
-                    'root': {
-                      'kind': 'text',
-                      'value': on ? 'Dark: on' : 'Dark: off',
+                  child => {
+                    'generation': on ? 2 : 1,
+                    'view': {
+                      'title': 'Dark mode',
+                      'root': {
+                        'kind': 'text',
+                        'value': on ? 'Dark: on' : 'Dark: off',
+                      },
                     },
                   },
-                },
-                _ => throw StateError('Unknown $name'),
-              });
-            },
+                  _ => throw StateError('Unknown $name'),
+                });
+              },
+            ),
           ),
         ),
       ),
@@ -430,33 +435,43 @@ Map<String, dynamic> _view(String title, List<Map<String, dynamic>> children) =>
       },
     };
 
-Widget _host(
-  Future<Object?> Function(Map<String, dynamic>) onAction,
-) => MaterialApp(
-  theme: UiTheme.intochat(Brightness.light),
-  home: Scaffold(
-    body: ViewHost(
-      knowsApp: (_) => false,
-      kind: 'view',
-      name: _root,
-      watch: (_, _) => const Stream.empty(),
-      onAction: (action) => onAction(action.toJson()),
-      load: (kind, name) async => PublishedViewPayload.fromJson(switch (name) {
-        _root => _view('Settings', [
-          {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'dark-mode'},
-        ]),
-        _slot => _view('Dark', [
-          {'kind': 'text', 'value': 'Dark'},
-          {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'accent'},
-        ]),
-        _nested => _view('Accent', [
-          {'kind': 'text', 'value': 'Accent'},
-        ]),
-        _ => throw StateError('Unknown $name'),
-      }),
-    ),
-  ),
-);
+Widget _host(Future<Object?> Function(Map<String, dynamic>) onAction) =>
+    MaterialApp(
+      theme: UiTheme.intochat(Brightness.light),
+      home: Scaffold(
+        body: ViewHost(
+          kind: 'view',
+          name: _root,
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            watch: (_, _) => const Stream.empty(),
+            onAction: (action) => onAction(action.toJson()),
+            load: (kind, name) async =>
+                PublishedViewPayload.fromJson(switch (name) {
+                  _root => _view('Settings', [
+                    {
+                      'kind': 'neuronRef',
+                      'refKind': 'child',
+                      'neuronUri': 'dark-mode',
+                    },
+                  ]),
+                  _slot => _view('Dark', [
+                    {'kind': 'text', 'value': 'Dark'},
+                    {
+                      'kind': 'neuronRef',
+                      'refKind': 'child',
+                      'neuronUri': 'accent',
+                    },
+                  ]),
+                  _nested => _view('Accent', [
+                    {'kind': 'text', 'value': 'Accent'},
+                  ]),
+                  _ => throw StateError('Unknown $name'),
+                }),
+          ),
+        ),
+      ),
+    );
 
 void childTests() {
   late Map<String, NodeContext> contexts;

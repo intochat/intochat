@@ -37,31 +37,33 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'owner/apps/engineer/view',
-            watch: (kind, name) {
-              watchedTargets.add((kind, name));
-              if (kind == 'screen') return screenEvents.stream;
-              return viewEvents.stream;
-            },
-            load: (_, _) async {
-              viewLoads++;
-              return PublishedViewPayload.fromJson({
-                'alias': 'app.engineer',
-                'generation': viewLoads,
-                'view': {
-                  'title': 'Engineer',
-                  'acts': 'act',
-                  'root': {
-                    'kind': 'column',
-                    'children': [
-                      {'kind': 'text', 'value': 'Pane:$activeTab'},
-                    ],
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (kind, name) {
+                watchedTargets.add((kind, name));
+                if (kind == 'screen') return screenEvents.stream;
+                return viewEvents.stream;
+              },
+              load: (_, _) async {
+                viewLoads++;
+                return PublishedViewPayload.fromJson({
+                  'alias': 'app.engineer',
+                  'generation': viewLoads,
+                  'view': {
+                    'title': 'Engineer',
+                    'acts': 'act',
+                    'root': {
+                      'kind': 'column',
+                      'children': [
+                        {'kind': 'text', 'value': 'Pane:$activeTab'},
+                      ],
+                    },
                   },
-                },
-              });
-            },
+                });
+              },
+            ),
           ),
         ),
       );
@@ -132,18 +134,20 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'owner/app.creator/default',
-            watch: (kind, name) {
-              watchedTargets.add((kind, name));
-              return screenEvents.stream;
-            },
-            load: (_, _) {
-              final completer = Completer<UiNodePayload>();
-              pendingLoads.add(completer);
-              return completer.future;
-            },
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (kind, name) {
+                watchedTargets.add((kind, name));
+                return screenEvents.stream;
+              },
+              load: (_, _) {
+                final completer = Completer<UiNodePayload>();
+                pendingLoads.add(completer);
+                return completer.future;
+              },
+            ),
           ),
         ),
       );

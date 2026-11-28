@@ -79,7 +79,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final actEvents = <ActAction>[];
-      final activations = <Map<String, dynamic>>[];
+      final activations = <ShellActivation>[];
       var aspireUrl = 'http://localhost:18888/resources';
       var orleansUrl = '/orleans#/overview';
 

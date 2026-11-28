@@ -1,4 +1,4 @@
-﻿@Tags(['golden'])
+@Tags(['golden'])
 library;
 
 import 'dart:io';
@@ -39,15 +39,17 @@ void main() {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: ViewHost(
-                  knowsApp: (_) => false,
                   kind: 'view',
                   name: 'local/apps/sample/view',
-                  load: (kind, name) async => PublishedViewPayload.fromJson({
-                    'generation': 1,
-                    'view': {'title': kind, 'root': nodeSamples[kind]},
-                  }),
-                  watch: (kind, name) => const Stream.empty(),
-                  onAction: (event) async => null,
+                  overrides: ViewHostOverrides(
+                    knowsApp: (_) => false,
+                    load: (kind, name) async => PublishedViewPayload.fromJson({
+                      'generation': 1,
+                      'view': {'title': kind, 'root': nodeSamples[kind]},
+                    }),
+                    watch: (kind, name) => const Stream.empty(),
+                    onAction: (event) async => null,
+                  ),
                 ),
               ),
             ),

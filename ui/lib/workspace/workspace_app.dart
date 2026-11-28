@@ -135,35 +135,42 @@ class WorkspaceAppState extends State<WorkspaceApp>
     onSwitchAccount: () async => await widget.onSwitchAccount?.call(),
     onEndLobby: () async => await widget.programmingClient?.endLobby(),
     onReconnect: _reconnect,
-    onAppLifecycle: (brain, action) async {
+    onAppLifecycle: (brain, activation) async {
       final client = widget.programmingClient;
       if (client == null) return;
       final changingBrain = brain != _brain;
-      final result = await runAppActivation(action, client.jsonRequest);
+      final result = await runAppActivation(
+        activation.toWireMap(brainId: brain),
+        client.jsonRequest,
+      );
       if (!mounted) return;
       if (!changingBrain) unawaited(_readKnownApps(brain));
       if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
       if (result.reopen case final String reopen) {
-        await _activate({
-          'brainId': brain,
-          'kind': 'workspace',
-          'application': 'apps',
-          'operation': 'open',
-          'input': reopen,
-        });
+        await _activate(
+          WorkspaceAppActivation(
+            brainId: brain,
+            application: 'apps',
+            operation: 'open',
+            input: reopen,
+            hasNavigationPayload: true,
+          ),
+        );
       }
       if (result.open case final String open) {
-        await _activate({
-          'brainId': brain,
-          'kind': 'workspace',
-          'application': open,
-          'operation': 'open',
-        });
+        await _activate(
+          WorkspaceAppActivation(
+            brainId: brain,
+            application: open,
+            operation: 'open',
+          ),
+        );
       }
     },
-    onOpenConnections: (brain, action) {
+    onOpenConnections: (brain, activation) {
       final client = widget.programmingClient;
       if (client == null || !mounted) return;
+      final wireAction = activation.toWireMap(brainId: brain);
       showDialog<void>(
         context: _navigator.currentContext!,
         builder: (_) => Dialog(
@@ -172,8 +179,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
             height: 520,
             child: ConnectWindow(
               // Connect preselects its connector; the connection is the one the activation names, else the connector.
-              initialConnectorId: action['connector'] as String?,
-              initialConnectionId: connectWindowConnectionId(action),
+              initialConnectorId: activation.connectorId,
+              initialConnectionId: connectWindowConnectionId(wireAction),
               request: (path, {body}) =>
                   client.workspaceConnectionsRequest(brain, path, body: body),
               connectorRequest: (path, {body}) =>
@@ -318,7 +325,10 @@ class WorkspaceAppState extends State<WorkspaceApp>
       (_workspaceSnapshot != null && _workspaceSnapshot!.path.isNotEmpty
           ? _workspaceSnapshot!.path.last
           : '${_brain ?? ''}/apps/ino');
-  Future<void> activateAction(Map<String, dynamic> action) => _activate(action);
+  Future<void> activateShell(ShellActivation activation) =>
+      _activate(activation);
+  Future<void> activateAction(Map<String, dynamic> action) =>
+      _activateWire(action);
   Future<void> show(String neuron) async {
     final client = widget.programmingClient;
     final brain = _brain;
@@ -372,18 +382,18 @@ class WorkspaceAppState extends State<WorkspaceApp>
   Future<bool> didPushRouteInformation(
     RouteInformation routeInformation,
   ) async {
-    final action = workspaceLink(routeInformation.uri);
-    if (action == null) return false;
+    final activation = workspaceLinkActivation(routeInformation.uri);
+    if (activation == null) return false;
     if (!_ready) {
       _pendingLocation = routeInformation.uri;
     } else {
-      await _openLink(routeInformation.uri, action);
+      await _openLink(routeInformation.uri, activation);
     }
     return true;
   }
 
-  Future<void> _openLink(Uri location, Map<String, dynamic> action) async {
-    await _activate(action);
+  Future<void> _openLink(Uri location, ShellActivation activation) async {
+    await _activate(activation);
     if (!mounted) return;
     final route = location.fragment.startsWith('/')
         ? Uri.parse(location.fragment)
@@ -414,12 +424,12 @@ class WorkspaceAppState extends State<WorkspaceApp>
       _ready = true;
       final location = _pendingLocation;
       _pendingLocation = null;
-      if (workspaceLink(location) case final action?) {
-        await _openLink(location!, action);
+      if (workspaceLinkActivation(location) case final activation?) {
+        await _openLink(location!, activation);
       }
       if (!_hasExplicitRoot &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
-        unawaited(_activate({'kind': 'settings'}));
+        unawaited(_activate(WorkspaceAppActivation.settings()));
       }
     } catch (error) {
       if (mounted) setState(() => _startupError = error);
@@ -512,16 +522,16 @@ class WorkspaceAppState extends State<WorkspaceApp>
   }
 
   // The request is handled asynchronously, so connect again (a few times, briefly) until the root changes.
-  Future<void> _reconnect(Map<String, dynamic> action) async {
+  Future<void> _reconnect(ReconnectActivation activation) async {
     final brain = _brain!;
-    final app = action['application'] as String?;
-    final operation = action['operation'] as String?;
+    final app = activation.application;
+    final operation = activation.operation;
     if (app != null && operation != null) {
       await widget.programmingClient!.requestApp(
         brain,
         app,
         operation,
-        action['input'] as String? ?? '',
+        activation.input ?? '',
       );
     }
     // A fixed root (INTOCHATOS_ROOT or ?root=...) never changes on connect: say so at once.
@@ -542,9 +552,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
     if (overlay != null) showKitToast(overlay, message, tone: tone);
   }
 
-  Future<void> _activate(Map<String, dynamic> action) async {
+  Future<void> _activate(ShellActivation activation) async {
     if (widget.programmingClient == null) return;
-    await _activationRouter.activate(action);
+    await _activationRouter.activate(activation);
+  }
+
+  Future<void> _activateWire(Map<String, dynamic> action) async {
+    if (widget.programmingClient == null) return;
+    await _activationRouter.activateWire(action);
   }
 
   Future<void> _tool(String name) async {
@@ -553,9 +568,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
     try {
       switch (name) {
         case 'preferences':
-          await _activate({'kind': 'settings'});
+          await _activate(WorkspaceAppActivation.settings());
         case 'connections':
-          await _activate({'kind': 'connections'});
+          await _activate(const ConnectionsActivation());
         case 'compute':
           navigator.push(
             MaterialPageRoute<void>(
@@ -573,11 +588,12 @@ class WorkspaceAppState extends State<WorkspaceApp>
           final brain = await client.createWorkspace();
           if (mounted) await _selectBrain(brain);
         case 'gallery':
-          await _activate({
-            'kind': 'workspace',
-            'application': 'gallery',
-            'operation': 'open',
-          });
+          await _activate(
+            const WorkspaceAppActivation(
+              application: 'gallery',
+              operation: 'open',
+            ),
+          );
         case 'palette':
           setState(() => _paletteOpen = !_paletteOpen);
         case 'smart-desktop':
@@ -591,11 +607,12 @@ class WorkspaceAppState extends State<WorkspaceApp>
                   onLaunchApp: (appId) {
                     navigator.pop();
                     unawaited(
-                      _activate({
-                        'kind': 'workspace',
-                        'application': appId,
-                        'operation': 'open',
-                      }),
+                      _activate(
+                        WorkspaceAppActivation(
+                          application: appId,
+                          operation: 'open',
+                        ),
+                      ),
                     );
                   },
                   onOpenPalette: () {
@@ -879,24 +896,26 @@ class WorkspaceAppState extends State<WorkspaceApp>
                   onClose: () => setState(() => _paletteOpen = false),
                   onLaunchApp: (appId) {
                     if (appId == 'settings') {
-                      unawaited(_activate({'kind': 'settings'}));
+                      unawaited(_activate(WorkspaceAppActivation.settings()));
                     } else {
                       unawaited(
-                        _activate({
-                          'kind': 'workspace',
-                          'application': appId,
-                          'operation': 'open',
-                        }),
+                        _activate(
+                          WorkspaceAppActivation(
+                            application: appId,
+                            operation: 'open',
+                          ),
+                        ),
                       );
                     }
                   },
                   onAskIno: (prompt) => unawaited(
-                    _activate({
-                      'kind': 'workspace',
-                      'application': 'ino',
-                      'operation': 'send',
-                      'input': prompt,
-                    }),
+                    _activate(
+                      WorkspaceAppActivation(
+                        application: 'ino',
+                        operation: 'send',
+                        input: prompt,
+                      ),
+                    ),
                   ),
                   onSelectPreset: (preset) =>
                       unawaited(_tool('theme:${preset.id}')),
