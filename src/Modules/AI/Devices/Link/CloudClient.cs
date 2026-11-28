@@ -94,22 +94,8 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<DeviceChatJob?> PollNextAsync(CancellationToken ct = default)
-    {
-        using var response = await SendSignedAsync(
-            HttpMethod.Get,
-            DeviceRoutes.Next,
-            createContent: null,
-            ct).ConfigureAwait(false);
-
-        if (response.StatusCode == HttpStatusCode.NoContent)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.DeviceChatJob, ct).ConfigureAwait(false);
-    }
+    public Task<DeviceChatJob?> PollNextAsync(CancellationToken ct = default)
+        => PollLaneAsync(DeviceRoutes.Next, DeviceWireJson.Default.DeviceChatJob, treatNotFoundAsEmpty: false, ct);
 
     public async Task<bool> ReportComputeCapabilityAsync(ComputeCapabilityAdvertisement capability, CancellationToken ct = default)
     {
@@ -129,145 +115,91 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         return true;
     }
 
-    public async Task<ConnectedSandboxRequest?> PollNextSandboxAsync(CancellationToken ct = default)
-    {
-        using var response = await SendSignedAsync(
-            HttpMethod.Get,
-            DeviceRoutes.SandboxNext,
-            createContent: null,
-            ct).ConfigureAwait(false);
+    public Task<ConnectedSandboxRequest?> PollNextSandboxAsync(CancellationToken ct = default)
+        => PollLaneAsync(DeviceRoutes.SandboxNext, DeviceWireJson.Default.ConnectedSandboxRequest, treatNotFoundAsEmpty: true, ct);
 
-        if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedSandboxRequest, ct).ConfigureAwait(false);
-    }
-
-    public async Task ReportSandboxResultAsync(string jobId, ConnectedSandboxResponse result, CancellationToken ct = default)
+    public Task ReportSandboxResultAsync(string jobId, ConnectedSandboxResponse result, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
-        ArgumentNullException.ThrowIfNull(result);
-        using var response = await SendSignedAsync(
-            HttpMethod.Post,
-            DeviceRoutes.SandboxResultFor(jobId),
-            () => JsonContent(result, DeviceWireJson.Default.ConnectedSandboxResponse),
-            ct).ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
+        return ReportLaneResultAsync(DeviceRoutes.SandboxResultFor(jobId), result, DeviceWireJson.Default.ConnectedSandboxResponse, ct);
     }
 
-    public async Task<PcResourceRequest?> PollNextResourceAsync(CancellationToken ct = default)
-    {
-        using var response = await SendSignedAsync(
-            HttpMethod.Get,
-            DeviceRoutes.ResourceNext,
-            createContent: null,
-            ct).ConfigureAwait(false);
+    public Task<PcResourceRequest?> PollNextResourceAsync(CancellationToken ct = default)
+        => PollLaneAsync(DeviceRoutes.ResourceNext, DeviceWireJson.Default.PcResourceRequest, treatNotFoundAsEmpty: true, ct);
 
-        if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.PcResourceRequest, ct).ConfigureAwait(false);
-    }
-
-    public async Task ReportResourceResultAsync(string jobId, PcResourceResponse result, CancellationToken ct = default)
+    public Task ReportResourceResultAsync(string jobId, PcResourceResponse result, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
-        ArgumentNullException.ThrowIfNull(result);
-        using var response = await SendSignedAsync(
-            HttpMethod.Post,
-            DeviceRoutes.ResourceResultFor(jobId),
-            () => JsonContent(result, DeviceWireJson.Default.PcResourceResponse),
-            ct).ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
+        return ReportLaneResultAsync(DeviceRoutes.ResourceResultFor(jobId), result, DeviceWireJson.Default.PcResourceResponse, ct);
     }
 
-    public async Task<ConnectedEngineeringRequest?> PollNextEngineeringAsync(CancellationToken ct = default)
-    {
-        using var response = await SendSignedAsync(
-            HttpMethod.Get,
-            DeviceRoutes.EngineeringNext,
-            createContent: null,
-            ct).ConfigureAwait(false);
+    public Task<ConnectedEngineeringRequest?> PollNextEngineeringAsync(CancellationToken ct = default)
+        => PollLaneAsync(DeviceRoutes.EngineeringNext, DeviceWireJson.Default.ConnectedEngineeringRequest, treatNotFoundAsEmpty: true, ct);
 
-        if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, DeviceWireJson.Default.ConnectedEngineeringRequest, ct).ConfigureAwait(false);
-    }
-
-    public async Task ReportEngineeringResultAsync(string jobId, ConnectedEngineeringResponse result, CancellationToken ct = default)
+    public Task ReportEngineeringResultAsync(string jobId, ConnectedEngineeringResponse result, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
-        ArgumentNullException.ThrowIfNull(result);
-        using var response = await SendSignedAsync(
-            HttpMethod.Post,
-            DeviceRoutes.EngineeringResultFor(jobId),
-            () => JsonContent(result, DeviceWireJson.Default.ConnectedEngineeringResponse),
-            ct).ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
+        return ReportLaneResultAsync(DeviceRoutes.EngineeringResultFor(jobId), result, DeviceWireJson.Default.ConnectedEngineeringResponse, ct);
     }
 
-    public async Task<bool> StreamEngineeringAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
+    public Task<bool> StreamEngineeringAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
-        ArgumentNullException.ThrowIfNull(ndjsonContent);
-
-        var secrets = await EnsureFreshSecretsAsync(ct).ConfigureAwait(false);
-        var url = Combine(secrets.Server, DeviceRoutes.EngineeringStreamFor(jobId));
-        using var request = BuildSignedRequest(HttpMethod.Post, url, secrets, ndjsonContent);
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            await credentials.Revoke(ct).ConfigureAwait(false);
-            throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
-        }
-
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
-        {
-            return false;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return true;
+        return PostNdjsonStreamAsync(DeviceRoutes.EngineeringStreamFor(jobId), ndjsonContent, treatNotFoundAsUnsupported: true, ct);
     }
 
     public async Task StreamAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
-        ArgumentNullException.ThrowIfNull(ndjsonContent);
+        _ = await PostNdjsonStreamAsync(DeviceRoutes.StreamFor(jobId), ndjsonContent, treatNotFoundAsUnsupported: false, ct).ConfigureAwait(false);
+    }
 
-        var secrets = await EnsureFreshSecretsAsync(ct).ConfigureAwait(false);
-        var url = Combine(secrets.Server, DeviceRoutes.StreamFor(jobId));
-        using var request = BuildSignedRequest(HttpMethod.Post, url, secrets, ndjsonContent);
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
+    public Task<bool> StreamSandboxAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        return PostNdjsonStreamAsync(DeviceRoutes.SandboxStreamFor(jobId), ndjsonContent, treatNotFoundAsUnsupported: true, ct);
+    }
+
+    private async Task<T?> PollLaneAsync<T>(string route, JsonTypeInfo<T> typeInfo, bool treatNotFoundAsEmpty, CancellationToken ct)
+    {
+        using var response = await SendSignedAsync(
+            HttpMethod.Get,
+            route,
+            createContent: null,
+            ct).ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.NoContent
+            || (treatNotFoundAsEmpty && response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented))
         {
-            await credentials.Revoke(ct).ConfigureAwait(false);
-            throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
+            return default;
         }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, typeInfo, ct).ConfigureAwait(false);
+    }
+
+    private async Task ReportLaneResultAsync<T>(string route, T result, JsonTypeInfo<T> typeInfo, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        using var response = await SendSignedAsync(
+            HttpMethod.Post,
+            route,
+            () => JsonContent(result, typeInfo),
+            ct).ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<bool> StreamSandboxAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
+    private async Task<bool> PostNdjsonStreamAsync(
+        string route,
+        HttpContent ndjsonContent,
+        bool treatNotFoundAsUnsupported,
+        CancellationToken ct)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
         ArgumentNullException.ThrowIfNull(ndjsonContent);
 
         var secrets = await EnsureFreshSecretsAsync(ct).ConfigureAwait(false);
-        var url = Combine(secrets.Server, DeviceRoutes.SandboxStreamFor(jobId));
+        var url = Combine(secrets.Server, route);
         using var request = BuildSignedRequest(HttpMethod.Post, url, secrets, ndjsonContent);
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -276,7 +208,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
             throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
         }
 
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+        if (treatNotFoundAsUnsupported && response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
         {
             return false;
         }
