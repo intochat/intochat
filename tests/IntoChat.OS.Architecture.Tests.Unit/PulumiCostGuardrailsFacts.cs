@@ -162,8 +162,15 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("notEquals: Consumption", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("Microsoft.App/containerApps/template.scale.maxReplicas", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("greater: 2", ruleBDef, StringComparison.Ordinal);
-        Assert.Contains("Microsoft.App/containerApps/template.containers[*].resources.cpu", ruleBDef, StringComparison.Ordinal);
-        Assert.Contains("greater: 1", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains(
+            "field: Microsoft.App/containerApps/template.containers[*].resources.cpu\n" +
+            "                          notIn:\n" +
+            "                            - 0.25\n" +
+            "                            - 0.5\n" +
+            "                            - 0.75\n" +
+            "                            - 1\n",
+            ruleBDef,
+            StringComparison.Ordinal);
         // All 7 Security-approved Policy Rule B ceilings on Microsoft.App/jobs:
         Assert.Contains("equals: Microsoft.App/jobs", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("field: Microsoft.App/jobs/workloadProfileName\n                      notEquals: Consumption", ruleBDef, StringComparison.Ordinal);
@@ -171,7 +178,24 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.Contains("field: Microsoft.App/jobs/configuration.manualTriggerConfig.parallelism\n                      greater: 2", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("field: Microsoft.App/jobs/configuration.replicaTimeout\n                      greater: 900", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("field: Microsoft.App/jobs/configuration.replicaRetryLimit\n                      notEquals: 0", ruleBDef, StringComparison.Ordinal);
-        Assert.Contains("field: Microsoft.App/jobs/template.containers[*].resources.cpu\n                          greater: 2", ruleBDef, StringComparison.Ordinal);
+        Assert.Contains(
+            "field: Microsoft.App/jobs/template.containers[*].resources.cpu\n" +
+            "                          notIn:\n" +
+            "                            - 0.25\n" +
+            "                            - 0.5\n" +
+            "                            - 0.75\n" +
+            "                            - 1\n" +
+            "                            - 1.25\n" +
+            "                            - 1.5\n" +
+            "                            - 1.75\n" +
+            "                            - 2\n",
+            ruleBDef,
+            StringComparison.Ordinal);
+        // Regression guard against Azure Policy InvalidPolicyEvaluation (float/int type mismatch on greater/less):
+        Assert.DoesNotContain("resources.cpu\n                          greater:", ruleBDef, StringComparison.Ordinal);
+        Assert.DoesNotContain("resources.cpu\n                          greaterOrEquals:", ruleBDef, StringComparison.Ordinal);
+        Assert.DoesNotContain("resources.cpu\n                          less:", ruleBDef, StringComparison.Ordinal);
+        Assert.DoesNotContain("resources.cpu\n                          lessOrEquals:", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("field: Microsoft.App/jobs/template.containers[*].resources.memory\n                          notIn:", ruleBDef, StringComparison.Ordinal);
         Assert.Contains("- \"4Gi\"", ruleBDef, StringComparison.Ordinal);
         Assert.DoesNotContain("- \"8Gi\"", ruleBDef, StringComparison.Ordinal);
