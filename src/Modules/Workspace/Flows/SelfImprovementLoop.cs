@@ -52,6 +52,7 @@ internal sealed partial class SelfImprovementLoop(
     private const string StatusReady = "ready";
     private const string StatusPaused = "paused";
     private const string StatusKilled = "killed";
+    private const string ReservedFlowIdPrefix = "loop-res-";
 
     [Slot]
     private partial IFlows Flows { get; }
@@ -266,6 +267,7 @@ internal sealed partial class SelfImprovementLoop(
         tracker.RecordRunStarted(selected.Key);
         var nextRunsToday = state.RunsToday + 1;
         var runId = $"loop-{Guid.NewGuid().ToString("N")[..10]}";
+        var reservedFlowId = $"{ReservedFlowIdPrefix}{runId}";
         var repoSlug = string.IsNullOrWhiteSpace(request.RepoSlug) ? "os" : request.RepoSlug.Trim();
         var goal = BuildEngineerGoal(selected, lessonContext);
 
@@ -273,7 +275,7 @@ internal sealed partial class SelfImprovementLoop(
             FindingKey: selected.Key,
             FindingTitle: selected.Title,
             Source: selected.Source,
-            FlowId: runId,
+            FlowId: reservedFlowId,
             RunId: runId,
             Status: "running",
             StartedAt: now,
@@ -305,7 +307,19 @@ internal sealed partial class SelfImprovementLoop(
         {
             summary = await engineerRuns.StartEngineerRun(delegationRequest, ct).ConfigureAwait(true);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            var cancelledRecord = reservedRecord with
+            {
+                Status = "cancelled",
+                CompletedAt = Context.Time.GetUtcNow(),
+                OutcomeDetail = "Dispatch cancelled before engineer run settled.",
+            };
+            state = ReplaceReservedRun(state, runId, cancelledRecord);
+            await PersistAsync(state).ConfigureAwait(true);
+            throw;
+        }
+        catch (Exception ex)
         {
             var failedAt = Context.Time.GetUtcNow();
             var failedRecord = reservedRecord with
@@ -511,6 +525,19 @@ internal sealed partial class SelfImprovementLoop(
 
             try
             {
+                // Orphaned synthetic pre-dispatch reservation that never received a real EngineerFlow id: fail it closed so ActiveRunCount never leaks.
+                if (run.FlowId.StartsWith(ReservedFlowIdPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    changed = true;
+                    updatedRuns[i] = run with
+                    {
+                        Status = "failed",
+                        CompletedAt = now,
+                        OutcomeDetail = "Orphaned pre-dispatch reservation never settled to an engineer flow.",
+                    };
+                    continue;
+                }
+
                 var summary = await engineerRuns.InspectEngineerRun(run.FlowId, ct).ConfigureAwait(true);
 
                 // Guard transient lookup/RPC errors so an active run is not prematurely marked failed and charged an attempt.

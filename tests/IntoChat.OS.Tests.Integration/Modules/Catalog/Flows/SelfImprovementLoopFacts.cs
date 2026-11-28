@@ -300,6 +300,48 @@ public sealed class SelfImprovementLoopFacts
         Assert.Equal(LoopBudgetExceededException.DailyBudgetCode, blocked.Status);
     }
 
+    [Fact]
+    public async Task RunCycle_TransitionsReservedRunOutOfRunningWhenStartEngineerRunThrowsOperationCanceledException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fakeRuns = new RecordingEngineerRuns { ThrowCancellationOnStart = true };
+
+        await using var os = await JourneyOS.Start(
+            NeuronRuntimeKind.TestOS,
+            LoopModules,
+            f => f.Friends().Postgres().Configure(s => s.AddSingleton<IEngineerRuns>(fakeRuns)),
+            ct);
+        var ada = os.Person("ada");
+
+        var findingsTableId = new NeuronId(ada.Brain, "storage", "loop-findings");
+        var installs = ada.Get<IInstalls>(new NeuronId(ada.Brain, "synapse.installs", "default"));
+        await installs.BindComponent(
+            new ComponentId("loop.self-improvement"),
+            [new Binding("findingsLog", new BindingTarget.Local(findingsTableId))],
+            ct);
+
+        var loop = ada.Get<ISelfImprovementLoop>(
+            new NeuronId(ada.Brain, "loop.self-improvement", ISelfImprovementLoop.DefaultKey));
+        await loop.ConfigureBudget(new LoopBudget(RunsPerDay: 2, TokensPerRun: 10_000, AttemptsPerFinding: 3, KillSwitch: false), ct);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => loop.RunCycle(new LoopCycleRequest(
+            Findings: [new LoopFinding("fact:CancelDispatch", "fact", "CancelDispatch", "cancelled during dispatch")]), ct));
+
+        var afterCancel = await loop.Inspect(ct);
+        Assert.Equal(1, afterCancel.RunsToday);
+        Assert.Equal(0, afterCancel.ActiveRunCount);
+        var cancelledRun = Assert.Single(afterCancel.RecentRuns);
+        Assert.Equal("cancelled", cancelledRun.Status);
+
+        // Next cycle is NOT blocked by a leaked active run reservation.
+        fakeRuns.ThrowCancellationOnStart = false;
+        var next = await loop.RunCycle(new LoopCycleRequest(
+            Findings: [new LoopFinding("fact:AfterCancel", "fact", "AfterCancel", "runs cleanly")],
+            MaxConcurrentRuns: 1), ct);
+        Assert.True(next.Dispatched);
+        Assert.Equal(2, next.RunsToday);
+    }
+
     private sealed class RecordingEngineerRuns : IEngineerRuns
     {
         private readonly List<EngineerDelegationRequest> _requests = [];
@@ -307,10 +349,17 @@ public sealed class SelfImprovementLoopFacts
 
         public bool ThrowOnStart { get; set; }
 
+        public bool ThrowCancellationOnStart { get; set; }
+
         public IReadOnlyList<EngineerDelegationRequest> StartedRequests => _requests;
 
         public Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
         {
+            if (ThrowCancellationOnStart)
+            {
+                throw new OperationCanceledException("Simulated StartEngineerRun cancellation.");
+            }
+
             if (ThrowOnStart)
             {
                 throw new InvalidOperationException("Simulated StartEngineerRun transport timeout.");
