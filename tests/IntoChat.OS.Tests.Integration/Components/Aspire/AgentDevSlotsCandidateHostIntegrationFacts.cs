@@ -71,6 +71,41 @@ public sealed class AgentDevSlotsCandidateHostIntegrationFacts : IDisposable
     }
 
     [Fact]
+    public async Task ParallelPoolsSharingSameBasePort_NeverAllocateOverlappingPorts()
+    {
+        var sharedBase = FindFreeBasePort();
+        var options = new CandidateSlotPoolOptions
+        {
+            MaxSlots = 2,
+            BasePort = sharedBase,
+            PortStride = 10,
+            EnableWarmSlotReuse = false,
+        };
+
+        await using var poolA = new CandidateSlotLeasePool(options);
+        await using var poolB = new CandidateSlotLeasePool(options);
+
+        var leases = await Task.WhenAll(
+            poolA.AcquireAsync("aaa1111", _workdir, ct: Ct).AsTask(),
+            poolA.AcquireAsync("aaa2222", _workdir, ct: Ct).AsTask(),
+            poolB.AcquireAsync("bbb1111", _workdir, ct: Ct).AsTask(),
+            poolB.AcquireAsync("bbb2222", _workdir, ct: Ct).AsTask());
+
+        try
+        {
+            var allPorts = leases.SelectMany(l => l.Ports.AllPorts()).ToArray();
+            Assert.Equal(allPorts.Length, allPorts.Distinct().Count());
+        }
+        finally
+        {
+            foreach (var lease in leases)
+            {
+                await lease.DisposeAsync();
+            }
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentCandidates_BindRealDynamicPorts_PassHealthProbes_AndCleanUpEphemeralHomes()
     {
         // Pick an ephemeral starting range dynamically to stay isolated from parallel CI test runners.
@@ -149,12 +184,9 @@ public sealed class AgentDevSlotsCandidateHostIntegrationFacts : IDisposable
 
     private static int FindFreeBasePort()
     {
-        using var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        // Clamp into a safe high dynamic port range with room for 3 slots * stride 10.
-        return Math.Clamp(port - (port % 10), 20000, 58000);
+        // Pick a starting base port in [20000, 30000), outside both Linux (32768-60999) and Windows (49152-65535)
+        // OS ephemeral port ranges so concurrent tests' outbound sockets cannot collide in the bind window.
+        return Random.Shared.Next(2000, 3000) * 10;
     }
 
     // Simulates Docker container lifecycle while binding real loopback TCP listeners for candidate HTTP /health ports.
@@ -245,6 +277,13 @@ public sealed class AgentDevSlotsCandidateHostIntegrationFacts : IDisposable
         private void StartHealthEndpoint(string containerName, int hostPort)
         {
             var listener = new TcpListener(IPAddress.Loopback, hostPort);
+            if (!OperatingSystem.IsWindows())
+            {
+                // Mirror Docker/Kestrel SO_REUSEADDR on Unix so warm-slot reuse can rebind immediately
+                // after a prior /health connection leaves a socket in TIME_WAIT.
+                listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            }
+
             listener.Start();
             var cts = new CancellationTokenSource();
             var loop = Task.Run(async () =>
