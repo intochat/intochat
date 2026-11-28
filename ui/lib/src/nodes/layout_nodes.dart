@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../primitives/resizable_sash.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
@@ -523,11 +523,6 @@ const double kCompactSplitPaneBreakpoint = 640;
 Widget renderSplitPane(SplitPaneNode node, NodeContext ctx) =>
     _SplitPaneWidget(node: node, ctx: ctx);
 
-class _NudgeSashIntent extends Intent {
-  const _NudgeSashIntent(this.delta);
-  final double delta;
-}
-
 class _SplitPaneWidget extends StatefulWidget {
   const _SplitPaneWidget({required this.node, required this.ctx});
 
@@ -540,9 +535,6 @@ class _SplitPaneWidget extends StatefulWidget {
 
 class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
   double? _draggedExtent;
-  bool _hoverSash = false;
-  bool _draggingSash = false;
-  bool _focusSash = false;
   bool _compactDrawerOpen = false;
   bool _hoverDrawerToggle = false;
   bool _focusDrawerToggle = false;
@@ -667,91 +659,19 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
           });
         }
 
-        final sashActive = _hoverSash || _draggingSash || _focusSash;
-
         return Row(
           crossAxisAlignment: stretch
               ? CrossAxisAlignment.stretch
               : CrossAxisAlignment.start,
           children: [
             SizedBox(width: effectiveLeading, child: leadingPane),
-            Semantics(
+            UiResizableSash(
               key: const ValueKey('split_pane_sash'),
               label: 'Resize sidebar',
-              slider: true,
-              child: FocusableActionDetector(
-                enabled: ctx.interactive,
-                onShowFocusHighlight: (f) => setState(() => _focusSash = f),
-                onShowHoverHighlight: (h) => setState(() => _hoverSash = h),
-                mouseCursor: ctx.interactive
-                    ? SystemMouseCursors.resizeLeftRight
-                    : MouseCursor.defer,
-                shortcuts: const {
-                  SingleActivator(LogicalKeyboardKey.arrowLeft):
-                      _NudgeSashIntent(-16),
-                  SingleActivator(LogicalKeyboardKey.arrowRight):
-                      _NudgeSashIntent(16),
-                },
-                actions: {
-                  _NudgeSashIntent: CallbackAction<_NudgeSashIntent>(
-                    onInvoke: (intent) {
-                      nudge(intent.delta);
-                      return null;
-                    },
-                  ),
-                  ActivateIntent: CallbackAction<ActivateIntent>(
-                    onInvoke: (_) {
-                      setState(() => _draggedExtent = null);
-                      return null;
-                    },
-                  ),
-                },
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onDoubleTap: ctx.interactive
-                      ? () => setState(() => _draggedExtent = null)
-                      : null,
-                  onHorizontalDragStart: ctx.interactive
-                      ? (_) => setState(() => _draggingSash = true)
-                      : null,
-                  onHorizontalDragUpdate: ctx.interactive
-                      ? (details) => nudge(details.delta.dx)
-                      : null,
-                  onHorizontalDragEnd: ctx.interactive
-                      ? (_) => setState(() => _draggingSash = false)
-                      : null,
-                  onHorizontalDragCancel: ctx.interactive
-                      ? () => setState(() => _draggingSash = false)
-                      : null,
-                  child: SizedBox(
-                    width: sashWidth,
-                    child: Center(
-                      child: AnimatedContainer(
-                        duration: _motion(context, UiTokens.of(context).fast),
-                        width: sashActive ? 3 : 1,
-                        constraints: const BoxConstraints(minHeight: 24),
-                        decoration: BoxDecoration(
-                          color: (_draggingSash || _focusSash)
-                              ? c.accent
-                              : (_hoverSash
-                                    ? c.accent.withValues(alpha: 0.65)
-                                    : c.borderHairline),
-                          borderRadius: BorderRadius.circular(2),
-                          boxShadow: _focusSash
-                              ? [
-                                  BoxShadow(
-                                    color: c.ring,
-                                    spreadRadius: 2,
-                                    blurRadius: 0,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              hitWidth: sashWidth,
+              enabled: ctx.interactive,
+              onDelta: nudge,
+              onReset: () => setState(() => _draggedExtent = null),
             ),
             Expanded(child: trailingPane),
           ],
