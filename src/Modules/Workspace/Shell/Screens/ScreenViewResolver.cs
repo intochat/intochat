@@ -90,7 +90,8 @@ internal static class ScreenViewResolver
         {
             var withoutView = address.EndsWith("/view", StringComparison.Ordinal) ? address[..^5] : address;
             var appKey = AppOf(brainId.Value, withoutView);
-            if (appKey is not null && !(hosted?.IsHostLoaded(appKey) ?? true))
+            var isHostedNeuron = hostedNeurons?.IsHosted(screenAlias) ?? false;
+            if (!isHostedNeuron && appKey is not null && !(hosted?.IsHostLoaded(appKey) ?? true))
             {
                 return new ResolvedScreen(ScreenResolutionKind.NotLoaded);
             }
@@ -273,7 +274,7 @@ internal static class ScreenViewResolver
         var brainId = new BrainId(scope);
         var withoutView = name.EndsWith("/view", StringComparison.Ordinal) ? name[..^5] : name;
         return HostAppRef.TryParse(brainId, withoutView, out var app)
-            ? "app." + app.Name
+            ? (app.Name.Contains('.', StringComparison.Ordinal) ? app.Name : "app." + app.Name)
             : null;
     }
 

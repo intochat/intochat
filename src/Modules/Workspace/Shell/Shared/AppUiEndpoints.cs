@@ -419,7 +419,7 @@ internal static class AppUiEndpoints
 
             if (resolved is not { Kind: ScreenResolutionKind.Screen, IsAgentApp: false })
             {
-                var candidateUnit = screenAlias["app.".Length..];
+                var candidateUnit = screenAlias.StartsWith("app.", StringComparison.Ordinal) ? screenAlias["app.".Length..] : screenAlias;
                 if (await ScreenViewResolver.TryReadUnitReaderAsync(brain, brainId, candidateUnit, log, "Unit view fallback could not be read.", ct) is { } unitFallback)
                 {
                     return OkJson(ChildKeys.Hide(unitFallback), ShellUiJsonContext.Default.PublishedView);

@@ -91,6 +91,8 @@ public sealed class Item350WebShellFixture(WarmBrowserFixture browser) : IAsyncL
 
     public DeterministicSandboxBridge Sandbox { get; } = new();
 
+    public ConcurrentDictionary<string, EngineerRunSummary> EngineerRuns { get; } = new(StringComparer.Ordinal);
+
     public IServiceProvider Services => (_kernelApp ?? throw new InvalidOperationException("Kernel host is not started.")).Services;
 
     public string Shell => $"{Origin}/?semantics=true#presence={Uri.EscapeDataString(_presence)}";
@@ -205,7 +207,10 @@ public sealed class Item350WebShellFixture(WarmBrowserFixture browser) : IAsyncL
             kernelBuilder.AddIntoChatOSKernel(typeof(KernelHost).Assembly);
             RegisterDeterministicOverrides(kernelBuilder.Services, chatClient, Inference, Sandbox, voiceClients, secretSource, astSanitizer, _brainOwners);
             kernelBuilder.Host.UseOrleans(silo =>
-                RegisterDeterministicOverrides(silo.Services, chatClient, Inference, Sandbox, voiceClients, secretSource, astSanitizer, _brainOwners));
+            {
+                RegisterDeterministicOverrides(silo.Services, chatClient, Inference, Sandbox, voiceClients, secretSource, astSanitizer, _brainOwners);
+                silo.AddIncomingGrainCallFilter(new DeterministicEngineerRunsFilter(EngineerRuns));
+            });
 
             _kernelApp = kernelBuilder.Build();
             _kernelApp.MapIntoChatOSKernel();
@@ -585,6 +590,29 @@ public sealed class Item350WebShellFixture(WarmBrowserFixture browser) : IAsyncL
                 _channel.Writer.TryComplete();
                 return ValueTask.CompletedTask;
             }
+        }
+    }
+
+    private sealed class DeterministicEngineerRunsFilter(ConcurrentDictionary<string, EngineerRunSummary> runs) : IIncomingGrainCallFilter
+    {
+        public Task Invoke(IIncomingGrainCallContext context)
+        {
+            if (context.Request.GetArgumentCount() > 0
+                && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+                && string.Equals(call.Method, nameof(IEngineerRuns.InspectEngineerRun), StringComparison.Ordinal)
+                && call.Key.Contains("/engineer.runs/", StringComparison.Ordinal)
+                && call.Arguments.Length > 0
+                && call.Arguments[0].ValueKind == JsonValueKind.String)
+            {
+                var flowId = call.Arguments[0].GetString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(flowId) && runs.TryGetValue(flowId, out var summary))
+                {
+                    context.Result = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(summary, typeof(EngineerRunSummary));
+                    return Task.CompletedTask;
+                }
+            }
+
+            return context.Invoke();
         }
     }
 }
