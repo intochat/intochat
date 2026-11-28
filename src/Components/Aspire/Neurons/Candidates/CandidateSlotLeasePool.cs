@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using IntoChat.OS.Host.Logging;
 using Microsoft.Extensions.Logging;
@@ -28,6 +30,8 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         "intochat-home",
     ];
 
+    private static readonly ConcurrentDictionary<int, byte> ProcessReservedPorts = new();
+
     private readonly CandidateSlotPoolOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly Func<int, bool> _isPortInUse;
@@ -37,7 +41,8 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
     private readonly ConcurrentQueue<SlotEntry> _coldSlots = new();
     private readonly ConcurrentDictionary<string, CandidateSlotLease> _activeByOwner = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, SlotEntry> _slotsById = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<int, byte> _reservedBasePorts = new();
+    private readonly ConcurrentDictionary<int, byte> _reservedPorts;
+    private readonly ConcurrentDictionary<int, CandidateSlotPortRange> _ownedRanges = new();
     private int _portCursor;
     private int _disposed;
 
@@ -58,7 +63,8 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         _options = options ?? new CandidateSlotPoolOptions();
         _options.Validate();
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _isPortInUse = isPortInUse ?? IsTcpPortListening;
+        _isPortInUse = isPortInUse ?? IsTcpPortInUse;
+        _reservedPorts = isPortInUse is null ? ProcessReservedPorts : new ConcurrentDictionary<int, byte>();
         _onLeaseReclaimed = onLeaseReclaimed;
         _availableSlots = new SemaphoreSlim(_options.MaxSlots, _options.MaxSlots);
 
@@ -128,7 +134,8 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
                 // If an existing warm slot's ports are no longer usable or warm reuse is disabled, release its port block and reallocate.
                 if (slot.LastPorts is { } stalePorts)
                 {
-                    _reservedBasePorts.TryRemove(stalePorts.BasePort, out _);
+                    ReleasePortRange(stalePorts);
+                    slot.LastPorts = null;
                 }
 
                 warmState = null;
@@ -174,7 +181,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
 
             if (allocatedFreshPorts && allocatedPorts is not null)
             {
-                _reservedBasePorts.TryRemove(allocatedPorts.BasePort, out _);
+                ReleasePortRange(allocatedPorts);
             }
 
             if (slot is not null)
@@ -266,7 +273,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
 
                     if (warm.LastPorts is { } ports)
                     {
-                        _reservedBasePorts.TryRemove(ports.BasePort, out _);
+                        ReleasePortRange(ports);
                         warm.LastPorts = null;
                     }
 
@@ -322,7 +329,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
             }
         }
 
-        _reservedBasePorts.Clear();
+        ReleaseAllOwnedPortRanges();
         _availableSlots.Dispose();
     }
 
@@ -342,7 +349,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
             }
         }
 
-        _reservedBasePorts.Clear();
+        ReleaseAllOwnedPortRanges();
         _availableSlots.Dispose();
     }
 
@@ -411,7 +418,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
     {
         if (!_slotsById.TryGetValue(lease.SlotId, out var slot))
         {
-            _reservedBasePorts.TryRemove(lease.Ports.BasePort, out _);
+            ReleasePortRange(lease.Ports);
             return;
         }
 
@@ -425,7 +432,7 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         {
             slot.WarmState = null;
             slot.LastPorts = null;
-            _reservedBasePorts.TryRemove(lease.Ports.BasePort, out _);
+            ReleasePortRange(lease.Ports);
         }
 
         if (Volatile.Read(ref _disposed) != 0)
@@ -478,14 +485,14 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
                 continue;
             }
 
-            if (!_reservedBasePorts.TryAdd(candidateBase, 0))
+            if (!TryReservePortRange(range))
             {
                 continue;
             }
 
             if (IsAnyPortInRangeListening(range))
             {
-                _reservedBasePorts.TryRemove(candidateBase, out _);
+                ReleasePortRange(range);
                 continue;
             }
 
@@ -493,6 +500,44 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
         }
 
         throw new CandidateHostException("slot", "Unable to allocate a collision-free dynamic port range for candidate dev slot.");
+    }
+
+    private bool TryReservePortRange(CandidateSlotPortRange range)
+    {
+        for (var port = range.BasePort; port < range.EndPortExclusive; port++)
+        {
+            if (!_reservedPorts.TryAdd(port, 0))
+            {
+                for (var rollback = range.BasePort; rollback < port; rollback++)
+                {
+                    _reservedPorts.TryRemove(rollback, out _);
+                }
+
+                return false;
+            }
+        }
+
+        _ownedRanges.TryAdd(range.BasePort, range);
+        return true;
+    }
+
+    private void ReleasePortRange(CandidateSlotPortRange range)
+    {
+        if (_ownedRanges.TryRemove(range.BasePort, out _))
+        {
+            for (var port = range.BasePort; port < range.EndPortExclusive; port++)
+            {
+                _reservedPorts.TryRemove(port, out _);
+            }
+        }
+    }
+
+    private void ReleaseAllOwnedPortRanges()
+    {
+        foreach (var range in _ownedRanges.Values.ToArray())
+        {
+            ReleasePortRange(range);
+        }
     }
 
     private bool AreCandidateEntryPortsFree(CandidateSlotPortRange range)
@@ -592,8 +637,30 @@ internal sealed class CandidateSlotLeasePool : ICandidateSlotPool
     private static string CreateLeaseToken()
         => Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
 
-    private static bool IsTcpPortListening(int port)
-        => IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(endpoint => endpoint.Port == port);
+    private static bool IsTcpPortInUse(int port)
+    {
+        if (IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(endpoint => endpoint.Port == port))
+        {
+            return true;
+        }
+
+        try
+        {
+            using var probe = new TcpListener(IPAddress.Loopback, port);
+            if (!OperatingSystem.IsWindows())
+            {
+                probe.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            }
+
+            probe.Start();
+            probe.Stop();
+            return false;
+        }
+        catch (SocketException)
+        {
+            return true;
+        }
+    }
 
     private static async Task DeleteDirectoryWithRetryAsync(string path, CancellationToken ct)
     {

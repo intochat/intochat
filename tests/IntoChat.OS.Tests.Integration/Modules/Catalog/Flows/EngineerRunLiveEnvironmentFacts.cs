@@ -143,7 +143,8 @@ public sealed class EngineerRunLiveEnvironmentFacts : IDisposable
         var started = await runs.StartEngineerRun(new EngineerDelegationRequest(RepoSlug: "os", Goal: "Add Multiply to Calculator", RunId: "live03"), Ct);
         var failed = await FlowTypeFacts.Eventually(
             () => flows.Read(started.FlowId, Ct),
-            v => v.Status is FlowStatus.Failed or FlowStatus.Completed || v is { Status: FlowStatus.Waiting, WaitingStep: not null });
+            // The index can learn the failure from FlowHead before FlowStep/FlowDone delivers its detail.
+            v => v is { Status: FlowStatus.Failed, Detail.Length: > 0 } or { Status: FlowStatus.Completed } || v is { Status: FlowStatus.Waiting, WaitingStep: not null });
 
         Assert.Equal(FlowStatus.Failed, failed.Status);
         Assert.Contains("MCP probe failed", failed.Detail, StringComparison.Ordinal);
