@@ -5,12 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import '../src/widgets/ino/ino_orb_v2.dart';
 import '../workspace/shell_activation_router.dart';
 import '../workspace/spatial_app_canvas.dart';
+import 'desktop_adaptive_shell.dart';
 import 'desktop_overlays.dart';
 import 'desktop_window_controller.dart';
-import 'guest_status_pill.dart';
 import 'os_bar.dart';
 import 'presence_layer.dart';
 import 'smart_desktop.dart';
@@ -84,9 +83,6 @@ class LiveDesktopShell extends StatefulWidget {
 }
 
 class _LiveDesktopShellState extends State<LiveDesktopShell> {
-  static const double _kCompactBreakpoint = 600.0;
-  static const double _kExpandedBreakpoint = 1024.0;
-
   DesktopWindowController? _windowController;
   bool _ownsWindowController = false;
   ShellActivationRouter? _localRouter;
@@ -101,7 +97,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   double _barTooltipAnchorX = 0;
   bool _allAppsOpen = false;
   bool _themeStudioOpen = false;
-  bool _downloadModalOpen = false;
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   Size? _pendingDeskSize;
@@ -110,8 +105,27 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   DesktopWindowController get _windows => _windowController!;
   ShellActivationRouter get _router => widget.activationRouter ?? _localRouter!;
 
-  bool _isGuestSession(String brainId) =>
-      widget.isGuest || widget.isEphemeral || brainId.startsWith('try-');
+  DesktopGuestChromeConfig _guestChromeFor(String brainId) =>
+      DesktopGuestChromeConfig(
+        showPill: resolveIsGuestSession(
+          isGuest: widget.isGuest ? true : null,
+          isEphemeral: widget.isEphemeral ? true : null,
+          brainId: brainId,
+        ),
+        remaining: widget.guestRemaining,
+        onSaveBrain: widget.onSaveBrain,
+        onDownloadApp: widget.onDownloadApp,
+        onOpenUrl: widget.onOpenUrl,
+        downloadHubUri: widget.downloadHubUri,
+      );
+
+  void _clearTransientOverlays() {
+    setState(() {
+      _popover = DesktopPopoverKind.none;
+      _allAppsOpen = false;
+      _themeStudioOpen = false;
+    });
+  }
 
   @override
   void initState() {
@@ -246,19 +260,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     });
   }
 
-  void _handleDownloadAppTap() {
-    if (widget.onDownloadApp != null) {
-      widget.onDownloadApp!();
-      return;
-    }
-    setState(() {
-      _popover = DesktopPopoverKind.none;
-      _allAppsOpen = false;
-      _themeStudioOpen = false;
-      _downloadModalOpen = true;
-    });
-  }
-
   void _launchOrFocusApp(
     String appId, {
     String? settingsSection,
@@ -330,10 +331,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
 
     if (e.logicalKey == LogicalKeyboardKey.escape && e is KeyDownEvent) {
-      if (_downloadModalOpen) {
-        setState(() => _downloadModalOpen = false);
-        return true;
-      }
       if (_themeStudioOpen) {
         setState(() => _themeStudioOpen = false);
         return true;
@@ -404,176 +401,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         unawaited(_router.activate(activation, sourceAppId: spec.appId)),
   );
 
-  List<UiNavBarItem> _buildAdaptiveNavItems(int activeCount) => [
-    const UiNavBarItem(id: 'ino', label: 'Ino', icon: LucideIcons.sparkles),
-    UiNavBarItem(
-      id: 'active',
-      label: 'Active',
-      icon: LucideIcons.layers,
-      badgeCount: activeCount > 0 ? activeCount : null,
-    ),
-    const UiNavBarItem(
-      id: 'apps',
-      label: 'All Apps',
-      icon: LucideIcons.layoutGrid,
-    ),
-    const UiNavBarItem(
-      id: 'theme',
-      label: 'Theme',
-      icon: LucideIcons.slidersHorizontal,
-    ),
-  ];
-
-  Widget _adaptiveTopActions() => Positioned(
-    top: 8,
-    right: 8,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Home',
-          isSelected: _windows.showDesktopOnly,
-          icon: const Icon(LucideIcons.brainCircuit),
-          onPressed: () {
-            setState(() {
-              _popover = DesktopPopoverKind.none;
-              _allAppsOpen = false;
-              _themeStudioOpen = false;
-            });
-            _windows.toggleShowDesktop();
-          },
-        ),
-        IconButton(
-          tooltip: 'Settings',
-          icon: const Icon(LucideIcons.settings),
-          onPressed: () {
-            setState(() => _popover = DesktopPopoverKind.none);
-            _launchOrFocusApp('settings');
-          },
-        ),
-        if (widget.profileMenu != null)
-          SizedBox(height: 32, child: widget.profileMenu),
-      ],
-    ),
-  );
-
-  int _adaptiveSelectedIndex(DesktopWindowProjection? topWindow) {
-    if (_themeStudioOpen) return 3;
-    if (_allAppsOpen) return 2;
-    if (topWindow != null && topWindow.appId != 'ino') return 1;
-    return 0;
-  }
-
-  Widget _buildSinglePaneContent({
-    required DesktopWindowProjection? topWindow,
-    required List<SmartAppTileSpec> dockApps,
-    required List<String> openWidgets,
-    required Size desk,
-  }) {
-    if (topWindow == null) {
-      return SmartDesktop(
-        hasOpenWindows: false,
-        stylePreset: widget.stylePreset,
-        barLayout: widget.barLayout,
-        apps: dockApps,
-        openCardIds: openWidgets,
-        onOpenCard: (cardId) => unawaited(_session.openWidget(cardId)),
-        onCloseCard: (cardId) => unawaited(_session.closeWidget(cardId)),
-        onLaunchApp: _launchOrFocusApp,
-        onOpenPalette: widget.onTogglePalette,
-        onOpenAllApps: () => setState(() {
-          _popover = DesktopPopoverKind.none;
-          _allAppsOpen = true;
-        }),
-        onSelectPreset: widget.onSelectPreset,
-        onCycleBarLayout: widget.onCycleBarLayout,
-        onAutoArrange: () => _windows.autoArrange(desk),
-      );
-    }
-
-    return _buildWindowViewHost(topWindow, keyPrefix: 'adaptive-viewport');
-  }
-
-  /// Shared overlays for PresenceLayer, AllAppsLauncherOverlay,
-  /// ThemeStudioPanel, and GuestChromeOverlay reused across Compact, Medium,
-  /// and Expanded shells without altering the Co-Presence Voice HUD.
-  List<Widget> _buildSharedOverlays({
-    required BrainSessionController session,
-    required List<SmartAppTileSpec> launcherApps,
-    required bool includePresence,
-    required bool includeModalOverlays,
-    Size? presenceDesk,
-    double? themeStudioTop,
-    double? themeStudioBottom,
-    double themeStudioBackdropBottom = 0,
-  }) => [
-    if (includePresence && session.smart)
-      if (presenceDesk != null)
-        Positioned(
-          left: 0,
-          top: 0,
-          width: presenceDesk.width,
-          height: presenceDesk.height,
-          child: _buildPresenceLayer(session),
-        )
-      else
-        Positioned.fill(child: _buildPresenceLayer(session)),
-    if (includeModalOverlays && _allAppsOpen)
-      Positioned.fill(
-        child: AllAppsLauncherOverlay(
-          apps: launcherApps,
-          onClose: () => setState(() => _allAppsOpen = false),
-          onLaunchApp: (appId) {
-            setState(() => _allAppsOpen = false);
-            _launchOrFocusApp(appId);
-          },
-        ),
-      ),
-    if (includeModalOverlays && _themeStudioOpen) ...[
-      Positioned(
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: themeStudioBackdropBottom,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _themeStudioOpen = false),
-        ),
-      ),
-      Positioned(
-        right: 16,
-        top: themeStudioTop,
-        bottom: themeStudioBottom,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 340),
-          child: Builder(
-            builder: (ctx) {
-              final controller = UiThemeSeedsController.maybeOf(ctx);
-              return ThemeStudioPanel(
-                seeds: controller?.seeds ?? UiThemeSeeds.warmPaper,
-                onChanged: controller?.setSeeds ?? (_) {},
-              );
-            },
-          ),
-        ),
-      ),
-    ],
-    if (_isGuestSession(session.brainId) || _downloadModalOpen)
-      Positioned.fill(
-        child: GuestChromeOverlay(
-          showPill: _isGuestSession(session.brainId),
-          downloadModalOpen: _downloadModalOpen,
-          remaining: widget.guestRemaining,
-          onSaveBrain: widget.onSaveBrain,
-          onDownloadApp: _handleDownloadAppTap,
-          onCloseDownloadModal: () =>
-              setState(() => _downloadModalOpen = false),
-          onOpenUrl: widget.onOpenUrl,
-          downloadHubUri: widget.downloadHubUri,
-        ),
-      ),
-  ];
-
   Widget _buildPresenceLayer(BrainSessionController session) => PresenceLayer(
     presence: session.presenceStream,
     enabled: session.smart,
@@ -584,351 +411,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       }
     },
   );
-
-  Future<void> _showActiveAppsSheet(
-    BuildContext context,
-    List<DesktopWindowProjection> mruWindows,
-  ) {
-    return showUiSheet<void>(
-      context: context,
-      compactBreakpoint: _kCompactBreakpoint,
-      builder: (sheetCtx) {
-        final uiColors = UiColors.of(sheetCtx);
-        return UiSheet(
-          title: 'Active Apps',
-          subtitle: mruWindows.isEmpty
-              ? 'No open apps'
-              : '${mruWindows.length} running',
-          showDragHandle: true,
-          semanticsId: 'adaptive-sheet:active-apps',
-          child: mruWindows.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'Launch an app from Ino or All Apps to get started.',
-                    style: TextStyle(color: uiColors.muted, fontSize: 13),
-                  ),
-                )
-              : ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 360),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: mruWindows.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (_, idx) {
-                      final w = mruWindows[idx];
-                      return ListTile(
-                        dense: true,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        tileColor: uiColors.surface,
-                        leading: IcAppIcon(appId: w.appId, size: 22),
-                        title: Text(
-                          w.title,
-                          style: TextStyle(
-                            color: uiColors.strong,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: Icon(
-                            LucideIcons.x,
-                            size: 16,
-                            color: uiColors.muted,
-                          ),
-                          tooltip: 'Close ${w.title}',
-                          onPressed: () {
-                            Navigator.of(sheetCtx).pop();
-                            _windows.closeWindow(w);
-                          },
-                        ),
-                        onTap: () {
-                          Navigator.of(sheetCtx).pop();
-                          _windows.focusWindowById(w.id);
-                        },
-                      );
-                    },
-                  ),
-                ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showAllAppsSheet(
-    BuildContext context,
-    List<SmartAppTileSpec> launcherApps,
-  ) {
-    return showUiSheet<void>(
-      context: context,
-      compactBreakpoint: _kCompactBreakpoint,
-      builder: (sheetCtx) {
-        final uiColors = UiColors.of(sheetCtx);
-        return UiSheet(
-          title: 'All Apps',
-          subtitle: '${launcherApps.length} available',
-          showDragHandle: true,
-          semanticsId: 'adaptive-sheet:all-apps',
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 420),
-            child: GridView.builder(
-              shrinkWrap: true,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.95,
-              ),
-              itemCount: launcherApps.length,
-              itemBuilder: (_, idx) {
-                final spec = launcherApps[idx];
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    Navigator.of(sheetCtx).pop();
-                    _launchOrFocusApp(spec.id);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: uiColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: uiColors.hairline),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IcAppIcon(
-                          appId: spec.id,
-                          icon: spec.icon,
-                          accentHex: spec.accentHex,
-                          size: 26,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          spec.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: uiColors.strong,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showThemeStudioSheet(BuildContext context) {
-    final controller = UiThemeSeedsController.maybeOf(context);
-    var localSeeds = controller?.seeds ?? UiThemeSeeds.warmPaper;
-    return showUiSheet<void>(
-      context: context,
-      compactBreakpoint: _kCompactBreakpoint,
-      builder: (sheetCtx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final currentSeeds =
-              UiThemeSeedsController.maybeOf(ctx)?.seeds ?? localSeeds;
-          return UiSheet(
-            showDragHandle: true,
-            semanticsId: 'adaptive-sheet:theme-studio',
-            padding: const EdgeInsets.all(12),
-            child: SingleChildScrollView(
-              child: ThemeStudioPanel(
-                seeds: currentSeeds,
-                onChanged: (next) {
-                  if (controller != null) {
-                    controller.setSeeds(next);
-                  } else {
-                    setSheetState(() => localSeeds = next);
-                  }
-                },
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCompactShell({
-    required BuildContext context,
-    required BrainSessionController session,
-    required UiColors c,
-    required Size desk,
-    required List<DesktopWindowProjection> mruWindows,
-    required List<DesktopWindowProjection> visibleWindows,
-    required DesktopWindowProjection? topWindow,
-    required List<SmartAppTileSpec> dockApps,
-    required List<SmartAppTileSpec> launcherApps,
-    required List<String> openWidgets,
-  }) {
-    final controller = UiThemeSeedsController.maybeOf(context);
-    final compactSeeds = (controller?.seeds ?? UiThemeSeeds.warmPaper).copyWith(
-      density: UiDensity.spacious,
-    );
-
-    return UiSeedThemeScope(
-      key: const ValueKey('adaptive-compact-theme-scope'),
-      seeds: compactSeeds,
-      child: Builder(
-        builder: (compactCtx) => DecoratedBox(
-          key: const ValueKey('adaptive-shell-compact'),
-          decoration: BoxDecoration(color: c.surfacePage),
-          child: Column(
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: _buildSinglePaneContent(
-                        topWindow: topWindow,
-                        dockApps: dockApps,
-                        openWidgets: openWidgets,
-                        desk: desk,
-                      ),
-                    ),
-                    if (topWindow?.appId != 'ino')
-                      Positioned(
-                        right: 12,
-                        bottom: 12,
-                        child: InoOrbV2(
-                          state: session.presenceState ?? PresenceState.idle,
-                          size: 48,
-                          semanticsId: 'compact:ino-orb',
-                          onTap: () {
-                            setState(() {
-                              _allAppsOpen = false;
-                              _themeStudioOpen = false;
-                            });
-                            _launchOrFocusApp('ino');
-                          },
-                        ),
-                      ),
-                    _adaptiveTopActions(),
-                    ..._buildSharedOverlays(
-                      session: session,
-                      launcherApps: launcherApps,
-                      includePresence: false,
-                      includeModalOverlays: false,
-                    ),
-                  ],
-                ),
-              ),
-              UiAdaptiveNavBar(
-                compactBreakpoint: _kCompactBreakpoint,
-                semanticsId: 'desktop-adaptive-nav',
-                items: _buildAdaptiveNavItems(visibleWindows.length),
-                selectedIndex: _adaptiveSelectedIndex(topWindow),
-                onSelected: (index) {
-                  switch (index) {
-                    case 0:
-                      setState(() {
-                        _allAppsOpen = false;
-                        _themeStudioOpen = false;
-                      });
-                      _launchOrFocusApp('ino');
-                    case 1:
-                      unawaited(_showActiveAppsSheet(compactCtx, mruWindows));
-                    case 2:
-                      unawaited(_showAllAppsSheet(compactCtx, launcherApps));
-                    case 3:
-                      unawaited(_showThemeStudioSheet(compactCtx));
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMediumShell({
-    required BuildContext context,
-    required BrainSessionController session,
-    required UiColors c,
-    required Size desk,
-    required List<DesktopWindowProjection> mruWindows,
-    required List<DesktopWindowProjection> visibleWindows,
-    required DesktopWindowProjection? topWindow,
-    required List<SmartAppTileSpec> dockApps,
-    required List<SmartAppTileSpec> launcherApps,
-    required List<String> openWidgets,
-  }) {
-    return DecoratedBox(
-      key: const ValueKey('adaptive-shell-medium'),
-      decoration: BoxDecoration(color: c.surfacePage),
-      child: Row(
-        children: [
-          UiAdaptiveNavBar(
-            compactBreakpoint: _kCompactBreakpoint,
-            semanticsId: 'desktop-adaptive-nav',
-            items: _buildAdaptiveNavItems(visibleWindows.length),
-            selectedIndex: _adaptiveSelectedIndex(topWindow),
-            onSelected: (index) {
-              switch (index) {
-                case 0:
-                  setState(() {
-                    _allAppsOpen = false;
-                    _themeStudioOpen = false;
-                  });
-                  _launchOrFocusApp('ino');
-                case 1:
-                  setState(() {
-                    _allAppsOpen = false;
-                    _themeStudioOpen = false;
-                  });
-                  unawaited(_showActiveAppsSheet(context, mruWindows));
-                case 2:
-                  setState(() {
-                    _themeStudioOpen = false;
-                    _allAppsOpen = !_allAppsOpen;
-                  });
-                case 3:
-                  setState(() {
-                    _allAppsOpen = false;
-                    _themeStudioOpen = !_themeStudioOpen;
-                  });
-              }
-            },
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: _buildSinglePaneContent(
-                    topWindow: topWindow,
-                    dockApps: dockApps,
-                    openWidgets: openWidgets,
-                    desk: desk,
-                  ),
-                ),
-                _adaptiveTopActions(),
-                ..._buildSharedOverlays(
-                  session: session,
-                  launcherApps: launcherApps,
-                  includePresence: true,
-                  includeModalOverlays: true,
-                  themeStudioTop: 16,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildAmbientGlows(UiColors c) => Positioned.fill(
     child: IgnorePointer(
@@ -1007,12 +489,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
-        final isCompact = size.width < _kCompactBreakpoint;
+        final isCompact = size.width < kDesktopCompactBreakpoint;
         final isMedium =
-            size.width >= _kCompactBreakpoint &&
-            size.width < _kExpandedBreakpoint;
+            size.width >= kDesktopCompactBreakpoint &&
+            size.width < kDesktopExpandedBreakpoint;
         final focusMode =
-            size.width < _kExpandedBreakpoint || size.height < 640;
+            size.width < kDesktopExpandedBreakpoint || size.height < 640;
         final desk = Size(
           size.width,
           size.height - kOsBarHeight - 8 < 320.0
@@ -1020,12 +502,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
               : size.height - kOsBarHeight - 8,
         );
         _scheduleDeskSizeSync(desk);
+        final guestChrome = _guestChromeFor(session.brainId);
 
-        if (isCompact) {
-          return _buildCompactShell(
-            context: context,
-            session: session,
-            c: c,
+        if (isCompact || isMedium) {
+          return DesktopAdaptiveShell(
+            mode: isCompact
+                ? DesktopAdaptiveLayoutMode.compact
+                : DesktopAdaptiveLayoutMode.medium,
+            stylePreset: widget.stylePreset,
+            barLayout: widget.barLayout,
             desk: desk,
             mruWindows: mruWindows,
             visibleWindows: visibleWindows,
@@ -1033,21 +518,31 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
             dockApps: dockApps,
             launcherApps: launcherApps,
             openWidgets: openWidgets,
-          );
-        }
-
-        if (isMedium) {
-          return _buildMediumShell(
-            context: context,
-            session: session,
-            c: c,
-            desk: desk,
-            mruWindows: mruWindows,
-            visibleWindows: visibleWindows,
-            topWindow: topWindow,
-            dockApps: dockApps,
-            launcherApps: launcherApps,
-            openWidgets: openWidgets,
+            showDesktopOnly: wc.showDesktopOnly,
+            allAppsOpen: _allAppsOpen,
+            themeStudioOpen: _themeStudioOpen,
+            presenceState: session.presenceState,
+            profileMenu: widget.profileMenu,
+            presenceLayer: !isCompact && session.smart
+                ? _buildPresenceLayer(session)
+                : null,
+            buildWindowViewHost: (window) =>
+                _buildWindowViewHost(window, keyPrefix: 'adaptive-viewport'),
+            onLaunchApp: _launchOrFocusApp,
+            onToggleShowDesktop: wc.toggleShowDesktop,
+            onFocusWindow: wc.focusWindowById,
+            onCloseWindow: wc.closeWindow,
+            onOpenWidget: (cardId) => unawaited(session.openWidget(cardId)),
+            onCloseWidget: (cardId) => unawaited(session.closeWidget(cardId)),
+            onAutoArrange: () => wc.autoArrange(desk),
+            onTogglePalette: widget.onTogglePalette,
+            onSelectPreset: widget.onSelectPreset,
+            onCycleBarLayout: widget.onCycleBarLayout,
+            onSetAllAppsOpen: (open) => setState(() => _allAppsOpen = open),
+            onSetThemeStudioOpen: (open) =>
+                setState(() => _themeStudioOpen = open),
+            onClearOverlays: _clearTransientOverlays,
+            guestChrome: guestChrome,
           );
         }
 
@@ -1331,91 +826,89 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 ),
               ),
 
-              // OS Bar Popovers
-              if (_popover != DesktopPopoverKind.none) ...[
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  bottom: kOsBarHeight,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        setState(() => _popover = DesktopPopoverKind.none),
-                  ),
-                ),
-                DesktopBarPopover(
-                  kind: _popover,
-                  screen: size,
-                  barLayout: widget.barLayout,
-                  anchorX: _popoverAnchorX,
-                  dockAppId: _dockMenuAppId,
-                  dockAppTitle: _dockMenuAppId == null
+              // Unified Desktop Chrome Overlays (Popovers, Alt+` Switcher,
+              // All Apps, Live Theme Studio, and Day-0 Guest Chrome)
+              Positioned.fill(
+                child: DesktopChromeOverlayHost(
+                  popover: _popover == DesktopPopoverKind.none
                       ? null
-                      : session.titleForAppId(_dockMenuAppId!),
-                  notificationsCount: session.unreadNotifications,
-                  notifications: session.notifications,
-                  notificationsLoaded: session.notificationsLoaded,
-                  notificationsLoading: session.notificationsLoading,
-                  pinnedAppIds: pinnedAppIds,
-                  windows: wc.windowSummaries(pinnedAppIds),
-                  onClose: () =>
-                      setState(() => _popover = DesktopPopoverKind.none),
-                  onOpenSettings: () {
-                    final targetApp = _dockMenuAppId;
-                    setState(() => _popover = DesktopPopoverKind.none);
-                    if (targetApp != null && targetApp.isNotEmpty) {
-                      _openAppGraph(targetApp);
-                    } else {
-                      _launchOrFocusApp('settings');
-                    }
+                      : DesktopPopoverOverlayConfig(
+                          kind: _popover,
+                          screen: size,
+                          barLayout: widget.barLayout,
+                          anchorX: _popoverAnchorX,
+                          dockAppId: _dockMenuAppId,
+                          dockAppTitle: _dockMenuAppId == null
+                              ? null
+                              : session.titleForAppId(_dockMenuAppId!),
+                          notificationsCount: session.unreadNotifications,
+                          notifications: session.notifications,
+                          notificationsLoaded: session.notificationsLoaded,
+                          notificationsLoading: session.notificationsLoading,
+                          pinnedAppIds: pinnedAppIds,
+                          windows: wc.windowSummaries(pinnedAppIds),
+                          onClose: () => setState(
+                            () => _popover = DesktopPopoverKind.none,
+                          ),
+                          onOpenSettings: () {
+                            final targetApp = _dockMenuAppId;
+                            setState(() => _popover = DesktopPopoverKind.none);
+                            if (targetApp != null && targetApp.isNotEmpty) {
+                              _openAppGraph(targetApp);
+                            } else {
+                              _launchOrFocusApp('settings');
+                            }
+                          },
+                          onOpenComputeSettings: () {
+                            if (widget.onOpenCompute != null) {
+                              widget.onOpenCompute!();
+                            } else {
+                              _launchOrFocusApp(
+                                'settings',
+                                settingsSection: 'billing',
+                              );
+                            }
+                          },
+                          onMarkNotificationRead: session.markNotificationRead,
+                          onMarkAllNotificationsRead:
+                              session.markAllNotificationsRead,
+                          onClearNotifications: session.clearNotifications,
+                          onFocusWindow: wc.focusWindowById,
+                          onNewWindowForApp: _launchOrFocusApp,
+                          onTogglePinApp: (appId) =>
+                              wc.togglePinApp(appId, pinnedAppIds),
+                          onQuitApp: (appId) =>
+                              unawaited(session.closeApp(appId)),
+                        ),
+                  windowSwitcher: _switcherOpen && orderedWindows.isNotEmpty
+                      ? DesktopWindowSwitcherConfig(
+                          windows: wc.windowSummaries(pinnedAppIds),
+                          selectedIndex: _switcherIndex,
+                          onSelectWindow: (summary) {
+                            setState(() => _switcherOpen = false);
+                            wc.focusWindowById(summary.windowId);
+                          },
+                          onCancel: () => setState(() => _switcherOpen = false),
+                        )
+                      : null,
+                  allAppsOpen: _allAppsOpen,
+                  launcherApps: launcherApps,
+                  onCloseAllApps: () => setState(() => _allAppsOpen = false),
+                  onLaunchApp: (appId) {
+                    setState(() => _allAppsOpen = false);
+                    _launchOrFocusApp(appId);
                   },
-                  onOpenComputeSettings: () {
-                    if (widget.onOpenCompute != null) {
-                      widget.onOpenCompute!();
-                    } else {
-                      _launchOrFocusApp('settings', settingsSection: 'billing');
-                    }
-                  },
-                  onMarkNotificationRead: session.markNotificationRead,
-                  onMarkAllNotificationsRead: session.markAllNotificationsRead,
-                  onClearNotifications: session.clearNotifications,
-                  onFocusWindow: wc.focusWindowById,
-                  onNewWindowForApp: _launchOrFocusApp,
-                  onTogglePinApp: (appId) =>
-                      wc.togglePinApp(appId, pinnedAppIds),
-                  onQuitApp: (appId) => unawaited(session.closeApp(appId)),
+                  themeStudioOpen: _themeStudioOpen,
+                  onCloseThemeStudio: () =>
+                      setState(() => _themeStudioOpen = false),
+                  themeStudioBottom:
+                      (widget.barLayout == BarLayout.classicBottom ? 0 : 6) +
+                      kOsBarHeight +
+                      8,
+                  themeStudioBackdropBottom: kOsBarHeight,
+                  guestChrome: guestChrome,
+                  onBeforeOpenDownloadModal: _clearTransientOverlays,
                 ),
-              ],
-
-              // Alt+` Visual MRU Window Switcher
-              if (_switcherOpen && orderedWindows.isNotEmpty)
-                Positioned.fill(
-                  child: AltBacktickWindowSwitcher(
-                    windows: wc.windowSummaries(pinnedAppIds),
-                    selectedIndex: _switcherIndex.clamp(
-                      0,
-                      orderedWindows.length - 1,
-                    ),
-                    onSelectWindow: (summary) {
-                      setState(() => _switcherOpen = false);
-                      wc.focusWindowById(summary.windowId);
-                    },
-                    onCancel: () => setState(() => _switcherOpen = false),
-                  ),
-                ),
-
-              // Shared All Apps, Live Theme Studio, and Day-0 Guest Chrome Overlays
-              ..._buildSharedOverlays(
-                session: session,
-                launcherApps: launcherApps,
-                includePresence: false,
-                includeModalOverlays: true,
-                themeStudioBottom:
-                    (widget.barLayout == BarLayout.classicBottom ? 0 : 6) +
-                    kOsBarHeight +
-                    8,
-                themeStudioBackdropBottom: kOsBarHeight,
               ),
             ],
           ),
