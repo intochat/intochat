@@ -126,7 +126,8 @@ public sealed record EngineerCandidateResult(
     [property: Id(14)] string? FailureDetail = null,
     [property: Id(15)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
     [property: Id(16)] EngineerTaskSlice[]? Slices = null,
-    [property: Id(17)] string[]? DeletedFiles = null)
+    [property: Id(17)] string[]? DeletedFiles = null,
+    [property: Id(18)] SelfReviewReport? SelfReview = null)
 {
     public EngineerCandidateResult()
         : this(0, "surgical-patch", "Minimal Surgical Patch", "", "LocalGit", "", "pending", [], [], 1, false, new EngineerCandidateScore(), null, null, null)

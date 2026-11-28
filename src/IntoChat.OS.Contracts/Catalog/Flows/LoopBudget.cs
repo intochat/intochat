@@ -3,11 +3,15 @@ using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
+[GenerateSerializer, Alias("loop.budget")]
 public sealed record LoopBudget(
-    int RunsPerDay = 10,
-    long TokensPerRun = 100_000,
-    int AttemptsPerFinding = 3,
-    bool KillSwitch = false);
+    [property: Id(0)] int RunsPerDay = 10,
+    [property: Id(1)] long TokensPerRun = 100_000,
+    [property: Id(2)] int AttemptsPerFinding = 3,
+    [property: Id(3)] bool KillSwitch = false)
+{
+    public LoopBudget() : this(10, 100_000, 3, false) { }
+}
 
 public sealed class LoopBudgetExceededException(string code, string message) : Exception(message)
 {
@@ -36,6 +40,57 @@ public sealed class LoopBudgetTracker
         _budget = budget;
         _time = time ?? TimeProvider.System;
         _currentDay = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+    }
+
+    public static LoopBudgetTracker Restore(
+        LoopBudget budget,
+        DateOnly currentDay,
+        int runsToday,
+        IEnumerable<KeyValuePair<string, int>>? failuresByFinding = null,
+        IEnumerable<string>? parkedFindings = null,
+        IEnumerable<KeyValuePair<string, long>>? tokensByRun = null,
+        TimeProvider? time = null)
+    {
+        var tracker = new LoopBudgetTracker(budget, time)
+        {
+            _currentDay = currentDay,
+            _runsToday = Math.Max(0, runsToday),
+        };
+
+        if (failuresByFinding is not null)
+        {
+            foreach (var (key, count) in failuresByFinding)
+            {
+                if (!string.IsNullOrWhiteSpace(key) && count > 0)
+                {
+                    tracker._failuresByFinding[key] = count;
+                }
+            }
+        }
+
+        if (parkedFindings is not null)
+        {
+            foreach (var key in parkedFindings)
+            {
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    tracker._parkedFindings.Add(key);
+                }
+            }
+        }
+
+        if (tokensByRun is not null)
+        {
+            foreach (var (runId, tokens) in tokensByRun)
+            {
+                if (!string.IsNullOrWhiteSpace(runId) && tokens > 0)
+                {
+                    tracker._tokensByRun[runId] = tokens;
+                }
+            }
+        }
+
+        return tracker;
     }
 
     public void EnsureNotKilled()

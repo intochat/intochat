@@ -84,7 +84,8 @@ internal static class EngineerPipelineStages
         string denyLabel,
         TimeSpan approvalWindow,
         Change selectedChange,
-        CommitSha verifiedCommit)
+        CommitSha verifiedCommit,
+        SelfReviewReport? selfReview = null)
     {
         var sha = verifiedCommit.Value;
         var shortSha = sha[..Math.Min(8, sha.Length)];
@@ -98,7 +99,7 @@ internal static class EngineerPipelineStages
             Action: ConfirmationAction.Other,
             Destructive: true,
             Title: $"Push & open Draft PR on {repoLabel} ({shortSha})?",
-            Body: ChangeCard.Body(selectedChange),
+            Body: ChangeCard.Body(selectedChange, selfReview),
             ApproveLabel: "Push & Open Draft PR",
             DenyLabel: denyLabel,
             TargetLabel: $"{repoLabel}@{shortSha}")
@@ -403,6 +404,11 @@ internal static class EngineerPipelineStages
         if (engineerContext?.Winner.Live is { } live)
         {
             sb.AppendLine($"- **Live Verify:** {ChangePolicy.SanitizeCommitText(live.Summary)}");
+        }
+
+        if (engineerContext?.Winner.SelfReview is { } selfReview)
+        {
+            sb.AppendLine($"- **Local Self-Review:** {ChangePolicy.SanitizeCommitText(selfReview.Summary)}");
         }
 
         if (engineerContext?.Verification is { SkipsAny: true } skippedPolicy)

@@ -78,7 +78,9 @@ public sealed record EngineerInstanceSummary(
     [property: Id(16)] bool IsSelected = false,
     [property: Id(17)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
     [property: Id(18)] EngineerTaskSlice[]? Slices = null,
-    [property: Id(19)] string[]? DeletedFiles = null)
+    [property: Id(19)] string[]? DeletedFiles = null,
+    [property: Id(20)] SelfReviewReport? SelfReview = null,
+    [property: Id(21)] int SelfReviewRepairAttempts = 0)
 {
     public EngineerInstanceSummary()
         : this(0, "", "LocalGit", "", "pending", [], [], null, false, false, null, "surgical-patch", 0, 0, "", 1, false)
@@ -94,7 +96,9 @@ public sealed record EngineerVerificationReceipt(
     bool BuildVerified,
     bool LiveVerified,
     string? CandidateHostKind = null,
-    string? VerificationSummary = null);
+    string? VerificationSummary = null,
+    bool SelfReviewPassed = false,
+    string? SelfReviewSummary = null);
 
 public sealed record EngineerRunSummary(
     bool Ok,
@@ -129,5 +133,6 @@ public sealed record EngineerRunSummary(
     MissionCollaborator[]? Collaborators = null,
     // The gates this run passes; null on a summary that has no run behind it.
     EngineerVerificationPolicy? Verification = null,
-    EngineerVerificationReceipt? Receipt = null);
+    EngineerVerificationReceipt? Receipt = null,
+    SelfReviewReport? SelfReview = null);
 

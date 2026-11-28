@@ -142,7 +142,9 @@ internal static class EngineerDelegationSummaries
                     IsSelected: inst.InstanceIndex == run.SelectedCandidateIndex,
                     Harness: inst.Harness,
                     Slices: inst.Slices,
-                    DeletedFiles: inst.DeletedFiles);
+                    DeletedFiles: inst.DeletedFiles,
+                    SelfReview: inst.SelfReview,
+                    SelfReviewRepairAttempts: inst.SelfReviewRepairAttempts);
             })
             .ToArray();
 
@@ -204,7 +206,9 @@ internal static class EngineerDelegationSummaries
                 BuildVerified: winner?.Build?.Succeeded == true,
                 LiveVerified: winner?.Live?.Succeeded == true,
                 CandidateHostKind: candidateHostKind,
-                VerificationSummary: winner?.Live?.Summary ?? winner?.Build?.Summary)
+                VerificationSummary: winner?.Live?.Summary ?? winner?.Build?.Summary,
+                SelfReviewPassed: winner?.SelfReview is { HasBlocking: false },
+                SelfReviewSummary: winner?.SelfReview?.Summary)
             : null;
 
         return new EngineerRunSummary(
@@ -239,7 +243,8 @@ internal static class EngineerDelegationSummaries
             Slices: effectiveSlices,
             Collaborators: collaborators,
             Verification: run.Verification,
-            Receipt: receipt);
+            Receipt: receipt,
+            SelfReview: winner?.SelfReview);
     }
 
     private static string[] CollectDiagnosticsAndTraces(
@@ -310,6 +315,20 @@ internal static class EngineerDelegationSummaries
                 {
                     lines.Add(traceLine);
                 }
+            }
+        }
+
+        if (winner?.SelfReview is { } selfReview)
+        {
+            var repairSuffix = winner.SelfReviewRepairAttempts > 0
+                ? string.Create(CultureInfo.InvariantCulture, $" after {winner.SelfReviewRepairAttempts} repair round(s)")
+                : string.Empty;
+            lines.Add($"self-review · {selfReview.Summary}{repairSuffix}");
+            foreach (var finding in selfReview.Findings.Take(10))
+            {
+                lines.Add(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"self-review.finding · [{finding.Severity}] {finding.RuleId} ({finding.Path}:{finding.Line}): {finding.Message}"));
             }
         }
 

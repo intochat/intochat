@@ -39,6 +39,7 @@ internal sealed class EngineerFlow(
     public const string Alias = IEngineerRuns.EngineerFlow;
     public const string ConfirmationKind = "engineer.publish";
     public const int MaxBuildRepairRounds = 3;
+    public const int MaxSelfReviewRepairRounds = 3;
     private const string PlanPrefix = "app:engineer";
 
     public static readonly TimeSpan ApprovalWindow = EngineerPipelineStages.DefaultApprovalWindow;
@@ -205,6 +206,25 @@ internal sealed class EngineerFlow(
             var verifiedCommit = winner.Commit
                 ?? throw new InvalidOperationException($"Candidate w{candidateIndex + 1} has no verified CommitSha.");
 
+            var candidateReview = winner.SelfReview
+                ?? await LocalSelfReview.ReviewUnifiedDiffOrFallback(
+                    ResolveSyntaxReviewerOnGrainTurn(),
+                    verifiedCommit.HostRenderedDiff).ConfigureAwait(true);
+            if (candidateReview.HasBlocking)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot promote candidate w{candidateIndex + 1}: local self-review blocked with {candidateReview.BlockingCount} blocking finding(s):\n{candidateReview.FormatForCard()}");
+            }
+
+            if (winner.SelfReview is null)
+            {
+                var patchedInstances = nextInner.Instances
+                    .Select(i => i.InstanceIndex == winner.InstanceIndex ? i with { SelfReview = candidateReview } : i)
+                    .ToArray();
+                nextInner = nextInner.WithUpdatedInstances(patchedInstances, nextInner.SelectedInstanceIndex);
+                winner = nextInner.SelectedInstance!;
+            }
+
             var previousPlanId = waiting.ConfirmationPlanId ?? currentInner.Approval?.PlanId;
             if (currentInner.SelectedInstanceIndex == candidateIndex
                 && !string.IsNullOrWhiteSpace(previousPlanId)
@@ -284,7 +304,7 @@ internal sealed class EngineerFlow(
                 "implement-tasks" => await ImplementTasksStepAsync(inner, ct).ConfigureAwait(true),
                 "build-and-test" => await BuildAndTestStepAsync(inner, ct).ConfigureAwait(true),
                 "live-verify" => await LiveVerifyStepAsync(inner, ct).ConfigureAwait(true),
-                "approval-gate" => await ApprovalGateStepAsync(step, inner).ConfigureAwait(true),
+                "approval-gate" => await ApprovalGateStepAsync(step, inner, ct).ConfigureAwait(true),
                 "push" => await PushStepAsync(inner, ct).ConfigureAwait(true),
                 "pr" => await PullRequestStepAsync(inner, ct).ConfigureAwait(true),
                 "clean" => await CleanStepAsync(inner, ct).ConfigureAwait(true),
@@ -328,7 +348,8 @@ internal sealed class EngineerFlow(
             "Discard Worktrees",
             ApprovalWindow,
             inner.ToSelectedChange(),
-            verifiedCommit);
+            verifiedCommit,
+            winner.SelfReview);
 
         // The person who approves reads first what was not checked.
         return inner.Verification.LeavesUnchecked ? plan with { Body = inner.Verification.Describe() + "\n\n" + plan.Body } : plan;
@@ -1283,19 +1304,20 @@ internal sealed class EngineerFlow(
         return new EngineerLiveContext(State.TraceId, traceReader, screens);
     }
 
-    private async Task<StepResult<EngineerRun>> ApprovalGateStepAsync(string step, EngineerRun inner)
+    private async Task<StepResult<EngineerRun>> ApprovalGateStepAsync(string step, EngineerRun inner, CancellationToken ct)
     {
-        var winner = inner.SelectedInstance ?? throw new FlowFailed(step, "No verified candidate instance available.");
+        var reviewedInner = await SelfReviewAndRepairWinnerAsync(step, inner, ct).ConfigureAwait(true);
+        var winner = reviewedInner.SelectedInstance ?? throw new FlowFailed(step, "No verified candidate instance available.");
         var (planId, expires) = EngineerPipelineStages.PrepareApprovalGate(
-            inner.ToSelectedChange(),
+            reviewedInner.ToSelectedChange(),
             winner.Commit,
             PlanPrefix,
-            EffectiveRunId(inner),
+            EffectiveRunId(reviewedInner),
             Context.Time.GetUtcNow(),
             ApprovalWindow,
             step);
 
-        var nextInner = inner.WithApprovalPending(planId, expires);
+        var nextInner = reviewedInner.WithApprovalPending(planId, expires);
         var changedFiles = winner.Commit?.ChangedFiles.Select(static f => f.Value).ToArray() ?? [];
         var deletedFiles = winner.DeletedFiles ?? [];
         await TryRecordSessionMilestoneOnGrainTurnAsync(
@@ -1308,12 +1330,316 @@ internal sealed class EngineerFlow(
             ],
             decisions:
             [
-                string.Create(CultureInfo.InvariantCulture, $"Selected candidate w{winner.InstanceIndex + 1} ({winner.EffectiveStrategy}, score={winner.EffectiveScore.TotalScore}) using {inner.Harness}."),
+                string.Create(CultureInfo.InvariantCulture, $"Selected candidate w{winner.InstanceIndex + 1} ({winner.EffectiveStrategy}, score={winner.EffectiveScore.TotalScore}) using {reviewedInner.Harness}."),
+                $"LocalSelfReview: {winner.SelfReview?.Summary ?? "passed"} (repairs={winner.SelfReviewRepairAttempts}).",
             ],
             openThreads: [$"Human approval pending on confirmation plan {planId}"],
             resolvedThreads: null).ConfigureAwait(true);
 
         return nextInner.WaitApproval(step, expires);
+    }
+
+    private IRoslyn? ResolveSyntaxReviewerOnGrainTurn()
+    {
+        if (services?.GetService<IRoslyn>() is { } injected)
+        {
+            return injected;
+        }
+
+        try
+        {
+            var roslynId = new NeuronId(Id.Brain, "microsoft.roslyn", PrReviewFlow.SyntaxReviewKey);
+            if (Implements<IRoslyn>(roslynId))
+            {
+                return Context.Get<IRoslyn>(roslynId);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            ConsoleLogger.LogDebug(ex, "IRoslyn syntax reviewer unavailable in detached EngineerFlow invocation; using static diff audit.");
+        }
+
+        return null;
+    }
+
+    private async Task<EngineerRun> SelfReviewAndRepairWinnerAsync(string step, EngineerRun inner, CancellationToken ct)
+    {
+        var winner = inner.SelectedInstance ?? throw new FlowFailed(step, "No verified candidate instance available.");
+        var currentCommit = winner.Commit ?? throw new FlowFailed(step, "Cannot run local self-review without a verified CommitSha.");
+
+        var syntaxReviewer = ResolveSyntaxReviewerOnGrainTurn();
+        var report = await LocalSelfReview.ReviewUnifiedDiffOrFallback(
+            syntaxReviewer,
+            currentCommit.HostRenderedDiff,
+            ct).ConfigureAwait(true);
+
+        var current = winner;
+        var repairRound = current.SelfReviewRepairAttempts;
+        var commitAmended = false;
+
+        if (report.HasBlocking && current.Lease is { } lease)
+        {
+            var wt = WorkTree;
+            var activeRoslyn = Roslyn;
+            var harness = ResolveHarness(inner.Harness, inner.Repository?.Value);
+            var hydratedSnapshot = await HydrateMissionBrainSnapshotAsync(
+                inner.Repository?.Value ?? "os",
+                inner.Goal,
+                ct).ConfigureAwait(true);
+            var runId = EffectiveRunId(inner);
+            var flowId = Id.ToString();
+            var brainId = Id.Brain;
+            var totalInstances = inner.Instances.Length;
+            var baseRatifiedPlan = inner.RatifiedPlan ?? (inner.Plan is { } plan
+                ? new RatifiedPlan(
+                    Goal: inner.Goal,
+                    ArchitectureSummary: plan.ArchitectureSummary,
+                    CleanupTargets: [],
+                    Slices: EngineerTaskSlices.FromTaskPlan(plan),
+                    Ratified: true,
+                    RatifiedBy: "auto",
+                    RatifiedAt: Context.Time.GetUtcNow(),
+                    Harness: inner.Harness)
+                : new RatifiedPlan(
+                    Goal: inner.Goal,
+                    ArchitectureSummary: string.Empty,
+                    CleanupTargets: [],
+                    Slices: [],
+                    Ratified: true,
+                    RatifiedBy: "auto",
+                    RatifiedAt: Context.Time.GetUtcNow(),
+                    Harness: inner.Harness));
+            var ownedPaths = (baseRatifiedPlan.Slices ?? [])
+                .SelectMany(static s => s.OwnedPaths ?? [])
+                .Concat(currentCommit.ChangedFiles.Select(static f => f.Value))
+                .Where(static p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var (strategyId, strategyLabel, strategyLens) = EngineerCandidateStrategies.ForCandidate(current.InstanceIndex);
+            var effectiveStrategy = string.IsNullOrWhiteSpace(current.Strategy) ? strategyId : current.Strategy!;
+            var grainScheduler = TaskScheduler.Current;
+
+            Task PublishProgressLive(OperationProgressed signal) =>
+                Task.Factory.StartNew(
+                    async () =>
+                    {
+                        try
+                        {
+                            await Publish(signal).ConfigureAwait(true);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            ConsoleLogger.LogDebug(ex, "Skipping live OperationProgressed publish on stopping grain.");
+                        }
+                    },
+                    CancellationToken.None,
+                    TaskCreationOptions.None,
+                    grainScheduler).Unwrap();
+
+            while (report.HasBlocking && repairRound < MaxSelfReviewRepairRounds)
+            {
+                ct.ThrowIfCancellationRequested();
+                repairRound++;
+
+                var repairGoal = BuildSelfReviewRepairGoalPrompt(inner.Goal, repairRound, report);
+                var repairSlice = new EngineerTaskSlice(
+                    SliceId: string.Create(CultureInfo.InvariantCulture, $"self-review-repair-r{repairRound}"),
+                    Title: string.Create(CultureInfo.InvariantCulture, $"Local self-review repair round {repairRound}/{MaxSelfReviewRepairRounds}"),
+                    OwnedPaths: ownedPaths,
+                    DependsOnSliceIds: [],
+                    Status: "pending",
+                    Percent: 0,
+                    AssignedAgentKey: string.Create(CultureInfo.InvariantCulture, $"ino.self-review-r{repairRound}"),
+                    Language: "csharp",
+                    Instructions: repairGoal);
+                var repairPlan = baseRatifiedPlan with
+                {
+                    Goal = repairGoal,
+                    CleanupTargets = [],
+                    Slices = [repairSlice],
+                };
+                var repairRequest = new EngineeringHarnessRequest(
+                    FlowId: flowId,
+                    RunId: runId,
+                    RepositoryId: inner.Repository?.Value ?? lease.RepositoryId,
+                    Goal: repairGoal,
+                    WorktreeId: lease.EffectiveLeaseId,
+                    WorktreePath: lease.TreePath,
+                    InstanceIndex: current.InstanceIndex,
+                    TotalInstances: totalInstances,
+                    Strategy: effectiveStrategy,
+                    StrategyLabel: strategyLabel,
+                    StrategyPromptLens: strategyLens,
+                    Harness: inner.Harness,
+                    RatifiedPlan: repairPlan,
+                    Brain: brainId,
+                    BaseBranch: lease.BaseBranch,
+                    SourceRepositoryPath: lease.SourceRepoPath);
+
+                try
+                {
+                    var harnessResult = await Task.Run(
+                        () => harness is InoNativeHarness inoNative
+                            ? inoNative.ExecuteWithContextAsync(
+                                repairRequest,
+                                preHydrated: hydratedSnapshot,
+                                recordJournalMilestone: false,
+                                onProgress: PublishProgressLive,
+                                ct: ct)
+                            : harness.ExecuteAsync(repairRequest, PublishProgressLive, ct),
+                        ct).ConfigureAwait(true);
+
+                    if (harnessResult.Succeeded)
+                    {
+                        var touchedRepoPaths = harnessResult.TouchedFiles
+                            .Select(static raw => RepoPath.TryParse(raw, out var parsed) ? parsed : null)
+                            .OfType<RepoPath>()
+                            .Distinct()
+                            .OrderBy(static p => p.Value, StringComparer.Ordinal)
+                            .ToArray();
+
+                        var liveCsPaths = touchedRepoPaths
+                            .Where(p => p.IsCSharp && !Array.Exists(current.DeletedFiles ?? [], d => string.Equals(d, p.Value, StringComparison.OrdinalIgnoreCase)))
+                            .Select(static p => p.Value)
+                            .ToArray();
+                        var roslynDiagnostics = liveCsPaths.Length > 0
+                            ? (await Task.Run(() => activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct), ct).ConfigureAwait(true)).ToArray()
+                            : current.RoslynDiagnostics ?? [];
+
+                        var commitMessage = ChangePolicy.BuildCommitMessage(inner.Goal, harnessResult.Summary);
+                        currentCommit = await Task.Run(
+                            () => wt.VerifyAndAmendAsync(lease, currentCommit.Commit, commitMessage, ct),
+                            ct).ConfigureAwait(true);
+                        commitAmended = true;
+                        var changedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
+
+                        EngineerBuildReport? updatedBuild = current.Build;
+                        if (inner.Verification.Runs(EngineerVerificationPolicy.BuildAndTestGate))
+                        {
+                            updatedBuild = await Task.Run(
+                                () => VerifyInstanceBuildAsync(BuildVerifier, lease, changedPaths, ct),
+                                ct).ConfigureAwait(true);
+                        }
+
+                        current = current with
+                        {
+                            Edit = new CoderEdit(
+                                harnessResult.Summary,
+                                harnessResult.ModelId,
+                                touchedRepoPaths),
+                            RoslynDiagnostics = roslynDiagnostics,
+                            Commit = currentCommit,
+                            Build = updatedBuild,
+                            Live = null,
+                        };
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    ConsoleLogger.LogSwallowed(
+                        ex,
+                        $"engineer worktree instance #{current.InstanceIndex} self-review repair round {repairRound}/{MaxSelfReviewRepairRounds} failed");
+                }
+
+                report = await LocalSelfReview.ReviewUnifiedDiffOrFallback(
+                    syntaxReviewer,
+                    currentCommit.HostRenderedDiff,
+                    ct).ConfigureAwait(true);
+            }
+        }
+
+        if (report.HasBlocking)
+        {
+            throw new FlowFailed(
+                step,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"LocalSelfReview blocked before approval-gate after {repairRound} repair round(s) ({report.BlockingCount} blocking finding(s)):\n{report.FormatForCard()}"));
+        }
+
+        if (inner.Verification.Runs(EngineerVerificationPolicy.BuildAndTestGate)
+            && current.Build is { Succeeded: false } failedBuild)
+        {
+            throw new FlowFailed(
+                step,
+                $"LocalSelfReview auto-repair broke build-and-test before approval-gate: {failedBuild.Summary}");
+        }
+
+        if (commitAmended
+            && inner.Verification.Runs(EngineerVerificationPolicy.LiveVerifyGate)
+            && !inner.Verification.LiveVerifyNotAvailable
+            && current.Lease is { } repairedLease)
+        {
+            var liveVerifierInstance = LiveVerifier;
+            if (liveVerifierInstance is ILiveEnvironment { Configured: false })
+            {
+                inner = inner.WithLiveVerifyNotAvailable();
+            }
+            else
+            {
+                var amendedChangedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
+                var amendedLiveContext = BuildLiveVerificationContext() with
+                {
+                    CommitSha = currentCommit.Commit.Value,
+                    BrainId = Id.Brain.Value,
+                };
+                var liveReport = liveVerifierInstance is EngineerLiveVerifier stageVerifier
+                    ? await stageVerifier.VerifyLiveAsync(
+                        repairedLease.TreePath,
+                        inner.Goal,
+                        amendedChangedPaths,
+                        amendedLiveContext,
+                        ct).ConfigureAwait(true)
+                    : await Task.Run(
+                        () => liveVerifierInstance.VerifyLiveAsync(
+                            repairedLease.TreePath,
+                            inner.Goal,
+                            amendedChangedPaths,
+                            ct),
+                        ct).ConfigureAwait(true);
+
+                if (EngineerLiveVerifier.EnvironmentMissing(liveReport))
+                {
+                    throw new FlowFailed(
+                        step,
+                        "LocalSelfReview auto-repair amended the commit, but no live environment was available to re-verify the amended commit before approval-gate.");
+                }
+
+                if (!liveReport.Succeeded)
+                {
+                    throw new FlowFailed(
+                        step,
+                        $"LocalSelfReview auto-repair failed post-repair live-verify before approval-gate: {liveReport.Summary}");
+                }
+
+                current = current with { Live = liveReport };
+            }
+        }
+
+        var updatedWinner = (current with
+        {
+            SelfReview = report,
+            SelfReviewRepairAttempts = repairRound,
+        }).WithComputedScore();
+
+        var updatedInstances = inner.Instances
+            .Select(i => i.InstanceIndex == updatedWinner.InstanceIndex ? updatedWinner : i)
+            .ToArray();
+
+        return inner.WithUpdatedInstances(updatedInstances, inner.SelectedInstanceIndex);
+    }
+
+    private static string BuildSelfReviewRepairGoalPrompt(string originalGoal, int repairRound, SelfReviewReport report)
+    {
+        var blocking = report.Findings
+            .Where(static f => f.Severity == ReviewSeverity.Blocking)
+            .Take(25)
+            .Select(static f => string.Create(CultureInfo.InvariantCulture, $"- [{f.RuleId}] ({f.Path}:{f.Line}): {f.Message}"));
+        var findingsBlock = string.Join("\n", blocking);
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{originalGoal}\n\n[LocalSelfReview Auto-Repair — Round {repairRound}/{MaxSelfReviewRepairRounds}]\nLocalSelfReview found blocking violations in the unified diff before approval-gate:\n{findingsBlock}\nFix every blocking violation (no swallowed exceptions, no framework/host boundary violations, no hardcoded secrets/credentials) inside the worktree.");
     }
 
     private async Task<StepResult<EngineerRun>> PushStepAsync(EngineerRun inner, CancellationToken ct)
