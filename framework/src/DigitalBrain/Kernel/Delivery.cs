@@ -49,6 +49,7 @@ internal sealed class Delivery(
 
     private readonly Lock _gate = new();
     private readonly SemaphoreSlim _nudgeGate = new(1, 1);
+    private readonly SemaphoreSlim _flushGate = new(1, 1);
     private readonly HashSet<string> _imperativeBrainWide = new(StringComparer.Ordinal);
     private Subscriptions _held = Subscriptions.None(subscriber);
     private Subscriptions _durable = Subscriptions.None(subscriber);
@@ -262,7 +263,16 @@ internal sealed class Delivery(
         try
         {
             await consumer.Consume(signal,
-                () => scope = ReactionScope.Open(subscriber, expected => new CursorMove(Subscriptions.RecordName, _held.Encode(), expected), _version),
+                () => scope = ReactionScope.Open(
+                    subscriber,
+                    expected =>
+                    {
+                        lock (_gate)
+                        {
+                            return new CursorMove(Subscriptions.RecordName, _held.Encode(), LatestVersion(expected, _version));
+                        }
+                    },
+                    CurrentVersion()),
                 CancellationToken.None).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
@@ -291,17 +301,32 @@ internal sealed class Delivery(
 
     private async Task Flush(bool force)
     {
-        if (!force && !_held.Entries.Exists(e => e.Cursor.Value - (_durable.Of(e.Source)?.Cursor.Value ?? 0) >= SkipFlush))
+        await _flushGate.WaitAsync(CancellationToken.None).ConfigureAwait(true);
+        try
         {
-            return;
+            Subscriptions heldSnapshot;
+            long? currentVersion;
+            lock (_gate)
+            {
+                if (!force && !_held.Entries.Exists(e => e.Cursor.Value - (_durable.Of(e.Source)?.Cursor.Value ?? 0) >= SkipFlush))
+                {
+                    return;
+                }
+                heldSnapshot = _held;
+                currentVersion = _version;
+            }
+            var scope = ReactionScope.Of(subscriber);
+            var expectedVersion = LatestVersion(scope?.Version, currentVersion);
+            var move = new CursorMove(Subscriptions.RecordName, heldSnapshot.Encode(), expectedVersion);
+            var commit = new Commit(subscriber, null, [], move, new Stamp(null, null));
+            var result = await journal.Append(commit, CancellationToken.None).ConfigureAwait(true);
+            Carried(result.Version, heldSnapshot);
+            scope?.Carry(result.Version);
         }
-        var scope = ReactionScope.Of(subscriber);
-        var expectedVersion = scope?.Version ?? _version;
-        var move = new CursorMove(Subscriptions.RecordName, _held.Encode(), expectedVersion);
-        var commit = new Commit(subscriber, null, [], move, new Stamp(null, null));
-        var result = await journal.Append(commit, CancellationToken.None).ConfigureAwait(true);
-        Carried(result.Version);
-        scope?.Carry(result.Version);
+        finally
+        {
+            _flushGate.Release();
+        }
     }
 
     private bool IsImperativeBrainWide(string alias)
@@ -323,8 +348,20 @@ internal sealed class Delivery(
     }
 
     private void Move(Func<Subscriptions, Subscriptions> change) { lock (_gate) { _held = change(_held); } }
-    private void Carried(long? version) { _version = version; _durable = _held; }
+    private void Carried(long? version, Subscriptions? flushed = null) { lock (_gate) { _version = LatestVersion(_version, version); _durable = flushed ?? _held; } }
+    private long? CurrentVersion() { lock (_gate) { return _version; } }
+    private static long? LatestVersion(long? left, long? right) => (left, right) switch
+    {
+        (long a, long b) => Math.Max(a, b),
+        (long a, null) => a,
+        (null, long b) => b,
+        _ => null,
+    };
     private static NeuronId BrainWideOf(BrainId brain) => new(brain, "*", "*");
 
-    public void Dispose() => _nudgeGate.Dispose();
+    public void Dispose()
+    {
+        _nudgeGate.Dispose();
+        _flushGate.Dispose();
+    }
 }

@@ -155,8 +155,7 @@ internal abstract class InterleavingRunHost<TState>(
     {
         foreach (var ctxId in Runner.ContextIds(contexts))
         {
-            await Context.Wires.Ensure<ContextUpdated>(ctxId);
-            await Context.Wires.Ensure<ContextRemoved>(ctxId);
+            await Context.Wires.Ensure(ctxId, typeof(ContextUpdated), typeof(ContextRemoved));
         }
     }
 
