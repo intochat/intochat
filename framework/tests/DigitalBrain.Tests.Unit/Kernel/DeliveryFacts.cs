@@ -141,4 +141,75 @@ public sealed class DeliveryFacts
         Assert.Equal(1, counters.ReactionFailures);
         Assert.Equal(initialCursor, delivery.Subscriptions.Of(pub)!.Cursor);
     }
+
+    private sealed class DelayedStrictVersionJournal(BrainId brain, TimeSpan appendDelay) : IBrainJournal
+    {
+        private readonly Lock _gate = new();
+        private long? _storedVersion;
+        private long _sequence;
+
+        public BrainId Brain => brain;
+
+        public async Task<CommitResult> Append(Commit commit, CancellationToken ct = default)
+        {
+            await Task.Delay(appendDelay, ct);
+            lock (_gate)
+            {
+                if (commit.Cursor is { } cursor)
+                {
+                    if (_storedVersion != cursor.Expected)
+                    {
+                        throw new StaleVersionException(commit.Publisher.ToString(), cursor.Name, _storedVersion, cursor.Expected);
+                    }
+                    _storedVersion = (_storedVersion ?? 0) + 1;
+                }
+                _sequence++;
+                return new CommitResult(_storedVersion ?? _sequence, _sequence, new Position(_sequence), DateTimeOffset.UtcNow);
+            }
+        }
+
+        public Task<JournalRecord?> ReadRecord(NeuronId owner, string name, CancellationToken ct = default)
+            => Task.FromResult<JournalRecord?>(null);
+
+        public Task<SignalPage> Read(long since, int limit, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<SignalPage> Read(NeuronId publisher, long since, int limit, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<SignalPage> ReadTrace(string traceId, long since, int limit, CancellationToken ct = default) => throw new NotImplementedException();
+        public IAsyncEnumerable<JournaledSignal> Watch(long since, CancellationToken ct = default) => throw new NotImplementedException();
+    }
+
+    [Fact]
+    public async Task Concurrent_Ensure_and_Nudged_serialize_subscription_flushes_without_StaleVersionException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sub = NeuronId.Parse("b1/conversation/squad-1");
+        var pub1 = NeuronId.Parse("b1/context/apps.capabilities");
+        var pub2 = NeuronId.Parse("b1/context/ui.state");
+        var pub3 = NeuronId.Parse("b1/context/memory.recall");
+        var alias = SignalAliases.Of(typeof(TestSignal));
+
+        var journal = new DelayedStrictVersionJournal(sub.Brain, TimeSpan.FromMilliseconds(15));
+        var view = new FakeJournalView();
+        var consumer = new FakeConsumer();
+        var counters = new DeliveryCounters();
+
+        using var delivery = new Delivery(sub, journal, view, consumer, a => a == alias ? typeof(TestSignal) : null, TimeProvider.System, counters);
+        await delivery.Initialize(ct);
+        await delivery.Ensure(pub1, [alias], DateTimeOffset.UtcNow);
+
+        // Publish a signal on pub1 so Nudged triggers CatchUp -> React -> Flush concurrently with interleaved Ensure calls.
+        view.AvailableSignals.Add(new PositionedSignal(new Position(1), alias, new JournaledSignal(pub1, 1, new TestSignal(7), DateTimeOffset.UtcNow)));
+        view.Last = new Position(1);
+
+        var nudgeTask = delivery.Nudged(new Position(1));
+        var ensure2Task = delivery.Ensure(pub2, [alias], DateTimeOffset.UtcNow);
+        var ensure3Task = delivery.Ensure(pub3, [alias], DateTimeOffset.UtcNow);
+
+        await Task.WhenAll(nudgeTask, ensure2Task, ensure3Task);
+
+        Assert.Single(consumer.Consumed);
+        Assert.NotNull(delivery.Subscriptions.Of(pub1));
+        Assert.NotNull(delivery.Subscriptions.Of(pub2));
+        Assert.NotNull(delivery.Subscriptions.Of(pub3));
+        Assert.Equal(new Position(1), delivery.Subscriptions.Of(pub1)!.Cursor);
+    }
 }

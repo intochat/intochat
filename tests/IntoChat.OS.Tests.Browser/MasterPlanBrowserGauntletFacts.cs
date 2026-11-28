@@ -102,7 +102,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { conversationId = folderThreadId, folder = folderName },
                     },
                     ct);
-                Assert.True(setFolder.IsSuccessStatusCode, $"ino.set-folder failed: {(int)setFolder.StatusCode}");
+                await AssertActSucceededAsync(setFolder, "ino.set-folder", ct);
             }
 
             await WaitForSemanticsTextContainsAsync(page, "Squads & Projects", ct);
@@ -138,7 +138,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { section = "team" },
                     },
                     ct);
-                Assert.True(navTeam.IsSuccessStatusCode, $"settings.navigate(team) failed: {(int)navTeam.StatusCode}");
+                await AssertActSucceededAsync(navTeam, "settings.navigate(team)", ct);
             }
 
             await page.GotoAsync(host.ShellFor("apps/settings/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
@@ -228,7 +228,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         },
                     },
                     ct);
-                Assert.True(openFailing.IsSuccessStatusCode, $"Failed to open failing engineer-pr drawer: {(int)openFailing.StatusCode}");
+                await AssertActSucceededAsync(openFailing, "ino.open-drawer (failing engineer-pr)", ct);
             }
 
             await WaitForSemanticsTextContainsAsync(page, "Self-Review Gate Failed", ct);
@@ -261,7 +261,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         },
                     },
                     ct);
-                Assert.True(openPassing.IsSuccessStatusCode, $"Failed to open passing engineer-pr drawer: {(int)openPassing.StatusCode}");
+                await AssertActSucceededAsync(openPassing, "ino.open-drawer (passing engineer-pr)", ct);
             }
 
             // Tournament tab (default)
@@ -371,7 +371,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         },
                     },
                     ct);
-                Assert.True(createSpecialist.IsSuccessStatusCode, $"ino.new-specialist failed: {(int)createSpecialist.StatusCode}");
+                await AssertActSucceededAsync(createSpecialist, "ino.new-specialist", ct);
 
                 // 2. Create an OwnerTrusted Squad Room (@ino Lead + custom specialist).
                 using var createSquad = await kernel.PostAsJsonAsync(
@@ -389,7 +389,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         },
                     },
                     ct);
-                Assert.True(createSquad.IsSuccessStatusCode, $"ino.new-squad failed: {(int)createSquad.StatusCode}");
+                await AssertActSucceededAsync(createSquad, "ino.new-squad", ct);
             }
 
             // 3. Load InoApp in Chromium and verify OwnerTrusted · Squad pill and seated @handle chips.
@@ -410,7 +410,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
             await WaitForSemanticsTextContainsAsync(page, "Squad Checklist", ct);
 
             // 5. Add a squad task, move it to In Progress on KanbanNeuron, and toggle it Done via CheckBoxNeuron — verifying live sync.
-            const string squadTaskTitle = "Verify Kanban Sync";
+            var squadTaskTitle = $"Verify Kanban Sync {suffix}";
             using (var kernel = host.CreateKernelClient())
             {
                 using var addTask = await kernel.PostAsJsonAsync(
@@ -423,7 +423,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { title = squadTaskTitle, description = "Live browser sync test", tag = "Squad" },
                     },
                     ct);
-                Assert.True(addTask.IsSuccessStatusCode, $"ino.squad-add-task failed: {(int)addTask.StatusCode}");
+                await AssertActSucceededAsync(addTask, "ino.squad-add-task", ct);
             }
 
             await WaitForSemanticsTextContainsAsync(page, squadTaskTitle, ct);
@@ -449,7 +449,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { taskId = createdTaskId, columnId = "in-progress", index = 0 },
                     },
                     ct);
-                Assert.True(moveTask.IsSuccessStatusCode, $"ino.squad-move-task failed: {(int)moveTask.StatusCode}");
+                await AssertActSucceededAsync(moveTask, "ino.squad-move-task", ct);
             }
 
             await WaitForTaskStatusAsync(brainId, createdTaskId, TaskStatus.InProgress, ct);
@@ -466,7 +466,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { taskId = createdTaskId, @checked = true },
                     },
                     ct);
-                Assert.True(toggleTask.IsSuccessStatusCode, $"ino.squad-toggle-task failed: {(int)toggleTask.StatusCode}");
+                await AssertActSucceededAsync(toggleTask, "ino.squad-toggle-task", ct);
             }
 
             await WaitForTaskStatusAsync(brainId, createdTaskId, TaskStatus.Completed, ct);
@@ -504,7 +504,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { taskId = createdTaskId, active = true },
                     },
                     ct);
-                Assert.True(enterChatAbout.IsSuccessStatusCode);
+                await AssertActSucceededAsync(enterChatAbout, "ino.chat-about-choice", ct);
             }
 
             await WaitForSemanticsTextContainsAsync(page, "Return to choice", ct);
@@ -673,7 +673,7 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
                         args = new { conversationId = roomShortKey },
                     },
                     ct);
-                Assert.True(switchResp.IsSuccessStatusCode, $"Failed to switch to shared room: {(int)switchResp.StatusCode}");
+                await AssertActSucceededAsync(switchResp, "ino.switch-conversation (shared room)", ct);
             }
 
             await page.GotoAsync(host.ShellFor("apps/ino/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
@@ -908,6 +908,28 @@ public sealed class MasterPlanBrowserGauntletFacts(Item350WebShellFixture host)
             Candidates: candidates,
             Receipt: receipt,
             SelfReview: selfReviewReport);
+    }
+
+    private static async Task AssertActSucceededAsync(HttpResponseMessage response, string action, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = string.Empty;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(ct);
+        }
+        catch
+        {
+            // Best-effort diagnostic body read.
+        }
+
+        Assert.Fail(string.IsNullOrWhiteSpace(body)
+            ? $"{action} failed: {(int)response.StatusCode}"
+            : $"{action} failed: {(int)response.StatusCode} — {body}");
     }
 
     private static List<string> TrackBrowserErrors(IPage page)
