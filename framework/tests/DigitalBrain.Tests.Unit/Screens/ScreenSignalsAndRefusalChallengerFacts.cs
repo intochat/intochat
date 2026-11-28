@@ -99,16 +99,22 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
         return (alcRef, typeRef);
     }
 
+    private static readonly TimeSpan UnloadBudget = TimeSpan.FromSeconds(30);
+
     [Fact]
     public void ScreenSignals_CollectibleAssembly_BypassesCache_UnloadsCleanlyWithoutPinning()
     {
         var (alcRef, typeRef) = ExerciseCollectibleScreenSignals();
 
-        for (var i = 0; i < 10 && (alcRef.IsAlive || typeRef.IsAlive); i++)
+        // An unloaded collectible context clears only once no thread still references its loader and finalizers complete,
+        // which can take longer under parallel test load; collect within a budget so a real leak still fails the assertion.
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        while ((alcRef.IsAlive || typeRef.IsAlive) && System.Diagnostics.Stopwatch.GetElapsedTime(start) < UnloadBudget)
         {
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            Thread.Sleep(10);
         }
 
         Assert.False(alcRef.IsAlive, "FAILURE: Collectible AssemblyLoadContext was pinned in memory by ScreenSignals!");
