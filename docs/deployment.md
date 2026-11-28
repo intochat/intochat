@@ -39,6 +39,16 @@ There are **zero Azure Container Apps Session Pools (`Microsoft.App/sessionPools
 3. **Optional Separate Sandbox Container App in Azure**:
    - Because `IntoChat.OS.Sandbox` has its own `src/IntoChat.OS.Sandbox/Dockerfile` and HTTP API, a deployment can also run `intochat-<env>-sandbox` as an internal-ingress Container App in `intochat-<env>-env` and set `IntoChatOS__Modules__sandbox__Options__Url=http://intochat-<env>-sandbox` if physical container-level isolation is desired in the cloud.
 
+### Azure Policy Cost Guardrails & ACA Consumption Job Devslots
+
+`PulumiStackSynthesizer` (`src/IntoChat.OS.Kernel/Install/PulumiStackSynthesizer.CostGuardrails.cs`) synthesizes subscription/environment cost guardrails and an automated cost-breaker:
+
+- **Policy Rule A (`deny-aca-session-pools`)**: Permanently denies `Microsoft.App/sessionPools` across the subscription with zero exceptions.
+- **Policy Rule B (`deny-aca-dedicated-and-runaway-scale`)**: Denies non-`Consumption` ACA workload profiles, `Microsoft.App/containerApps` exceeding `maxReplicas=2` or `cpu=1.0`, and `Microsoft.App/jobs` violating `Consumption` / `Manual` trigger / `parallelism <= 2` / `replicaTimeout <= 900` / `replicaRetryLimit == 0` / `cpu <= 2.0` / `memory <= 4Gi`.
+- **Policy Rule C (`deny-expensive-compute-and-db-skus`)**: Blocks high-cost compute and database SKUs.
+- **Cost-Breaker Runbook (`Stop-IntoChatCostBreaker`)**: Azure Automation runbook + webhook wired to stop runaway non-protected resources automatically.
+- **Optional Cloud Devslot (`DevSlotJobConfig` / `AcaJobCandidateHost`)**: Disabled by default (`InstallConfig.DevSlotJob`); when enabled, provisions a Policy Rule B–compliant `Microsoft.App/jobs` Consumption Job for headless Plane 2 candidate verification (Paired PC Plane 2 relay remains Tier 1 at `$0` Azure compute).
+
 ---
 
 ## 3. Commands (`aspire do pulumi` & CLI)
