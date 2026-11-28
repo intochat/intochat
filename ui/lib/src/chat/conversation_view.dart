@@ -618,11 +618,7 @@ class _ConversationViewState extends State<ConversationView> {
                           ),
                           child: Row(
                             children: [
-                              Icon(
-                                LucideIcons.hand,
-                                size: 14,
-                                color: c.accent,
-                              ),
+                              Icon(LucideIcons.hand, size: 14, color: c.accent),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -636,16 +632,14 @@ class _ConversationViewState extends State<ConversationView> {
                               ),
                               GestureDetector(
                                 onTap: () {
-                                  setState(
-                                    () => _chattingAboutWaiting = false,
-                                  );
-                                  WidgetsBinding.instance.addPostFrameCallback(
-                                    (_) {
-                                      if (mounted) {
-                                        PromptKeys.focus(_dockFocus);
-                                      }
-                                    },
-                                  );
+                                  setState(() => _chattingAboutWaiting = false);
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (mounted) {
+                                      PromptKeys.focus(_dockFocus);
+                                    }
+                                  });
                                 },
                                 child: Text(
                                   'Return to choice',
