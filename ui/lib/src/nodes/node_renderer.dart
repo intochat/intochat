@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
+import 'app_shell_view.dart';
 import 'surface_nodes.dart';
 
 import 'card_nodes.dart';
