@@ -33,6 +33,10 @@ internal sealed class DeviceSandboxJobExecutor(
         {
             await NdjsonJobStreamer.ExecuteAsync(
                 new NdjsonStreamRequest<SandboxStreamChunk, ConnectedSandboxResponse>(
+                    JobId: job.JobId,
+                    StreamLabel: "Streaming local sandbox",
+                    FallbackLabel: "Local UnitHost sandbox",
+                    Logger: logger,
                     ChunkTypeInfo: DeviceWireJson.Default.SandboxStreamChunk,
                     ProduceChunks: token => streamingSandbox.ExecuteStreamingAsync(job, token),
                     ExecuteUnaryFallback: token => streamingSandbox.ExecuteAsync(job, token),
@@ -52,9 +56,7 @@ internal sealed class DeviceSandboxJobExecutor(
                         Error: null,
                         ExecutedByMachineId: thisMachine.Value),
                     CreateMissingFallbackResult: capturedError => CreateErrorResponse(
-                        capturedError ?? "Streaming sandbox execution completed without a terminal result."),
-                    OnStreamError: error => logger.LogWarning(error, "Streaming local sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name),
-                    OnFallbackError: error => logger.LogWarning(error, "Local UnitHost sandbox job {JobId} fallback failed with {ErrorType}.", job.JobId, error.GetType().Name)),
+                        capturedError ?? "Streaming sandbox execution completed without a terminal result.")),
                 jobCt: ct,
                 outerCt: ct).ConfigureAwait(false);
             return;

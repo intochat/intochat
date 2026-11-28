@@ -39,6 +39,10 @@ internal sealed class DeviceEngineeringJobExecutor(
         {
             await NdjsonJobStreamer.ExecuteAsync(
                 new NdjsonStreamRequest<EngineeringStreamChunk, ConnectedEngineeringResponse>(
+                    JobId: job.JobId,
+                    StreamLabel: "Streaming Plane 2 engineering",
+                    FallbackLabel: "Local Plane 2 engineering",
+                    Logger: logger,
                     ChunkTypeInfo: DeviceWireJson.Default.EngineeringStreamChunk,
                     ProduceChunks: token => streamingExecutor.ExecuteStreamingAsync(job, token),
                     ExecuteUnaryFallback: token => streamingExecutor.ExecuteAsync(job, token),
@@ -60,9 +64,7 @@ internal sealed class DeviceEngineeringJobExecutor(
                     FormatTimeoutMessage: () => $"Local Plane 2 engineering job exceeded {timeoutSeconds}s execution cap.",
                     CreateTimeoutFallbackResult: () => CreateErrorResponse(
                         job.RunId,
-                        $"timeout: Local Plane 2 engineering job exceeded {timeoutSeconds}s execution cap."),
-                    OnStreamError: error => logger.LogWarning(error, "Streaming Plane 2 engineering job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name),
-                    OnFallbackError: error => logger.LogWarning(error, "Local Plane 2 engineering job {JobId} fallback failed with {ErrorType}.", job.JobId, error.GetType().Name)),
+                        $"timeout: Local Plane 2 engineering job exceeded {timeoutSeconds}s execution cap.")),
                 jobCt: jobCt,
                 outerCt: ct).ConfigureAwait(false);
             return;

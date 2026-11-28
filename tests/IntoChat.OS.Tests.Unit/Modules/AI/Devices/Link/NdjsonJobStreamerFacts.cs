@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS.Modules.Devices.Link;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Devices.Tests.Unit.Link;
 
@@ -180,10 +182,10 @@ public sealed class NdjsonJobStreamerFacts
     }
 
     [Fact]
-    public async Task ProducerExceptionEmitsTerminalDoneErrorChunkAndInvokesCallback()
+    public async Task ProducerExceptionEmitsTerminalDoneErrorChunkAndLogsWarning()
     {
         var streamedChunks = new List<SandboxStreamChunk>();
-        Exception? logged = null;
+        var logger = new RecordingLogger();
 
         await NdjsonJobStreamer.ExecuteAsync(
             CreateSandboxRequest(
@@ -196,11 +198,11 @@ public sealed class NdjsonJobStreamerFacts
                     return true;
                 },
                 reportFallback: (_, _) => Task.CompletedTask,
-                onStreamError: err => logged = err),
+                logger: logger),
             jobCt: Ct,
             outerCt: Ct);
 
-        Assert.IsType<InvalidOperationException>(logged);
+        Assert.Contains(logger.Exceptions, static err => err is InvalidOperationException);
         Assert.Equal(2, streamedChunks.Count);
         Assert.True(streamedChunks[1].Done);
         Assert.Equal("boom-from-producer", streamedChunks[1].Error);
@@ -214,10 +216,14 @@ public sealed class NdjsonJobStreamerFacts
         Func<ConnectedSandboxResponse, CancellationToken, Task> reportFallback,
         Func<CancellationToken, IAsyncEnumerable<SandboxStreamChunk>>? produceAsync = null,
         Func<string>? formatTimeoutMessage = null,
-        Action<Exception>? onStreamError = null)
+        ILogger? logger = null)
     {
         const string machineId = "pc-test-1";
         return new NdjsonStreamRequest<SandboxStreamChunk, ConnectedSandboxResponse>(
+            JobId: "job-test-1",
+            StreamLabel: "Streaming local sandbox",
+            FallbackLabel: "Local UnitHost sandbox",
+            Logger: logger ?? NullLogger.Instance,
             ChunkTypeInfo: DeviceWireJson.Default.SandboxStreamChunk,
             ProduceChunks: produceAsync ?? (ct => YieldFromArrayAsync(produceChunks!, ct)),
             ExecuteUnaryFallback: executeUnary,
@@ -236,8 +242,24 @@ public sealed class NdjsonJobStreamerFacts
             CreateErrorResult: err => new ConnectedSandboxResponse(false, null, null, err, machineId),
             CreateSynthesizedDoneResult: _ => new ConnectedSandboxResponse(true, null, null, null, machineId),
             CreateMissingFallbackResult: err => new ConnectedSandboxResponse(false, null, null, err ?? "missing", machineId),
-            FormatTimeoutMessage: formatTimeoutMessage,
-            OnStreamError: onStreamError);
+            FormatTimeoutMessage: formatTimeoutMessage);
+    }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<Exception> Exceptions { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception is not null)
+            {
+                Exceptions.Add(exception);
+            }
+        }
     }
 
     private static async IAsyncEnumerable<SandboxStreamChunk> YieldFromArrayAsync(

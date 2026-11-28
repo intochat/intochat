@@ -3,10 +3,15 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Devices.Link;
 
 internal sealed record NdjsonStreamRequest<TChunk, TResult>(
+    string JobId,
+    string StreamLabel,
+    string FallbackLabel,
+    ILogger Logger,
     JsonTypeInfo<TChunk> ChunkTypeInfo,
     Func<CancellationToken, IAsyncEnumerable<TChunk>> ProduceChunks,
     Func<CancellationToken, Task<TResult>> ExecuteUnaryFallback,
@@ -22,9 +27,7 @@ internal sealed record NdjsonStreamRequest<TChunk, TResult>(
     Func<string?, TResult> CreateSynthesizedDoneResult,
     Func<string?, TResult> CreateMissingFallbackResult,
     Func<string>? FormatTimeoutMessage = null,
-    Func<TResult>? CreateTimeoutFallbackResult = null,
-    Action<Exception>? OnStreamError = null,
-    Action<Exception>? OnFallbackError = null)
+    Func<TResult>? CreateTimeoutFallbackResult = null)
     where TResult : class;
 
 // Generic NDJSON streaming engine with IAsyncEnumerator error/timeout isolation
@@ -69,7 +72,7 @@ internal static class NdjsonJobStreamer
                     }
                     catch (Exception error)
                     {
-                        request.OnStreamError?.Invoke(error);
+                        request.Logger.LogWarning(error, "{StreamLabel} job {JobId} failed with {ErrorType}.", request.StreamLabel, request.JobId, error.GetType().Name);
                         execError = error;
                     }
 
@@ -96,7 +99,7 @@ internal static class NdjsonJobStreamer
                         }
                         catch (Exception error)
                         {
-                            request.OnStreamError?.Invoke(error);
+                            request.Logger.LogWarning(error, "{StreamLabel} job {JobId} failed with {ErrorType}.", request.StreamLabel, request.JobId, error.GetType().Name);
                             execError = error;
                             break;
                         }
@@ -169,7 +172,7 @@ internal static class NdjsonJobStreamer
             }
             catch (Exception error)
             {
-                request.OnFallbackError?.Invoke(error);
+                request.Logger.LogWarning(error, "{FallbackLabel} job {JobId} fallback failed with {ErrorType}.", request.FallbackLabel, request.JobId, error.GetType().Name);
                 fallback = request.CreateErrorResult(error.Message);
             }
         }
