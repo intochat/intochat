@@ -17,21 +17,24 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (kind, name) async => kind == 'viewport'
-                ? const ViewportPayload(
-                    revision: 1,
-                    root: UiViewRef(kind: 'view', name: 'local/apps/app/view'),
-                  )
-                : PublishedViewPayload.fromJson({
-                    'generation': 1,
-                    'view': {
-                      'title': 'App',
-                      'root': {'kind': 'text', 'value': 'App-owned content'},
-                    },
-                  }),
+                  ? const ViewportPayload(
+                      revision: 1,
+                      root: UiViewRef(
+                        kind: 'view',
+                        name: 'local/apps/app/view',
+                      ),
+                    )
+                  : PublishedViewPayload.fromJson({
+                      'generation': 1,
+                      'view': {
+                        'title': 'App',
+                        'root': {'kind': 'text', 'value': 'App-owned content'},
+                      },
+                    }),
               onAction: (_) async {
-              actions++;
-              return null;
-            },
+                actions++;
+                return null;
+              },
             ),
           ),
         ),
@@ -54,9 +57,9 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (_, _) async => const ViewportPayload(
-              revision: 1,
-              root: UiViewRef(kind: 'viewport', name: 'canvas'),
-            ),
+                revision: 1,
+                root: UiViewRef(kind: 'viewport', name: 'canvas'),
+              ),
             ),
           ),
         ),
@@ -79,22 +82,25 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (kind, name) async => kind == 'viewport'
-                ? const ViewportPayload(
-                    revision: 1,
-                    root: UiViewRef(kind: 'view', name: 'local/apps/app/view'),
-                    error: 'Poll failed: 503',
-                  )
-                : PublishedViewPayload.fromJson({
-                    'generation': 1,
-                    'view': {
-                      'title': 'App',
-                      'root': {'kind': 'text', 'value': 'App-owned content'},
-                    },
-                  }),
+                  ? const ViewportPayload(
+                      revision: 1,
+                      root: UiViewRef(
+                        kind: 'view',
+                        name: 'local/apps/app/view',
+                      ),
+                      error: 'Poll failed: 503',
+                    )
+                  : PublishedViewPayload.fromJson({
+                      'generation': 1,
+                      'view': {
+                        'title': 'App',
+                        'root': {'kind': 'text', 'value': 'App-owned content'},
+                      },
+                    }),
               onAction: (_) async {
-              actions++;
-              return null;
-            },
+                actions++;
+                return null;
+              },
             ),
           ),
         ),

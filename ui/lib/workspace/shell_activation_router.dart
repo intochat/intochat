@@ -392,7 +392,10 @@ class ShellActivationRouter {
     }
   }
 
-  Future<void> _switchBrainIfAllowed(String brain, {required String? show}) async {
+  Future<void> _switchBrainIfAllowed(
+    String brain, {
+    required String? show,
+  }) async {
     if (listBrainIds != null) {
       final brains = await listBrainIds!();
       if (!brains.contains(brain)) {
@@ -725,7 +728,10 @@ class ShellActivationRouter {
           input: input,
         );
       }
-      if (operation != null && !navDelivered && app != null && app != receiver) {
+      if (operation != null &&
+          !navDelivered &&
+          app != null &&
+          app != receiver) {
         await requestApp?.call(brain, app, operation, rawInput ?? '');
       }
     }

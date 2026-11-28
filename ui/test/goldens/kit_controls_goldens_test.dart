@@ -1,4 +1,4 @@
-﻿@Tags(['golden'])
+@Tags(['golden'])
 library;
 
 import 'dart:io';
@@ -16,33 +16,33 @@ Widget _copy() => ViewHost(
   overrides: ViewHostOverrides(
     knowsApp: (_) => false,
     load: (kind, name) async => PublishedViewPayload.fromJson({
-    'generation': 1,
-    'view': {
-      'title': 'Share',
-      'root': {
-        'kind': 'column',
-        'children': [
-          {
-            'kind': 'button',
-            'key': 'copy',
-            'label': 'Copy link',
-            'intent': {
-              'intentKind': 'Copy',
-              'arg': 'https://example.test/#/open?app=fixture-app',
+      'generation': 1,
+      'view': {
+        'title': 'Share',
+        'root': {
+          'kind': 'column',
+          'children': [
+            {
+              'kind': 'button',
+              'key': 'copy',
+              'label': 'Copy link',
+              'intent': {
+                'intentKind': 'Copy',
+                'arg': 'https://example.test/#/open?app=fixture-app',
+              },
+              'icon': 'copy',
             },
-            'icon': 'copy',
-          },
-        ],
+          ],
+        },
       },
-    },
-  }),
+    }),
     watch: (kind, name) => const Stream.empty(),
     onAction: (event) async => {
-    'intent': {
-      'kind': 'Copy',
-      'arg': 'https://example.test/#/open?app=fixture-app',
+      'intent': {
+        'kind': 'Copy',
+        'arg': 'https://example.test/#/open?app=fixture-app',
+      },
     },
-  },
   ),
 );
 

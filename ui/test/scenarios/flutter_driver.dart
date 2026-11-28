@@ -224,7 +224,7 @@ class FlutterDriver {
             revision: host.revision,
             overrides: ViewHostOverrides(
               load: (kind, name) async =>
-                UiNodePayload.fromJson(kind, await host.load(kind, name)),
+                  UiNodePayload.fromJson(kind, await host.load(kind, name)),
               onAction: (action) => host.send(action.toJson()),
               knowsApp: (_) => false,
               watch: (_, _) => const Stream.empty(),

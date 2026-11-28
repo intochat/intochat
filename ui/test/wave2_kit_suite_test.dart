@@ -727,23 +727,23 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {
-                  'title': 'Ledger',
-                  'root': {
-                    'kind': 'collection',
-                    'entries': [
-                      for (var i = 0; i < 1500; i++)
-                        {
-                          'id': 'item_$i',
-                          'title': 'Transaction #$i',
-                          'subtitle': 'Cleared',
-                          'trailing': '€${i * 10}',
-                        },
-                    ],
+                  'generation': 1,
+                  'view': {
+                    'title': 'Ledger',
+                    'root': {
+                      'kind': 'collection',
+                      'entries': [
+                        for (var i = 0; i < 1500; i++)
+                          {
+                            'id': 'item_$i',
+                            'title': 'Transaction #$i',
+                            'subtitle': 'Cleared',
+                            'trailing': '€${i * 10}',
+                          },
+                      ],
+                    },
                   },
-                },
-              }),
+                }),
               ),
             ),
             brightness: Brightness.light,

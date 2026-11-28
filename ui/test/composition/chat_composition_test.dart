@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -46,14 +46,14 @@ Future<void> _host(
           overrides: ViewHostOverrides(
             knowsApp: (_) => false,
             load: (kind, name) async => PublishedViewPayload.fromJson({
-            'generation': 2,
-            'view': {'title': 'Ino', 'root': root},
-          }),
+              'generation': 2,
+              'view': {'title': 'Ino', 'root': root},
+            }),
             watch: (kind, name) => const Stream.empty(),
             onAction: (event) async {
-            events.add(event.toJson());
-            return null;
-          },
+              events.add(event.toJson());
+              return null;
+            },
           ),
         ),
       ),

@@ -42,27 +42,27 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               watch: (kind, name) {
-              watchedTargets.add((kind, name));
-              if (kind == 'screen') return screenEvents.stream;
-              return viewEvents.stream;
-            },
+                watchedTargets.add((kind, name));
+                if (kind == 'screen') return screenEvents.stream;
+                return viewEvents.stream;
+              },
               load: (_, _) async {
-              viewLoads++;
-              return PublishedViewPayload.fromJson({
-                'alias': 'app.engineer',
-                'generation': viewLoads,
-                'view': {
-                  'title': 'Engineer',
-                  'acts': 'act',
-                  'root': {
-                    'kind': 'column',
-                    'children': [
-                      {'kind': 'text', 'value': 'Pane:$activeTab'},
-                    ],
+                viewLoads++;
+                return PublishedViewPayload.fromJson({
+                  'alias': 'app.engineer',
+                  'generation': viewLoads,
+                  'view': {
+                    'title': 'Engineer',
+                    'acts': 'act',
+                    'root': {
+                      'kind': 'column',
+                      'children': [
+                        {'kind': 'text', 'value': 'Pane:$activeTab'},
+                      ],
+                    },
                   },
-                },
-              });
-            },
+                });
+              },
             ),
           ),
         ),
@@ -139,14 +139,14 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               watch: (kind, name) {
-              watchedTargets.add((kind, name));
-              return screenEvents.stream;
-            },
+                watchedTargets.add((kind, name));
+                return screenEvents.stream;
+              },
               load: (_, _) {
-              final completer = Completer<UiNodePayload>();
-              pendingLoads.add(completer);
-              return completer.future;
-            },
+                final completer = Completer<UiNodePayload>();
+                pendingLoads.add(completer);
+                return completer.future;
+              },
             ),
           ),
         ),

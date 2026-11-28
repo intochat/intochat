@@ -68,20 +68,20 @@ void main() {
               knowsApp: (_) => false,
               watch: (_, _) => const Stream.empty(),
               watchSignal: (contract, key, signal) {
-              watched.add((contract, key, signal));
-              return deltas.stream;
-            },
+                watched.add((contract, key, signal));
+                return deltas.stream;
+              },
               callNeuron: (contract, key, method, args) async {
-              reads++;
-              return null;
-            },
+                reads++;
+                return null;
+              },
               onAction: (_) async => null,
               load: (kind, name) async {
-              loads++;
-              return PublishedViewPayload.fromJson(
-                _chatThreadViewJson(entry: 'r1/reply'),
-              );
-            },
+                loads++;
+                return PublishedViewPayload.fromJson(
+                  _chatThreadViewJson(entry: 'r1/reply'),
+                );
+              },
             ),
           ),
         ),
@@ -128,16 +128,16 @@ void main() {
               watch: (_, _) => const Stream.empty(),
               watchSignal: (_, _, _) => deltas.stream,
               callNeuron: (contract, key, method, args) async {
-              reads++;
-              calls.add((contract, key, method, args));
-              return {
-                'active': {'runId': 'r1', 'reply': 'hello '},
-              };
-            },
+                reads++;
+                calls.add((contract, key, method, args));
+                return {
+                  'active': {'runId': 'r1', 'reply': 'hello '},
+                };
+              },
               onAction: (_) async => null,
               load: (kind, name) async => PublishedViewPayload.fromJson(
-              _chatThreadViewJson(entry: 'r1/reply'),
-            ),
+                _chatThreadViewJson(entry: 'r1/reply'),
+              ),
             ),
           ),
         ),
@@ -183,8 +183,8 @@ void main() {
               watchSignal: (_, _, _) => deltas.stream,
               onAction: (_) async => null,
               load: (kind, name) async => PublishedViewPayload.fromJson(
-              _chatThreadViewJson(entry: 'r1/reply'),
-            ),
+                _chatThreadViewJson(entry: 'r1/reply'),
+              ),
             ),
           ),
         ),
@@ -227,14 +227,14 @@ void main() {
               watchSignal: (_, _, _) => deltas.stream,
               onAction: (_) async => null,
               load: (kind, name) async => PublishedViewPayload.fromJson(
-              completed
-                  ? _chatThreadViewJson(
-                      entry: 'r1/reply',
-                      replyText: 'final',
-                      status: 'completed',
-                    )
-                  : _chatThreadViewJson(entry: 'r1/reply'),
-            ),
+                completed
+                    ? _chatThreadViewJson(
+                        entry: 'r1/reply',
+                        replyText: 'final',
+                        status: 'completed',
+                      )
+                    : _chatThreadViewJson(entry: 'r1/reply'),
+              ),
             ),
           ),
         ),
@@ -274,13 +274,13 @@ void main() {
               knowsApp: (_) => false,
               watch: (_, _) => const Stream.empty(),
               watchSignal: (_, _, _) {
-              watchCalls++;
-              return const Stream.empty();
-            },
+                watchCalls++;
+                return const Stream.empty();
+              },
               onAction: (_) async => null,
               load: (kind, name) async => PublishedViewPayload.fromJson(
-              _chatThreadViewJson(entry: 'r1/reply'),
-            ),
+                _chatThreadViewJson(entry: 'r1/reply'),
+              ),
             ),
           ),
         ),
@@ -310,39 +310,39 @@ void main() {
                 watch: (_, _) => const Stream.empty(),
                 watchSignal: (_, _, _) => deltas.stream,
                 callNeuron: (_, _, _, _) async {
-                reads++;
-                return {
-                  'active': {'runId': 'r1', 'reply': 'nested '},
-                };
-              },
+                  reads++;
+                  return {
+                    'active': {'runId': 'r1', 'reply': 'nested '},
+                  };
+                },
                 onAction: (_) async => null,
                 load: (kind, name) async =>
-                  PublishedViewPayload.fromJson(switch (name) {
-                    'local/apps/ino/view' => {
-                      'generation': 1,
-                      'view': {
-                        'title': 'Ino',
-                        'root': {
-                          'kind': 'column',
-                          'extents': [1],
-                          'children': [
-                            {
-                              'kind': 'neuronRef',
-                              'refKind': 'child',
-                              'neuronUri': 'conversation',
-                              'props': {
-                                'placeholder': 'Ask anything.',
-                                'conversation': 'conversations/c-nested',
+                    PublishedViewPayload.fromJson(switch (name) {
+                      'local/apps/ino/view' => {
+                        'generation': 1,
+                        'view': {
+                          'title': 'Ino',
+                          'root': {
+                            'kind': 'column',
+                            'extents': [1],
+                            'children': [
+                              {
+                                'kind': 'neuronRef',
+                                'refKind': 'child',
+                                'neuronUri': 'conversation',
+                                'props': {
+                                  'placeholder': 'Ask anything.',
+                                  'conversation': 'conversations/c-nested',
+                                },
                               },
-                            },
-                          ],
+                            ],
+                          },
                         },
                       },
-                    },
-                    'local/apps/ino/children/conversation' =>
-                      _chatThreadViewJson(entry: 'r1/reply'),
-                    _ => throw StateError('Unexpected load $kind:$name'),
-                  }),
+                      'local/apps/ino/children/conversation' =>
+                        _chatThreadViewJson(entry: 'r1/reply'),
+                      _ => throw StateError('Unexpected load $kind:$name'),
+                    }),
               ),
             ),
           ),

@@ -28,9 +28,9 @@ Future<void> _host(
             load: (kind, name) async => _published(root),
             watch: (kind, name) => const Stream.empty(),
             onAction: (event) async {
-            events?.add(event.toJson());
-            return null;
-          },
+              events?.add(event.toJson());
+              return null;
+            },
           ),
         ),
       ),

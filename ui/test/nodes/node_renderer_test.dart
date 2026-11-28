@@ -48,13 +48,13 @@ Future<void> _host(
           overrides: ViewHostOverrides(
             knowsApp: knowsApp ?? (_) => false,
             load: (kind, name) async =>
-              kind == 'viewport' ? const ViewportPayload() : _published(root),
+                kind == 'viewport' ? const ViewportPayload() : _published(root),
             watch: watch ?? (kind, name) => const Stream.empty(),
             onAction: (event) async {
-            final json = event.toJson();
-            events?.add(json);
-            return answer?.call(json);
-          },
+              final json = event.toJson();
+              events?.add(json);
+              return answer?.call(json);
+            },
             onActivate: onActivate,
           ),
         ),
@@ -397,9 +397,9 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (kind, name) async => PublishedViewPayload.fromJson({
-              'title': 'Confirmations',
-              'root': nodeSamples['approvalCard'],
-            }),
+                'title': 'Confirmations',
+                'root': nodeSamples['approvalCard'],
+              }),
               watch: (kind, name) => const Stream.empty(),
               onAction: (event) async => events.add(event.toJson()),
             ),
@@ -432,9 +432,9 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (kind, name) async => PublishedViewPayload.fromJson({
-                'title': 'Confirmations',
-                'root': nodeSamples['approvalCard'],
-              }),
+                  'title': 'Confirmations',
+                  'root': nodeSamples['approvalCard'],
+                }),
                 watch: (kind, name) => const Stream.empty(),
                 onAction: (event) async => events.add(event.toJson()),
               ),
@@ -466,9 +466,9 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (kind, name) async => PublishedViewPayload.fromJson({
-                'title': 'Confirmations',
-                'root': nodeSamples['approvalCard'],
-              }),
+                  'title': 'Confirmations',
+                  'root': nodeSamples['approvalCard'],
+                }),
                 watch: (kind, name) => const Stream.empty(),
                 onAction: (event) async => events.add(event.toJson()),
               ),
@@ -502,9 +502,9 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (kind, name) async => PublishedViewPayload.fromJson({
-                'title': 'Confirmations',
-                'root': cardWithoutResolve,
-              }),
+                  'title': 'Confirmations',
+                  'root': cardWithoutResolve,
+                }),
                 watch: (kind, name) => const Stream.empty(),
                 onAction: (event) async => events.add(event.toJson()),
               ),
@@ -536,23 +536,23 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (kind, name) async {
-              loaded.add(kind);
-              return kind == 'confirmation'
-                  ? PublishedViewPayload.fromJson({
-                      'title': 'Confirmations',
-                      'root': nodeSamples['approvalCard'],
-                    })
-                  : _published({
-                      'kind': 'column',
-                      'children': [
-                        {
-                          'kind': 'neuronRef',
-                          'refKind': 'confirmation',
-                          'neuronUri': 'local/confirmations',
-                        },
-                      ],
-                    });
-            },
+                loaded.add(kind);
+                return kind == 'confirmation'
+                    ? PublishedViewPayload.fromJson({
+                        'title': 'Confirmations',
+                        'root': nodeSamples['approvalCard'],
+                      })
+                    : _published({
+                        'kind': 'column',
+                        'children': [
+                          {
+                            'kind': 'neuronRef',
+                            'refKind': 'confirmation',
+                            'neuronUri': 'local/confirmations',
+                          },
+                        ],
+                      });
+              },
               watch: (kind, name) => const Stream.empty(),
               onAction: (event) async => events.add(event.toJson()),
             ),
@@ -580,17 +580,17 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (kind, name) async => kind == 'viewport'
-                ? const ViewportPayload(
-                    revision: 1,
-                    root: UiViewRef(
-                      kind: 'confirmation',
-                      name: 'local/confirmations',
-                    ),
-                  )
-                : PublishedViewPayload.fromJson({
-                    'title': 'Confirmations',
-                    'root': nodeSamples['approvalCard'],
-                  }),
+                  ? const ViewportPayload(
+                      revision: 1,
+                      root: UiViewRef(
+                        kind: 'confirmation',
+                        name: 'local/confirmations',
+                      ),
+                    )
+                  : PublishedViewPayload.fromJson({
+                      'title': 'Confirmations',
+                      'root': nodeSamples['approvalCard'],
+                    }),
               watch: (kind, name) => const Stream.empty(),
               onAction: (event) async => events.add(event.toJson()),
             ),

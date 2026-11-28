@@ -24,9 +24,9 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (_, _) async =>
-                const WebBrowserPayload(title: 'Customer Researcher'),
+                  const WebBrowserPayload(title: 'Customer Researcher'),
               onAction: (_) async =>
-                fail('Unsupported browser must not send an attachment'),
+                  fail('Unsupported browser must not send an attachment'),
             ),
           ),
         ),
@@ -91,9 +91,9 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (_, _) async => const WebBrowserPayload(
-              title: 'Preview',
-              uri: 'http://intent/',
-            ),
+                title: 'Preview',
+                uri: 'http://intent/',
+              ),
             ),
           ),
         ),
@@ -120,9 +120,9 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (_, _) async => const WebBrowserPayload(
-              title: 'Browser',
-              uri: 'http://intent/',
-            ),
+                title: 'Browser',
+                uri: 'http://intent/',
+              ),
               onAction: (event) async => events.add(event),
             ),
           ),
@@ -157,9 +157,9 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (_, _) async => const WebBrowserPayload(
-              title: 'Browser',
-              uri: 'http://intent/',
-            ),
+                title: 'Browser',
+                uri: 'http://intent/',
+              ),
               onAction: (_) async => null,
             ),
           ),
@@ -186,11 +186,11 @@ void main() {
             overrides: ViewHostOverrides(
               knowsApp: (_) => false,
               load: (_, _) async => const WebBrowserPayload(
-              title: 'Browser',
-              uri: 'http://intended.example/',
-              actualUrl: 'http://observed.example/page',
-              connection: 'attached',
-            ),
+                title: 'Browser',
+                uri: 'http://intended.example/',
+                actualUrl: 'http://observed.example/page',
+                connection: 'attached',
+              ),
               onAction: (_) async => null,
             ),
           ),

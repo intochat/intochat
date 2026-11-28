@@ -35,14 +35,14 @@ Future<void> _host(
           overrides: ViewHostOverrides(
             knowsApp: (_) => false,
             load: (kind, name) async =>
-              PublishedViewPayload.fromJson(_published(root)),
+                PublishedViewPayload.fromJson(_published(root)),
             watch: (kind, name) => const Stream.empty(),
             transcribe: transcribe,
             onAction: (event) async {
-            final json = event.toJson();
-            events?.add(json);
-            return answer?.call(json);
-          },
+              final json = event.toJson();
+              events?.add(json);
+              return answer?.call(json);
+            },
           ),
         ),
       ),
@@ -367,44 +367,50 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (kind, name) async => PublishedViewPayload.fromJson({
-                'generation': hasWaiting ? 2 : 1,
-                'view': {
-                  'title': 'Chat',
-                  'root': _conversation(
-                    waiting: hasWaiting
-                        ? {
-                            'kind': 'choiceCard',
-                            'key': 'wait-choice',
-                            'id': 'c-wait',
-                            'question': 'Deploy staged branch?',
-                            'options': [
-                              {
-                                'title': 'Approve deploy',
-                                'pick': {
-                                  'key': 'pick-approve',
-                                  'label': 'Approve deploy',
-                                  'command': {'target': '.', 'signal': 'pick'},
+                  'generation': hasWaiting ? 2 : 1,
+                  'view': {
+                    'title': 'Chat',
+                    'root': _conversation(
+                      waiting: hasWaiting
+                          ? {
+                              'kind': 'choiceCard',
+                              'key': 'wait-choice',
+                              'id': 'c-wait',
+                              'question': 'Deploy staged branch?',
+                              'options': [
+                                {
+                                  'title': 'Approve deploy',
+                                  'pick': {
+                                    'key': 'pick-approve',
+                                    'label': 'Approve deploy',
+                                    'command': {
+                                      'target': '.',
+                                      'signal': 'pick',
+                                    },
+                                  },
                                 },
-                              },
-                              {
-                                'title': 'Cancel',
-                                'pick': {
-                                  'key': 'pick-cancel',
-                                  'label': 'Cancel',
-                                  'command': {'target': '.', 'signal': 'pick'},
+                                {
+                                  'title': 'Cancel',
+                                  'pick': {
+                                    'key': 'pick-cancel',
+                                    'label': 'Cancel',
+                                    'command': {
+                                      'target': '.',
+                                      'signal': 'pick',
+                                    },
+                                  },
                                 },
-                              },
-                            ],
-                          }
-                        : null,
-                  ),
-                },
-              }),
+                              ],
+                            }
+                          : null,
+                    ),
+                  },
+                }),
                 watch: (kind, name) => controller.stream,
                 onAction: (event) async {
-                events.add(event.toJson());
-                return null;
-              },
+                  events.add(event.toJson());
+                  return null;
+                },
               ),
             ),
           ),

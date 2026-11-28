@@ -119,10 +119,7 @@ sealed class ShellActivation {
     // Single-boundary normalization for legacy `{kind: 'settings', tab?}` wire envelopes.
     if (kind == 'settings') {
       final tab = raw['tab'] is String ? raw['tab'] as String : '';
-      return WorkspaceAppActivation.settings(
-        brainId: brainId,
-        tab: tab,
-      );
+      return WorkspaceAppActivation.settings(brainId: brainId, tab: tab);
     }
     // Single-boundary normalization for `{view: 'configuration', application}`.
     if (raw['view'] == 'configuration' && raw['application'] is String) {

@@ -18,24 +18,24 @@ void main() {
               knowsApp: (_) => false,
               watch: (_, _) => const Stream.empty(),
               onAction: (_) async => throw UiRequestException(
-              'POST',
-              '/act',
-              409,
-              '{"error":"child of local/apps/notes refused the command.",'
-                  '"reason":"NoChildren"}',
-            ),
+                'POST',
+                '/act',
+                409,
+                '{"error":"child of local/apps/notes refused the command.",'
+                    '"reason":"NoChildren"}',
+              ),
               load: (_, _) async => PublishedViewPayload.fromJson({
-              'generation': 1,
-              'view': {
-                'title': 'Notes',
-                'root': {
-                  'kind': 'button',
-                  'key': 'toggle',
-                  'label': 'Toggle',
-                  'command': {'target': 'child', 'signal': 'Toggle'},
+                'generation': 1,
+                'view': {
+                  'title': 'Notes',
+                  'root': {
+                    'kind': 'button',
+                    'key': 'toggle',
+                    'label': 'Toggle',
+                    'command': {'target': 'child', 'signal': 'Toggle'},
+                  },
                 },
-              },
-            }),
+              }),
             ),
           ),
         ),

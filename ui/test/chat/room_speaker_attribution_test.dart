@@ -76,9 +76,9 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {'title': 'Friends', 'root': root},
-              }),
+                  'generation': 1,
+                  'view': {'title': 'Friends', 'root': root},
+                }),
                 watch: (_, _) => const Stream.empty(),
                 onAction: (_) async => null,
               ),
@@ -204,9 +204,9 @@ void main() {
               overrides: ViewHostOverrides(
                 knowsApp: (_) => false,
                 load: (_, _) async => PublishedViewPayload.fromJson({
-                'generation': 1,
-                'view': {'title': 'Friends', 'root': root},
-              }),
+                  'generation': 1,
+                  'view': {'title': 'Friends', 'root': root},
+                }),
                 watch: (_, _) => const Stream.empty(),
                 onAction: (_) async => null,
               ),
