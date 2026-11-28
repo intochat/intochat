@@ -183,6 +183,49 @@ class DesktopWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Binds a single [DesktopWindowActions] delegate for [spec] shared by both
+  /// floating [WindowFrame]s and [SpatialAppCanvas] cards.
+  DesktopWindowActions? actionsFor(
+    DesktopWindowProjection spec, {
+    required Set<String> pinnedAppIds,
+    required ValueChanged<String> onInspectSandbox,
+    required ValueChanged<String> onOpenAppSettings,
+    ValueChanged<String>? onToast,
+  }) {
+    final state = _windowStates[spec.id];
+    if (state == null) return null;
+    return DesktopWindowActions(
+      window: state,
+      onFocus: () => focusWindow(spec),
+      onClose: () => closeWindow(spec),
+      onMinimize: () => toggleMinimized(spec.id),
+      onPin: () {
+        if (_disposed) return;
+        _normalizeZOrder();
+        if (spec.appId != 'ino') {
+          if (pinnedAppIds.contains(spec.appId.toLowerCase())) {
+            unawaited(_session.unpinApp(spec.appId));
+          } else {
+            unawaited(_session.pinApp(spec.appId));
+          }
+        }
+      },
+      onReload: () => unawaited(_session.reloadDesktop()),
+      onHardRestartSandbox: () => unawaited(
+        _session.requestShellOperation(spec.appId, 'sandbox-restart', ''),
+      ),
+      onSwitchExecutionMode: (mode) => unawaited(
+        _session.requestShellOperation(spec.appId, 'switch-mode', mode),
+      ),
+      onInspectSandbox: () => onInspectSandbox(spec.appId),
+      onOpenAppSettings: () => onOpenAppSettings(spec.appId),
+      onStateMutated: () {
+        if (!_disposed) notifyListeners();
+      },
+      onToast: onToast,
+    );
+  }
+
   void bumpReloadEpoch({String? windowId, String? appId}) {
     if (_disposed) return;
     var changed = false;

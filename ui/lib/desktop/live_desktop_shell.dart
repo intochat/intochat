@@ -485,8 +485,16 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final mruWindows = wc.mruWindows;
     final visibleWindows = wc.visibleWindows;
     final topWindow = wc.topWindow;
-    final byId = wc.windowsById;
     final openAppIds = {for (final w in windows) w.appId};
+    final windowActionsById = <String, DesktopWindowActions>{
+      for (final spec in visibleWindows)
+        spec.id: ?wc.actionsFor(
+          spec,
+          pinnedAppIds: pinnedAppIds,
+          onInspectSandbox: _inspectSandbox,
+          onOpenAppSettings: _openAppGraph,
+        ),
+    };
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -599,38 +607,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                           focused: spec == topWindow,
                           forceZoom: focusMode,
                           desk: desk,
+                          actions: windowActionsById[spec.id],
                           tabs: _buildWindowTabs(spec),
-                          onFocus: () => wc.focusWindow(spec),
-                          onClose: () => wc.closeWindow(spec),
-                          onMinimize: () => wc.toggleMinimized(spec.id),
-                          onNewTab: () => unawaited(session.newTab(spec.id)),
-                          onFavourite: () =>
-                              unawaited(session.toggleFavourite(spec.id)),
-                          isFavourite: spec.isFavourite,
-                          onPin: spec.appId == 'ino'
-                              ? null
-                              : () => wc.togglePinApp(spec.appId, pinnedAppIds),
-                          isPinned: winState.isPinned,
-                          onReload: () {
-                            setState(() {});
-                            unawaited(session.reloadDesktop());
-                          },
-                          onHardRestartSandbox: () => unawaited(
-                            session.requestShellOperation(
-                              spec.appId,
-                              'sandbox-restart',
-                              '',
-                            ),
-                          ),
-                          onSwitchExecutionMode: (mode) => unawaited(
-                            session.requestShellOperation(
-                              spec.appId,
-                              'switch-mode',
-                              mode,
-                            ),
-                          ),
-                          onInspectSandbox: () => _inspectSandbox(spec.appId),
-                          onOpenAppSettings: () => _openAppGraph(spec.appId),
                           child: spec.appId == 'workspace'
                               ? SpatialAppCanvas(
                                   windows: [
@@ -638,60 +616,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                       if (w.id != spec.id) w.id,
                                   ],
                                   windowStates: wc.windowStates,
+                                  windowActions: windowActionsById,
                                   topWindowId: topWindow?.id,
-                                  onFocusWindow: wc.focusWindowById,
-                                  onCloseWindow: wc.closeWindowById,
-                                  onToggleZoom: (id) =>
-                                      wc.stateFor(id)?.toggleZoom(),
-                                  onPinWindow: (id) {
-                                    final target = byId[id];
-                                    if (target != null) {
-                                      wc.togglePinApp(
-                                        target.appId,
-                                        pinnedAppIds,
-                                      );
-                                    }
-                                  },
-                                  onReloadWindow: (id) {
-                                    setState(() {});
-                                    unawaited(session.reloadDesktop());
-                                  },
-                                  onHardRestartWindow: (id) {
-                                    final target = byId[id];
-                                    if (target != null) {
-                                      unawaited(
-                                        session.requestShellOperation(
-                                          target.appId,
-                                          'sandbox-restart',
-                                          '',
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  onSwitchExecutionMode: (id, mode) {
-                                    final target = byId[id];
-                                    if (target != null) {
-                                      unawaited(
-                                        session.requestShellOperation(
-                                          target.appId,
-                                          'switch-mode',
-                                          mode,
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  onInspectSandbox: (id) {
-                                    final target = byId[id];
-                                    if (target != null) {
-                                      _inspectSandbox(target.appId);
-                                    }
-                                  },
-                                  onOpenAppSettings: (id) {
-                                    final target = byId[id];
-                                    if (target != null) {
-                                      _openAppGraph(target.appId);
-                                    }
-                                  },
                                   tabs: {
                                     for (final w in visibleWindows)
                                       if (w.id != spec.id)
