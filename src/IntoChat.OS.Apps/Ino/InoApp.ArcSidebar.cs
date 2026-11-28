@@ -28,11 +28,7 @@ public sealed partial class InoApp
         var changed = false;
         if (shelf is not null)
         {
-            changed = ThreadShelfSnapshot is null
-                || ThreadShelfSnapshot.TotalUnread != shelf.TotalUnread
-                || ThreadShelfSnapshot.Entries.Length != shelf.Entries.Length
-                || ThreadShelfSnapshot.Favourites.Length != shelf.Favourites.Length
-                || ThreadShelfSnapshot.Pinned.Length != shelf.Pinned.Length;
+            changed = ShelfChanged(ThreadShelfSnapshot, shelf);
             ThreadShelfSnapshot = shelf;
             SessionsPage = new ThreadPage(shelf.Entries, shelf.Entries.Length);
         }
@@ -47,6 +43,43 @@ public sealed partial class InoApp
         {
             await Commit(State);
         }
+    }
+
+    private static bool ShelfChanged(ThreadShelf? previous, ThreadShelf next)
+        => previous is null
+            || previous.TotalUnread != next.TotalUnread
+            || !previous.Folders.SequenceEqual(next.Folders, StringComparer.Ordinal)
+            || !EntriesVisiblyEqual(previous.Favourites, next.Favourites)
+            || !EntriesVisiblyEqual(previous.Pinned, next.Pinned)
+            || !EntriesVisiblyEqual(previous.Entries, next.Entries);
+
+    private static bool EntriesVisiblyEqual(ThreadEntry[] left, ThreadEntry[] right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Length; i++)
+        {
+            var a = left[i];
+            var b = right[i];
+            if (!string.Equals(a.Id, b.Id, StringComparison.Ordinal)
+                || !string.Equals(a.Title, b.Title, StringComparison.Ordinal)
+                || !string.Equals(a.Folder, b.Folder, StringComparison.Ordinal)
+                || a.IsFavourite != b.IsFavourite
+                || a.IsPinned != b.IsPinned
+                || a.Archived != b.Archived
+                || a.UnreadCount != b.UnreadCount
+                || a.Kind != b.Kind
+                || a.TrustPosture != b.TrustPosture
+                || a.Thread != b.Thread)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private Task MarkCurrentThreadReadAsync(long revision)

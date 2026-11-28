@@ -11,6 +11,7 @@ using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Apps.Social;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -401,6 +402,168 @@ public sealed class ArcMessengerAndGuestMiniAppFacts
         // Unfriend removes from roster
         await settings.Request("unfriend", new SettingsUnfriend("grace"));
         Assert.DoesNotContain(settings.App.State.TeamRoster ?? [], f => f.Account.Value == "grace");
+    }
+
+    [Fact]
+    public async Task GuestMiniAppEndpointsFailClosedWhenHostedNeuronsIsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = TestOS.Local();
+        var proxies = new TestOsNeuronProxies(os);
+        var bobCaller = TestEdge.Authority.Person("bob", "bob", BobBrain);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            AppUiEndpoints.ReadNode(
+                UIVocabulary.ViewType,
+                $"{AliceBrain.Value}/apps/room.checklist/view",
+                proxies,
+                BobBrain.Value,
+                ct,
+                caller: bobCaller,
+                hostedNeurons: null,
+                edge: TestEdge.Authority));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            AppUiEndpoints.ReadChild(
+                "room.checklist",
+                "chk-i1",
+                proxies,
+                AliceBrain.Value,
+                ct,
+                caller: bobCaller,
+                hostedNeurons: null,
+                edge: TestEdge.Authority));
+    }
+
+    [Fact]
+    public void RoomSafeSignalValidationAllowsExplicitRoomSafeAndDeniesUnannotatedAndPersonOnly()
+    {
+        // Allowed: explicitly marked [RoomSafe] on RoomChecklistApp
+        SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(typeof(RoomChecklistApp), "room-checklist.add");
+        SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(typeof(RoomChecklistApp), "room-checklist.toggle");
+        SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(typeof(RoomChecklistApp), "room-checklist.clear-completed");
+
+        // Denied: declared [On] handler without [RoomSafe]
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(typeof(RoomChecklistApp), "room-checklist.edit-draft"));
+
+        // Denied: [PersonOnly] handler even if [RoomSafe] were present
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(typeof(PersonOnlyRoomTestScreen), "test.person-only"));
+
+        // Denied: unknown signal
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(typeof(RoomChecklistApp), "room-checklist.unknown"));
+    }
+
+    [Fact]
+    public void ForeignRoomPinnedAppsDrawerTargetsHostBrainIdNotGuestBrainId()
+    {
+        var hostRoomId = new NeuronId(AliceBrain, IConversation.Type, "conversations/shared-trip");
+        var entry = new ThreadEntry(
+            Id: "shared-trip",
+            Title: "Shared Trip",
+            UpdatedAt: DateTimeOffset.UtcNow,
+            Archived: false,
+            Thread: hostRoomId,
+            TrustPosture: ThreadTrustPosture.CrossBrainShared,
+            Kind: ThreadKind.SharedRoom,
+            IsHost: false);
+        var shelf = new ThreadShelf(
+            Entries: [entry],
+            Favourites: [],
+            Pinned: [],
+            Folders: [],
+            TotalUnread: 0);
+        var view = new ConversationView(
+            ConversationId.Parse("shared-trip"),
+            1,
+            [],
+            [],
+            null,
+            [],
+            false,
+            [])
+        {
+            TrustPosture = ThreadTrustPosture.CrossBrainShared,
+            Kind = ThreadKind.SharedRoom,
+            PinnedScreens = [new PinnedScreen("room.checklist", "default")],
+        };
+        var state = new InoAppState
+        {
+            ConversationId = "shared-trip",
+            DrawerOpen = true,
+            DrawerTab = InoArcSidebar.DrawerTabPinnedApps,
+        };
+
+        var node = InoArcSidebar.RenderPinnedAppsDrawerBody(state, view, hostBrainId: entry.Thread!.Value.Brain.Value);
+        var json = JsonSerializer.Serialize(node, JsonSerializerOptions.Web);
+        Assert.Contains($"{AliceBrain.Value}/apps/room.checklist/view", json, StringComparison.Ordinal);
+        Assert.DoesNotContain($"{BobBrain.Value}/apps/room.checklist/view", json, StringComparison.Ordinal);
+        Assert.Equal(AliceBrain.Value, shelf.Entries[0].Thread!.Value.Brain.Value);
+    }
+
+    [Fact]
+    public void SettingsTeamSignalsRoundTripThroughAotSettingsJsonContext()
+    {
+        var mint = JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(new SettingsMintFriendCode(), SettingsJson.Default.SettingsMintFriendCode),
+            SettingsJson.Default.SettingsMintFriendCode);
+        Assert.NotNull(mint);
+
+        var redeem = JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(new SettingsRedeemFriendCode("ABCD-1234"), SettingsJson.Default.SettingsRedeemFriendCode),
+            SettingsJson.Default.SettingsRedeemFriendCode);
+        Assert.Equal("ABCD-1234", redeem?.Code);
+
+        var unfriend = JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(new SettingsUnfriend("grace"), SettingsJson.Default.SettingsUnfriend),
+            SettingsJson.Default.SettingsUnfriend);
+        Assert.Equal("grace", unfriend?.Account);
+
+        var lookup = JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(new SettingsLookupHandle("@grace"), SettingsJson.Default.SettingsLookupHandle),
+            SettingsJson.Default.SettingsLookupHandle);
+        Assert.Equal("@grace", lookup?.Handle);
+
+        var perm = JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(new SettingsSetFriendPermission("grace", "rooms.edit", true), SettingsJson.Default.SettingsSetFriendPermission),
+            SettingsJson.Default.SettingsSetFriendPermission);
+        Assert.Equal(("grace", "rooms.edit", true), (perm?.Account, perm?.Permission, perm?.Allowed));
+    }
+
+    [Fact]
+    public async Task InoAppSetFolderCommitsAndRendersUpdatedFolderInArcSidebar()
+    {
+        var brain = new BrainId("local");
+        using var person = TestEdge.Authority.Enter(TestEdge.Authority.Person("local", "local", brain));
+        await using var os = TestOS.Local()
+            .RegisterCatalog()
+            .Register(typeof(ThreadDirectoryNeuron).Assembly)
+            .Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
+
+        var ino = await os.Install<InoApp>();
+        var screen = os.Get<IScreen>(new NeuronId(brain, "app.ino", "default"));
+        var beforeGen = (await screen.Read())?.Generation ?? 0L;
+        await ino.Request("set-folder", new InoSetFolder("main", "Work Projects"));
+        var afterGen = (await screen.Read())?.Generation ?? 0L;
+
+        Assert.True(afterGen > beforeGen);
+        Assert.Contains("Work Projects", ino.App.CurrentShelf?.Folders ?? []);
+        var rendered = JsonSerializer.Serialize(ino.App.Render(), JsonSerializerOptions.Web);
+        Assert.Contains("Work Projects", rendered, StringComparison.Ordinal);
+    }
+
+    [Signal("test.person-only")]
+    private sealed record PersonOnlyTestSignal : Signal;
+
+    [Shareable]
+    private sealed class PersonOnlyRoomTestScreen : Screen<DummyScreenState>
+    {
+        [On, PersonOnly, RoomSafe]
+        public Task HandlePersonOnly(PersonOnlyTestSignal _) => Task.CompletedTask;
+
+        protected override View Render(DummyScreenState state) => new("PersonOnly", new Text("ok"));
     }
 
     private static SocialPost MakePost(string id, string author, long seq)

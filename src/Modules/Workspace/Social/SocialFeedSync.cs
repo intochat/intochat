@@ -38,7 +38,7 @@ internal static class SocialFeedSync
         if (ownPosts is not null)
         {
             var ownCursor = cursors is not null && cursors.TryGetValue(ownBrainValue, out var c) ? c : 0L;
-            tasks.Add(SyncOneBrainAsync(ownBrainValue, ownPosts, ownCursor, isOwn: true, ct));
+            tasks.Add(SyncOneBrainAsync(ownBrainValue, () => ownPosts, ownCursor, isOwn: true, ct));
         }
 
         var seenBrains = new HashSet<string>(StringComparer.Ordinal) { ownBrainValue };
@@ -51,8 +51,8 @@ internal static class SocialFeedSync
             }
 
             var friendCursor = cursors is not null && cursors.TryGetValue(friendBrainValue, out var c) ? c : 0L;
-            var friendPosts = resolveFriendPosts(friend.Brain);
-            tasks.Add(SyncOneBrainAsync(friendBrainValue, friendPosts, friendCursor, isOwn: false, ct));
+            var friendBrain = friend.Brain;
+            tasks.Add(SyncOneBrainAsync(friendBrainValue, () => resolveFriendPosts(friendBrain), friendCursor, isOwn: false, ct));
         }
 
         var slices = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -85,13 +85,14 @@ internal static class SocialFeedSync
 
     private static async Task<BrainFeedSlice> SyncOneBrainAsync(
         string brainId,
-        IPosts posts,
+        Func<IPosts> resolvePosts,
         long cursor,
         bool isOwn,
         CancellationToken ct)
     {
         try
         {
+            var posts = resolvePosts();
             var page = await posts.Since(cursor, ct).ConfigureAwait(false);
             var entries = page.Posts
                 .Select(p => new SocialFeedEntry(brainId, p, isOwn))

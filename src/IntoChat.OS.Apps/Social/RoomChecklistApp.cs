@@ -12,6 +12,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using IntoChat.OS.Host.Apps;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
@@ -33,12 +34,15 @@ public sealed record RoomChecklistState(
 [Signal("room-checklist.edit-draft")]
 public sealed record EditChecklistDraft(string Value = "") : Signal;
 
+[RoomSafe]
 [Signal("room-checklist.add")]
 public sealed record AddChecklistItem(string Label = "") : Signal;
 
+[RoomSafe]
 [Signal("room-checklist.toggle")]
 public sealed record ToggleChecklistItem(string ItemId = "", bool? Checked = null) : Signal;
 
+[RoomSafe]
 [Signal("room-checklist.clear-completed")]
 public sealed record ClearCompletedChecklistItems : Signal;
 

@@ -1,4 +1,10 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
+using DigitalBrain;
+using DigitalBrain.Access;
+using DigitalBrain.Components;
+using DigitalBrain.Neurons;
+using DigitalBrain.Screens;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
@@ -6,9 +12,10 @@ using IntoChat.OS.Modules.AI.Models;
 namespace IntoChat.OS.Modules.Flutter.Conversations;
 
 /// <summary>
-/// Marks a contract interface as safe to expose to agents running inside a <see cref="ThreadTrustPosture.CrossBrainShared"/> thread.
+/// Marks a contract interface, screen signal record, or <c>[On]</c> handler method as safe to expose to agents
+/// running inside a <see cref="ThreadTrustPosture.CrossBrainShared"/> thread.
 /// </summary>
-[AttributeUsage(AttributeTargets.Interface, Inherited = false)]
+[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Method | AttributeTargets.Class, Inherited = false)]
 public sealed class RoomSafeAttribute : Attribute;
 
 /// <summary>
@@ -108,6 +115,113 @@ public static partial class SharedRoomAgentPolicy
     /// <summary>Returns <see langword="true"/> when <paramref name="category"/> is a host-private screen category.</summary>
     public static bool IsHostPrivateCategory(string? category)
         => !string.IsNullOrWhiteSpace(category) && HostPrivateCategories.Contains(category);
+
+    /// <summary>
+    /// Fail-closed validation shared by <c>ConversationNeuron</c> and <c>AppUiEndpoints</c> to ensure a screen class
+    /// is a registered, non-internal <see cref="IScreen"/> marked <see cref="ShareableAttribute"/> and outside host-private
+    /// types and categories.
+    /// </summary>
+    public static void ValidateShareableScreenClass(string screenType, Type? screenClass, string? contextLabel = null)
+    {
+        var normalizedType = (screenType ?? string.Empty).Trim();
+        var appPrefixedType = normalizedType.Contains('.', StringComparison.Ordinal) ? normalizedType : "app." + normalizedType;
+        var suffix = string.IsNullOrWhiteSpace(contextLabel) ? string.Empty : $" in {contextLabel}";
+
+        if (string.IsNullOrWhiteSpace(normalizedType)
+            || IsHostPrivateScreenType(normalizedType)
+            || IsHostPrivateScreenType(appPrefixedType))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{normalizedType}' is host-private and denied{suffix}.");
+        }
+
+        if (screenClass is null || !typeof(IScreen).IsAssignableFrom(screenClass))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{normalizedType}' is not a registered shareable screen{suffix}.");
+        }
+
+        if (!screenClass.IsDefined(typeof(ShareableAttribute), inherit: false))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{normalizedType}' is not marked [Shareable]{suffix}.");
+        }
+
+        if (screenClass.IsDefined(typeof(InternalAttribute), inherit: false))
+        {
+            throw new UnauthorizedAccessException($"Screen type '{normalizedType}' is internal and denied{suffix}.");
+        }
+
+        foreach (var attr in screenClass.GetCustomAttributesData())
+        {
+            if (string.Equals(attr.AttributeType.Name, "ScreenAttribute", StringComparison.Ordinal))
+            {
+                foreach (var named in attr.NamedArguments)
+                {
+                    if (string.Equals(named.MemberName, "Category", StringComparison.Ordinal)
+                        && named.TypedValue.Value is string category
+                        && IsHostPrivateCategory(category))
+                    {
+                        throw new UnauthorizedAccessException($"Screen type '{normalizedType}' (category '{category}') is host-private and denied{suffix}.");
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fail-closed validation for <c>room_act</c>: verifies that <paramref name="signalAlias"/> resolves to a declared
+    /// <see cref="OnAttribute"/> handler on <paramref name="screenClass"/> that is explicitly marked
+    /// <see cref="RoomSafeAttribute"/> (on the handler or its signal type) and NOT marked <see cref="PersonOnlyAttribute"/>.
+    /// </summary>
+    public static void ValidateRoomSafeScreenSignal(Type screenClass, string signalAlias)
+    {
+        ArgumentNullException.ThrowIfNull(screenClass);
+        if (string.IsNullOrWhiteSpace(signalAlias))
+        {
+            throw new UnauthorizedAccessException("room_act requires a non-empty signal name.");
+        }
+
+        var normalized = signalAlias.Trim();
+        foreach (var method in screenClass.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        {
+            if (!method.IsDefined(typeof(OnAttribute), inherit: true))
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length != 1)
+            {
+                continue;
+            }
+
+            var signalType = parameters[0].ParameterType;
+            var signalAttr = signalType.GetCustomAttribute<SignalAttribute>(inherit: false);
+            var alias = signalAttr?.Alias ?? signalType.Name;
+            if (!string.Equals(alias, normalized, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (HasPersonOnlyAttribute(method) || HasPersonOnlyAttribute(signalType))
+            {
+                throw new UnauthorizedAccessException($"Signal '{normalized}' on '{screenClass.Name}' is [PersonOnly] and cannot be invoked by room @Ino.");
+            }
+
+            var isRoomSafe = method.IsDefined(typeof(RoomSafeAttribute), inherit: false)
+                || signalType.IsDefined(typeof(RoomSafeAttribute), inherit: false);
+            if (!isRoomSafe)
+            {
+                throw new UnauthorizedAccessException($"Signal '{normalized}' on '{screenClass.Name}' is not marked [RoomSafe] and cannot be invoked by room @Ino.");
+            }
+
+            return;
+        }
+
+        throw new UnauthorizedAccessException($"Signal '{normalized}' is not a declared [RoomSafe] handler on '{screenClass.Name}'.");
+    }
+
+    private static bool HasPersonOnlyAttribute(MemberInfo member)
+        => member.GetCustomAttributes(inherit: true)
+            .Any(static attr => string.Equals(attr.GetType().Name, "PersonOnlyAttribute", StringComparison.Ordinal));
 
     /// <summary>Extracts distinct <c>@handle</c> identifiers mentioned in <paramref name="text"/> in order of appearance.</summary>
     public static string[] ExtractMentions(string? text)

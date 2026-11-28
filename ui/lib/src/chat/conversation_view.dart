@@ -410,16 +410,14 @@ class _ConversationViewState extends State<ConversationView> {
           setState(() => _mentionDismissOffset = activeMention.start);
           return KeyEventResult.handled;
         }
-        if (key == LogicalKeyboardKey.arrowDown ||
-            key == LogicalKeyboardKey.arrowRight) {
+        if (key == LogicalKeyboardKey.arrowDown) {
           setState(
             () => _mentionSelectedIndex =
                 (_mentionSelectedIndex + 1) % candidates.length,
           );
           return KeyEventResult.handled;
         }
-        if (key == LogicalKeyboardKey.arrowUp ||
-            key == LogicalKeyboardKey.arrowLeft) {
+        if (key == LogicalKeyboardKey.arrowUp) {
           setState(
             () => _mentionSelectedIndex =
                 (_mentionSelectedIndex - 1 + candidates.length) %

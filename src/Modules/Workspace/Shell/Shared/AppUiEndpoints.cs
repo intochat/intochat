@@ -57,8 +57,8 @@ internal static class AppUiEndpoints
             => ReadDesktopProjection(brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http)));
         apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, [FromServices] IEnumerable<EdgeAuthority> edges, CancellationToken ct)
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault(), edges.FirstOrDefault()));
-        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, CancellationToken ct)
-            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault()));
+        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, [FromServices] IEnumerable<EdgeAuthority> edges, CancellationToken ct)
+            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault(), edges.FirstOrDefault()));
         BrainRouteGroups.Brain(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, [FromServices] IEnumerable<IHostedNeuronTypes> hostedNeurons, [FromServices] IEnumerable<EdgeAuthority> edges, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault(), hostedNeurons.FirstOrDefault(), edges.FirstOrDefault()));
     }
@@ -181,18 +181,11 @@ internal static class AppUiEndpoints
     // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed
     // (an ArgumentException from the handler included: 400 is only for the path checked before it runs).
     internal static async Task<IResult> ReadChild(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
-        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null)
+        IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null, IHostedNeuronTypes? hostedNeurons = null, EdgeAuthority? edge = null)
     {
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
-        // The brain route admitted the caller to this brain; a caller acting in another brain never reads its screens.
-        if (!BrainId.IsValid(scope) || caller.Brain != new BrainId(scope)) { throw new UnauthorizedAccessException("The screen belongs to another brain."); }
+        if (!BrainId.IsValid(scope)) { throw new UnauthorizedAccessException("The screen belongs to another brain."); }
         var brainId = new BrainId(scope);
-        if (!HostAppRef.TryOf(brainId, name, out var appRef) || !ScreenViewResolver.OwnsUi(scope, appRef.ViewKey))
-        {
-            throw new UnauthorizedAccessException($"{name} is not a screen of this brain.");
-        }
-        var neuron = appRef.Key;
-        var alias = ScreenViewResolver.ScreenAlias(scope, neuron) ?? throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
         if (string.IsNullOrWhiteSpace(path)
             || path.Contains('\\', StringComparison.Ordinal)
             || path.StartsWith("./", StringComparison.Ordinal)
@@ -201,20 +194,37 @@ internal static class AppUiEndpoints
             return ErrorJson(StatusCodes.Status400BadRequest, "A child path is one or more keys separated by '/'.");
         }
 
-        var resolved = await ScreenViewResolver.ResolveAsync(brainId, neuron, resolver, hosted, ct, hostedNeurons);
         NeuronId screenId;
-        if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } resolvedId })
+        string neuron;
+        if (caller.Brain != brainId)
         {
-            screenId = resolvedId;
-        }
-        else if (resolved is { Kind: ScreenResolutionKind.NotLoaded }
-            || (ScreenViewResolver.AppOf(scope, neuron) is { } appKey && !(hosted?.IsHostLoaded(appKey) ?? true)))
-        {
-            return ErrorJson(StatusCodes.Status409Conflict, $"{neuron} is not loaded.", "NotLoaded");
+            // Seated cross-brain guests may read child views ONLY on [Shareable] screens they hold an active offer for.
+            screenId = await ResolveGuestShareableScreenAsync(
+                brain, caller, brainId, name, "default", requireEditor: false, hostedNeurons, edge, ct);
+            neuron = screenId.ToString();
         }
         else
         {
-            screenId = new NeuronId(brainId, alias, "default");
+            if (!HostAppRef.TryOf(brainId, name, out var appRef) || !ScreenViewResolver.OwnsUi(scope, appRef.ViewKey))
+            {
+                throw new UnauthorizedAccessException($"{name} is not a screen of this brain.");
+            }
+            neuron = appRef.Key;
+            var alias = ScreenViewResolver.ScreenAlias(scope, neuron) ?? throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
+            var resolved = await ScreenViewResolver.ResolveAsync(brainId, neuron, resolver, hosted, ct, hostedNeurons);
+            if (resolved is { Kind: ScreenResolutionKind.Screen, ScreenId: { } resolvedId })
+            {
+                screenId = resolvedId;
+            }
+            else if (resolved is { Kind: ScreenResolutionKind.NotLoaded }
+                || (ScreenViewResolver.AppOf(scope, neuron) is { } appKey && !(hosted?.IsHostLoaded(appKey) ?? true)))
+            {
+                return ErrorJson(StatusCodes.Status409Conflict, $"{neuron} is not loaded.", "NotLoaded");
+            }
+            else
+            {
+                screenId = new NeuronId(brainId, alias, "default");
+            }
         }
 
         try
@@ -254,17 +264,7 @@ internal static class AppUiEndpoints
         var unit = kind is UIVocabulary.ViewType or "viewport" ? ScreenViewResolver.UnitAlias(scope, name) : null;
         if (unit is null && !ScreenViewResolver.OwnsUi(scope, name))
         {
-            if (kind == UIVocabulary.ViewType
-                && TryParseForeignScreenAddress(scope, name, out var foreignBrain, out var foreignType, out var foreignKey))
-            {
-                var guestScreenId = await ResolveGuestShareableScreenAsync(
-                    brain, caller, foreignBrain, foreignType, foreignKey, requireEditor: false, hostedNeurons, edge, ct);
-                // Preserve caller identity strictly — zero authority elevation.
-                var published = await brain.Get<IScreen>(guestScreenId).Read().WaitAsync(ct);
-                return OkJson(ChildKeys.Screen(published), ShellUiJsonContext.Default.PublishedView);
-            }
-
-            throw new UnauthorizedAccessException("The UI belongs to another brain.");
+            return await ReadForeignShareableNodeAsync(kind, name, brain, scope, caller, hostedNeurons, edge, ct);
         }
         var brainId = new BrainId(scope);
 
@@ -509,6 +509,29 @@ internal static class AppUiEndpoints
             ? string.Empty
             : value.Replace("\r", string.Empty, StringComparison.Ordinal).Replace("\n", string.Empty, StringComparison.Ordinal);
 
+    private static async Task<IResult> ReadForeignShareableNodeAsync(
+        string kind,
+        string name,
+        INeuronProxies brain,
+        string scope,
+        Caller? caller,
+        IHostedNeuronTypes? hostedNeurons,
+        EdgeAuthority? edge,
+        CancellationToken ct)
+    {
+        if (!string.Equals(kind, UIVocabulary.ViewType, StringComparison.Ordinal)
+            || !TryParseForeignScreenAddress(scope, name, out var foreignBrain, out var foreignType, out var foreignKey))
+        {
+            throw new UnauthorizedAccessException("The UI belongs to another brain.");
+        }
+
+        var guestScreenId = await ResolveGuestShareableScreenAsync(
+            brain, caller, foreignBrain, foreignType, foreignKey, requireEditor: false, hostedNeurons, edge, ct);
+        // Preserve caller identity strictly — zero authority elevation.
+        var published = await brain.Get<IScreen>(guestScreenId).Read().WaitAsync(ct);
+        return OkJson(ChildKeys.Screen(published), ShellUiJsonContext.Default.PublishedView);
+    }
+
     internal static async Task<NeuronId> ResolveGuestShareableScreenAsync(
         INeuronProxies brain,
         Caller? caller,
@@ -528,42 +551,25 @@ internal static class AppUiEndpoints
         var normalizedType = screenType.Trim();
         var appPrefixedType = normalizedType.Contains('.', StringComparison.Ordinal) ? normalizedType : "app." + normalizedType;
 
-        if (SharedRoomAgentPolicy.IsHostPrivateScreenType(normalizedType)
-            || SharedRoomAgentPolicy.IsHostPrivateScreenType(appPrefixedType))
+        if (hostedNeurons is null)
         {
-            throw new UnauthorizedAccessException($"Host-private screen '{normalizedType}' is denied for cross-brain guests.");
+            throw new UnauthorizedAccessException("Hosted neuron type catalog is required to verify [Shareable] cross-brain mini-app access.");
         }
 
         string resolvedType = normalizedType;
-        if (hostedNeurons is not null)
+        Type? screenClass = null;
+        if (hostedNeurons.TryGetNeuronClass(normalizedType, out var directClass) && directClass is not null)
         {
-            Type? screenClass = null;
-            if (hostedNeurons.TryGetNeuronClass(normalizedType, out var directClass) && directClass is not null)
-            {
-                screenClass = directClass;
-                resolvedType = normalizedType;
-            }
-            else if (hostedNeurons.TryGetNeuronClass(appPrefixedType, out var prefixedClass) && prefixedClass is not null)
-            {
-                screenClass = prefixedClass;
-                resolvedType = appPrefixedType;
-            }
-
-            if (screenClass is null || !screenClass.IsDefined(typeof(ShareableAttribute), inherit: false))
-            {
-                throw new UnauthorizedAccessException($"Screen '{normalizedType}' is not marked [Shareable] and cannot be accessed by cross-brain guests.");
-            }
-
-            if (screenClass.GetCustomAttributes(typeof(ScreenAttribute), inherit: false).FirstOrDefault() is ScreenAttribute screenAttr
-                && SharedRoomAgentPolicy.IsHostPrivateCategory(screenAttr.Category))
-            {
-                throw new UnauthorizedAccessException($"Screen '{normalizedType}' belongs to host-private category '{screenAttr.Category}'.");
-            }
+            screenClass = directClass;
+            resolvedType = normalizedType;
         }
-        else if (!normalizedType.Contains('.', StringComparison.Ordinal))
+        else if (hostedNeurons.TryGetNeuronClass(appPrefixedType, out var prefixedClass) && prefixedClass is not null)
         {
+            screenClass = prefixedClass;
             resolvedType = appPrefixedType;
         }
+
+        SharedRoomAgentPolicy.ValidateShareableScreenClass(normalizedType, screenClass, "cross-brain guest access");
 
         var screenId = new NeuronId(targetBrain, resolvedType, screenKey.Trim());
         Role? offerRole;

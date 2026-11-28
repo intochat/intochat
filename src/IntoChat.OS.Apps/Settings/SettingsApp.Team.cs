@@ -49,7 +49,7 @@ public sealed partial class SettingsApp
     {
         ArgumentNullException.ThrowIfNull(request);
         var raw = request.Code?.Trim();
-        if (string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw) || !Code.TryParse(raw, out var code))
         {
             await PublishEphemeral(new Rejected("redeem-friend-code", ["invalid_code"], ["Enter a valid 24h friend code to redeem."]));
             return;
@@ -63,7 +63,7 @@ public sealed partial class SettingsApp
 
         try
         {
-            var added = await friends.Redeem(new Code(raw));
+            var added = await friends.Redeem(code);
             var roster = await TryReadTeamRosterAsync();
             var label = string.IsNullOrWhiteSpace(added.Name) ? $"@{added.Account.Value}" : added.Name;
             await UpdateAsync(State with
@@ -210,5 +210,16 @@ public sealed partial class SettingsApp
         {
             Log.LogDebug(error, "Skipping friend connection grants persistence in minimal test host.");
         }
+    }
+
+    internal static string[] ParseFriendGrants(IReadOnlyList<UserVariableEntry>? variables)
+    {
+        var raw = variables?.FirstOrDefault(static v => string.Equals(v.Key, FriendGrantsVariable, StringComparison.Ordinal))?.Value;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return [];
+        }
+
+        return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 }

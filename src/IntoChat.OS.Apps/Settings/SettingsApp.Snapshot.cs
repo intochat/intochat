@@ -108,7 +108,14 @@ public sealed partial class SettingsApp
                 return await ReadComputeSummaryAsync(baseline);
 
             case "team":
-                return baseline with { TeamRoster = await TryReadTeamRosterAsync() };
+                {
+                    var grants = ParseFriendGrants(baseline.Variables);
+                    return baseline with
+                    {
+                        TeamRoster = await TryReadTeamRosterAsync(),
+                        FriendConnectionGrants = grants.Length > 0 ? grants : baseline.FriendConnectionGrants,
+                    };
+                }
 
             case "notifications":
                 return baseline with { PendingApprovals = await TryReadPendingApprovalsAsync() };

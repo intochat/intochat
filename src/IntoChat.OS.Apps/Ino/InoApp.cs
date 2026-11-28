@@ -129,7 +129,21 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             Child<ICheckBoxControl, CheckBoxProps>,
             ThreadShelfSnapshot,
             ArchivedSessionsPage,
-            CurrentBrain.Value);
+            ActiveThreadHostBrainId(state));
+
+    internal string? ActiveThreadHostBrainId(InoAppState state)
+    {
+        var activeId = InoModel.ConversationIdOf(state.ConversationId);
+        var entry = ThreadShelfSnapshot?.Entries.FirstOrDefault(e =>
+            string.Equals(e.Id, activeId, StringComparison.Ordinal)
+            || (e.Thread is { } thread && string.Equals(thread.Key, $"conversations/{activeId}", StringComparison.Ordinal)));
+        if (entry?.Thread is { } activeThread && !string.IsNullOrWhiteSpace(activeThread.Brain.Value))
+        {
+            return activeThread.Brain.Value;
+        }
+
+        return CurrentBrain.Value;
+    }
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
     {

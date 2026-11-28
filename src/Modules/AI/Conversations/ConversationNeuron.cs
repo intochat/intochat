@@ -1845,17 +1845,13 @@ internal sealed class ConversationNeuron(
                 }.ToJsonString();
             }
 
-            // Fail-closed: enforce host-private denylist, [Shareable], and category rules before dispatch.
-            RequirePinnableScreen(screenType);
+            // Fail-closed: enforce host-private denylist, [Shareable], category, and explicit [RoomSafe] (and non-[PersonOnly]) signal rules before dispatch.
+            var screenClass = RequirePinnableScreen(screenType);
+            SharedRoomAgentPolicy.ValidateRoomSafeScreenSignal(screenClass, signal);
 
             var screen = Context.Get<IScreen>(new NeuronId(Id.Brain, screenType, screenKey));
             await screen.Dispatch(new DigitalBrain.UI.Command(target, signal, args));
             var view = await screen.Read();
-            using (OwnModuleIfForeign())
-            {
-                await Persist(State);
-            }
-            await NudgeDirectoriesAsync(State.Revision);
 
             return new System.Text.Json.Nodes.JsonObject
             {
@@ -1876,34 +1872,11 @@ internal sealed class ConversationNeuron(
         }
     }
 
-    private void RequirePinnableScreen(string screenType)
+    private Type RequirePinnableScreen(string screenType)
     {
-        if (SharedRoomAgentPolicy.IsHostPrivateScreenType(screenType))
-        {
-            throw new UnauthorizedAccessException($"Screen type '{screenType}' is host-private and cannot be pinned in thread '{Id.Key}'.");
-        }
-
         var screenClass = Context.ClassOf(screenType);
-        if (screenClass is null || !typeof(IScreen).IsAssignableFrom(screenClass))
-        {
-            throw new UnauthorizedAccessException($"Screen type '{screenType}' is not a registered pinnable screen in thread '{Id.Key}'.");
-        }
-
-        if (!screenClass.IsDefined(typeof(ShareableAttribute), inherit: false))
-        {
-            throw new UnauthorizedAccessException($"Screen type '{screenType}' is not marked [Shareable] and cannot be pinned in thread '{Id.Key}'.");
-        }
-
-        if (screenClass.IsDefined(typeof(InternalAttribute), inherit: false))
-        {
-            throw new UnauthorizedAccessException($"Screen type '{screenType}' is internal and cannot be pinned in thread '{Id.Key}'.");
-        }
-
-        if (screenClass.GetCustomAttribute<ScreenAttribute>(inherit: false) is { Category: { Length: > 0 } category }
-            && SharedRoomAgentPolicy.IsHostPrivateCategory(category))
-        {
-            throw new UnauthorizedAccessException($"Screen type '{screenType}' (category '{category}') is host-private and cannot be pinned in thread '{Id.Key}'.");
-        }
+        SharedRoomAgentPolicy.ValidateShareableScreenClass(screenType, screenClass, $"thread '{Id.Key}'");
+        return screenClass!;
     }
 
     private async Task<string> RequireSeat(bool requireEditor = false)

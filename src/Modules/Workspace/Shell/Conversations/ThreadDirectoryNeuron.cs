@@ -324,7 +324,7 @@ internal sealed class ThreadDirectoryNeuron(
             title: resolvedKind == ThreadKind.DirectPerson ? $"New direct message: {cleanTitle}" : $"Room invite: {cleanTitle}",
             body: $"You were invited to '{cleanTitle}'.",
             category: "messenger.invite",
-            actionUrl: $"os://app/ino?conversation={entry.Id}",
+            actionUrl: $"os://app/ino?conversation={Uri.EscapeDataString(entry.Id)}",
             dedupeKey: $"thread-invite:{entry.Id}");
     }
 
@@ -376,7 +376,7 @@ internal sealed class ThreadDirectoryNeuron(
                 title: isDm ? $"New message from {label}" : $"New activity in {label}",
                 body: $"{unread} unread update(s) in '{label}'.",
                 category: isDm ? "messenger.dm" : "messenger.mention",
-                actionUrl: $"os://app/ino?conversation={entry.Id}",
+                actionUrl: $"os://app/ino?conversation={Uri.EscapeDataString(entry.Id)}",
                 dedupeKey: $"thread-rev:{entry.Id}:{nextRevision}");
         }
     }
