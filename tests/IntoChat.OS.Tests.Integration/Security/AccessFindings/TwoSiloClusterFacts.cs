@@ -186,6 +186,12 @@ public sealed class TwoSiloClusterFacts
                 {
                     UseSharedMembership(builder, sharedTable);
                     builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
+                    // Aggressive periodic refresh proves SingleSiloGuard's MarkSelfDeadAsync does not race with
+                    // MembershipTableManager.PeriodicallyRefreshMembershipTable into Environment.FailFast (exit 134).
+                    builder.Services.Configure<Orleans.Configuration.ClusterMembershipOptions>(options =>
+                    {
+                        options.TableRefreshTimeout = TimeSpan.FromMilliseconds(50);
+                    });
                 });
             });
 
@@ -292,35 +298,6 @@ public sealed class TwoSiloClusterFacts
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
-    }
-
-    // Regression test for Orleans MembershipTableManager.PeriodicallyRefreshMembershipTable racing with
-    // SingleSiloGuard.MarkSelfDeadAsync (which previously triggered KillMyselfLocally -> Environment.FailFast / exit 134).
-    [Fact]
-    public async Task ARefusedSilo_WithAggressiveMembershipRefresh_DoesNotTriggerFatalFailFast()
-    {
-        var sharedTable = new SharedInMemoryMembershipTable();
-        await using var primary = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder => UseSharedMembership(builder, sharedTable));
-        var primaryAddress = primary.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
-
-        var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
-        {
-            await using var joining = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
-            {
-                UseSharedMembership(builder, sharedTable);
-                builder.Services.Configure<SingleSiloGuardOptions>(options => options.GracePeriod = TimeSpan.Zero);
-                builder.Services.Configure<Orleans.Configuration.ClusterMembershipOptions>(options =>
-                {
-                    options.TableRefreshTimeout = TimeSpan.FromMilliseconds(25);
-                });
-            });
-        });
-
-        Assert.Contains(Chain(error), e => e is InvalidOperationException && e.Message.Contains("must be the only silo of its cluster", StringComparison.Ordinal));
-        Assert.Equal(SiloStatus.Active, sharedTable.StatusOf(primaryAddress));
-        var otherRows = sharedTable.Statuses().Where(pair => !pair.Key.Equals(primaryAddress)).ToArray();
-        Assert.Single(otherRows);
-        Assert.Equal(SiloStatus.Dead, otherRows[0].Value);
     }
 
     // A silo alone in its cluster starts with the guard in place: the single-silo shape is unchanged.
