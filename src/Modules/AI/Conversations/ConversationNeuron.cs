@@ -472,7 +472,9 @@ internal sealed class ConversationNeuron(
             TraceId = TraceContext.Current?.TraceId,
         };
 
-        var targetAgentId = ResolveSquadTargetAgent(masked);
+        var targetAgents = ResolveSquadTargetAgents(masked);
+        var targetAgentId = targetAgents[0];
+        var queuedAgents = targetAgents.Length > 1 ? targetAgents[1..] : null;
 
         await PersistWithActivityAsync(
             State with
@@ -482,12 +484,13 @@ internal sealed class ConversationNeuron(
                 Log = nextLog,
                 ActiveRun = activeRun,
                 Replacing = null,
+                HandoffLimitNotice = null,
             },
             runSummaryText);
 
         try
         {
-            await Context.Get<IConversationDriver>(Id).Drive(runId, model?.Value, null, targetAgentId, depth: 0);
+            await Context.Get<IConversationDriver>(Id).Drive(runId, model?.Value, null, targetAgentId, depth: 0, queuedAgentIds: queuedAgents);
         }
         catch
         {
@@ -729,34 +732,80 @@ internal sealed class ConversationNeuron(
         return null;
     }
 
-    private string ResolveSquadTargetAgent(string text)
+    private SeatedAgent? FindSeatedAgentByMention(string? mention)
+    {
+        if (string.IsNullOrWhiteSpace(mention))
+        {
+            return null;
+        }
+
+        var token = mention.Trim().TrimStart('@');
+        if (string.IsNullOrEmpty(token))
+        {
+            return null;
+        }
+
+        foreach (var seated in State.Agents)
+        {
+            if (string.Equals(seated.AgentId, token, StringComparison.OrdinalIgnoreCase))
+            {
+                return seated;
+            }
+
+            if (!string.IsNullOrWhiteSpace(seated.Definition.Handle)
+                && string.Equals(seated.Definition.Handle.TrimStart('@'), token, StringComparison.OrdinalIgnoreCase))
+            {
+                return seated;
+            }
+
+            if (string.Equals(seated.AgentId, "agent-" + token, StringComparison.OrdinalIgnoreCase))
+            {
+                return seated;
+            }
+        }
+
+        return null;
+    }
+
+    private string[] ResolveSquadTargetAgents(string text)
     {
         if (State.Agents.Length > 1 || State.Kind == ThreadKind.Squad)
         {
             var mentions = SharedRoomAgentPolicy.ExtractMentions(text);
-            foreach (var mention in mentions)
+            if (mentions.Length > 0)
             {
-                var matched = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, mention, StringComparison.OrdinalIgnoreCase));
-                if (matched is not null)
+                var matched = new List<string>(mentions.Length);
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var mention in mentions)
                 {
-                    return matched.AgentId;
+                    if (FindSeatedAgentByMention(mention) is { } agent && seen.Add(agent.AgentId))
+                    {
+                        matched.Add(agent.AgentId);
+                    }
+                }
+
+                if (matched.Count > 0)
+                {
+                    return [.. matched];
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(State.LeadAgentId))
+            if (!string.IsNullOrWhiteSpace(State.LeadAgentId)
+                && FindSeatedAgentByMention(State.LeadAgentId) is { } lead)
             {
-                var lead = State.Agents.FirstOrDefault(a => string.Equals(a.AgentId, State.LeadAgentId, StringComparison.OrdinalIgnoreCase));
-                if (lead is not null)
-                {
-                    return lead.AgentId;
-                }
+                return [lead.AgentId];
+            }
+
+            if (FindSeatedAgentByMention(DefaultAgentId) is { } defaultIno)
+            {
+                return [defaultIno.AgentId];
             }
         }
 
-        return State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
+        return [State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId];
     }
 
-    private string? ResolveSquadHandoffAgent(string replyText, string currentAgentId)
+    private SeatedAgent? ResolveSquadHandoffAgent(string replyText, string currentAgentId)
     {
         if (State.TrustPosture != ThreadTrustPosture.OwnerTrusted || State.Kind != ThreadKind.Squad || State.Agents.Length < 2)
         {
@@ -766,15 +815,53 @@ internal sealed class ConversationNeuron(
         var mentions = SharedRoomAgentPolicy.ExtractMentions(replyText);
         foreach (var mention in mentions)
         {
-            var matched = State.Agents.FirstOrDefault(a =>
-                string.Equals(a.AgentId, mention, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(a.AgentId, currentAgentId, StringComparison.OrdinalIgnoreCase));
-            if (matched is not null)
+            var matched = FindSeatedAgentByMention(mention);
+            if (matched is not null
+                && !string.Equals(matched.AgentId, currentAgentId, StringComparison.OrdinalIgnoreCase))
             {
-                return matched.AgentId;
+                return matched;
             }
         }
         return null;
+    }
+
+    private static string FormatHandleToken(SeatedAgent seated)
+    {
+        if (!string.IsNullOrWhiteSpace(seated.Definition.Handle))
+        {
+            return seated.Definition.Handle.TrimStart('@');
+        }
+
+        return seated.AgentId.StartsWith("agent-", StringComparison.OrdinalIgnoreCase) && seated.AgentId.Length > 6
+            ? seated.AgentId[6..]
+            : seated.AgentId;
+    }
+
+    private SeatedAgentSummary[] ProjectSeatedAgents(ConversationState state)
+    {
+        if (state.Agents.Length == 0)
+        {
+            return [];
+        }
+
+        var leadToken = (string.IsNullOrWhiteSpace(state.LeadAgentId) ? DefaultAgentId : state.LeadAgentId).Trim().TrimStart('@');
+        return
+        [
+            .. state.Agents.Select(a =>
+            {
+                var handle = !string.IsNullOrWhiteSpace(a.Definition.Handle)
+                    ? (a.Definition.Handle.StartsWith('@') ? a.Definition.Handle : "@" + a.Definition.Handle)
+                    : "@" + FormatHandleToken(a);
+                var isLead = string.Equals(a.AgentId, leadToken, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(handle.TrimStart('@'), leadToken, StringComparison.OrdinalIgnoreCase);
+                return new SeatedAgentSummary(
+                    AgentId: a.AgentId,
+                    DisplayName: string.IsNullOrWhiteSpace(a.Definition.DisplayName) ? a.AgentId : a.Definition.DisplayName,
+                    Handle: handle,
+                    MemoryScopeKey: a.Definition.MemoryScopeKey,
+                    IsLead: isLead);
+            }),
+        ];
     }
 
     public async Task Invite(AccountId friend, BrainId? friendBrain = null, Role role = Role.Editor)
@@ -1204,6 +1291,8 @@ internal sealed class ConversationNeuron(
                 LeadAgentId = committed.LeadAgentId,
                 PinnedScreens = committed.PinnedScreens,
                 PresentAccounts = ActivePresence(),
+                SeatedAgents = ProjectSeatedAgents(committed),
+                HandoffLimitNotice = committed.HandoffLimitNotice,
             };
         }
 
@@ -1235,6 +1324,8 @@ internal sealed class ConversationNeuron(
             LeadAgentId = state.LeadAgentId,
             PinnedScreens = state.PinnedScreens,
             PresentAccounts = ActivePresence(),
+            SeatedAgents = ProjectSeatedAgents(state),
+            HandoffLimitNotice = state.HandoffLimitNotice,
         };
     }
 
@@ -1338,7 +1429,7 @@ internal sealed class ConversationNeuron(
         await NudgeDirectoriesAsync(committedRevision);
     }
 
-    public async Task Drive(string runId, string? model, string? replaces, string? targetAgentId = null, int depth = 0)
+    public async Task Drive(string runId, string? model, string? replaces, string? targetAgentId = null, int depth = 0, string[]? queuedAgentIds = null)
     {
         if (State.ActiveRun?.RunId != runId || IsActive)
         {
@@ -1358,6 +1449,8 @@ internal sealed class ConversationNeuron(
         var committed = false;
         string? handoffTarget = null;
         string? handoffText = null;
+        var handoffDepth = depth + 1;
+        string[]? nextQueue = null;
 
         using (var activeRun = BeginRun(runId, definition.Timeout))
         {
@@ -1496,14 +1589,50 @@ internal sealed class ConversationNeuron(
                                 var summarized = nextSummary != window.Summary && nextSummary is { Length: > 0 };
 
                                 var now = Clock.GetUtcNow();
-                                var newEntries = new List<ConversationEntry>(2);
+                                var newEntries = new List<ConversationEntry>(3);
                                 if (summarized)
                                 {
                                     var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
                                     newEntries.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, nextSummary!, upTo));
                                 }
                                 ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
-                                newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
+                                var replyId = EntryIds.Reply(runId);
+                                newEntries.Add(new Said(replyId, agentParticipant, now, turnState.Visible, usedModel, replacingId, new SenderIdentity(seated.AgentId, definition.DisplayName, SenderKind.Agent)));
+
+                                // Multi-agent Squad handoff with strict maxDepth = 3 loop guard and clean limit summary.
+                                string? handoffLimitNotice = null;
+                                var requestedHandoff = ResolveSquadHandoffAgent(turnState.Visible, seated.AgentId);
+                                if (requestedHandoff is not null)
+                                {
+                                    if (depth + 1 < SharedRoomAgentPolicy.MaxSquadHandoffDepth)
+                                    {
+                                        handoffTarget = requestedHandoff.AgentId;
+                                        handoffText = turnState.Visible;
+                                        handoffDepth = depth + 1;
+                                        nextQueue = queuedAgentIds;
+                                    }
+                                    else
+                                    {
+                                        handoffLimitNotice = $"Squad delegation limit reached (maxDepth = {SharedRoomAgentPolicy.MaxSquadHandoffDepth}): halted handoff from @{FormatHandleToken(seated)} to @{FormatHandleToken(requestedHandoff)}. Reply or @mention a seated agent to continue.";
+                                        newEntries.Add(new Summarized(
+                                            EntryIds.Summary(runId + "-handoff-limit"),
+                                            agentParticipant,
+                                            now,
+                                            handoffLimitNotice,
+                                            replyId));
+                                    }
+                                }
+                                else if (queuedAgentIds is { Length: > 0 })
+                                {
+                                    handoffTarget = queuedAgentIds[0];
+                                    handoffText = latestHumanSaid?.Text ?? turnState.Run.UserText;
+                                    handoffDepth = 0;
+                                    nextQueue = queuedAgentIds.Length > 1 ? queuedAgentIds[1..] : null;
+                                }
+
+                                if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
+                                await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
+                                await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, turnState.Run.UserText, turnState.Visible);
 
                                 var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
                                 storeCount++;
@@ -1513,19 +1642,9 @@ internal sealed class ConversationNeuron(
                                     ActiveRun = null,
                                     Replacing = null,
                                     Runs = Keep(State.Runs, turnState.Run),
+                                    HandoffLimitNotice = handoffLimitNotice ?? State.HandoffLimitNotice,
                                 });
-                                if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
-                                await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
-                                await Runner.RecordIsolatedEpisode(definition.MemoryScopeKey, seated.AgentId, turnState.Run.UserText, turnState.Visible);
                                 committed = true;
-
-                                // Multi-agent Squad handoff with strict maxDepth = 3 loop guard.
-                                if (depth + 1 < SharedRoomAgentPolicy.MaxSquadHandoffDepth
-                                    && ResolveSquadHandoffAgent(turnState.Visible, seated.AgentId) is { } nextAgent)
-                                {
-                                    handoffTarget = nextAgent;
-                                    handoffText = turnState.Visible;
-                                }
                                 break;
                             }
                         case AgentTurnEvent.TurnFailed failed:
@@ -1573,7 +1692,7 @@ internal sealed class ConversationNeuron(
             await Persist(State with { ActiveRun = handoffRun, Replacing = null });
             try
             {
-                await Context.Get<IConversationDriver>(Id).Drive(nextRunId, model, null, handoffTarget, depth + 1);
+                await Context.Get<IConversationDriver>(Id).Drive(nextRunId, model, null, handoffTarget, handoffDepth, nextQueue);
             }
             catch (Exception error)
             {

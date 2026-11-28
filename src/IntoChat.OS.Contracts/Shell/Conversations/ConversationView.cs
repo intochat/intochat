@@ -2,6 +2,13 @@ using IntoChat.OS.Modules.AI.Agents;
 
 namespace IntoChat.OS.Modules.Flutter.Conversations;
 
+public sealed record SeatedAgentSummary(
+    string AgentId,
+    string DisplayName,
+    string? Handle = null,
+    string? MemoryScopeKey = null,
+    bool IsLead = false);
+
 public sealed record ConversationView(
     ConversationId Id,
     long Revision,
@@ -20,4 +27,6 @@ public sealed record ConversationView(
     public string? LeadAgentId { get; init; }
     public PinnedScreen[] PinnedScreens { get; init; } = [];
     public string[] PresentAccounts { get; init; } = [];
+    public SeatedAgentSummary[] SeatedAgents { get; init; } = [];
+    public string? HandoffLimitNotice { get; init; }
 }

@@ -356,7 +356,9 @@ public static partial class InoView
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
         IReadOnlyList<ModelAvailability>? availability = null,
-        DeviceView? device = null)
+        DeviceView? device = null,
+        Func<string, KanbanProps, Node>? kanban = null,
+        Func<string, CheckBoxProps, Node>? checkBox = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(voice);
@@ -366,7 +368,11 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s, device) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
-        Node[] tasks = s.ActiveTasks is { Length: > 0 } activeTasks ? [.. activeTasks.Select(RenderTaskJobCard)] : [];
+        Node[] tasks =
+        [
+            .. s.ActiveTasks.Select(RenderTaskJobCard),
+            .. s.SquadEngineerRuns.Select(InoSquads.RenderEngineerRunJobCard),
+        ];
         var navAboveList = new List<Node>();
         if (string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
         {
@@ -376,9 +382,21 @@ public static partial class InoView
         {
             navAboveList.Add(RenderSpecialistAuthoringPanel(s));
         }
+        if (!string.IsNullOrWhiteSpace(s.SquadError))
+        {
+            navAboveList.Add(Banner("Squad Room", s.SquadError, tone: "error"));
+        }
+        if (view is { Kind: ThreadKind.Squad })
+        {
+            navAboveList.Add(InoSquads.RenderSquadHeader(s, view));
+        }
         if (!string.IsNullOrWhiteSpace(s.ActiveSpecialistAppId))
         {
             navAboveList.Add(RenderSpecialistBanner(s, view));
+        }
+        if (InoSquads.RenderChatAboutChoiceBanner(s) is { } choiceBanner)
+        {
+            navAboveList.Add(choiceBanner);
         }
         navAboveList.AddRange(RenderNavigationSeedNodes(s, departureRejection));
         Node[] navAbove = [.. navAboveList];
@@ -397,11 +415,17 @@ public static partial class InoView
             leftColumn = Filling(navAbove, conversation, under);
         }
 
-        if (s.DrawerOpen && s.ActiveArtifact is { } artifact)
+        var isPlanDrawer = string.Equals(s.DrawerTab, InoSquads.DrawerTabPlan, StringComparison.Ordinal);
+        if (s.DrawerOpen && (s.ActiveArtifact is not null || isPlanDrawer))
         {
+            var effectiveArtifact = s.ActiveArtifact ?? new InoDrawerArtifact(
+                Id: $"squad-plan:{s.ConversationId}",
+                Title: string.IsNullOrWhiteSpace(s.Title) ? "Squad Plan" : $"{s.Title} · Plan",
+                Kind: "squad-plan",
+                Status: "done");
             return new SplitPane(
                 leftColumn,
-                RenderArtifactDrawer(s, artifact),
+                RenderArtifactDrawer(s, effectiveArtifact, kanban, checkBox),
                 LeadingExtent: 520,
                 Gap: 16,
                 TrailingDrawer: true,
@@ -485,8 +509,15 @@ public static partial class InoView
             return null;
         }
 
-        var options = new ChoiceOptionNode[askTask.AskOptions.Length];
-        for (var i = 0; i < askTask.AskOptions.Length; i++)
+        // While the user clicked "Chat about this", release the composer without losing the pending choice.
+        if (string.Equals(s.ChattingAboutChoiceTaskId, askTask.TaskId, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var count = Math.Min(9, askTask.AskOptions.Length);
+        var options = new ChoiceOptionNode[count];
+        for (var i = 0; i < count; i++)
         {
             var label = askTask.AskOptions[i];
             var detail = askTask.AskRecommendedIndex == i ? "Recommended" : null;
@@ -575,7 +606,11 @@ public static partial class InoView
             OpenArtifact: openButton);
     }
 
-    internal static Node RenderArtifactDrawer(InoAppState s, InoDrawerArtifact artifact)
+    internal static Node RenderArtifactDrawer(
+        InoAppState s,
+        InoDrawerArtifact artifact,
+        Func<string, KanbanProps, Node>? kanban = null,
+        Func<string, CheckBoxProps, Node>? checkBox = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(artifact);
@@ -654,6 +689,7 @@ public static partial class InoView
                 TabButton("preview", "Preview", DrawerTabPreviewKey),
                 TabButton("diff", "Diff", DrawerTabDiffKey),
                 TabButton("logs", "Logs", DrawerTabLogsKey),
+                TabButton(InoSquads.DrawerTabPlan, "Plan / Board", InoSquads.DrawerTabPlanKey),
                 pinAction,
                 popoutAction,
                 closeAction
@@ -671,8 +707,12 @@ public static partial class InoView
             banners.Add(Banner("Could not pin app", artifact.PinError, tone: "error"));
         }
 
+        Func<string, KanbanProps, Node> effectiveKanban = kanban ?? FallbackKanbanNode;
+        Func<string, CheckBoxProps, Node> effectiveCheckBox = checkBox ?? FallbackCheckBoxNode;
+
         Node body = activeTab switch
         {
+            InoSquads.DrawerTabPlan => InoSquads.RenderSquadPlanBody(s, s.ActiveTasks, effectiveKanban, effectiveCheckBox),
             "diff" => Card("Artifact Summary & Script", artifact.Summary ?? "Compiled script and artifact changes.")
                 .Style(OsMixStyles.Card())[
                 Text(string.IsNullOrWhiteSpace(artifact.DiffText)
@@ -701,6 +741,12 @@ public static partial class InoView
             VStack(Space.Sm, [header, .. banners, body]).Extents([-1d, .. banners.Select(static _ => -1d), 1d])
         ];
     }
+
+    private static Node FallbackKanbanNode(string key, KanbanProps props)
+        => Card(props.Title, $"{props.Cards.Count} card(s)").ToNode();
+
+    private static Node FallbackCheckBoxNode(string key, CheckBoxProps props)
+        => StatusPill(props.IsOn == true ? StatusKind.Done : StatusKind.Idle, props.Label);
 
     private static Button WithRootTarget(Button button)
         => button.Command is null ? button : button with { Command = button.Command with { Target = "/" } };

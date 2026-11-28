@@ -105,6 +105,7 @@ class _ConversationViewState extends State<ConversationView> {
   bool _submitting = false;
   bool _hadWaiting = false;
   bool _suppressWaitingDefault = false;
+  bool _chattingAboutWaiting = false;
 
   late final ConversationController _conversation;
   final List<AttachmentNode> _stagedAttachments = <AttachmentNode>[];
@@ -163,6 +164,7 @@ class _ConversationViewState extends State<ConversationView> {
       }
     } else if (!hasWaiting && _hadWaiting) {
       _suppressWaitingDefault = false;
+      _chattingAboutWaiting = false;
     }
     _hadWaiting = hasWaiting;
 
@@ -565,7 +567,7 @@ class _ConversationViewState extends State<ConversationView> {
                     onClose: _conversation.closeVoiceMode,
                   ),
                 ),
-              if (waiting != null)
+              if (waiting != null && !_chattingAboutWaiting)
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 380),
                   child: SingleChildScrollView(
@@ -575,6 +577,14 @@ class _ConversationViewState extends State<ConversationView> {
                       child: PromptScope(
                         docked: true,
                         suppressDefault: _suppressWaitingDefault,
+                        onChat: () {
+                          setState(() => _chattingAboutWaiting = true);
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              _composerFocus.requestFocus();
+                            }
+                          });
+                        },
                         child: PromptKeys(
                           focusNode: _dockFocus,
                           autofocus: !_suppressWaitingDefault,
@@ -593,6 +603,63 @@ class _ConversationViewState extends State<ConversationView> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (waiting != null && _chattingAboutWaiting)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.accentTint,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: c.borderHairline),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                LucideIcons.hand,
+                                size: 14,
+                                color: c.accent,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Choice waiting — chat about this without losing your pending choice',
+                                  style: UiType.textStyle(
+                                    12,
+                                    weight: FontWeight.w500,
+                                    color: c.textStrong,
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(
+                                    () => _chattingAboutWaiting = false,
+                                  );
+                                  WidgetsBinding.instance.addPostFrameCallback(
+                                    (_) {
+                                      if (mounted) {
+                                        PromptKeys.focus(_dockFocus);
+                                      }
+                                    },
+                                  );
+                                },
+                                child: Text(
+                                  'Return to choice',
+                                  style: UiType.textStyle(
+                                    12,
+                                    weight: FontWeight.w600,
+                                    color: c.accent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     if (stop != null)
                       _StopHintBar(
                         label: stop.label,

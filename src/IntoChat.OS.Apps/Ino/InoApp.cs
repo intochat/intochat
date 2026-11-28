@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, open-drawer, close-drawer, drawer-tab, pin-artifact, clear-context, answer-task-ask, new-specialist, import-skill, open-specialist, specialist-panel, new-squad, open-squad-plan, squad-add-task, squad-move-task, squad-toggle-task, chat-about-choice
 */
 using IntoChat.OS.Host.Apps;
 using System.Text.Json;
@@ -59,6 +59,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
     [Slot(Required = false)] private partial SlotCollection<ICodeOrchestration> CodeOrchestrations { get; }
     [Slot(Key = ITasks.DefaultKey, Required = false)] private partial ITasks? Tasks { get; }
+    [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = IInstalledApps.DefaultKey, Required = false)] private partial IInstalledApps? InstalledApps { get; }
 
     private ILogger<InoApp>? Logger { get; }
@@ -116,7 +117,9 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             base.LastRejection,
             PickerCards,
             PickerAvailability,
-            DeviceSnapshot);
+            DeviceSnapshot,
+            Child<IKanbanControl, KanbanProps>,
+            Child<ICheckBoxControl, CheckBoxProps>);
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
     {
@@ -316,6 +319,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             await FollowChild<IChatThreadControl, ChatModelSelected>(InoView.ConversationKey);
             await FollowChild<IChatThreadControl, ContextCleared>(InoView.ConversationKey);
         });
+        await ActivateSquadControlsAsync();
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         if (ThisMachine is { Value.Length: > 0 } machine)
         {
@@ -575,11 +579,16 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         }
 
         var records = await ReadOptionalAsync<TaskRecord[]>("tasks-list", [], () => tasks.List());
-        var projected = records
+        var isSquad = ConversationView is { Kind: ThreadKind.Squad } || State.ConversationId.StartsWith("squad-", StringComparison.Ordinal);
+        var filtered = isSquad
+            ? records.Where(r => string.IsNullOrWhiteSpace(r.ConversationId)
+                || string.Equals(r.ConversationId, State.ConversationId, StringComparison.Ordinal))
+            : records;
+        var projected = filtered
             .Where(static r => r.Status is TaskStatus.Queued or TaskStatus.InProgress or TaskStatus.NeedsYou or TaskStatus.Waiting or TaskStatus.Failed or TaskStatus.Completed)
             .OrderByDescending(static r => r.Status == TaskStatus.NeedsYou)
             .ThenByDescending(static r => r.UpdatedAt)
-            .Take(8)
+            .Take(16)
             .Select(static r =>
             {
                 var artifact = r.Artifacts.LastOrDefault();
@@ -607,16 +616,36 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
             })
             .ToArray();
 
+        var engineerRuns = await ReadSquadEngineerRunsAsync(projected);
+        var clearChatAbout = !string.IsNullOrWhiteSpace(State.ChattingAboutChoiceTaskId)
+            && !projected.Any(t => string.Equals(t.TaskId, State.ChattingAboutChoiceTaskId, StringComparison.Ordinal)
+                && string.Equals(t.Status, "needs-you", StringComparison.OrdinalIgnoreCase));
+
+        var updated = State with
+        {
+            ActiveTasks = projected,
+            SquadEngineerRuns = engineerRuns,
+            ChattingAboutChoiceTaskId = clearChatAbout ? null : State.ChattingAboutChoiceTaskId,
+        };
+
         if (!commit)
         {
-            if (projected.Length > 0)
+            if (projected.Length > 0 || engineerRuns.Length > 0)
             {
-                await Show(State with { ActiveTasks = projected });
+                await Show(updated);
+            }
+            if (updated.DrawerOpen && string.Equals(updated.DrawerTab, InoSquads.DrawerTabPlan, StringComparison.Ordinal))
+            {
+                await SyncSquadCheckBoxesAsync(projected);
             }
             return;
         }
 
-        await Commit(State with { ActiveTasks = projected });
+        await Commit(updated);
+        if (updated.DrawerOpen && string.Equals(updated.DrawerTab, InoSquads.DrawerTabPlan, StringComparison.Ordinal))
+        {
+            await SyncSquadCheckBoxesAsync(projected);
+        }
     }
 
     [On]
