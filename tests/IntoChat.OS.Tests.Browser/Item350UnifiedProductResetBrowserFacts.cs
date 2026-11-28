@@ -254,6 +254,15 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
             await clearChip.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             await clearChip.ClickAsync(new() { Force = true, Timeout = 15_000 }).WaitAsync(ct);
             await WaitForSemanticsNotContainsAsync(page, "Editing: Tip Calculator", ct);
+
+            // Close the SplitPane drawer so subsequent journeys have full conversation viewport width.
+            using (var kernel = host.CreateKernelClient())
+            {
+                using var _ = await kernel.PostAsJsonAsync(
+                    $"/brains/{host.Scope}/act",
+                    new { neuron = $"{host.Scope}/apps/ino", target = ".", signal = "ino.close-drawer", args = new { } },
+                    ct);
+            }
         }
         catch (Exception ex)
         {
@@ -416,7 +425,7 @@ public sealed class Item350UnifiedProductResetBrowserFacts(Item350WebShellFixtur
             // Expand VoiceClipCard's collapsible Transcript section and verify redacted transcript renders
             var transcriptBtn = page.GetByRole(AriaRole.Button, new() { Name = "Transcript" }).First;
             await transcriptBtn.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await transcriptBtn.ClickAsync(new() { Force = true, Timeout = 15_000 }).WaitAsync(ct);
+            await transcriptBtn.EvaluateAsync("el => el.click()").WaitAsync(ct);
             await WaitForSemanticsTextContainsAsync(page, "Voice note transcript with sensitive key **** redacted safely.", ct);
 
             var fullSemantics = await ReadAllSemanticsTextAsync(page, ct);
