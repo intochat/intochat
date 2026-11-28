@@ -1,15 +1,10 @@
-using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
-using Concentus;
-using Concentus.Oggfile;
 using DigitalBrain.Log;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Devices.Voice;
 using Microsoft.Extensions.AI;
-using NAudio.Wave;
-using NLayer;
 
 namespace IntoChat.OS.Modules.AI.Voice;
 
@@ -458,41 +453,7 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
     }
 
     internal static byte[] NormalizeToOutputPcm(DataContent data)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-        var bytes = data.Data.ToArray();
-        if (bytes.Length == 0)
-        {
-            return [];
-        }
-
-        var mediaType = NormalizeMediaType(data.MediaType);
-
-        if (mediaType.StartsWith("audio/pcm", StringComparison.OrdinalIgnoreCase))
-        {
-            var rate = SpeechEndpoint.ParsePcmRate(data.MediaType!);
-            return rate == OutputSampleRate
-                ? bytes
-                : Pcm16.Resample(bytes, rate, OutputSampleRate);
-        }
-
-        if (mediaType is "audio/wav" or "audio/x-wav" or "audio/wave" || LooksLikeWav(bytes))
-        {
-            return DecodeWavToOutputPcm(bytes);
-        }
-
-        if (mediaType is "audio/mpeg" or "audio/mp3" || LooksLikeMp3(bytes))
-        {
-            return DecodeMp3ToOutputPcm(bytes);
-        }
-
-        if (mediaType is "audio/ogg" or "audio/opus" || LooksLikeOgg(bytes))
-        {
-            return DecodeOpusToOutputPcm(bytes);
-        }
-
-        throw new NotSupportedException($"Unsupported TTS audio media type '{data.MediaType ?? "unknown"}' for LocalTalk output.");
-    }
+        => VoiceAudioDecoder.DecodeToMonoPcm16(data, OutputSampleRate);
 
     private Task EmitToolEventAsync(TalkTool tool, CancellationToken ct)
     {
@@ -516,176 +477,6 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
         }
 
         return Task.CompletedTask;
-    }
-
-    private static string NormalizeMediaType(string? mediaType)
-    {
-        if (string.IsNullOrWhiteSpace(mediaType))
-        {
-            return string.Empty;
-        }
-
-        var semi = mediaType.IndexOf(';', StringComparison.Ordinal);
-        return (semi >= 0 ? mediaType[..semi] : mediaType).Trim().ToLowerInvariant();
-    }
-
-    private static bool LooksLikeWav(ReadOnlySpan<byte> bytes)
-        => bytes.Length >= 12
-            && bytes[0] == (byte)'R' && bytes[1] == (byte)'I' && bytes[2] == (byte)'F' && bytes[3] == (byte)'F'
-            && bytes[8] == (byte)'W' && bytes[9] == (byte)'A' && bytes[10] == (byte)'V' && bytes[11] == (byte)'E';
-
-    private static bool LooksLikeOgg(ReadOnlySpan<byte> bytes)
-        => bytes.Length >= 4
-            && bytes[0] == (byte)'O' && bytes[1] == (byte)'g' && bytes[2] == (byte)'g' && bytes[3] == (byte)'S';
-
-    private static bool LooksLikeMp3(ReadOnlySpan<byte> bytes)
-        => (bytes.Length >= 3 && bytes[0] == (byte)'I' && bytes[1] == (byte)'D' && bytes[2] == (byte)'3')
-            || (bytes.Length >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0);
-
-    private static byte[] DecodeWavToOutputPcm(byte[] wavBytes)
-    {
-        using var ms = new MemoryStream(wavBytes, writable: false);
-        using var reader = new WaveFileReader(ms);
-        var sampleProvider = reader.ToSampleProvider();
-        var channels = Math.Max(1, reader.WaveFormat.Channels);
-        var buffer = new float[4096 * channels];
-        using var outMs = new MemoryStream();
-        int read;
-        while ((read = sampleProvider.Read(buffer.AsSpan())) > 0)
-        {
-            WriteFloatToMonoPcm16(outMs, buffer.AsSpan(0, read), channels);
-        }
-
-        var pcm = outMs.ToArray();
-        return reader.WaveFormat.SampleRate == OutputSampleRate
-            ? pcm
-            : Pcm16.Resample(pcm, reader.WaveFormat.SampleRate, OutputSampleRate);
-    }
-
-    private static byte[] DecodeMp3ToOutputPcm(byte[] mp3Bytes)
-    {
-        using var ms = new MemoryStream(mp3Bytes, writable: false);
-        using var mpeg = new MpegFile(ms);
-        var channels = Math.Max(1, mpeg.Channels);
-        var sampleRate = mpeg.SampleRate > 0 ? mpeg.SampleRate : OutputSampleRate;
-        var floatBuf = new float[4096 * channels];
-        using var outMs = new MemoryStream();
-        int read;
-        while ((read = mpeg.ReadSamples(floatBuf, 0, floatBuf.Length)) > 0)
-        {
-            WriteFloatToMonoPcm16(outMs, floatBuf.AsSpan(0, read), channels);
-        }
-
-        var pcm = outMs.ToArray();
-        return sampleRate == OutputSampleRate
-            ? pcm
-            : Pcm16.Resample(pcm, sampleRate, OutputSampleRate);
-    }
-
-    private static byte[] DecodeOpusToOutputPcm(byte[] opusBytes)
-    {
-        if (LooksLikeOgg(opusBytes))
-        {
-            const int oggSampleRate = 48_000;
-            var channels = DetectOggOpusChannels(opusBytes);
-            using var ms = new MemoryStream(opusBytes, writable: false);
-            using var decoder = OpusCodecFactory.CreateDecoder(oggSampleRate, channels);
-            var oggIn = new OpusOggReadStream(decoder, ms);
-            using var outMs = new MemoryStream();
-            Span<byte> pair = stackalloc byte[2];
-            while (oggIn.HasNextPacket)
-            {
-                var samples = oggIn.DecodeNextPacket();
-                if (samples is not { Length: > 0 })
-                {
-                    continue;
-                }
-
-                if (channels == 1)
-                {
-                    var bytes = new byte[samples.Length * sizeof(short)];
-                    Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
-                    outMs.Write(bytes, 0, bytes.Length);
-                }
-                else
-                {
-                    var frames = samples.Length / channels;
-                    for (var f = 0; f < frames; f++)
-                    {
-                        int sum = 0;
-                        var offset = f * channels;
-                        for (var c = 0; c < channels; c++)
-                        {
-                            sum += samples[offset + c];
-                        }
-
-                        var mono = (short)Math.Clamp(sum / channels, short.MinValue, short.MaxValue);
-                        BinaryPrimitives.WriteInt16LittleEndian(pair, mono);
-                        outMs.Write(pair);
-                    }
-                }
-            }
-
-            var pcm48k = outMs.ToArray();
-            return pcm48k.Length == 0
-                ? []
-                : Pcm16.Resample(pcm48k, oggSampleRate, OutputSampleRate);
-        }
-
-        // Raw single Opus packet (RFC 6716) decoded directly at 24 kHz mono.
-        using var rawDecoder = OpusCodecFactory.CreateDecoder(OutputSampleRate, 1);
-        var frameSamples = new short[OutputSampleRate * 120 / 1000]; // up to 120 ms per Opus packet
-        var decodedSamples = rawDecoder.Decode(opusBytes.AsSpan(), frameSamples.AsSpan(), frameSamples.Length, false);
-        if (decodedSamples <= 0)
-        {
-            return [];
-        }
-
-        var rawPcm = new byte[decodedSamples * sizeof(short)];
-        for (var i = 0; i < decodedSamples; i++)
-        {
-            BinaryPrimitives.WriteInt16LittleEndian(rawPcm.AsSpan(i * 2, 2), frameSamples[i]);
-        }
-
-        return rawPcm;
-    }
-
-    private static int DetectOggOpusChannels(ReadOnlySpan<byte> oggBytes)
-    {
-        // Search the first Ogg page for the RFC 7845 "OpusHead" identification header; byte +9 is channel count.
-        ReadOnlySpan<byte> magic = "OpusHead"u8;
-        var limit = Math.Min(oggBytes.Length, 512);
-        var idx = oggBytes[..limit].IndexOf(magic);
-        if (idx >= 0 && idx + 9 < oggBytes.Length)
-        {
-            var ch = oggBytes[idx + 9];
-            if (ch is 1 or 2)
-            {
-                return ch;
-            }
-        }
-
-        return 1;
-    }
-
-    private static void WriteFloatToMonoPcm16(MemoryStream output, ReadOnlySpan<float> samples, int channels)
-    {
-        var frames = samples.Length / channels;
-        Span<byte> pair = stackalloc byte[2];
-        for (var f = 0; f < frames; f++)
-        {
-            float sum = 0f;
-            var offset = f * channels;
-            for (var c = 0; c < channels; c++)
-            {
-                sum += samples[offset + c];
-            }
-
-            var mono = Math.Clamp(sum / channels, -1.0f, 1.0f);
-            var sample = (short)Math.Round(mono * short.MaxValue);
-            BinaryPrimitives.WriteInt16LittleEndian(pair, sample);
-            output.Write(pair);
-        }
     }
 
     private List<ChatMessage> BuildConversationMessages(string heard)
