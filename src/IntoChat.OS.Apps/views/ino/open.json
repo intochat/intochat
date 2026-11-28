@@ -398,7 +398,7 @@
               "canSend": true,
               "activeModelLabel": "Gemma 4 12B",
               "activeProviderIcon": "provider:ollama",
-              "dictation": true,
+              "dictation": false,
               "status": "ready",
               "working": false,
               "emptyText": "What do you need?",
