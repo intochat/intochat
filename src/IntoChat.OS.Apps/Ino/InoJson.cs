@@ -13,4 +13,9 @@ namespace IntoChat.OS.Apps.Ino;
 [JsonSerializable(typeof(InoMoveSquadTask))]
 [JsonSerializable(typeof(InoToggleSquadTask))]
 [JsonSerializable(typeof(InoChatAboutChoice))]
+[JsonSerializable(typeof(InoEngineerCandidate))]
+[JsonSerializable(typeof(InoDrawerArtifact))]
+[JsonSerializable(typeof(InoAppState))]
+[JsonSerializable(typeof(InoOpenDrawer))]
+[JsonSerializable(typeof(InoApproveEngineerPr))]
 internal sealed partial class InoJson : JsonSerializerContext;
