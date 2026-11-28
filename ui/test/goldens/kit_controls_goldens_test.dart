@@ -11,10 +11,11 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 // A copy button: the server answers its activation with a Copy intent the client performs.
 Widget _copy() => ViewHost(
-  knowsApp: (_) => false,
   kind: 'view',
   name: 'local/apps/share/view',
-  load: (kind, name) async => PublishedViewPayload.fromJson({
+  overrides: ViewHostOverrides(
+    knowsApp: (_) => false,
+    load: (kind, name) async => PublishedViewPayload.fromJson({
     'generation': 1,
     'view': {
       'title': 'Share',
@@ -35,13 +36,14 @@ Widget _copy() => ViewHost(
       },
     },
   }),
-  watch: (kind, name) => const Stream.empty(),
-  onAction: (event) async => {
+    watch: (kind, name) => const Stream.empty(),
+    onAction: (event) async => {
     'intent': {
       'kind': 'Copy',
       'arg': 'https://example.test/#/open?app=fixture-app',
     },
   },
+  ),
 );
 
 void main() {

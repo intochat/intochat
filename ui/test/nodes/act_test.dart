@@ -56,15 +56,16 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: view,
-            watch: (_, _) => const Stream.empty(),
-            onAction: (event) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (event) async {
               sent.add(event.toJson());
               return {'delivered': true};
             },
-            load: (kind, name) async => PublishedViewPayload.fromJson({
+              load: (kind, name) async => PublishedViewPayload.fromJson({
               'generation': 4,
               'view': {
                 'title': 'Root',
@@ -81,6 +82,7 @@ void main() {
                 },
               },
             }),
+            ),
           ),
         ),
       ),
@@ -140,22 +142,23 @@ void main() {
     tester,
   ) async {
     final sent = <Map<String, dynamic>>[];
-    final performed = <Map<String, dynamic>>[];
+    final performed = <ShellActivation>[];
     await tester.pumpWidget(
       MaterialApp(
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (app) => app == 'trace',
             kind: 'view',
             name: 'local/units/bank',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (event) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (app) => app == 'trace',
+              watch: (_, _) => const Stream.empty(),
+              onAction: (event) async {
               sent.add(event.toJson());
               return {'delivered': true};
             },
-            onActivate: performed.add,
-            load: (kind, name) async => PublishedViewPayload.fromJson({
+              onActivate: performed.add,
+              load: (kind, name) async => PublishedViewPayload.fromJson({
               'generation': 4,
               'view': {
                 'title': 'Root',
@@ -171,6 +174,7 @@ void main() {
                 },
               },
             }),
+            ),
           ),
         ),
       ),
@@ -180,7 +184,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sent, isEmpty);
-    expect(performed, [
+    expect(performed.map((a) => a.toWireMap()).toList(), [
       {
         'kind': 'os_uri',
         'uri': 'os://window/open?app=trace&input=t-1',
@@ -356,12 +360,13 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: parent,
-            watch: (_, name) => streams[name]?.stream ?? const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, name) => streams[name]?.stream ?? const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
               loads[name] = (loads[name] ?? 0) + 1;
               kinds[name] = kind;
               return PublishedViewPayload.fromJson(switch (name) {
@@ -395,6 +400,7 @@ void main() {
                 _ => throw StateError('Unknown $name'),
               });
             },
+            ),
           ),
         ),
       ),
@@ -436,12 +442,13 @@ Widget _host(
   theme: UiTheme.intochat(Brightness.light),
   home: Scaffold(
     body: ViewHost(
-      knowsApp: (_) => false,
       kind: 'view',
       name: _root,
-      watch: (_, _) => const Stream.empty(),
-      onAction: (action) => onAction(action.toJson()),
-      load: (kind, name) async => PublishedViewPayload.fromJson(switch (name) {
+      overrides: ViewHostOverrides(
+        knowsApp: (_) => false,
+        watch: (_, _) => const Stream.empty(),
+        onAction: (action) => onAction(action.toJson()),
+        load: (kind, name) async => PublishedViewPayload.fromJson(switch (name) {
         _root => _view('Settings', [
           {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'dark-mode'},
         ]),
@@ -454,6 +461,7 @@ Widget _host(
         ]),
         _ => throw StateError('Unknown $name'),
       }),
+      ),
     ),
   ),
 );

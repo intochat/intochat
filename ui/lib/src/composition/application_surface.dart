@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'brain_session_controller.dart';
+import 'shell_activation.dart';
 import 'view_host.dart';
 
 /// Renders the surface an application declares. The host decides how the application is
@@ -20,7 +21,7 @@ class ApplicationSurface extends StatefulWidget {
   final IntoChatOSUiClient client;
   final String workspace, application;
   final Future<Map<String, dynamic>> Function() start;
-  final ValueChanged<Map<String, dynamic>>? onActivate;
+  final ValueChanged<ShellActivation>? onActivate;
 
   /// The apps an OpenWindow intent may open.
   final bool Function(String app) knowsApp;
@@ -88,8 +89,10 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         key: ValueKey('${widget.workspace}/${widget.application}'),
         kind: surface['kind'] as String,
         name: surface['name'] as String,
-        onActivate: widget.onActivate,
-        knowsApp: widget.knowsApp,
+        overrides: ViewHostOverrides(
+          onActivate: widget.onActivate,
+          knowsApp: widget.knowsApp,
+        ),
       );
       final ancestor = BrainSessionScope.readOf(context);
       if (ancestor != null &&

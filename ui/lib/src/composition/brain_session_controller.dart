@@ -8,6 +8,7 @@ import '../design/app_tile.dart' show IcAppIcon;
 import '../design/smart_app_tile_spec.dart';
 import '../nodes/node_context.dart';
 import '../theme/ui_tokens.dart' show IcStylePreset;
+import 'shell_activation.dart';
 
 /// Allowed shell-originated `(scope, operation)` requests for `requestApp`.
 /// `window` stands for any open window's app (sandbox controls).
@@ -60,7 +61,7 @@ class BrainSessionController extends ChangeNotifier {
     NeuronMethodCaller? callNeuron,
     ContractReader? readContract,
     NeuronAction? onAction,
-    ValueChanged<Map<String, dynamic>>? onActivate,
+    ValueChanged<ShellActivation>? onActivate,
     AppRequester? requestApp,
     JournalTailWatcher? journal,
     bool Function(String app)? knowsApp,
@@ -113,7 +114,7 @@ class BrainSessionController extends ChangeNotifier {
   final NeuronMethodCaller? _callNeuronOverride;
   final ContractReader? _readContractOverride;
   final NeuronAction? _onActionOverride;
-  final ValueChanged<Map<String, dynamic>>? _onActivateCallback;
+  final ValueChanged<ShellActivation>? _onActivateCallback;
   final AppRequester? _requestAppOverride;
   final JournalTailWatcher? _journalOverride;
   final bool Function(String app)? _knowsAppOverride;
@@ -449,8 +450,8 @@ class BrainSessionController extends ChangeNotifier {
     await client.requestApp(_brainId, app, operation, input);
   }
 
-  void activate(Map<String, dynamic> action) =>
-      _onActivateCallback?.call(action);
+  void activate(ShellActivation activation) =>
+      _onActivateCallback?.call(activation);
 
   /// Only the Creator's view gets the journal tail for live brain graph pulses.
   Stream<List<JournalTailSignal>> Function()? journalFor(String view) {

@@ -16,10 +16,11 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/hello/view',
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async {
               loads++;
               return PublishedViewPayload.fromJson({
                 'generation': loads,
@@ -29,7 +30,8 @@ void main() {
                 },
               });
             },
-            watch: (kind, name) => events.stream,
+              watch: (kind, name) => events.stream,
+            ),
           ),
         ),
       ),
@@ -64,10 +66,11 @@ void _resubscribe() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/hello/view',
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async {
               loads++;
               return PublishedViewPayload.fromJson({
                 'generation': loads,
@@ -77,11 +80,12 @@ void _resubscribe() {
                 },
               });
             },
-            // Each subscription delivers one event and ends, as a proxy idle-close would.
+              // Each subscription delivers one event and ends, as a proxy idle-close would.
             watch: (kind, name) {
               subscriptions++;
               return Stream<void>.fromIterable([null]);
             },
+            ),
           ),
         ),
       ),

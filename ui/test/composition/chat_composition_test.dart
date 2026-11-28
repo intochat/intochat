@@ -41,18 +41,20 @@ Future<void> _host(
       theme: UiTheme.light('intochat'),
       home: Scaffold(
         body: ViewHost(
-          knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async => PublishedViewPayload.fromJson({
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            load: (kind, name) async => PublishedViewPayload.fromJson({
             'generation': 2,
             'view': {'title': 'Ino', 'root': root},
           }),
-          watch: (kind, name) => const Stream.empty(),
-          onAction: (event) async {
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async {
             events.add(event.toJson());
             return null;
           },
+          ),
         ),
       ),
     ),

@@ -177,15 +177,17 @@ void main() {
           theme: UiTheme.dark('fluent-acrylic'),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'brain-1/apps/ino/view',
-              load: (_, _) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (_, _) async => PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {'title': 'Ino', 'root': root},
               }),
-              watch: (_, _) => const Stream.empty(),
-              onAction: (_) async => null,
+                watch: (_, _) => const Stream.empty(),
+                onAction: (_) async => null,
+              ),
             ),
           ),
         ),
@@ -344,7 +346,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final activations = <Map<String, dynamic>>[];
+      final activations = <ShellActivation>[];
       final windows = <DesktopWindowProjection>[];
       const tiles = <DesktopAppTile>[
         DesktopAppTile(
@@ -493,7 +495,10 @@ void main() {
       );
       expect(
         activations.any(
-          (a) => a['application'] == 'helloworld' && a['operation'] == 'open',
+          (a) =>
+              a is WorkspaceAppActivation &&
+              a.application == 'helloworld' &&
+              a.operation == 'open',
         ),
         isTrue,
       );

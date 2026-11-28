@@ -37,15 +37,16 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
       theme: UiTheme.intochat(Brightness.light),
       home: Scaffold(
         body: ViewHost(
-          knowsApp: (_) => false,
           kind: 'view',
           name: _parent,
-          watch: (_, _) => const Stream.empty(),
-          onAction: (event) async {
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            watch: (_, _) => const Stream.empty(),
+            onAction: (event) async {
             sent.add(event.toJson());
             return {'delivered': true};
           },
-          load: (kind, name) async =>
+            load: (kind, name) async =>
               PublishedViewPayload.fromJson(switch (name) {
                 _parent => {
                   'generation': 1,
@@ -77,6 +78,7 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
                 },
                 _ => throw StateError('Unknown $name'),
               }),
+          ),
         ),
       ),
     );

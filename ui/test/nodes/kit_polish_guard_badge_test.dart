@@ -115,12 +115,13 @@ void main() {
         await tester.pumpWidget(
           host(
             ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/bank/view',
-              watch: (_, _) => const Stream.empty(),
-              onAction: (_) async => null,
-              load: (_, _) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                watch: (_, _) => const Stream.empty(),
+                onAction: (_) async => null,
+                load: (_, _) async => PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {
                   'title': 'Bank',
@@ -153,6 +154,7 @@ void main() {
                   },
                 },
               }),
+              ),
             ),
           ),
         );

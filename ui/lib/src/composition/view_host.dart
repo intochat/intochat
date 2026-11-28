@@ -15,6 +15,7 @@ import '../nodes/node_renderer.dart';
 import '../runtime/models/models.dart';
 import 'brain_session_controller.dart';
 import 'child_route.dart';
+import 'shell_activation.dart';
 
 /// Cohesive value object holding optional host capability overrides for
 /// [ViewHost]. Any omitted field falls back to [BrainSessionScope.readOf].
@@ -35,7 +36,7 @@ final class ViewHostOverrides {
   });
 
   final NeuronLoader? load;
-  final ValueChanged<Map<String, dynamic>>? onActivate;
+  final ValueChanged<ShellActivation>? onActivate;
   final NeuronAction? onAction;
   final bool Function(String app)? knowsApp;
   final Stream<void> Function(String kind, String name)? watch;
@@ -48,18 +49,20 @@ final class ViewHostOverrides {
 
   /// Returns a copy with [watch] cleared, used when hosting inline screen
   /// children that have no watchable neuron name of their own.
-  ViewHostOverrides withoutWatch() => ViewHostOverrides(
-    load: load,
-    onActivate: onActivate,
-    onAction: onAction,
-    knowsApp: knowsApp,
-    watchSignal: watchSignal,
-    callNeuron: callNeuron,
-    transcribe: transcribe,
-    talk: talk,
-    speak: speak,
-    storeSecret: storeSecret,
-  );
+  ViewHostOverrides withoutWatch() => watch == null
+      ? this
+      : ViewHostOverrides(
+          load: load,
+          onActivate: onActivate,
+          onAction: onAction,
+          knowsApp: knowsApp,
+          watchSignal: watchSignal,
+          callNeuron: callNeuron,
+          transcribe: transcribe,
+          talk: talk,
+          speak: speak,
+          storeSecret: storeSecret,
+        );
 }
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
@@ -74,10 +77,6 @@ class ViewHost extends StatefulWidget {
     required this.kind,
     required this.name,
     this.overrides,
-    this.load,
-    this.onActivate,
-    this.onAction,
-    this.knowsApp,
     this.ancestors = const {},
     this.childDepth = 0,
     this.childAncestors = const {},
@@ -89,21 +88,15 @@ class ViewHost extends StatefulWidget {
     this.enabled = true,
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
-    this.watch,
-    this.watchSignal,
-    this.callNeuron,
     this.signals,
-    this.transcribe,
-    this.talk,
-    this.speak,
-    this.storeSecret,
     this.embedded = false,
   });
 
   final String kind, name;
 
   /// Grouped host capability overrides forwarded as a single object to nested
-  /// child and reference hosts.
+  /// child and reference hosts. Any omitted callback falls back to
+  /// [BrainSessionScope.readOf].
   final ViewHostOverrides? overrides;
 
   /// True for a host reached through another (a viewport's root, a view's
@@ -131,14 +124,6 @@ class ViewHost extends StatefulWidget {
   /// [NodeContext.childProps]).
   final Map<String, dynamic> childProps;
 
-  final NeuronLoader? load;
-  final ValueChanged<Map<String, dynamic>>? onActivate;
-  final NeuronAction? onAction;
-
-  /// The app keys the shell can open; an `OpenWindow` intent for any other is
-  /// refused. Defaults to [BrainSessionScope] when present, or `(_) => false`
-  /// when mounted standalone.
-  final bool Function(String app)? knowsApp;
   final Set<String> ancestors;
   final int revision;
   final bool enabled;
@@ -150,30 +135,9 @@ class ViewHost extends StatefulWidget {
   @visibleForTesting
   static void Function(String name, NodeContext ctx)? debugOnContext;
 
-  /// The node's change events. With a watch the host never polls: it reads once
-  /// on mount and once per event. Without one it falls back to [refreshEvery].
-  final Stream<void> Function(String kind, String name)? watch;
-
-  /// Watches one signal type on a neuron contract, yielding decoded payloads.
-  final NeuronSignalWatcher? watchSignal;
-  final NeuronMethodCaller? callNeuron;
-
   /// The brain's journal tail from its head: given, the view's brain scenes
   /// draw it as pulses ([BrainSignals]). Only the Creator's window passes one.
   final Stream<List<JournalTailSignal>> Function()? signals;
-
-  /// Host capability used by dictation composers to transcribe captured audio
-  /// into a draft.
-  final VoiceTranscriber? transcribe;
-
-  /// Host capability used to open full-duplex voice mode on a conversation.
-  final VoiceTalker? talk;
-
-  /// Host capability used by read-aloud controls to synthesize assistant replies.
-  final VoiceSpeaker? speak;
-
-  /// Host capability a form uses to store a secret field in the person's vault.
-  final SecretStore? storeSecret;
 
   @override
   State<ViewHost> createState() => _ViewHostState();
@@ -194,48 +158,19 @@ class _ViewHostState extends State<ViewHost> {
   Stream<List<JournalTailSignal>>? _signals;
 
   BrainSessionController? get _session => BrainSessionScope.readOf(context);
-
-  ViewHostOverrides? get _effectiveOverrides {
-    final o = widget.overrides;
-    final hasDirect =
-        widget.load != null ||
-        widget.onActivate != null ||
-        widget.onAction != null ||
-        widget.knowsApp != null ||
-        widget.watch != null ||
-        widget.watchSignal != null ||
-        widget.callNeuron != null ||
-        widget.transcribe != null ||
-        widget.talk != null ||
-        widget.speak != null ||
-        widget.storeSecret != null;
-    if (!hasDirect) return o;
-    return ViewHostOverrides(
-      load: widget.load ?? o?.load,
-      onActivate: widget.onActivate ?? o?.onActivate,
-      onAction: widget.onAction ?? o?.onAction,
-      knowsApp: widget.knowsApp ?? o?.knowsApp,
-      watch: widget.watch ?? o?.watch,
-      watchSignal: widget.watchSignal ?? o?.watchSignal,
-      callNeuron: widget.callNeuron ?? o?.callNeuron,
-      transcribe: widget.transcribe ?? o?.transcribe,
-      talk: widget.talk ?? o?.talk,
-      speak: widget.speak ?? o?.speak,
-      storeSecret: widget.storeSecret ?? o?.storeSecret,
-    );
-  }
+  ViewHostOverrides? get _overrides => widget.overrides;
 
   NeuronLoader get _effectiveLoad {
-    final load = widget.load ?? widget.overrides?.load ?? _session?.loadNode;
+    final load = _overrides?.load ?? _session?.loadNode;
     assert(
       load != null,
-      'ViewHost requires either an explicit load callback or an ancestor BrainSessionScope.',
+      'ViewHost requires either ViewHostOverrides.load or an ancestor BrainSessionScope.',
     );
     return load!;
   }
 
   Stream<void> Function(String kind, String name)? get _effectiveWatch {
-    final explicit = widget.watch ?? widget.overrides?.watch;
+    final explicit = _overrides?.watch;
     if (explicit != null) return explicit;
     // A child has no watchable name of its own: it reloads with its parent's
     // events and on the refresh timer rather than subscribing via session.watchNode.
@@ -245,30 +180,21 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   NeuronSignalWatcher? get _effectiveWatchSignal =>
-      widget.watchSignal ??
-      widget.overrides?.watchSignal ??
-      _session?.watchSignal;
+      _overrides?.watchSignal ?? _session?.watchSignal;
   NeuronMethodCaller? get _effectiveCallNeuron =>
-      widget.callNeuron ?? widget.overrides?.callNeuron ?? _session?.callNeuron;
+      _overrides?.callNeuron ?? _session?.callNeuron;
   NeuronAction? get _effectiveOnAction =>
-      widget.onAction ?? widget.overrides?.onAction ?? _session?.sendAction;
-  ValueChanged<Map<String, dynamic>>? get _effectiveOnActivate =>
-      widget.onActivate ?? widget.overrides?.onActivate ?? _session?.activate;
+      _overrides?.onAction ?? _session?.sendAction;
+  ValueChanged<ShellActivation>? get _effectiveOnActivate =>
+      _overrides?.onActivate ?? _session?.activate;
   bool Function(String app) get _effectiveKnowsApp =>
-      widget.knowsApp ??
-      widget.overrides?.knowsApp ??
-      _session?.knowsApp ??
-      (_) => false;
+      _overrides?.knowsApp ?? _session?.knowsApp ?? (_) => false;
   VoiceTranscriber? get _effectiveTranscribe =>
-      widget.transcribe ?? widget.overrides?.transcribe ?? _session?.transcribe;
-  VoiceTalker? get _effectiveTalk =>
-      widget.talk ?? widget.overrides?.talk ?? _session?.talk;
-  VoiceSpeaker? get _effectiveSpeak =>
-      widget.speak ?? widget.overrides?.speak ?? _session?.speak;
+      _overrides?.transcribe ?? _session?.transcribe;
+  VoiceTalker? get _effectiveTalk => _overrides?.talk ?? _session?.talk;
+  VoiceSpeaker? get _effectiveSpeak => _overrides?.speak ?? _session?.speak;
   SecretStore? get _effectiveStoreSecret =>
-      widget.storeSecret ??
-      widget.overrides?.storeSecret ??
-      _session?.storeSecret;
+      _overrides?.storeSecret ?? _session?.storeSecret;
 
   // One tail per host, opened on first use and shared by the view's scenes.
   Stream<List<JournalTailSignal>>? get _brainSignals {
@@ -373,9 +299,7 @@ class _ViewHostState extends State<ViewHost> {
       FocusRegistry.instance.register(_focusTarget, _focusKey);
     }
     if (moved || old.revision != widget.revision) _reload();
-    final watchChanged =
-        old.watch != widget.watch ||
-        old.overrides?.watch != widget.overrides?.watch;
+    final watchChanged = old.overrides?.watch != widget.overrides?.watch;
     if (moved || watchChanged) {
       _timer?.cancel();
       _timer = null;
@@ -461,7 +385,7 @@ class _ViewHostState extends State<ViewHost> {
     key: key ?? ValueKey('${child.kind}:${child.name}'),
     kind: child.kind,
     name: child.name,
-    overrides: _effectiveOverrides,
+    overrides: _overrides,
     events: _events,
     refreshEvery: widget.refreshEvery,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
@@ -548,7 +472,7 @@ class _ViewHostState extends State<ViewHost> {
       );
     }
 
-    final forwarded = _effectiveOverrides;
+    final forwarded = _overrides;
     return ViewHost(
       key: ValueKey('child:$resolvedName'),
       actNeuron: isChild ? root : null,

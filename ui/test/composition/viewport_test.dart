@@ -12,10 +12,11 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
-            load: (kind, name) async => kind == 'viewport'
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => kind == 'viewport'
                 ? const ViewportPayload(
                     revision: 1,
                     root: UiViewRef(kind: 'view', name: 'local/apps/app/view'),
@@ -27,10 +28,11 @@ void main() {
                       'root': {'kind': 'text', 'value': 'App-owned content'},
                     },
                   }),
-            onAction: (_) async {
+              onAction: (_) async {
               actions++;
               return null;
             },
+            ),
           ),
         ),
       ),
@@ -47,12 +49,14 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
-            load: (_, _) async => const ViewportPayload(
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (_, _) async => const ViewportPayload(
               revision: 1,
               root: UiViewRef(kind: 'viewport', name: 'canvas'),
+            ),
             ),
           ),
         ),
@@ -70,10 +74,11 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
-            load: (kind, name) async => kind == 'viewport'
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => kind == 'viewport'
                 ? const ViewportPayload(
                     revision: 1,
                     root: UiViewRef(kind: 'view', name: 'local/apps/app/view'),
@@ -86,10 +91,11 @@ void main() {
                       'root': {'kind': 'text', 'value': 'App-owned content'},
                     },
                   }),
-            onAction: (_) async {
+              onAction: (_) async {
               actions++;
               return null;
             },
+            ),
           ),
         ),
       ),

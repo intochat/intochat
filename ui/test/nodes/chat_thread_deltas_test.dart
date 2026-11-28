@@ -58,29 +58,31 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'child',
             name: 'local/apps/ino/children/conversation',
             childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
-            watch: (_, _) => const Stream.empty(),
-            watchSignal: (contract, key, signal) {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              watchSignal: (contract, key, signal) {
               watched.add((contract, key, signal));
               return deltas.stream;
             },
-            callNeuron: (contract, key, method, args) async {
+              callNeuron: (contract, key, method, args) async {
               reads++;
               return null;
             },
-            onAction: (_) async => null,
-            load: (kind, name) async {
+              onAction: (_) async => null,
+              load: (kind, name) async {
               loads++;
               return PublishedViewPayload.fromJson(
                 _chatThreadViewJson(entry: 'r1/reply'),
               );
             },
+            ),
           ),
         ),
       ),
@@ -115,25 +117,27 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'child',
             name: 'local/apps/ino/children/conversation',
             childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
-            watch: (_, _) => const Stream.empty(),
-            watchSignal: (_, _, _) => deltas.stream,
-            callNeuron: (contract, key, method, args) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              watchSignal: (_, _, _) => deltas.stream,
+              callNeuron: (contract, key, method, args) async {
               reads++;
               calls.add((contract, key, method, args));
               return {
                 'active': {'runId': 'r1', 'reply': 'hello '},
               };
             },
-            onAction: (_) async => null,
-            load: (kind, name) async => PublishedViewPayload.fromJson(
+              onAction: (_) async => null,
+              load: (kind, name) async => PublishedViewPayload.fromJson(
               _chatThreadViewJson(entry: 'r1/reply'),
+            ),
             ),
           ),
         ),
@@ -167,18 +171,20 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'child',
             name: 'local/apps/ino/children/conversation',
             childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
-            watch: (_, _) => const Stream.empty(),
-            watchSignal: (_, _, _) => deltas.stream,
-            onAction: (_) async => null,
-            load: (kind, name) async => PublishedViewPayload.fromJson(
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              watchSignal: (_, _, _) => deltas.stream,
+              onAction: (_) async => null,
+              load: (kind, name) async => PublishedViewPayload.fromJson(
               _chatThreadViewJson(entry: 'r1/reply'),
+            ),
             ),
           ),
         ),
@@ -209,17 +215,18 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'child',
             name: 'local/apps/ino/children/conversation',
             childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
-            watch: (_, _) => viewWatch.stream,
-            watchSignal: (_, _, _) => deltas.stream,
-            onAction: (_) async => null,
-            load: (kind, name) async => PublishedViewPayload.fromJson(
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => viewWatch.stream,
+              watchSignal: (_, _, _) => deltas.stream,
+              onAction: (_) async => null,
+              load: (kind, name) async => PublishedViewPayload.fromJson(
               completed
                   ? _chatThreadViewJson(
                       entry: 'r1/reply',
@@ -227,6 +234,7 @@ void main() {
                       status: 'completed',
                     )
                   : _chatThreadViewJson(entry: 'r1/reply'),
+            ),
             ),
           ),
         ),
@@ -259,18 +267,20 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'child',
             name: 'local/apps/ino/children/conversation',
             childProps: const {'placeholder': 'Ask anything.'},
-            watch: (_, _) => const Stream.empty(),
-            watchSignal: (_, _, _) {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              watchSignal: (_, _, _) {
               watchCalls++;
               return const Stream.empty();
             },
-            onAction: (_) async => null,
-            load: (kind, name) async => PublishedViewPayload.fromJson(
+              onAction: (_) async => null,
+              load: (kind, name) async => PublishedViewPayload.fromJson(
               _chatThreadViewJson(entry: 'r1/reply'),
+            ),
             ),
           ),
         ),
@@ -293,19 +303,20 @@ void main() {
           theme: UiTheme.intochat(Brightness.light),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/ino/view',
-              watch: (_, _) => const Stream.empty(),
-              watchSignal: (_, _, _) => deltas.stream,
-              callNeuron: (_, _, _, _) async {
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                watch: (_, _) => const Stream.empty(),
+                watchSignal: (_, _, _) => deltas.stream,
+                callNeuron: (_, _, _, _) async {
                 reads++;
                 return {
                   'active': {'runId': 'r1', 'reply': 'nested '},
                 };
               },
-              onAction: (_) async => null,
-              load: (kind, name) async =>
+                onAction: (_) async => null,
+                load: (kind, name) async =>
                   PublishedViewPayload.fromJson(switch (name) {
                     'local/apps/ino/view' => {
                       'generation': 1,
@@ -332,6 +343,7 @@ void main() {
                       _chatThreadViewJson(entry: 'r1/reply'),
                     _ => throw StateError('Unexpected load $kind:$name'),
                   }),
+              ),
             ),
           ),
         ),

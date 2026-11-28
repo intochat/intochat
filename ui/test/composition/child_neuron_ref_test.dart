@@ -20,12 +20,13 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/dashboard/view',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
               loaded.add('$kind:$name');
               return PublishedViewPayload.fromJson(switch (name) {
                 'local/apps/dashboard/view' => {
@@ -116,6 +117,7 @@ void main() {
                 _ => throw StateError('Unexpected load $kind:$name'),
               });
             },
+            ),
           ),
         ),
       );
@@ -149,12 +151,13 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/host/view',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
               if (name == 'local/apps/host/view') {
                 return PublishedViewPayload.fromJson({
                   'generation': 1,
@@ -179,6 +182,7 @@ void main() {
                 },
               });
             },
+            ),
           ),
         ),
       );
@@ -229,13 +233,14 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/parent/view',
-            watch: (kind, name) => name == 'local/units/counter'
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (kind, name) => name == 'local/units/counter'
                 ? childWatch.stream
                 : const Stream.empty(),
-            onAction: (event) async {
+              onAction: (event) async {
               events.add(event.toJson());
               if (event is ActAction &&
                   event.neuron == 'local/units/counter' &&
@@ -245,7 +250,7 @@ void main() {
               }
               return {'delivered': true};
             },
-            load: (kind, name) async {
+              load: (kind, name) async {
               if (name == 'local/apps/parent/view') {
                 return PublishedViewPayload.fromJson({
                   'generation': 7,
@@ -292,6 +297,7 @@ void main() {
               }
               throw StateError('Unknown $name');
             },
+            ),
           ),
         ),
       );
@@ -330,12 +336,13 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/slot-a',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async =>
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async =>
                 PublishedViewPayload.fromJson(switch (name) {
                   'local/slot-a' => {
                     'generation': 1,
@@ -373,6 +380,7 @@ void main() {
                   },
                   _ => throw StateError('Unexpected $name'),
                 }),
+            ),
           ),
         ),
       );
@@ -387,12 +395,13 @@ void main() {
       await tester.pumpWidget(
         wrap(
           ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/d0',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => null,
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => null,
+              load: (kind, name) async {
               final idx = int.parse(name.substring('local/d'.length));
               return PublishedViewPayload.fromJson({
                 'generation': 1,
@@ -412,6 +421,7 @@ void main() {
                 },
               });
             },
+            ),
           ),
         ),
       );
@@ -435,15 +445,16 @@ void main() {
           SizedBox(
             height: 640,
             child: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: 'local/apps/ino/view',
-              watch: (_, _) => const Stream.empty(),
-              onAction: (event) async {
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                watch: (_, _) => const Stream.empty(),
+                onAction: (event) async {
                 events.add(event.toJson());
                 return {'delivered': true};
               },
-              load: (kind, name) async =>
+                load: (kind, name) async =>
                   PublishedViewPayload.fromJson(switch (name) {
                     'local/apps/ino/view' => {
                       'generation': 3,
@@ -500,6 +511,7 @@ void main() {
                     },
                     _ => throw StateError('Unknown $name'),
                   }),
+              ),
             ),
           ),
         ),

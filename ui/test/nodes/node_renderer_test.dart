@@ -34,7 +34,7 @@ Future<void> _host(
   Object? Function(Map<String, dynamic> event)? answer,
   String kind = 'view',
   String name = _view,
-  ValueChanged<Map<String, dynamic>>? onActivate,
+  ValueChanged<ShellActivation>? onActivate,
   bool Function(String app)? knowsApp,
   Stream<void> Function(String kind, String name)? watch,
 }) async {
@@ -43,18 +43,20 @@ Future<void> _host(
       theme: UiTheme.light('intochat'),
       home: Scaffold(
         body: ViewHost(
-          knowsApp: knowsApp ?? (_) => false,
           kind: kind,
           name: name,
-          load: (kind, name) async =>
+          overrides: ViewHostOverrides(
+            knowsApp: knowsApp ?? (_) => false,
+            load: (kind, name) async =>
               kind == 'viewport' ? const ViewportPayload() : _published(root),
-          watch: watch ?? (kind, name) => const Stream.empty(),
-          onAction: (event) async {
+            watch: watch ?? (kind, name) => const Stream.empty(),
+            onAction: (event) async {
             final json = event.toJson();
             events?.add(json);
             return answer?.call(json);
           },
-          onActivate: onActivate,
+            onActivate: onActivate,
+          ),
         ),
       ),
     ),
@@ -222,7 +224,7 @@ void main() {
   testWidgets('a button OpenWindow intent opens an app the shell knows', (
     tester,
   ) async {
-    final opened = <Map<String, dynamic>>[];
+    final opened = <ShellActivation>[];
     final events = <Map<String, dynamic>>[];
     await _host(
       tester,
@@ -236,8 +238,8 @@ void main() {
     );
     await tester.tap(find.widgetWithText(UiMixButton, 'Go'));
     await tester.pumpAndSettle();
-    expect(opened.single['kind'], 'os_uri');
-    expect(opened.single['uri'], 'os://window/open?app=trace&input=run-1');
+    final activation = opened.single as OpenWindowActivation;
+    expect(activation.uri, 'os://window/open?app=trace&input=run-1');
     expect(events, isEmpty, reason: 'an intent never reaches the server');
   });
 
@@ -311,7 +313,7 @@ void main() {
   testWidgets('a view host without a known-app set opens no window', (
     tester,
   ) async {
-    final opened = <Map<String, dynamic>>[];
+    final opened = <ShellActivation>[];
     await _host(
       tester,
       nodeSamples['button']!,
@@ -329,7 +331,7 @@ void main() {
   });
 
   testWidgets('a refused intent is not performed', (tester) async {
-    final opened = <Map<String, dynamic>>[];
+    final opened = <ShellActivation>[];
     await _host(
       tester,
       _intentButton({
@@ -390,15 +392,17 @@ void main() {
         theme: UiTheme.light('intochat'),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'confirmation',
             name: 'local/confirmations',
-            load: (kind, name) async => PublishedViewPayload.fromJson({
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => PublishedViewPayload.fromJson({
               'title': 'Confirmations',
               'root': nodeSamples['approvalCard'],
             }),
-            watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async => events.add(event.toJson()),
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => events.add(event.toJson()),
+            ),
           ),
         ),
       ),
@@ -422,16 +426,18 @@ void main() {
           theme: UiTheme.light('intochat'),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'confirmation',
               name: 'local/confirmations',
               enabled: true,
-              load: (kind, name) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (kind, name) async => PublishedViewPayload.fromJson({
                 'title': 'Confirmations',
                 'root': nodeSamples['approvalCard'],
               }),
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event.toJson()),
+                watch: (kind, name) => const Stream.empty(),
+                onAction: (event) async => events.add(event.toJson()),
+              ),
             ),
           ),
         ),
@@ -454,16 +460,18 @@ void main() {
           theme: UiTheme.light('intochat'),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'confirmation',
               name: 'local/confirmations',
               enabled: false,
-              load: (kind, name) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (kind, name) async => PublishedViewPayload.fromJson({
                 'title': 'Confirmations',
                 'root': nodeSamples['approvalCard'],
               }),
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event.toJson()),
+                watch: (kind, name) => const Stream.empty(),
+                onAction: (event) async => events.add(event.toJson()),
+              ),
             ),
           ),
         ),
@@ -488,16 +496,18 @@ void main() {
           theme: UiTheme.light('intochat'),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'confirmation',
               name: 'local/confirmations',
               enabled: true,
-              load: (kind, name) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (kind, name) async => PublishedViewPayload.fromJson({
                 'title': 'Confirmations',
                 'root': cardWithoutResolve,
               }),
-              watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => events.add(event.toJson()),
+                watch: (kind, name) => const Stream.empty(),
+                onAction: (event) async => events.add(event.toJson()),
+              ),
             ),
           ),
         ),
@@ -521,10 +531,11 @@ void main() {
         theme: UiTheme.light('intochat'),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/x.watch',
-            load: (kind, name) async {
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async {
               loaded.add(kind);
               return kind == 'confirmation'
                   ? PublishedViewPayload.fromJson({
@@ -542,8 +553,9 @@ void main() {
                       ],
                     });
             },
-            watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async => events.add(event.toJson()),
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => events.add(event.toJson()),
+            ),
           ),
         ),
       ),
@@ -563,10 +575,11 @@ void main() {
         theme: UiTheme.light('intochat'),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'local/apps/x/viewport',
-            load: (kind, name) async => kind == 'viewport'
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => kind == 'viewport'
                 ? const ViewportPayload(
                     revision: 1,
                     root: UiViewRef(
@@ -578,8 +591,9 @@ void main() {
                     'title': 'Confirmations',
                     'root': nodeSamples['approvalCard'],
                   }),
-            watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async => events.add(event.toJson()),
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => events.add(event.toJson()),
+            ),
           ),
         ),
       ),
@@ -597,11 +611,13 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: _view,
-            load: (kind, name) async => const PublishedViewPayload(),
-            watch: (kind, name) => const Stream.empty(),
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => const PublishedViewPayload(),
+              watch: (kind, name) => const Stream.empty(),
+            ),
           ),
         ),
       ),
@@ -615,11 +631,13 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: _view,
-            load: (kind, name) async => throw StateError('down'),
-            watch: (kind, name) => const Stream.empty(),
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              load: (kind, name) async => throw StateError('down'),
+              watch: (kind, name) => const Stream.empty(),
+            ),
           ),
         ),
       ),

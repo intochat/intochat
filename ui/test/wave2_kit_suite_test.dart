@@ -724,8 +724,9 @@ void main() {
             ViewHost(
               kind: 'view',
               name: 'local/apps/data/ledger',
-              knowsApp: (_) => false,
-              load: (_, _) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (_, _) async => PublishedViewPayload.fromJson({
                 'generation': 1,
                 'view': {
                   'title': 'Ledger',
@@ -743,6 +744,7 @@ void main() {
                   },
                 },
               }),
+              ),
             ),
             brightness: Brightness.light,
             width: 800,

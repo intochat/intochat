@@ -30,18 +30,20 @@ Future<void> _host(
       theme: UiTheme.light('intochat'),
       home: Scaffold(
         body: ViewHost(
-          knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async =>
+          overrides: ViewHostOverrides(
+            knowsApp: (_) => false,
+            load: (kind, name) async =>
               PublishedViewPayload.fromJson(_published(root)),
-          watch: (kind, name) => const Stream.empty(),
-          transcribe: transcribe,
-          onAction: (event) async {
+            watch: (kind, name) => const Stream.empty(),
+            transcribe: transcribe,
+            onAction: (event) async {
             final json = event.toJson();
             events?.add(json);
             return answer?.call(json);
           },
+          ),
         ),
       ),
     ),
@@ -360,10 +362,11 @@ void main() {
           theme: UiTheme.intochat(Brightness.light),
           home: Scaffold(
             body: ViewHost(
-              knowsApp: (_) => false,
               kind: 'view',
               name: _view,
-              load: (kind, name) async => PublishedViewPayload.fromJson({
+              overrides: ViewHostOverrides(
+                knowsApp: (_) => false,
+                load: (kind, name) async => PublishedViewPayload.fromJson({
                 'generation': hasWaiting ? 2 : 1,
                 'view': {
                   'title': 'Chat',
@@ -397,11 +400,12 @@ void main() {
                   ),
                 },
               }),
-              watch: (kind, name) => controller.stream,
-              onAction: (event) async {
+                watch: (kind, name) => controller.stream,
+                onAction: (event) async {
                 events.add(event.toJson());
                 return null;
               },
+              ),
             ),
           ),
         ),

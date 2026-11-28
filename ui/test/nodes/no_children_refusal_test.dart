@@ -12,18 +12,19 @@ void main() {
         theme: UiTheme.light('intochat'),
         home: Scaffold(
           body: ViewHost(
-            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/notes/view',
-            watch: (_, _) => const Stream.empty(),
-            onAction: (_) async => throw UiRequestException(
+            overrides: ViewHostOverrides(
+              knowsApp: (_) => false,
+              watch: (_, _) => const Stream.empty(),
+              onAction: (_) async => throw UiRequestException(
               'POST',
               '/act',
               409,
               '{"error":"child of local/apps/notes refused the command.",'
                   '"reason":"NoChildren"}',
             ),
-            load: (_, _) async => PublishedViewPayload.fromJson({
+              load: (_, _) async => PublishedViewPayload.fromJson({
               'generation': 1,
               'view': {
                 'title': 'Notes',
@@ -35,6 +36,7 @@ void main() {
                 },
               },
             }),
+            ),
           ),
         ),
       ),
