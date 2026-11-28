@@ -259,11 +259,13 @@ public sealed partial class InoApp
     {
         ArgumentNullException.ThrowIfNull(request);
         await RefreshTasksAsync(commit: false);
-        var artifact = State.ActiveArtifact ?? new InoDrawerArtifact(
-            Id: $"squad-plan:{State.ConversationId}",
-            Title: string.IsNullOrWhiteSpace(State.Title) ? "Squad Plan" : $"{State.Title} · Plan",
-            Kind: "squad-plan",
-            Status: "done");
+        var artifact = State.ActiveArtifact is { Kind: not InoDrawerArtifact.EngineerPrKind } existing
+            ? existing
+            : new InoDrawerArtifact(
+                Id: $"squad-plan:{State.ConversationId}",
+                Title: string.IsNullOrWhiteSpace(State.Title) ? "Squad Plan" : $"{State.Title} · Plan",
+                Kind: "squad-plan",
+                Status: "done");
         await Commit(State.OpenArtifactDrawer(artifact) with
         {
             DrawerTab = InoSquads.DrawerTabPlan,

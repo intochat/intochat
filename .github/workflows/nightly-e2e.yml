@@ -8,6 +8,7 @@ on:
     branches: [master]
     paths:
       - 'tests/IntoChat.OS.Tests.Browser/Item350*'
+      - 'tests/IntoChat.OS.Tests.Browser/MasterPlan*'
       - '.github/workflows/nightly-e2e.yml'
 
 permissions:
@@ -60,3 +61,6 @@ jobs:
 
       - name: Run Item #350 Playwright E2E Journeys (MTP)
         run: dotnet test --no-build -c Release --project tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj -- --filter-class "*Item350UnifiedProductResetBrowserFacts*"
+
+      - name: Run Master Plan Browser Gauntlet (MTP)
+        run: dotnet test --no-build -c Release --project tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj -- --filter-class "*MasterPlanBrowserGauntletFacts*"

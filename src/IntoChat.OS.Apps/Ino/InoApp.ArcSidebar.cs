@@ -218,11 +218,13 @@ public sealed partial class InoApp
     public Task OpenPinnedApps(InoOpenPinnedApps request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var artifact = State.ActiveArtifact ?? new InoDrawerArtifact(
-            Id: $"pinned-apps:{State.ConversationId}",
-            Title: string.IsNullOrWhiteSpace(State.Title) ? "Pinned Apps" : $"{State.Title} · Pinned Apps",
-            Kind: "pinned-apps",
-            Status: "done");
+        var artifact = State.ActiveArtifact is { Kind: not InoDrawerArtifact.EngineerPrKind } existing
+            ? existing
+            : new InoDrawerArtifact(
+                Id: $"pinned-apps:{State.ConversationId}",
+                Title: string.IsNullOrWhiteSpace(State.Title) ? "Pinned Apps" : $"{State.Title} · Pinned Apps",
+                Kind: "pinned-apps",
+                Status: "done");
         return Commit(State with
         {
             DrawerOpen = true,
