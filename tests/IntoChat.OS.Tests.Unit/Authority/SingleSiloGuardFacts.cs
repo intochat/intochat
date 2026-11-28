@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
 using System.Net;
 using IntoChat.OS.Modules.Identity.Grants;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Orleans;
@@ -757,6 +759,63 @@ public sealed class SingleSiloGuardFacts
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RunCheckStageAsync(guard, cts.Token));
     }
 
+    [Fact]
+    public async Task Register_WrapsFatalErrorHandlerIdempotently_SuppressesOnlyDuringRefusal_AndForwardsOtherwise()
+    {
+        var self = NewSilo(11111, 2);
+        var peer = NewSilo(11111, 1);
+        var now = new DateTimeOffset(2026, 11, 28, 8, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+        var table = new FakeMembershipTable(self, SiloStatus.Joining, now.UtcDateTime);
+        table.AddRow(peer, SiloStatus.Active, now.UtcDateTime.AddSeconds(-5));
+
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<IFatalErrorHandler, RecordingFatalErrorHandler>();
+        services.AddSingleton<IClusterMembershipService>(
+            new FakeMembershipService(Snapshot(1, Member(self, SiloStatus.Joining, "self"), Member(peer, SiloStatus.Active, "peer"))));
+        services.AddSingleton<ILocalSiloDetails>(new FakeLocalSiloDetails(self, "self"));
+        services.AddSingleton<IMembershipTable>(table);
+        services.AddSingleton<TimeProvider>(clock);
+        services.Configure<ClusterOptions>(o => o.ClusterId = "intochat-test");
+        services.Configure<SingleSiloGuardOptions>(o => o.GracePeriod = TimeSpan.Zero);
+
+        // Register twice (matching PlatformHosting + BrainHosting) to verify idempotent wrapping.
+        SingleSiloGuard.Register(services);
+        SingleSiloGuard.Register(services);
+
+        await using var provider = services.BuildServiceProvider();
+        var fatalHandler = provider.GetRequiredService<IFatalErrorHandler>();
+        var inner = provider.GetRequiredService<RecordingFatalErrorHandler>();
+        var refusalState = provider.GetRequiredService<SingleSiloRefusalState>();
+        var guard = Assert.IsType<SingleSiloGuard>(Assert.Single(provider.GetServices<ILifecycleParticipant<ISiloLifecycle>>()));
+
+        // Active / non-refusing silo: fatal errors must still delegate directly to Orleans's FatalErrorHandler.
+        Assert.False(refusalState.IsRefusingStartup);
+        fatalHandler.OnFatalException(this, "active-silo-fatal", null);
+        Assert.Equal(1, inner.Calls);
+
+        // Refusal state must be set strictly BEFORE MarkSelfDeadAsync writes Dead to the membership table.
+        var refusalFlagObservedBeforeSelfDeadWrite = false;
+        table.OnBeforeUpdate = address =>
+        {
+            if (address.Equals(self))
+            {
+                refusalFlagObservedBeforeSelfDeadWrite = refusalState.IsRefusingStartup;
+                // Simulate a racing MembershipTableManager.PeriodicallyRefreshMembershipTable tick calling FailFast.
+                fatalHandler.OnFatalException(this, "racing-refresh-saw-self-dead", null);
+            }
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunCheckStageAsync(guard, Ct));
+
+        Assert.True(refusalFlagObservedBeforeSelfDeadWrite);
+        Assert.True(refusalState.IsRefusingStartup);
+        Assert.Equal(SiloStatus.Dead, table.StatusOf(self));
+        Assert.Equal(1, inner.Calls);
+    }
+
     private static async Task RunCheckStageAsync(SingleSiloGuard guard, CancellationToken ct)
     {
         var lifecycle = new FakeSiloLifecycle();
@@ -978,5 +1037,14 @@ public sealed class SingleSiloGuardFacts
         }
 
         public Task UpdateIAmAlive(MembershipEntry entry) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingFatalErrorHandler : IFatalErrorHandler
+    {
+        public int Calls { get; private set; }
+
+        public bool IsUnexpected(Exception exception) => true;
+
+        public void OnFatalException(object? sender = null, string? context = null, Exception? exception = null) => Calls++;
     }
 }

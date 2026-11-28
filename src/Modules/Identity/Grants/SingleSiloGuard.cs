@@ -20,6 +20,46 @@ public sealed class SingleSiloGuardOptions
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(1);
 }
 
+// Per-silo flag set by SingleSiloGuard immediately before marking a refused joining silo Dead in membership.
+// Because SingleSiloGuard runs at BecomeActive - 1 (after MembershipTableManager starts PeriodicallyRefreshMembershipTable
+// and before Silo reaches SystemStatus.Running), writing Dead to IMembershipTable can race with a periodic refresh or
+// gossip update that sees LocalSiloStatus == Dead while SiloLifecycleSubject.IsStopping is still false, causing
+// MembershipTableManager.KillMyselfLocally -> FatalErrorHandler.OnFatalException -> Environment.FailFast (exit 134).
+public sealed class SingleSiloRefusalState
+{
+    private int _refusingStartup;
+
+    public bool IsRefusingStartup => Volatile.Read(ref _refusingStartup) != 0;
+
+    internal void MarkRefusingStartup() => Volatile.Write(ref _refusingStartup, 1);
+}
+
+// Wraps Orleans's IFatalErrorHandler to suppress Environment.FailFast ONLY while SingleSiloGuard is intentionally
+// refusing startup on this silo. Active silos (IsRefusingStartup == false) delegate directly to Orleans's handler
+// with zero change to production fail-fast semantics.
+internal sealed class SingleSiloRefusalFatalErrorHandler(
+    IFatalErrorHandler inner,
+    SingleSiloRefusalState refusalState,
+    ILogger<SingleSiloGuard> logger) : IFatalErrorHandler
+{
+    public bool IsUnexpected(Exception exception) => inner.IsUnexpected(exception);
+
+    public void OnFatalException(object? sender = null, string? context = null, Exception? exception = null)
+    {
+        if (refusalState.IsRefusingStartup)
+        {
+            logger.LogWarning(
+                exception,
+                "Suppressing Orleans fatal self-termination from {Sender} while SingleSiloGuard is refusing startup: {Context}",
+                sender,
+                context);
+            return;
+        }
+
+        inner.OnFatalException(sender, context, exception);
+    }
+}
+
 // SiloAccessCallFilter trusts a call as internal only when this silo process sent it (SiloOrigin, an object of the process),
 // so the rule holds for a cluster of one silo. A silo that runs it refuses to become active beside another live silo of its
 // cluster: Orleans would otherwise place grains on both and the filter would refuse ordinary internal calls depending on
@@ -32,7 +72,8 @@ public sealed class SingleSiloGuard(
     IMembershipTable? membershipTable = null,
     IOptions<SingleSiloGuardOptions>? options = null,
     IOptions<ClusterMembershipOptions>? membershipOptions = null,
-    TimeProvider? timeProvider = null) : ILifecycleParticipant<ISiloLifecycle>
+    TimeProvider? timeProvider = null,
+    SingleSiloRefusalState? refusalState = null) : ILifecycleParticipant<ISiloLifecycle>
 {
     // After the silo has written itself Joining into the membership table, before it becomes Active.
     public const int Stage = ServiceLifecycleStage.BecomeActive - 1;
@@ -56,8 +97,55 @@ public sealed class SingleSiloGuard(
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddOptions<SingleSiloGuardOptions>();
+        services.TryAddSingleton<SingleSiloRefusalState>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, SiloAccessCallFilter>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILifecycleParticipant<ISiloLifecycle>, SingleSiloGuard>());
+        WrapFatalErrorHandler(services);
+    }
+
+    private static void WrapFatalErrorHandler(IServiceCollection services)
+    {
+        if (services.Any(static descriptor => descriptor.ServiceType == typeof(SingleSiloRefusalFatalErrorHandler)))
+        {
+            return;
+        }
+
+        var existing = services.LastOrDefault(static descriptor => descriptor.ServiceType == typeof(IFatalErrorHandler));
+        if (existing is null || existing.ImplementationType == typeof(SingleSiloRefusalFatalErrorHandler))
+        {
+            return;
+        }
+
+        services.Remove(existing);
+        if (existing.ImplementationInstance is IFatalErrorHandler instance)
+        {
+            services.AddSingleton(sp => new SingleSiloRefusalFatalErrorHandler(
+                instance,
+                sp.GetRequiredService<SingleSiloRefusalState>(),
+                sp.GetRequiredService<ILogger<SingleSiloGuard>>()));
+        }
+        else if (existing.ImplementationFactory is { } factory)
+        {
+            services.AddSingleton(sp => new SingleSiloRefusalFatalErrorHandler(
+                (IFatalErrorHandler)factory(sp),
+                sp.GetRequiredService<SingleSiloRefusalState>(),
+                sp.GetRequiredService<ILogger<SingleSiloGuard>>()));
+        }
+        else if (existing.ImplementationType is { } implementationType)
+        {
+            services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
+            services.AddSingleton(sp => new SingleSiloRefusalFatalErrorHandler(
+                (IFatalErrorHandler)sp.GetRequiredService(implementationType),
+                sp.GetRequiredService<SingleSiloRefusalState>(),
+                sp.GetRequiredService<ILogger<SingleSiloGuard>>()));
+        }
+        else
+        {
+            services.Add(existing);
+            return;
+        }
+
+        services.AddSingleton<IFatalErrorHandler>(static sp => sp.GetRequiredService<SingleSiloRefusalFatalErrorHandler>());
     }
 
     public void Participate(ISiloLifecycle lifecycle)
@@ -143,6 +231,7 @@ public sealed class SingleSiloGuard(
             }
         }
 
+        refusalState?.MarkRefusingStartup();
         await MarkSelfDeadAsync(ct).ConfigureAwait(false);
         throw new InvalidOperationException(Refusal(cluster.Value.ClusterId, others));
     }
