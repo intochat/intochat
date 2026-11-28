@@ -6,6 +6,7 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
 using DigitalBrain.Contracts;
+using DigitalBrain.Invocation;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -501,18 +502,22 @@ internal sealed class ConversationNeuron(
         string? messageId,
         EntryId? replyTo)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(text);
-
-        var author = await RequireSeat(requireEditor: true);
-        if (!IsSameBrainCaller() && attachments is { Length: > 0 })
+        var hasAttachments = attachments is { Length: > 0 };
+        var trimmed = text?.Trim() ?? string.Empty;
+        if (!hasAttachments && string.IsNullOrWhiteSpace(trimmed))
         {
-            throw new UnauthorizedAccessException("Cross-brain friend messages cannot attach owner brain blobs directly.");
+            throw new ArgumentException("Shared message requires non-empty text or at least one attachment.", nameof(text));
         }
 
-        var trimmed = text.Trim();
         if (trimmed.Length > MaxSayCharacters)
         {
             throw new ArgumentOutOfRangeException(nameof(text), $"Message exceeds the {MaxSayCharacters}-character limit.");
+        }
+
+        var author = await RequireSeat(requireEditor: true);
+        if (hasAttachments)
+        {
+            AttachmentValidator.ValidateTurnAttachments(attachments);
         }
 
         var speaker = new Participant.Human(new AccountId(author));
@@ -522,10 +527,14 @@ internal sealed class ConversationNeuron(
             return;
         }
 
-        var masked = await Runner.Mask(trimmed);
-        var sanitizedAttachments = IsSameBrainCaller() && attachments is { Length: > 0 }
-            ? await SanitizeAndAuthorizeAttachmentsAsync(attachments)
-            : null;
+        var masked = string.IsNullOrEmpty(trimmed) ? string.Empty : await Runner.Mask(trimmed);
+        AttachmentRef[]? sanitizedAttachments = null;
+        if (hasAttachments)
+        {
+            sanitizedAttachments = IsSameBrainCaller()
+                ? await SealHostSharedAttachmentsAsync(attachments!)
+                : await ReceiveForeignSharedAttachmentsAsync(attachments!, RequireCaller().Brain);
+        }
 
         long committedRevision;
         await _sharedWriteGate.WaitAsync();
@@ -569,10 +578,131 @@ internal sealed class ConversationNeuron(
         await NudgeDirectoriesAsync(committedRevision);
 
         // Shared rooms enforce explicit @agentId mention trigger ONLY; normal human messages trigger 0 agent turns.
-        if (ResolveMentionedSharedAgent(masked) is { } mentionedAgent)
+        if (!string.IsNullOrEmpty(masked) && ResolveMentionedSharedAgent(masked) is { } mentionedAgent)
         {
             using var module = OwnModuleIfForeign();
             _ = Context.Get<IConversationDriver>(Id).DriveSharedRoomAgent(committedRevision, mentionedAgent);
+        }
+    }
+
+    private async Task<AttachmentRef[]> SealHostSharedAttachmentsAsync(AttachmentRef[] attachments)
+    {
+        var sanitized = await SanitizeAndAuthorizeAttachmentsAsync(attachments);
+        if (State.Members.Length == 0)
+        {
+            return sanitized;
+        }
+
+        var sharedRelay = Services.GetService<SharedAttachmentRelay>();
+        var signer = Services.GetService<IBrainKeySigner>();
+        if (sharedRelay is not { IsAvailable: true } || signer is null)
+        {
+            return sanitized;
+        }
+
+        var recipients = await ResolveSharedBlobRecipientsAsync(signer);
+        if (recipients.Count == 0)
+        {
+            return sanitized;
+        }
+
+        var sealedRefs = new AttachmentRef[sanitized.Length];
+        for (var i = 0; i < sanitized.Length; i++)
+        {
+            sealedRefs[i] = await sharedRelay.SealAndUploadAsync(Id.Brain, sanitized[i], recipients);
+        }
+
+        return sealedRefs;
+    }
+
+    private async Task<AttachmentRef[]> ReceiveForeignSharedAttachmentsAsync(AttachmentRef[] attachments, BrainId senderBrain)
+    {
+        var sharedRelay = Services.GetService<SharedAttachmentRelay>();
+        if (sharedRelay is not { IsAvailable: true })
+        {
+            throw new UnauthorizedAccessException("Cross-brain friend messages cannot attach owner brain blobs directly.");
+        }
+
+        var senderKeys = await ResolvePeerPublicKeysAsync(senderBrain)
+            ?? throw new UnauthorizedAccessException($"No pinned public keys are known for sender brain '{senderBrain.Value}'.");
+
+        var materialized = new AttachmentRef[attachments.Length];
+        for (var i = 0; i < attachments.Length; i++)
+        {
+            var item = attachments[i];
+            if (string.IsNullOrWhiteSpace(item.BlobId)
+                || string.IsNullOrWhiteSpace(item.BlobSha256)
+                || !string.Equals(item.SenderBrainId, senderBrain.Value, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Cross-brain friend messages must reference E2EE relay blobs signed by the sender brain.");
+            }
+
+            var maskedTranscript = string.IsNullOrWhiteSpace(item.Transcript)
+                ? null
+                : await Runner.Mask(item.Transcript);
+
+            var (saved, _) = await sharedRelay.DownloadAndUnsealAsync(
+                Id.Brain,
+                item,
+                expectedSenderKeys: senderKeys,
+                redactedTranscript: maskedTranscript,
+                persistToLocalStore: true,
+                conversationId: ConvId);
+            materialized[i] = saved;
+        }
+
+        return materialized;
+    }
+
+    private async Task<List<(BrainId BrainId, BrainPublicKeys PublicKeys)>> ResolveSharedBlobRecipientsAsync(IBrainKeySigner signer)
+    {
+        var result = new List<(BrainId BrainId, BrainPublicKeys PublicKeys)>(State.Members.Length + 1);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        var myKeys = await signer.GetPublicKeysAsync(Id.Brain);
+        if (seen.Add(Id.Brain.Value))
+        {
+            result.Add((Id.Brain, myKeys));
+        }
+
+        foreach (var member in State.Members)
+        {
+            if (string.IsNullOrWhiteSpace(member.Brain.Value) || !seen.Add(member.Brain.Value))
+            {
+                continue;
+            }
+
+            var memberKeys = await ResolvePeerPublicKeysAsync(member.Brain)
+                ?? throw new UnauthorizedAccessException($"Cannot seal shared attachment: no pinned public keys for participant brain '{member.Brain.Value}'.");
+            result.Add((member.Brain, memberKeys));
+        }
+
+        return result;
+    }
+
+    private async Task<BrainPublicKeys?> ResolvePeerPublicKeysAsync(BrainId peerBrain)
+    {
+        if (Services.GetService<IBrainKeyDirectory>() is { } directory)
+        {
+            using (OwnModuleIfForeign())
+            {
+                if (await directory.GetPinnedKeysForAsync(Id.Brain, peerBrain) is { } pinned)
+                {
+                    return pinned;
+                }
+            }
+        }
+
+        try
+        {
+            using var module = OwnModuleIfForeign();
+            var friends = await Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value)).List();
+            return friends.FirstOrDefault(friend => friend.Brain == peerBrain)?.PublicKeys;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Logger.LogSwallowed(error, "resolving peer public keys from friend roster");
+            return null;
         }
     }
 
@@ -1568,15 +1698,36 @@ internal sealed class ConversationNeuron(
             }
         }
 
-        foreach (var member in State.Members)
+        if (State.Members.Length == 0)
         {
-            try
+            return;
+        }
+
+        // Cross-brain directory nudges originate from this host brain's ConversationNeuron (Id.Brain).
+        // When a foreign guest triggered the write, re-bind the ambient caller to this host brain's owner
+        // so SealedRelayBrainTransport seals the nudge from Id.Brain with valid RemoteViaProvenance.
+        IDisposable? hostCallerScope = null;
+        if (!IsSameBrainCaller() && Services.GetService<EdgeAuthority>() is { } edge)
+        {
+            var hostAccount = Services.GetService<IBrainOwners>() is { } owners
+                ? await owners.OwnerAccount(Id.Brain)
+                : null;
+            var resolvedHostAccount = !string.IsNullOrWhiteSpace(hostAccount) ? hostAccount : Id.Brain.Value;
+            hostCallerScope = edge.Enter(edge.Person(resolvedHostAccount, resolvedHostAccount, Id.Brain));
+        }
+
+        using (hostCallerScope)
+        {
+            foreach (var member in State.Members)
             {
-                await DirectoryOf(member.Brain).Changed(Id, revision);
-            }
-            catch (UnauthorizedAccessException refused)
-            {
-                Logger.LogSwallowed(refused, "a participant's thread directory refused the notice of a change");
+                try
+                {
+                    await DirectoryOf(member.Brain).Changed(Id, revision);
+                }
+                catch (UnauthorizedAccessException refused)
+                {
+                    Logger.LogSwallowed(refused, "a participant's thread directory refused the notice of a change");
+                }
             }
         }
     }

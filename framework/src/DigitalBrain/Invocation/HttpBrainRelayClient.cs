@@ -203,6 +203,33 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
                 {
                     break;
                 }
+                catch (Exception error) when (IsWebSocketAuthFailure(error))
+                {
+                    consecutiveFailures++;
+                    var message = $"WebSocket handshake authentication failed ({error.GetType().Name}); forcing token refresh and backing off (attempt {consecutiveFailures}).";
+                    System.Diagnostics.Trace.TraceWarning(message);
+                    _options.OnStreamDiagnostic?.Invoke(message);
+                    await DelayWithJitteredBackoffAsync(consecutiveFailures, ct).ConfigureAwait(false);
+                    if (_options.RefreshAuthOnHandshakeFailureAsync is not null)
+                    {
+                        try
+                        {
+                            await _options.RefreshAuthOnHandshakeFailureAsync(httpStreamUri, ct).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                        catch (Exception refreshError)
+                        {
+                            var refreshMsg = $"Forced auth refresh after WebSocket 401/403 failed ({refreshError.GetType().Name}).";
+                            System.Diagnostics.Trace.TraceWarning(refreshMsg);
+                            _options.OnStreamDiagnostic?.Invoke(refreshMsg);
+                        }
+                    }
+
+                    continue;
+                }
                 catch (Exception error) when (IsWebSocketUpgradeRejected(error))
                 {
                     var message = $"WebSocket upgrade unavailable ({error.GetType().Name}); falling back to HTTP polling.";
@@ -226,7 +253,12 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
                 {
                     using (socket)
                     {
-                        closeStatus = await ProcessWebSocketSessionAsync(socket, httpStreamUri, receiver, ct).ConfigureAwait(false);
+                        closeStatus = await ProcessWebSocketSessionAsync(
+                            socket,
+                            httpStreamUri,
+                            receiver,
+                            onHealthyActivity: () => consecutiveFailures = 0,
+                            ct).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -558,7 +590,7 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
             await ws.ConnectAsync(wsStreamUri, ct).ConfigureAwait(false);
             return ws;
         }
-        catch (WebSocketException wsEx) when (ws.HttpStatusCode != 0 && wsEx.InnerException is null)
+        catch (WebSocketException wsEx) when (ws.HttpStatusCode != 0 && wsEx.InnerException is not HttpRequestException { StatusCode: not null })
         {
             var statusCode = ws.HttpStatusCode;
             ws.Dispose();
@@ -578,6 +610,7 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
         WebSocket socket,
         Uri httpStreamUri,
         BrainEnvelopeReceiver receiver,
+        Action onHealthyActivity,
         CancellationToken ct)
     {
         var maxFrameBytes = _options.MaxInboundFrameBytes > 0 ? _options.MaxInboundFrameBytes : 2 * 1024 * 1024;
@@ -660,16 +693,19 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
             switch (frame.Type)
             {
                 case BrainStreamFrameTypes.Deliver:
+                    onHealthyActivity();
                     await HandleDeliverFrameAsync(socket, frame, receiver, ct).ConfigureAwait(false);
                     break;
 
                 case BrainStreamFrameTypes.Ping:
+                    onHealthyActivity();
                     await SendStreamFrameAsync(socket, new BrainStreamFrame(BrainStreamFrameTypes.Pong), ct).ConfigureAwait(false);
                     break;
 
                 case BrainStreamFrameTypes.AuthOk:
                 case BrainStreamFrameTypes.Pong:
                 case BrainStreamFrameTypes.Acked:
+                    onHealthyActivity();
                     break;
 
                 case BrainStreamFrameTypes.Error:
@@ -862,6 +898,14 @@ public sealed class HttpBrainRelayClient : IBrainRelayClient
         };
         return builder.Uri;
     }
+
+    internal static bool IsWebSocketAuthFailure(Exception error)
+        => error switch
+        {
+            HttpRequestException { StatusCode: HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden } => true,
+            WebSocketException { InnerException: HttpRequestException { StatusCode: HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden } } => true,
+            _ => false,
+        };
 
     internal static bool IsWebSocketUpgradeRejected(Exception error)
         => error switch

@@ -56,7 +56,10 @@ public sealed record AttachmentRef(
     string Url,
     int? DurationMs = null,
     string? Transcript = null,
-    string? Sha256 = null);
+    string? Sha256 = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BlobId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BlobSha256 = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SenderBrainId = null);
 
 public sealed record Said(
     EntryId Id,

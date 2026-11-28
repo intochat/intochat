@@ -8,7 +8,7 @@ namespace DigitalBrain.Access;
 /// </summary>
 public sealed record Caller
 {
-    internal Caller(Actor actor, BrainId brain, string? conversation = null, NeuronId? via = null, bool inside = false, ComponentId? component = null)
+    internal Caller(Actor actor, BrainId brain, string? conversation = null, NeuronId? via = null, bool inside = false, ComponentId? component = null, bool remoteVerified = false)
     {
         ArgumentNullException.ThrowIfNull(actor);
         Actor = actor;
@@ -17,6 +17,7 @@ public sealed record Caller
         Via = via;
         Inside = inside;
         Component = component;
+        RemoteVerified = remoteVerified;
     }
 
     /// <summary>Who is behind this call.</summary>
@@ -36,6 +37,9 @@ public sealed record Caller
 
     /// <summary>The component that owns the neuron making this call, if any.</summary>
     public ComponentId? Component { get; }
+
+    /// <summary>True only when this caller was minted after cryptographically verifying a remote sealed brain envelope.</summary>
+    public bool RemoteVerified { get; }
 
     /// <summary>A human directly: not routed through an intermediary neuron and not sent by a cluster grain.</summary>
     public bool Direct => Via is null && !Inside;
@@ -62,5 +66,5 @@ public sealed record Caller
         => new(Actor, Brain, Conversation, via, inside, component ?? Component);
 
     internal Caller WithoutComponent()
-        => Component is null ? this : new(Actor, Brain, Conversation, Via, Inside, component: null);
+        => Component is null ? this : new(Actor, Brain, Conversation, Via, Inside, component: null, remoteVerified: RemoteVerified);
 }

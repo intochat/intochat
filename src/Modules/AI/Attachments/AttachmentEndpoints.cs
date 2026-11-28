@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.AI.Voice;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
 
 namespace IntoChat.OS.Modules.AI.Attachments;
@@ -148,6 +149,83 @@ internal static class AttachmentEndpoints
         http.Response.Headers.ContentDisposition = disposition.ToString();
 
         return Results.File(stored.Bytes, stored.Metadata.MediaType);
+    }
+
+    public static async Task<IResult> DownloadSharedBlobAsync(
+        HttpContext http,
+        string blobId,
+        SharedAttachmentRelay sharedRelay,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(sharedRelay);
+
+        if (AIModule.StampedCaller(http) is not { } caller)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!AIModule.IsDirectPersonCaller(caller))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var senderBrainId = http.Request.Query["sender"].ToString().Trim();
+        var blobSha256 = http.Request.Query["sha256"].ToString().Trim();
+        var fileName = http.Request.Query["fileName"].ToString().Trim();
+        var mediaType = http.Request.Query["mediaType"].ToString().Trim();
+        var kind = http.Request.Query["kind"].ToString().Trim();
+        var plaintextSha256 = http.Request.Query["contentSha256"].ToString().Trim();
+
+        if (!sharedRelay.IsAvailable)
+        {
+            return Results.NotFound();
+        }
+
+        var reference = new IntoChat.OS.Modules.Flutter.Conversations.AttachmentRef(
+            Id: Guid.NewGuid().ToString("N"),
+            Kind: string.IsNullOrWhiteSpace(kind) ? AttachmentValidator.KindFile : kind,
+            FileName: fileName,
+            MediaType: mediaType,
+            SizeBytes: 1,
+            Url: $"/ai/attachments/blob/{blobId}",
+            Sha256: string.IsNullOrWhiteSpace(plaintextSha256) ? null : plaintextSha256,
+            BlobId: blobId,
+            BlobSha256: blobSha256,
+            SenderBrainId: senderBrainId);
+
+        try
+        {
+            using var callerScope = http.RequestServices.GetService<DigitalBrain.Access.EdgeAuthority>()?.Enter(caller);
+            var (materialized, plaintext) = await sharedRelay.DownloadAndUnsealAsync(
+                caller.Brain,
+                reference,
+                persistToLocalStore: false,
+                ct: ct).ConfigureAwait(false);
+
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
+            http.Response.Headers.CacheControl = "private, max-age=3600";
+
+            var inline = materialized.Kind is AttachmentValidator.KindImage or AttachmentValidator.KindVoiceNote;
+            var disposition = new ContentDispositionHeaderValue(inline ? "inline" : "attachment");
+            disposition.SetHttpFileName(materialized.FileName);
+            http.Response.Headers.ContentDisposition = disposition.ToString();
+
+            return Results.File(plaintext, materialized.MediaType);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.NotFound();
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            return Results.NotFound();
+        }
+        catch (AttachmentValidationException error)
+        {
+            return Results.Problem(error.Message, statusCode: error.StatusCode);
+        }
     }
 
     private static async Task<(

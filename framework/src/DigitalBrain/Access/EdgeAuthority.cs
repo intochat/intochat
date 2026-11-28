@@ -69,6 +69,21 @@ public sealed class EdgeAuthority
         return new(new Actor.Person(principal, account), brain, conversation, via, inside);
     }
 
+    /// <summary>
+    /// Mints a human person caller authenticated through a cryptographically verified remote sealed brain envelope,
+    /// optionally carrying a cryptographically verified <paramref name="via"/> relay neuron in <paramref name="brain"/>.
+    /// </summary>
+    public Caller VerifiedRemotePerson(string principal, string account, BrainId brain, NeuronId? via = null, string? conversation = null)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(account);
+        if (via is { } relay && relay.Brain != brain)
+        {
+            throw new ArgumentException("Verified remote Via neuron must belong to the authenticated sender brain.", nameof(via));
+        }
+        return new(new Actor.Person(principal, account), brain, conversation, via, inside: via is not null, remoteVerified: true);
+    }
+
     /// <summary>Mints a delegated caller acting on behalf of <paramref name="forPerson"/> without direct human edge authority.</summary>
     public Caller OnBehalfOf(Actor.Person forPerson, BrainId brain, string? viaApp = null, NeuronId? via = null, string? conversation = null)
     {

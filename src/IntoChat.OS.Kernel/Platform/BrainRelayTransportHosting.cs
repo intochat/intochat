@@ -63,6 +63,15 @@ public sealed class BrainRelayOptions
     /// <c>GET /circle/v1/brains/stream</c> with automatic HTTP polling fallback when WebSocket upgrade is unavailable.
     /// </summary>
     public bool PreferWebSocket { get; set; } = true;
+
+    /// <summary>
+    /// Interval at which <see cref="BrainRelayPollService"/> checks for newly written Desktop <c>link.bin</c>
+    /// enrollment when auto-bind is enabled and no relay was configured at boot.
+    /// </summary>
+    public TimeSpan EnrollmentWatchInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>True when <see cref="EnablePollLoop"/> was explicitly configured via <see cref="IConfiguration"/>.</summary>
+    internal bool EnablePollLoopExplicitlyConfigured { get; set; }
 }
 
 /// <summary>
@@ -234,6 +243,18 @@ public sealed class KernelBrainKeyDirectory(
         return dir.PinAsync(remoteBrain, publicKeys, ct);
     }
 
+    /// <inheritdoc />
+    public ValueTask<IDisposable> BeginTransientHandshakeKeyAsync(
+        BrainId localBrain,
+        BrainId remoteBrain,
+        BrainPublicKeys candidateKeys,
+        CancellationToken ct = default)
+    {
+        var scopeBrain = ResolveScopeBrain(localBrain);
+        var dir = _scopedPins.GetOrAdd(ScopeKey(scopeBrain), static _ => new InMemoryPinnedBrainKeyDirectory());
+        return dir.BeginTransientHandshakeKeyAsync(localBrain, remoteBrain, candidateKeys, ct);
+    }
+
     /// <summary>Rotates pinned keys for <see cref="BrainKeyRotationProof.BrainId"/> scoped to <paramref name="localBrain"/>.</summary>
     public ValueTask RotateForAsync(BrainId? localBrain, BrainKeyRotationProof proof, CancellationToken ct = default)
     {
@@ -311,7 +332,7 @@ public sealed class KernelBrainKeyDirectory(
 /// Supports Cloud <c>ServiceAssertion</c> auth, explicit <c>Bearer</c> + <c>X-Machine-Proof</c>, and
 /// auto-bound desktop <see cref="IDeviceLinkCredentialsProvider"/> header signing.
 /// </summary>
-public sealed class KernelBrainRelayClientProvider
+public sealed class KernelBrainRelayClientProvider : IBrainRelayClientProvider
 {
     internal const string RelayPurpose = "circle-brain-relay";
 
@@ -346,6 +367,17 @@ public sealed class KernelBrainRelayClientProvider
     /// <summary>True when a remote relay endpoint is configured.</summary>
     public bool IsConfigured => ResolveBaseUri() is not null;
 
+    /// <summary>The currently resolved relay base URI, or <see langword="null"/> when running local-only.</summary>
+    public Uri? RelayBaseUri => ResolveBaseUri();
+
+    /// <summary>True when Desktop <c>link.bin</c> auto-bind can become available dynamically after process start.</summary>
+    internal bool CanWatchDynamicEnrollment =>
+        _options.Value.AutoBindDeviceCredentials
+        && _deviceCredentials is not null
+        && _assertionSigner is not { IsConfigured: true };
+
+    IBrainRelayClient? IBrainRelayClientProvider.TryGetClient() => TryGetClient();
+
     /// <summary>Returns a configured <see cref="HttpBrainRelayClient"/>, or <see langword="null"/> when running local-only.</summary>
     public HttpBrainRelayClient? TryGetClient()
     {
@@ -360,8 +392,8 @@ public sealed class KernelBrainRelayClientProvider
         {
             RecipientsHeaderName = BrainRelayTransportHosting.CircleBlobRecipientsHeader,
             ContentSha256HeaderName = BrainRelayTransportHosting.CircleBlobContentSha256Header,
-            AuthorizeWebSocketAsync = AuthorizeWebSocketAsync,
             CreateAuthRefreshFrameAsync = CreateAuthRefreshFrameAsync,
+            RefreshAuthOnHandshakeFailureAsync = RefreshAuthOnHandshakeFailureAsync,
             OnStreamDiagnostic = message => _logger?.LogDebug("Brain relay stream: {Diagnostic}", message),
         };
         return new HttpBrainRelayClient(http, baseUri, AuthorizeAsync, _timeProvider, clientOptions);
@@ -420,25 +452,17 @@ public sealed class KernelBrainRelayClientProvider
         }
     }
 
-    internal async ValueTask AuthorizeWebSocketAsync(
-        Uri httpStreamUri,
-        IDictionary<string, string> headers,
-        CancellationToken ct)
+    internal async ValueTask RefreshAuthOnHandshakeFailureAsync(Uri httpStreamUri, CancellationToken ct)
     {
-        using var probe = new HttpRequestMessage(HttpMethod.Get, httpStreamUri);
-        await AuthorizeAsync(probe, ct).ConfigureAwait(false);
-
-        if (probe.Headers.Authorization is not null)
+        var opts = _options.Value;
+        if (string.IsNullOrWhiteSpace(opts.BearerToken)
+            && opts.AutoBindDeviceCredentials
+            && _deviceCredentials is not null
+            && HasMatchingOrigin(httpStreamUri, _deviceCredentials.TryGetServerUri()))
         {
-            headers["Authorization"] = probe.Headers.Authorization.ToString();
-        }
-
-        foreach (var header in probe.Headers)
-        {
-            if (!string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
-            {
-                headers[header.Key] = string.Join(", ", header.Value);
-            }
+            _ = await _deviceCredentials
+                .TryCreateStreamCredentialsAsync(httpStreamUri, forceRefresh: true, ct)
+                .ConfigureAwait(false);
         }
     }
 
@@ -511,6 +535,13 @@ public static class BrainRelayTransportHosting
                 sp.GetService<IConfiguration>()?.GetSection(BrainRelayOptions.SectionName).Bind(options))
             .PostConfigure<IServiceProvider>(static (options, sp) =>
             {
+                var explicitPollLoop = sp.GetService<IConfiguration>()
+                    ?.GetSection(BrainRelayOptions.SectionName)[nameof(BrainRelayOptions.EnablePollLoop)];
+                if (!string.IsNullOrWhiteSpace(explicitPollLoop))
+                {
+                    options.EnablePollLoopExplicitlyConfigured = true;
+                }
+
                 if (!options.AutoBindDeviceCredentials || options.RelayBaseUri is not null)
                 {
                     return;
@@ -529,9 +560,7 @@ public static class BrainRelayTransportHosting
 
                 options.RelayBaseUri = serverUri;
 
-                var explicitPollLoop = sp.GetService<IConfiguration>()
-                    ?.GetSection(BrainRelayOptions.SectionName)[nameof(BrainRelayOptions.EnablePollLoop)];
-                if (string.IsNullOrWhiteSpace(explicitPollLoop))
+                if (!options.EnablePollLoopExplicitlyConfigured)
                 {
                     options.EnablePollLoop = true;
                 }
@@ -567,6 +596,8 @@ public static class BrainRelayTransportHosting
                 sp.GetService<ICallerAmbient>(),
                 sp.GetService<IDeviceLinkCredentialsProvider>(),
                 sp.GetService<ILogger<KernelBrainRelayClientProvider>>()));
+        services.TryAddSingleton<IBrainRelayClientProvider>(static sp =>
+            sp.GetRequiredService<KernelBrainRelayClientProvider>());
 
         services.TryAddSingleton<SealedRelayBrainTransport>(static sp =>
         {
@@ -614,7 +645,8 @@ public static class BrainRelayTransportHosting
                 localBrain: localBrain,
                 timeProvider: time,
                 maxClockSkew: skew,
-                replayCache: replayCache);
+                replayCache: replayCache,
+                includeSenderPublicKeys: IsFriendHandshakeCall);
         });
 
         services.TryAddSingleton<IBrainTransport>(static sp => sp.GetRequiredService<SealedRelayBrainTransport>());
@@ -645,11 +677,49 @@ public static class BrainRelayTransportHosting
                 scopedVerifyCallerAccount: kernelDirectory is not null
                     ? kernelDirectory.VerifyCallerAccountForAsync
                     : static (_, _, _, _) => ValueTask.FromResult(false),
-                replayCache: replayCache);
+                replayCache: replayCache,
+                allowUnpinnedHandshake: IsAllowedUnpinnedFriendHandshake);
         });
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BrainRelayPollService>());
         return services;
+    }
+
+    internal static bool IsFriendHandshakeCall(NeuronId target, RuntimeInvocation call, Caller caller)
+        => target == FriendsDefaults.Id(target.Brain.Value)
+            && string.Equals(call.Method, nameof(IFriends.Accepted), StringComparison.Ordinal)
+            && caller.Via is { } via
+            && via == FriendsDefaults.Id(caller.Brain.Value);
+
+    internal static bool IsAllowedUnpinnedFriendHandshake(
+        BrainEnvelope envelope,
+        RemoteInvocationRequest request,
+        BrainPublicKeys senderPublicKeys)
+    {
+        if (request.Target != FriendsDefaults.Id(envelope.To.Value)
+            || !string.Equals(request.Call.Method, nameof(IFriends.Accepted), StringComparison.Ordinal)
+            || request.ViaProvenance is not { } viaProof
+            || viaProof.Via != FriendsDefaults.Id(envelope.From.Value)
+            || request.Call.Arguments is not { Length: >= 3 })
+        {
+            return false;
+        }
+
+        try
+        {
+            var argPublicKeys = JsonSerializer.Deserialize<BrainPublicKeys>(request.Call.Arguments[2], RuntimeProtocol.Json);
+            if (argPublicKeys is null)
+            {
+                return false;
+            }
+
+            BrainPublicKeyValidation.ValidateNistP256(argPublicKeys);
+            return senderPublicKeys.Matches(argPublicKeys);
+        }
+        catch (Exception error) when (error is JsonException or CryptographicException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private static async Task<JsonElement?> InvokeLocalOrleansAsync(
@@ -676,7 +746,7 @@ public static class BrainRelayTransportHosting
         await (interleaved ? host.PostInterleaved(call) : host.Post(call)).ConfigureAwait(false);
     }
 
-    private sealed class BrainRelayPollService(
+    internal sealed class BrainRelayPollService(
         IOptions<BrainRelayOptions> options,
         KernelBrainRelayClientProvider clientProvider,
         BrainEnvelopeReceiver receiver,
@@ -686,19 +756,42 @@ public static class BrainRelayTransportHosting
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var opts = options.Value;
-            if (!opts.EnablePollLoop || !clientProvider.IsConfigured)
+            if (opts.EnablePollLoopExplicitlyConfigured && !opts.EnablePollLoop)
             {
                 return;
             }
 
-            var client = clientProvider.TryGetClient();
-            if (client is null)
+            if (!opts.EnablePollLoop && !clientProvider.CanWatchDynamicEnrollment)
             {
                 return;
             }
+
+            var watchInterval = opts.EnrollmentWatchInterval > TimeSpan.Zero
+                ? opts.EnrollmentWatchInterval
+                : TimeSpan.FromSeconds(5);
 
             while (!stoppingToken.IsCancellationRequested)
             {
+                var client = clientProvider.TryGetClient();
+                if (client is null)
+                {
+                    if (!clientProvider.CanWatchDynamicEnrollment)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        await Task.Delay(watchInterval, timeProvider, stoppingToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
+
                 try
                 {
                     if (opts.PreferWebSocket)

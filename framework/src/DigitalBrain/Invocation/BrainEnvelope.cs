@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace DigitalBrain.Invocation;
 
@@ -33,7 +34,8 @@ public sealed record BrainEnvelope(
     byte[]? Nonce = null,
     byte[]? Tag = null,
     DateTimeOffset? SentAtUtc = null,
-    bool OneWay = false);
+    bool OneWay = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BrainPublicKeys? SenderPublicKeys = null);
 
 /// <summary>
 /// Self-signed friend-code rendezvous bundle published to <c>POST /circle/v1/friends/codes</c>.
@@ -101,10 +103,30 @@ public interface IBrainKeyDirectory
     ValueTask<BrainPublicKeys?> GetPinnedKeysAsync(BrainId brainId, CancellationToken ct = default);
 
     /// <summary>
+    /// Returns the pinned public keys for <paramref name="remoteBrain"/> explicitly scoped to <paramref name="localBrain"/>,
+    /// without relying on ambient caller state.
+    /// </summary>
+    ValueTask<BrainPublicKeys?> GetPinnedKeysForAsync(BrainId localBrain, BrainId remoteBrain, CancellationToken ct = default)
+        => GetPinnedKeysAsync(remoteBrain, ct);
+
+    /// <summary>
     /// Pins <paramref name="publicKeys"/> for <paramref name="brainId"/> on first use.
     /// Idempotent when identical keys are already pinned; throws <see cref="CryptographicException"/> if different keys are already pinned.
     /// </summary>
     ValueTask PinAsync(BrainId brainId, BrainPublicKeys publicKeys, CancellationToken ct = default);
+
+    /// <summary>
+    /// Pins <paramref name="publicKeys"/> for <paramref name="remoteBrain"/> explicitly scoped to <paramref name="localBrain"/>.
+    /// </summary>
+    ValueTask PinForAsync(BrainId? localBrain, BrainId remoteBrain, BrainPublicKeys publicKeys, CancellationToken ct = default)
+        => PinAsync(remoteBrain, publicKeys, ct);
+
+    /// <summary>
+    /// Registers a transient, rollbackable handshake key for <paramref name="remoteBrain"/> scoped to <paramref name="localBrain"/>
+    /// until the returned scope is disposed. Fails closed with <see cref="CryptographicException"/> if different immutable keys
+    /// are already pinned, and never commits an immutable pin on failure.
+    /// </summary>
+    ValueTask<IDisposable> BeginTransientHandshakeKeyAsync(BrainId localBrain, BrainId remoteBrain, BrainPublicKeys candidateKeys, CancellationToken ct = default);
 
     /// <summary>
     /// Verifies <paramref name="proof"/> against the currently pinned keys for <see cref="BrainKeyRotationProof.BrainId"/>
@@ -180,13 +202,84 @@ public static class BrainPublicKeyValidation
 public sealed class InMemoryPinnedBrainKeyDirectory : IBrainKeyDirectory
 {
     private readonly ConcurrentDictionary<string, BrainPublicKeys> _pins = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, (Guid Token, BrainPublicKeys Keys)> _transient = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
+
+    private sealed class TransientScope(Action onDispose) : IDisposable
+    {
+        private int _disposed;
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                onDispose();
+            }
+        }
+    }
 
     /// <inheritdoc />
     public ValueTask<BrainPublicKeys?> GetPinnedKeysAsync(BrainId brainId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(_pins.TryGetValue(brainId.Value ?? string.Empty, out var keys) ? keys : null);
+        var key = brainId.Value ?? string.Empty;
+        if (_pins.TryGetValue(key, out var keys))
+        {
+            return ValueTask.FromResult<BrainPublicKeys?>(keys);
+        }
+
+        if (_transient.TryGetValue(key, out var transient))
+        {
+            return ValueTask.FromResult<BrainPublicKeys?>(transient.Keys);
+        }
+
+        return ValueTask.FromResult<BrainPublicKeys?>(null);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IDisposable> BeginTransientHandshakeKeyAsync(
+        BrainId localBrain,
+        BrainId remoteBrain,
+        BrainPublicKeys candidateKeys,
+        CancellationToken ct = default)
+    {
+        _ = localBrain;
+        ct.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(candidateKeys);
+        BrainPublicKeyValidation.ValidateNistP256(candidateKeys);
+
+        var key = remoteBrain.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException("BrainId must be non-empty.", nameof(remoteBrain));
+        }
+
+        lock (_gate)
+        {
+            if (_pins.TryGetValue(key, out var existing))
+            {
+                if (!existing.Matches(candidateKeys))
+                {
+                    throw new CryptographicException(
+                        $"Public keys for brain '{key}' are already pinned and cannot be replaced by a handshake bundle.");
+                }
+
+                return ValueTask.FromResult<IDisposable>(new TransientScope(static () => { }));
+            }
+
+            var token = Guid.NewGuid();
+            var cloned = new BrainPublicKeys((byte[])candidateKeys.SigningKey.Clone(), (byte[])candidateKeys.ExchangeKey.Clone());
+            _transient[key] = (token, cloned);
+            return ValueTask.FromResult<IDisposable>(new TransientScope(() =>
+            {
+                lock (_gate)
+                {
+                    if (_transient.TryGetValue(key, out var current) && current.Token == token)
+                    {
+                        _transient.TryRemove(key, out _);
+                    }
+                }
+            }));
+        }
     }
 
     /// <inheritdoc />

@@ -82,6 +82,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         AIClients.AddImageGeneration(services, options, topology);
         services.TryAddSingleton<IAudioConverter, OggOpusToWavConverter>();
         services.TryAddSingleton<FileAttachmentStore>();
+        services.TryAddSingleton<SharedAttachmentRelay>();
         services.TryAddSingleton<TalkTicketStore>();
         services.TryAddSingleton<IVoiceClients, VoiceClients>();
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
@@ -132,6 +133,15 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
                 http,
                 id,
                 http.RequestServices.GetRequiredService<FileAttachmentStore>(),
+                http.RequestAborted).ConfigureAwait(false);
+            await result.ExecuteAsync(http).ConfigureAwait(false);
+        });
+        endpoints.MapGet("/ai/attachments/blob/{blobId}", async (HttpContext http, string blobId) =>
+        {
+            var result = await AttachmentEndpoints.DownloadSharedBlobAsync(
+                http,
+                blobId,
+                http.RequestServices.GetRequiredService<SharedAttachmentRelay>(),
                 http.RequestAborted).ConfigureAwait(false);
             await result.ExecuteAsync(http).ConfigureAwait(false);
         });

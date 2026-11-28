@@ -63,7 +63,9 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<IBrainOwners, IdentityBrainOwners>();
-        services.TryAddSingleton<IFriendCheck, FriendsFriendCheck>();
+        services.TryAddSingleton<FriendsFriendCheck>();
+        services.TryAddSingleton<IFriendCheck>(static sp => sp.GetRequiredService<FriendsFriendCheck>());
+        services.TryAddSingleton<IFriendPeerDirectory>(static sp => sp.GetRequiredService<FriendsFriendCheck>());
 
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();

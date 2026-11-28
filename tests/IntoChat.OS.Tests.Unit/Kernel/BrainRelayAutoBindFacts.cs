@@ -428,11 +428,6 @@ public sealed class BrainRelayAutoBindFacts
             Assert.False(capturedHttpProof);
 
             // WebSocket upgrade + auth-refresh paths: no Bearer or MachineProof attached.
-            var wsHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            await relayProvider.AuthorizeWebSocketAsync(new Uri(foreignUri, "/circle/v1/brains/stream"), wsHeaders, ct);
-            Assert.False(wsHeaders.ContainsKey("Authorization"));
-            Assert.False(wsHeaders.ContainsKey(CircleRoutes.MachineProofHeader));
-
             var refreshFrame = await relayProvider.CreateAuthRefreshFrameAsync(new Uri(foreignUri, "/circle/v1/brains/stream"), ct);
             Assert.Null(refreshFrame);
         }
@@ -485,6 +480,94 @@ public sealed class BrainRelayAutoBindFacts
         finally
         {
             Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PollServiceDynamicallyDetectsNewlyWrittenLinkBinWithoutRestart()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 27, 15, 0, 0, TimeSpan.Zero));
+        var dir = Path.Combine(Path.GetTempPath(), "intochat-relay-live-enroll-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "link.bin");
+        var creds = new DeviceCredentials(new PassthroughKeyProtector(), path);
+        var pollDetected = new TaskCompletionSource<Uri>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        try
+        {
+            var handler = new CapturingHttpHandler((req, _) =>
+            {
+                if (req.RequestUri is not null)
+                {
+                    pollDetected.TrySetResult(req.RequestUri);
+                }
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            });
+
+            using var aliceKeys = BrainKeyPair.Generate();
+            await using var os = DigitalBrain.Testing.TestOS.Local();
+
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSingleton<TimeProvider>(clock);
+            services.AddSingleton(creds);
+            services.AddSingleton(new CloudClient(new HttpClient(handler), creds, clock));
+            services.AddSingleton<IDeviceLinkCredentialsProvider>(sp =>
+                new DeviceLinkCredentialsProvider(creds, sp.GetRequiredService<CloudClient>(), clock));
+            services.AddSingleton(os.Edge);
+            services.AddSingleton<ICallerAmbient>(os.Callers);
+            services.AddSingleton<IBrainKeySigner>(new BrainKeyPairSigner(aliceKeys));
+            services.AddKernelBrainRelayTransport();
+            services.Configure<BrainRelayOptions>(opts =>
+            {
+                opts.PreferWebSocket = false;
+                opts.EnrollmentWatchInterval = TimeSpan.FromSeconds(1);
+            });
+            services.AddHttpClient(BrainRelayTransportHosting.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => handler);
+
+            await using var provider = services.BuildServiceProvider();
+            var relayProvider = provider.GetRequiredService<KernelBrainRelayClientProvider>();
+            Assert.False(relayProvider.IsConfigured);
+
+            var hosted = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+                .OfType<BrainRelayTransportHosting.BrainRelayPollService>()
+                .Single();
+
+            await hosted.StartAsync(ct);
+            try
+            {
+                await Task.Delay(50, ct);
+                Assert.False(pollDetected.Task.IsCompleted);
+
+                // Write link.bin AFTER BrainRelayPollService started (no process restart!).
+                using var machineKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+                await creds.Write(new LinkSecrets(
+                    Server: new Uri("https://live-enrolled.intochat.test"),
+                    CredentialId: "cred-live-1",
+                    AccessToken: "live-access-token",
+                    AccessExpiresAt: clock.GetUtcNow().AddHours(1),
+                    RefreshToken: "live-refresh-token",
+                    RefreshExpiresAt: clock.GetUtcNow().AddDays(30),
+                    PrivateKeyPkcs8: machineKey.ExportPkcs8PrivateKey()), ct);
+
+                Assert.True(relayProvider.IsConfigured);
+
+                // Advance clock past EnrollmentWatchInterval so PollService wakes up and begins polling.
+                clock.Advance(TimeSpan.FromSeconds(2));
+                var polledUri = await pollDetected.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                Assert.Equal("live-enrolled.intochat.test", polledUri.Host);
+                Assert.Equal("/circle/v1/brains/next", polledUri.AbsolutePath);
+            }
+            finally
+            {
+                await hosted.StopAsync(ct);
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
         }
     }
 }

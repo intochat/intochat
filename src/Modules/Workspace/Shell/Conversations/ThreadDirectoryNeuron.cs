@@ -488,11 +488,31 @@ internal sealed class ThreadDirectoryNeuron(
         return await roster.IsFriend(Id.Brain, account.Value);
     }
 
+    private async ValueTask<string?> ResolvePeerAccountAsync(BrainId peerBrain, CancellationToken ct = default)
+    {
+        if (services?.GetService(typeof(IFriendPeerDirectory)) is not IFriendPeerDirectory peerDirectory)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var module = OwnModuleIfForeign();
+            var account = await peerDirectory.AccountOf(Id.Brain, peerBrain, ct);
+            return account?.Value;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Logger.LogSwallowed(error, "resolving peer account from friend roster");
+            return null;
+        }
+    }
+
     private async Task RequireInvitationTo(ConversationInvite invite)
     {
         if (FromOwnRoster()) { return; }
         if (services?.GetService(typeof(IBrainOwners)) is not IBrainOwners owners) { throw FriendRelay.Refused(); }
-        var (account, brain) = await FriendRelay.Require(Context.Caller, IConversation.Type, owners);
+        var (account, brain) = await FriendRelay.Require(Context.Caller, IConversation.Type, owners, ResolvePeerAccountAsync);
         if (brain == Id.Brain
             || invite.Brain != brain
             || !string.Equals(invite.By.Value, account, StringComparison.Ordinal)
@@ -529,6 +549,10 @@ internal sealed class ThreadDirectoryNeuron(
         var host = services?.GetService(typeof(IBrainOwners)) is IBrainOwners owners
             ? await owners.OwnerAccount(relay.Brain)
             : null;
+        if (string.IsNullOrEmpty(host))
+        {
+            host = await ResolvePeerAccountAsync(relay.Brain);
+        }
         if (string.IsNullOrEmpty(host) || !await IsFriendAsync(new AccountId(host)))
         {
             throw FriendRelay.Refused();
