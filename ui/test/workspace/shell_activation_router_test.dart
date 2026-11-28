@@ -235,5 +235,70 @@ void main() {
       );
       expect(selectedBrains, ['brain-2']);
     });
+
+    test('onAskIno activation dispatches ui.navigate-to when prompt is non-empty and falls back when blank', () async {
+      final actEvents = <ActAction>[];
+      final appRequests = <(String, String, String, String)>[];
+      final openedApps = <String>[];
+
+      final router = ShellActivationRouter(
+        readState: () => const ShellRoutingState(
+          currentBrain: 'brain-1',
+          isDesktopRoot: true,
+        ),
+        sendAct: (_, event) async {
+          actEvents.add(event as ActAction);
+          return const {'delivered': true};
+        },
+        requestApp: (brain, app, op, input) async =>
+            appRequests.add((brain, app, op, input)),
+        desktopDelegate: DesktopActivationDelegate(
+          findOpenWindow: (_) => null,
+          focusWindow: (_) {},
+          openApp: (app) async => openedApps.add(app),
+          onShowDesktopCleared: () {},
+          onWindowNavigated: ({windowId, appId}) {},
+          requestShellOperation: (_, _, _) async {},
+        ),
+      );
+
+      // Mirrors WorkspaceApp's CommandPalette.onAskIno activation.
+      final nonEmpty = await router.activate(
+        const WorkspaceAppActivation(
+          application: 'ino',
+          operation: 'send',
+          input: 'Explain the failure',
+        ),
+      );
+      expect(nonEmpty.handled, isTrue);
+      expect(nonEmpty.dispatchedNavigateTo, isTrue);
+      expect(openedApps, ['ino']);
+      expect(
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
+        hasLength(1),
+      );
+      expect(actEvents.single.neuron, 'brain-1/apps/ino');
+      expect(
+        (actEvents.single.args as Map<String, Object?>)['input'],
+        'Explain the failure',
+      );
+      expect(appRequests, isEmpty);
+
+      // Blank prompt does not dispatch ui.navigate-to and falls back to requestApp.
+      final blank = await router.activate(
+        const WorkspaceAppActivation(
+          application: 'ino',
+          operation: 'send',
+          input: '   ',
+        ),
+      );
+      expect(blank.handled, isTrue);
+      expect(blank.dispatchedNavigateTo, isFalse);
+      expect(
+        actEvents.where((e) => e.signal == 'ui.navigate-to'),
+        hasLength(1),
+      );
+      expect(appRequests, [('brain-1', 'ino', 'send', '   ')]);
+    });
   });
 }

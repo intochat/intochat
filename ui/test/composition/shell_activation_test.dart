@@ -119,6 +119,103 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('derives hasNavigationPayload by default and preserves toWireMap/fromWireMap round-trip fidelity', () {
+      // Navigation-payload activations derive hasNavigationPayload = true
+      // from non-empty input, argsJson, or rawTransition.
+      const withInput = WorkspaceAppActivation(
+        brainId: 'b-1',
+        application: 'ino',
+        operation: 'send',
+        input: 'Summarize today',
+      );
+      expect(withInput.hasNavigationPayload, isTrue);
+      final roundTrippedInput = ShellActivation.fromWireMap(
+        withInput.toWireMap(),
+      ) as WorkspaceAppActivation;
+      expect(roundTrippedInput.hasNavigationPayload, isTrue);
+      expect(roundTrippedInput.application, 'ino');
+      expect(roundTrippedInput.operation, 'send');
+      expect(roundTrippedInput.input, 'Summarize today');
+      expect(roundTrippedInput.toWireMap(), withInput.toWireMap());
+
+      const withArgsAndTransition = WorkspaceAppActivation(
+        brainId: 'b-1',
+        application: 'aspire',
+        operation: 'open',
+        argsJson: '{"traceId":"t-1"}',
+        rawTransition: 'shared-axis-z',
+        fromNeuron: 'b-1/apps/engineer',
+      );
+      expect(withArgsAndTransition.hasNavigationPayload, isTrue);
+      final roundTrippedArgs = ShellActivation.fromWireMap(
+        withArgsAndTransition.toWireMap(),
+      ) as WorkspaceAppActivation;
+      expect(roundTrippedArgs.hasNavigationPayload, isTrue);
+      expect(roundTrippedArgs.argsJson, '{"traceId":"t-1"}');
+      expect(roundTrippedArgs.rawTransition, 'shared-axis-z');
+      expect(roundTrippedArgs.fromNeuron, 'b-1/apps/engineer');
+      expect(roundTrippedArgs.toWireMap(), withArgsAndTransition.toWireMap());
+
+      // Non-navigation-payload activations (omitted or whitespace-only payload)
+      // derive hasNavigationPayload = false and round-trip identically.
+      const bareOpen = WorkspaceAppActivation(
+        brainId: 'b-1',
+        application: 'notes',
+        operation: 'open',
+      );
+      expect(bareOpen.hasNavigationPayload, isFalse);
+      final roundTrippedBare = ShellActivation.fromWireMap(
+        bareOpen.toWireMap(),
+      ) as WorkspaceAppActivation;
+      expect(roundTrippedBare.hasNavigationPayload, isFalse);
+      expect(roundTrippedBare.application, 'notes');
+      expect(roundTrippedBare.operation, 'open');
+      expect(roundTrippedBare.toWireMap(), bareOpen.toWireMap());
+
+      const whitespaceInput = WorkspaceAppActivation(
+        application: 'ino',
+        operation: 'send',
+        input: '   ',
+      );
+      expect(whitespaceInput.hasNavigationPayload, isFalse);
+      final roundTrippedWhitespace = ShellActivation.fromWireMap(
+        whitespaceInput.toWireMap(),
+      ) as WorkspaceAppActivation;
+      expect(roundTrippedWhitespace.hasNavigationPayload, isFalse);
+      expect(roundTrippedWhitespace.toWireMap(), whitespaceInput.toWireMap());
+
+      // Explicit override (legacy settings tab) stays false even with non-empty input.
+      final legacySettings = WorkspaceAppActivation.settings(
+        brainId: 'b-1',
+        tab: 'keys',
+      );
+      expect(legacySettings.hasNavigationPayload, isFalse);
+
+      // ShowNeuronActivation derives hasNavigationPayload consistently too.
+      const neuronWithInput = ShowNeuronActivation(
+        brainId: 'b-1',
+        neuron: 'b-1/apps/ino',
+        input: 'hello',
+      );
+      expect(neuronWithInput.hasNavigationPayload, isTrue);
+      final roundTrippedNeuron = ShellActivation.fromWireMap(
+        neuronWithInput.toWireMap(),
+      ) as ShowNeuronActivation;
+      expect(roundTrippedNeuron.hasNavigationPayload, isTrue);
+      expect(roundTrippedNeuron.toWireMap(), neuronWithInput.toWireMap());
+
+      const bareNeuron = ShowNeuronActivation(
+        brainId: 'b-1',
+        neuron: 'b-1/apps/ino',
+      );
+      expect(bareNeuron.hasNavigationPayload, isFalse);
+      final roundTrippedBareNeuron = ShellActivation.fromWireMap(
+        bareNeuron.toWireMap(),
+      ) as ShowNeuronActivation;
+      expect(roundTrippedBareNeuron.hasNavigationPayload, isFalse);
+      expect(roundTrippedBareNeuron.toWireMap(), bareNeuron.toWireMap());
+    });
   });
 
   group('ViewHostOverrides', () {

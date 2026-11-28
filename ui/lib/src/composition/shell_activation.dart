@@ -137,11 +137,9 @@ sealed class ShellActivation {
     final argsJson = _nonEmptyString(raw['argsJson'] ?? raw['args']);
     final rawTransition = _nonEmptyString(raw['transition']);
     final fromNeuron = _nonEmptyString(raw['fromNeuron']);
-    final hasNavPayload =
-        raw['hasNavigationPayload'] == true ||
-        nonEmptyInput != null ||
-        argsJson != null ||
-        rawTransition != null;
+    final hasNavPayload = raw['hasNavigationPayload'] is bool
+        ? raw['hasNavigationPayload'] as bool
+        : (nonEmptyInput != null || argsJson != null || rawTransition != null);
 
     if (application != null) {
       final extra = <String, dynamic>{
@@ -361,7 +359,7 @@ final class ShowNeuronActivation extends ShellActivation {
     this.argsJson,
     this.rawTransition,
     this.fromNeuron,
-    this.hasNavigationPayload = false,
+    this._hasNavigationPayload,
   });
 
   final String neuron;
@@ -371,7 +369,18 @@ final class ShowNeuronActivation extends ShellActivation {
   final String? argsJson;
   final String? rawTransition;
   final String? fromNeuron;
-  final bool hasNavigationPayload;
+  final bool? _hasNavigationPayload;
+
+  /// Whether this activation carries arrival state that should dispatch
+  /// `ui.navigate-to` (`INavigatedTo<TArgs>`) on the target neuron.
+  ///
+  /// Defaults to `true` when [input], [argsJson], or [rawTransition] is
+  /// non-empty, unless explicitly overridden.
+  bool get hasNavigationPayload =>
+      _hasNavigationPayload ??
+      (_nonEmptyString(input) != null ||
+          _nonEmptyString(argsJson) != null ||
+          _nonEmptyString(rawTransition) != null);
 
   @override
   Map<String, dynamic> toWireMap({String? brainId}) => {
@@ -398,7 +407,7 @@ final class WorkspaceAppActivation extends ShellActivation {
     this.rawTransition,
     this.fromNeuron,
     this.settingsSection,
-    this.hasNavigationPayload = false,
+    this._hasNavigationPayload,
     this.extra = const {},
     this.includeWireKind = true,
   });
@@ -440,10 +449,19 @@ final class WorkspaceAppActivation extends ShellActivation {
   final String? rawTransition;
   final String? fromNeuron;
   final String? settingsSection;
+  final bool? _hasNavigationPayload;
 
   /// Whether this activation carries arrival state that should dispatch
   /// `ui.navigate-to` (`INavigatedTo<TArgs>`) on the target screen.
-  final bool hasNavigationPayload;
+  ///
+  /// Defaults to `true` when [input], [argsJson], or [rawTransition] is
+  /// non-empty, unless explicitly overridden (for example by
+  /// [WorkspaceAppActivation.settings]).
+  bool get hasNavigationPayload =>
+      _hasNavigationPayload ??
+      (nonEmptyInput != null ||
+          _nonEmptyString(argsJson) != null ||
+          _nonEmptyString(rawTransition) != null);
 
   final Map<String, dynamic> extra;
   final bool includeWireKind;
