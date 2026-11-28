@@ -43,4 +43,30 @@ public sealed class MachineIdFacts : IDisposable
 
         Assert.False(File.Exists(file));
     }
+
+    [Fact]
+    public async Task ConcurrentFirstReadsOnAFreshPathAllSucceedAndConvergeOnOneId()
+    {
+        for (var round = 0; round < 10; round++)
+        {
+            var file = Path.Combine(_root, $"race-{round}", "machine-id");
+            const int callers = 32;
+            using var gate = new ManualResetEventSlim(false);
+
+            var tasks = Enumerable.Range(0, callers)
+                .Select(_ => Task.Run(() =>
+                {
+                    gate.Wait();
+                    return new MachineId(file).Value;
+                }))
+                .ToArray();
+
+            gate.Set();
+            var ids = await Task.WhenAll(tasks);
+
+            var expected = File.ReadAllText(file).Trim();
+            Assert.True(Guid.TryParseExact(expected, "N", out _));
+            Assert.All(ids, id => Assert.Equal(expected, id));
+        }
+    }
 }

@@ -110,13 +110,15 @@ internal sealed class DevicePrefetch(
 
     private async Task RunAsync(CancellationToken ct)
     {
+        string? machineId = null;
         try
         {
             var brainId = IntoChatOSNames.DefaultOwnerBrainId;
             var edge = services.GetService<EdgeAuthority>();
             using var scope = edge?.Enter(edge.Module(DevicesModule.ManifestName, new BrainId(brainId)));
 
-            var device = SiloNeurons.Get<IDevice>(services, IDevice.Key(brainId, thisMachine.Value));
+            machineId = thisMachine.Value;
+            var device = SiloNeurons.Get<IDevice>(services, IDevice.Key(brainId, machineId));
             _ = await device.Read().ConfigureAwait(false);
 
             var hardware = services.GetService<IHardwareProbe>()?.Read();
@@ -135,7 +137,7 @@ internal sealed class DevicePrefetch(
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"prefetching model '{modelId.Value}' on device '{thisMachine.Value}'");
+                    OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"prefetching model '{modelId.Value}' on device '{machineId}'");
                 }
             }
         }
@@ -144,7 +146,7 @@ internal sealed class DevicePrefetch(
         }
         catch (Exception error)
         {
-            OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"starting device prefetch for '{thisMachine.Value}'");
+            OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"starting device prefetch for '{machineId ?? "<unknown>"}'");
         }
     }
 

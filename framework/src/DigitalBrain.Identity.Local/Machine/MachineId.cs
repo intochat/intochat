@@ -9,6 +9,9 @@ namespace DigitalBrain.Identity.Local.Machine;
 /// </summary>
 public sealed class MachineId
 {
+    private const int ReadMaxAttempts = 25;
+    private const int InvalidContentMaxAttempts = 8;
+
     private readonly Lazy<string> _value;
 
     /// <summary>Creates the id kept in <paramref name="file"/>. The file is read, or created, on first use.</summary>
@@ -26,9 +29,20 @@ public sealed class MachineId
     private static string ReadOrCreate(string file)
     {
         if (File.Exists(file)) { return Read(file); }
-        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        if (Path.GetDirectoryName(file) is { Length: > 0 } directory)
+        {
+            System.IO.Directory.CreateDirectory(directory);
+        }
         var id = Guid.NewGuid().ToString("N");
-        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
+        // On Windows, FileShare.None blocks concurrent readers until the 32-byte write finishes and closes; they retry.
+        // On Unix, FileMode.CreateNew (O_CREAT|O_EXCL) is atomic on its own, and FileShare.ReadWrite avoids an advisory
+        // flock race after open() that could otherwise fail and leave an empty file behind.
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = OperatingSystem.IsWindows() ? FileShare.None : FileShare.ReadWrite,
+        };
         if (!OperatingSystem.IsWindows()) { options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite; }
         try
         {
@@ -36,13 +50,31 @@ public sealed class MachineId
             stream.Write(Encoding.UTF8.GetBytes(id));
             return id;
         }
-        // Another process created it first; its id is the machine's.
+        // Another thread or process created it first; its id is the machine's.
         catch (IOException) when (File.Exists(file)) { return Read(file); }
     }
 
     private static string Read(string file)
     {
-        var text = File.ReadAllText(file).Trim();
-        return Guid.TryParseExact(text, "N", out _) ? text : throw new InvalidDataException($"'{file}' does not hold a machine id.");
+        // A concurrent creator may still hold the file open (sharing violation) or be finishing its first write.
+        var invalidAttempts = 0;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var text = File.ReadAllText(file).Trim();
+                if (Guid.TryParseExact(text, "N", out _)) { return text; }
+                invalidAttempts++;
+                if (invalidAttempts >= InvalidContentMaxAttempts || attempt >= ReadMaxAttempts)
+                {
+                    throw new InvalidDataException($"'{file}' does not hold a machine id.");
+                }
+            }
+            catch (IOException) when (attempt < ReadMaxAttempts)
+            {
+            }
+
+            Thread.Sleep(Math.Min(5 * attempt, 50));
+        }
     }
 }
