@@ -219,6 +219,9 @@ public sealed partial record InstallConfig
             OsImage = !string.IsNullOrWhiteSpace(manifest.OsImage) ? RewriteRegistry(manifest.OsImage, LoginServer) : OsImage,
             CloudImage = !string.IsNullOrWhiteSpace(manifest.CloudImage) ? RewriteRegistry(manifest.CloudImage, LoginServer) : CloudImage,
             SandboxImage = !string.IsNullOrWhiteSpace(manifest.SandboxImage) ? RewriteRegistry(manifest.SandboxImage, LoginServer) : SandboxImage,
+            DevSlotJob = DevSlotJob.Enabled && !string.IsNullOrWhiteSpace(manifest.DevSlotImage)
+                ? DevSlotJob with { Image = RewriteRegistry(manifest.DevSlotImage, LoginServer) }
+                : DevSlotJob,
             Modules = modules,
         };
     }

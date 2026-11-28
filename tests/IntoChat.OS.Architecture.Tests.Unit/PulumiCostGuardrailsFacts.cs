@@ -298,10 +298,12 @@ public sealed partial class PulumiCostGuardrailsFacts
         Assert.True(shortNameMatch.Success, "ActionGroup missing groupShortName.");
         Assert.True(shortNameMatch.Groups[1].Value.Length <= 12, $"ActionGroup groupShortName '{shortNameMatch.Groups[1].Value}' exceeds 12-char ARM limit.");
 
-        // 5. Subscription-scoped Consumption Budget (185 EUR, 50/80/90 Forecasted/95/100 thresholds, ActionGroup on 95% & 100%).
+        // 5. Resource-group-scoped Consumption Budget (185 EUR, 50/80/90 Forecasted/95/100 thresholds, ActionGroup on 95% & 100%).
         var budgetBlock = ResourceBlock(yaml, "consumption-budget-intochat-test-hard-cap-185eur");
         Assert.Contains("type: azure-native:consumption:Budget", budgetBlock, StringComparison.Ordinal);
-        Assert.Contains($"scope: \"{subScope}\"", budgetBlock, StringComparison.Ordinal);
+        Assert.Contains($"dependsOn: [\"${{resource-group-{config.GroupName}}}\", \"${{action-group-intochat-test-cost-ag}}\"]", budgetBlock, StringComparison.Ordinal);
+        Assert.Contains($"scope: \"{intoChatRgScope}\"", budgetBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain($"scope: \"{subScope}\"", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("amount: 185\n", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("timeGrain: Monthly", budgetBlock, StringComparison.Ordinal);
         Assert.Contains("category: Cost", budgetBlock, StringComparison.Ordinal);

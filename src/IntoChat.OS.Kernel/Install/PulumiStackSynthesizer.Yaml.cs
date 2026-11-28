@@ -342,6 +342,7 @@ public static partial class PulumiStackSynthesizer
                     var s when s.Contains("/Microsoft.Storage/storageAccounts/", StringComparison.OrdinalIgnoreCase) => LogicalResourceName(new StorageAccountSpec { Name = c.StorageName }),
                     var s when s.Contains("/Microsoft.ContainerRegistry/registries/", StringComparison.OrdinalIgnoreCase) => LogicalResourceName(new RegistrySpec { Name = c.RegistryName }),
                     var s when s.Contains("/Microsoft.CognitiveServices/accounts/", StringComparison.OrdinalIgnoreCase) => LogicalResourceName(new FoundrySpec { Name = c.FoundryName }),
+                    var s when s.Contains("/providers/Microsoft.App/jobs/", StringComparison.OrdinalIgnoreCase) => LogicalResourceName(new ContainerAppsJobSpec { Name = c.DevSlotJobName }),
                     _ => rgLogical,
                 };
                 sb.AppendLine($"  {logical}:");
