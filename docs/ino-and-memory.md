@@ -4,7 +4,7 @@ Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/I
 
 ## The app and the conversation
 
-`InoApp` is the chat window. It does not call a model and stores no copy of the transcript. Each conversation is a `ConversationNeuron`, addressed through the `IConversation` contract under the key `InoModel.ConversationKeyOf` (`conversations/{id}`), with `ISessionList` tracking the list of sessions and the active conversation.
+`InoApp` is the chat window. It does not call a model and stores no copy of the transcript. Each conversation is a `ConversationNeuron`, addressed through the `IConversation` contract under the key `InoModel.ConversationKeyOf` (`conversations/{id}`), with `IThreadDirectory` (`ThreadDirectoryNeuron`) tracking the list of threads and the active conversation.
 
 `InoAgentDefinition` builds the `AgentDefinition` that the app seats on the conversation (`IConversation.Seat`). It holds three things:
 
@@ -22,7 +22,7 @@ Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Mod
 4. `ConversationNeuron` runs the turn through `TurnRunner` and `AgentTurnLoop`, appending `Called`, `Returned`, optional `Summarized`, and the reply `Said` entry to the conversation's own log.
 5. `ConversationNeuron` publishes `ConversationChanged`. `InoApp` reads `ConversationView` and projects the person view through `InoThread`, and the shell draws the updated view.
 
-`InoStop` calls `IConversation.Stop` to cancel the active run while preserving partial text; retrying a failed or cancelled bubble calls `IConversation.Regenerate`. `InoNew` opens a fresh conversation id in `ISessionList`, and `InoShowChats` toggles the sessions list.
+`InoStop` calls `IConversation.Stop` to cancel the active run while preserving partial text; retrying a failed or cancelled bubble calls `IConversation.Regenerate`. `InoNew` opens a fresh conversation id in `IThreadDirectory`, and `InoShowChats` toggles the sessions list.
 
 ## Tools
 

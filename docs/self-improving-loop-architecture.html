@@ -509,12 +509,12 @@
   }
   .check-list li strong { color: var(--text); }
   .check-list li::before {
-    content: "âœ“";
+    content: "\2713";
     color: var(--green);
     font-weight: 700;
   }
   .check-list li.warn::before {
-    content: "âš ";
+    content: "\26A0";
     color: var(--amber);
   }
 
@@ -570,7 +570,7 @@
     <a href="#section-5">5. Rollout &amp; Decisions</a>
   </div>
   <div class="nav-status">
-    <span class="badge badge-accent">v0.24.0 / cloud v0.2.0</span>
+    <span class="badge badge-accent">v0.24.5 / Post-Wave-3</span>
   </div>
 </nav>
 
@@ -581,16 +581,16 @@
     <div class="badge-row">
       <span class="badge badge-accent">Owner Architecture Direction</span>
       <span class="badge badge-purple">Two-Plane Synthesis</span>
-      <span class="badge badge-green">Slices RFC-1&ndash;RFC-4 Implemented on master</span>
-      <span class="badge badge-green">Item #350 Wave 2A &amp; 2B Implemented on master</span>
+      <span class="badge badge-green">Slices RFC-1&ndash;RFC-4 &amp; Item #350 Implemented</span>
+      <span class="badge badge-green">Next Wave Track A (Waves 1&ndash;3: INT-2595..INT-2603) Merged on master</span>
     </div>
 
-    <h1>Two-Plane Architecture: CodeOrchestrationSynapse &amp; Leased Devcontainer Slots</h1>
+    <h1>Two-Plane Architecture: CodeOrchestrationSynapse &amp; Self-Improving Dev Loop</h1>
     <p class="subtitle">
       A unified architectural blueprint reconciling two essential, non-competing execution requirements:
-      <strong>Plane 1 (Code Mode)</strong> via an IAW-inspired <code>CodeOrchestrationSynapse</code> executing typed C# Neuron interactions in the native client/cloud sandbox, and
-      <strong>Plane 2 (Dev Mode)</strong> via leased Docker Compose devcontainer slots (<code>agent-dev-slots</code>) for full-stack repo engineering and live .NET Aspire verification.
-      Core primitives (Slices RFC-1 through RFC-4) and end-to-end <strong>Item #350 Wave 2A &amp; Wave 2B</strong> Ino unification and live candidate-host wiring (<code>#525</code>, <code>#527</code>, <code>#535</code>) are <strong>implemented on <code>master</code></strong>.
+      <strong>Plane 1 (Code Mode)</strong> via <code>CodeOrchestrationSynapse</code> executing typed C# Neuron interactions in the native client/cloud sandbox, and
+      <strong>Plane 2 (Dev Mode)</strong> via a 3-tier candidate verification &amp; self-improving loop &mdash; <strong>Tier 1 Paired PC Relay (<code>$0</code>)</strong>, <strong>Tier 2 Leased Devcontainer Slots (<code>AgentDevSlotsCandidateHost</code> + <code>.devcontainer/</code>)</strong>, and <strong>Tier 3 Policy-Compliant ACA Consumption Jobs (<code>AcaJobCandidateHost</code>, <code>Microsoft.App/jobs</code>)</strong> &mdash; verified end-to-end by unified <code>CandidateLiveVerifier</code> (MCP + Playwright + OTel), <code>LocalSelfReview</code>, active <code>SelfImprovementLoop</code>, and Ino's Engineer PR Drawer (<code>Tournament | Diff | Logs</code> &amp; SHA-locked approval).
+      All <strong>Next Wave Track A (<code>INT-2593</code>) Waves 1&ndash;3</strong> slices (<code>INT-2595</code>, <code>INT-2596</code>, <code>INT-2599</code>, <code>INT-2600</code>, <code>INT-2603</code>) are <strong>merged on <code>master</code></strong>, with Wave 4 two-cluster &amp; Paired PC E2E suites (<code>INT-2606</code> <code>#572</code>) active.
     </p>
 
     <div class="meta-grid">
@@ -600,15 +600,15 @@
       </div>
       <div class="meta-item">
         <span class="meta-label">Key Reference</span>
-        <span class="meta-value">IAW <code>CodeOrchestratorAgent</code> + <code>agent-dev-slots</code></span>
+        <span class="meta-value">IAW <code>CodeOrchestratorAgent</code> + <code>.devcontainer/</code> + <code>agent-dev-slots</code></span>
       </div>
       <div class="meta-item">
-        <span class="meta-label">Master Status</span>
-        <span class="meta-value" style="color: var(--green);">Slices RFC-1&ndash;RFC-4 Implemented on master</span>
+        <span class="meta-label">Track A (INT-2593) Status</span>
+        <span class="meta-value" style="color: var(--green);">Waves 1&ndash;3 Merged on master (A1&ndash;A5)</span>
       </div>
       <div class="meta-item">
-        <span class="meta-label">Item #350 Wave 2A &amp; 2B</span>
-        <span class="meta-value" style="color: var(--green);">Implemented on master (#525, #527, #535)</span>
+        <span class="meta-label">Wave 4 E2E (INT-2606)</span>
+        <span class="meta-value" style="color: var(--green);">Two-Cluster &amp; Paired PC Suites (#572)</span>
       </div>
     </div>
   </header>
@@ -683,19 +683,21 @@
         <tbody>
           <tr>
             <td>
-              <strong>Workspace Flows &amp; Synapse Engine</strong>
+              <strong>Workspace Flows, Harnesses &amp; Loop</strong>
             </td>
             <td>
               <code>src/Modules/Workspace/Flows/CodeOrchestrationSynapse.cs</code><br/>
               <code>src/Modules/Workspace/Flows/EngineerFlow.cs</code><br/>
-              <code>framework/src/DigitalBrain.Simulation/RuntimeSynapses/</code><br/>
+              <code>src/Modules/Workspace/Flows/SelfImprovementLoop.cs</code><br/>
+              <code>src/Modules/Workspace/Flows/Harness/InoNativeHarness.cs</code><br/>
+              <code>src/Modules/Workspace/Flows/ExternalCliHarness.cs</code><br/>
               <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
-              <code>CodeOrchestrationSynapse</code> compiles &amp; sanitizes typed C# scripts with Roslyn, powers Ino's <code>ICodeOrchestration</code> + <code>CrystallizeAsync</code> ("Pin as App") and right-hand <code>SplitPaneNode</code> Inline Live App Drawer (<code>#527</code>, <code>#535</code>). Legacy <code>CodeBlockRunNeuron</code> has been deleted (<code>#527</code>).
+              <code>CodeOrchestrationSynapse</code> compiles &amp; sanitizes typed C# scripts with Roslyn, powers Ino's <code>ICodeOrchestration</code> + <code>CrystallizeAsync</code> ("Pin as App") and right-hand <code>SplitPaneNode</code> Inline Live App Drawer (<code>#527</code>, <code>#535</code>).
             </td>
             <td>
-              <code>EngineerFlow</code> + <code>InoNativeHarness</code> (<code>src/Modules/Workspace/Flows/Harness/</code>) orchestrate multi-stage repo engineering runs.
+              <code>EngineerFlow</code> + unified <code>InoNativeHarness</code> / <code>ExternalCliHarness</code> (duplicate coding harnesses collapsed in <code>INT-2596</code> <code>#558</code>) + active <code>SelfImprovementLoop</code> (<code>INT-2603</code> <code>#567</code>) + native <code>IRepository</code> Draft PRs (<code>INT-2600</code> <code>#564</code>).
             </td>
           </tr>
 
@@ -719,54 +721,60 @@
 
           <tr>
             <td>
-              <strong>Devices &amp; Connected Compute</strong>
+              <strong>Devices, Paired PC Relay &amp; Connected Compute</strong>
             </td>
             <td>
-              <code>src/Modules/AI/Devices/Hardware/HardwareProbe.cs</code><br/>
-              <code>src/Modules/AI/Devices/Link/DeviceLinkNeuron.cs</code><br/>
+              <code>src/Modules/AI/Devices/Link/DeviceWorker.cs</code><br/>
+              <code>src/Modules/AI/Devices/Link/DeviceEngineeringJobExecutor.cs</code><br/>
+              <code>src/Modules/AI/Devices/Link/ConnectedCandidateRelayBridge.cs</code><br/>
+              <code>src/Modules/AI/Devices/Link/NdjsonJobStreamer.cs</code><br/>
               <code>src/Modules/AI/Devices/Link/ConnectedComputeRouter.cs</code><br/>
               <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
-              <strong>Execution Target:</strong> Dispatches sandboxed C# scripts to an enrolled user PC over P-256 edge relay (namespace <code>IntoChat.OS.Modules.Devices</code> inside <code>IntoChat.OS.Modules.AI</code>).
+              <strong>Execution Target:</strong> Dispatches sandboxed C# scripts to an enrolled user PC over P-256 edge relay with concurrent isolated lanes &amp; NDJSON streaming (<code>#555</code>, <code>#562</code>, <code>#580</code>).
             </td>
             <td>
-              Discovers local GPU capacity for running Ollama/Foundry repair models in <code>InoNativeHarness</code>.
+              <strong>Tier 1 Paired PC Plane 2 Relay (<code>$0</code>):</strong> Routes full engineering &amp; candidate verification jobs to an online Paired PC with <code>AllowConnectedEngineering == true</code> (<code>INT-2599</code> <code>#565</code>, <code>cloud#54</code>), plus local GPU discovery for Ollama/Foundry repair models.
             </td>
           </tr>
 
           <tr>
             <td>
-              <strong>Candidate Hosts</strong>
+              <strong>3-Tier Candidate Hosts</strong>
             </td>
             <td>
               <code>src/Components/Aspire/Neurons/Candidates/ICandidateHost.cs</code><br/>
-              <code>ProcessCandidateHost.cs</code>, <code>AgentDevSlotsCandidateHost.cs</code>,<br/>
-              <code>CandidateSlotLeasePool.cs</code>, <code>CandidateGitWorkspace.cs</code><br/>
+              <code>ConnectedDeviceCandidateHost.cs</code> (Tier 1),<br/>
+              <code>AgentDevSlotsCandidateHost.cs</code> + <code>.devcontainer/</code> (Tier 2 default),<br/>
+              <code>AcaJobCandidateHost.cs</code> (Tier 3 ACA Job),<br/>
+              <code>ProcessCandidateHost.cs</code>, <code>CandidateSlotLeasePool.cs</code>, <code>CandidateGitWorkspace.cs</code><br/>
               <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
               <em>Not used</em> (Plane 1 executes scripts, not whole OS instances).
             </td>
             <td>
-              <strong>Verification Spine:</strong> Ephemeral loopback ports &amp; temp homes and leased devcontainer slots (<code>agent-dev-slots</code>) with automatic Process fallback when Docker is unavailable.
+              <strong>3-Tier Verification Spine:</strong> Tier 1 Paired PC (<code>$0</code>) &rarr; Tier 2 default <code>AgentDevSlotsCandidateHost</code> + universal <code>.devcontainer/</code> (auto-fallback to <code>ProcessCandidateHost</code>) &rarr; Tier 3 Policy Rule B–compliant ACA Consumption Job (<code>Microsoft.App/jobs</code>, <code>INT-2600</code> <code>#564</code>). Policy-banned <code>AcaDynamicSessions*</code> &amp; root <code>DockerCandidateHost</code> deleted (<code>INT-2595</code> <code>#556</code>).
             </td>
           </tr>
 
           <tr>
             <td>
-              <strong>EngineerLiveVerifier</strong>
+              <strong>Unified Verifier, Self-Review &amp; PR Drawer</strong>
             </td>
             <td>
+              <code>src/Components/Aspire/Neurons/Verification/CandidateLiveVerifier.cs</code><br/>
               <code>src/Modules/Workspace/Flows/Verification/EngineerLiveVerifier.cs</code><br/>
-              <code>src/Components/Aspire/Neurons/Candidates/CandidateHostLiveVerifier.cs</code><br/>
+              <code>src/Modules/Workspace/Flows/Verification/LocalSelfReview.cs</code><br/>
+              <code>src/IntoChat.OS.Apps/Ino/InoView.cs</code> &amp; <code>InoCards.cs</code><br/>
               <span class="status-pill status-live">&#10003; Implemented on master</span>
             </td>
             <td>
               <em>Not used</em> (Plane 1 checks <code>result.json</code> and exception traces).
             </td>
             <td>
-              <strong>Gatekeeper:</strong> Wired to <code>ICandidateHost</code> (<code>ProcessCandidateHost</code> &amp; <code>AgentDevSlotsCandidateHost</code>) via <code>CandidateHostLiveVerifier</code> (<code>#527</code>) &mdash; probes candidate HTTP <code>/health</code>, MCP <code>tools/list</code>, and zero error telemetry spans, failing closed when unconfigured and isolated from host custody keys/secrets.
+              <strong>Gatekeeper &amp; Human Gate:</strong> Unified <code>CandidateLiveVerifier</code> (<code>INT-2596</code> <code>#558</code>, <code>#560</code>) runs real <code>/brains/{brainId}/mcp</code> JSON-RPC, Playwright UI checks when <code>TouchesUi</code>, and OTel span verification. <code>LocalSelfReview</code> audits syntax/boundaries/secrets before approval; Ino's Engineer PR Drawer surfaces <code>Tournament | Diff | Logs</code> with SHA-locked approval (<code>INT-2603</code> <code>#567</code>, <code>#578</code>).
             </td>
           </tr>
         </tbody>
@@ -866,25 +874,25 @@
         <path d="M500 357 L530 357" stroke="#332e2a" stroke-width="2" />
         <polygon points="530,353 538,357 530,361" fill="#c084fc" />
 
-        <!-- Step 2.2: Leased Devcontainer Slot -->
+        <!-- Step 2.2: 3-Tier Candidate Host -->
         <rect x="540" y="305" width="240" height="105" rx="8" fill="#1a1816" stroke="#332e2a" />
-        <text x="552" y="328" fill="#e87a48" font-family="var(--mono)" font-size="11" font-weight="700">agent-dev-slots (Lease)</text>
-        <text x="552" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">Docker Compose / Aspire</text>
-        <text x="552" y="364" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Unprivileged UID 1000</text>
-        <text x="552" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Ephemeral home (no ~/.ssh)</text>
-        <text x="552" y="400" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Dynamic port allocation</text>
+        <text x="552" y="328" fill="#e87a48" font-family="var(--mono)" font-size="11" font-weight="700">3-Tier Candidate Host</text>
+        <text x="552" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">T1 Paired PC ($0) / T2 .devcontainer</text>
+        <text x="552" y="364" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; T3 ACA Job (Policy Rule B)</text>
+        <text x="552" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Unprivileged UID 1000 &amp; lease pool</text>
+        <text x="552" y="400" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Secret-scrubbed CandidateGitWorkspace</text>
 
         <!-- Arrow 2.2 -> 2.3 -->
         <path d="M780 357 L810 357" stroke="#332e2a" stroke-width="2" />
         <polygon points="810,353 818,357 810,361" fill="#c084fc" />
 
-        <!-- Step 2.3: Aspire Verification & PR -->
+        <!-- Step 2.3: Verification, Self-Review & PR Drawer -->
         <rect x="820" y="305" width="250" height="105" rx="8" fill="#1a1816" stroke="#332e2a" />
-        <text x="832" y="328" fill="#4ade80" font-family="var(--mono)" font-size="11" font-weight="700">EngineerLiveVerifier</text>
-        <text x="832" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">Candidate Aspire Host</text>
-        <text x="832" y="364" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Black-box /health + MCP</text>
-        <text x="832" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; ChangeCard human gate</text>
-        <text x="832" y="400" fill="#4ade80" font-family="var(--sans)" font-size="11">&bull; Green PR Merge</text>
+        <text x="832" y="328" fill="#4ade80" font-family="var(--mono)" font-size="11" font-weight="700">CandidateLiveVerifier</text>
+        <text x="832" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">MCP + Playwright + OTel</text>
+        <text x="832" y="364" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; LocalSelfReview (syntax/boundary/secrets)</text>
+        <text x="832" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; PR Drawer (Tournament | Diff | Logs)</text>
+        <text x="832" y="400" fill="#4ade80" font-family="var(--sans)" font-size="11">&bull; SHA-locked approval &rarr; IRepository Draft PR</text>
 
         <!-- Cross-Plane Collaboration Arrow (Plane 1 triggers Plane 2) -->
         <path d="M385 190 L385 305" stroke="#e87a48" stroke-dasharray="4 4" stroke-width="2" />
@@ -998,11 +1006,11 @@
 
       <div class="card">
         <div class="card-header">
-          <span class="card-title" style="color:var(--purple);">&#9729; Universal Devcontainer &amp; Future Cloud Execution</span>
-          <span class="status-pill status-live">&#10003; Wave 1 Slice A1</span>
+          <span class="card-title" style="color:var(--purple);">&#9729; 3-Tier Plane 2 Execution &amp; Azure Policy Guardrails</span>
+          <span class="status-pill status-live">&#10003; Waves 1&ndash;2 (A1, A3, A4)</span>
         </div>
         <p>
-          Candidate verification defaults to unprivileged leased devcontainer slots (<code>AgentDevSlotsCandidateHost</code> + <code>.devcontainer/</code>) with automatic fallback to <code>ProcessCandidateHost</code> when the local Docker daemon is unavailable. <code>Microsoft.App/sessionPools</code> is permanently banned by Azure Policy Rule A; cloud execution uses standard Container Apps Consumption Jobs in Wave 2.
+          Plane 2 candidate execution follows a strict 3-tier hierarchy: <strong>Tier 1</strong> prefers an online Paired PC with <code>AllowConnectedEngineering == true</code> (<code>$0</code> Azure compute via <code>ConnectedDeviceCandidateHost</code> + <code>DeviceWorker</code> concurrent lanes &amp; NDJSON streaming, <code>INT-2599</code>); <strong>Tier 2</strong> defaults to unprivileged leased devcontainer slots (<code>AgentDevSlotsCandidateHost</code> + <code>.devcontainer/</code>, auto-fallback to <code>ProcessCandidateHost</code>, <code>INT-2595</code>); <strong>Tier 3</strong> runs policy-compliant ACA Consumption Jobs (<code>AcaJobCandidateHost</code>, <code>Microsoft.App/jobs</code>, <code>INT-2600</code>) enforcing <strong>Policy Rule B</strong> ceilings (<code>Consumption</code>, <code>Manual</code>, <code>parallelism &le; 2</code>, <code>replicaTimeout &le; 900s</code>, <code>replicaRetryLimit == 0</code>, <code>cpu &le; 2.0</code>, <code>memory &le; 4Gi</code>) and backed by the <code>Stop-IntoChatCostBreaker</code> runbook/webhook. <code>Microsoft.App/sessionPools</code> is permanently banned by Azure Policy Rule A.
         </p>
       </div>
     </div>
@@ -1164,30 +1172,52 @@ await os.Notifications.NotifyAsync(
       </div>
     </div>
 
-    <!-- Item #350 Wave 2A & 2B (Implemented on master) -->
+    <!-- Next Wave Track A (Waves 1-3: INT-2595..INT-2603) + Wave 4 E2E (INT-2606) -->
     <div class="grid-2" style="margin-bottom:28px;">
       <div class="card" style="border-color: rgba(74, 222, 128, 0.35);">
         <div class="card-header">
-          <span class="card-title" style="color:var(--green);">Wave 2A (Item #350): Unified Ino Inline Live App Drawer &amp; Pin as App</span>
-          <span class="status-pill status-live">&#10003; Implemented on master</span>
+          <span class="card-title" style="color:var(--green);">Wave 1 Slice A2 (INT-2596): Unified CandidateLiveVerifier &amp; Harness Collapse</span>
+          <span class="status-pill status-live">&#10003; Merged (#558, #560)</span>
         </div>
         <ul class="check-list">
-          <li><strong>Ino Wired onto <code>CodeOrchestrationSynapse</code> (<code>#527</code>):</strong> Ino script &amp; authoring tools route through <code>ICodeOrchestration</code> with fail-closed Roslyn AST sanitization and scoped <code>AppToken</code> grants.</li>
-          <li><strong>Inline Live App Drawer (<code>SplitPaneNode</code>) &amp; Active Context Chip (<code>#535</code>):</strong> Renders active builds/apps inline in Ino's right-hand drawer (<code>Preview | Diff | Logs</code>) with a <code>28px</code> Active Context Chip above the composer and live <code>ITasks</code> <code>JobCard</code> + docked <code>ChoiceCard</code> (<code>#525</code> + <code>#535</code>).</li>
-          <li><strong>1-Click Pin as App (<code>#527</code>, <code>#535</code>):</strong> Crystallizes active scripts/apps via <code>CrystallizeAsync</code> &rarr; <code>UnitDeployer</code> running strictly inside <code>IntoChat.OS.Sandbox</code>.</li>
-          <li><strong>Legacy Surface Retirement (<code>#527</code>, <code>#535</code>):</strong> Deleted legacy <code>CodeBlockRunNeuron</code> and demoted <code>CreatorApp</code> (<code>src/IntoChat.OS.Apps/Creator/</code>) to opt-in <code>Developer</code> / <code>DevUI</code> (removed from the 6-item Default Dock).</li>
+          <li><strong>Unified <code>CandidateLiveVerifier</code>:</strong> Replaced duplicate verifiers (<code>CandidateHostLiveVerifier</code>) with <code>src/Components/Aspire/Neurons/Verification/CandidateLiveVerifier.cs</code> implementing both <code>ICandidateVerifier</code> and <code>IEngineerCandidateHostVerifier</code>.</li>
+          <li><strong>Real Live Probes:</strong> Boots candidates from committed <code>WorkTreeLease</code> SHAs and executes real <code>/brains/{brainId}/mcp</code> JSON-RPC checks (<code>neurons_context</code>, <code>neurons_list</code>, <code>neurons_call</code>), Playwright UI verification before teardown when <code>TouchesUi</code> (<code>#560</code>), and OTel error-span verification.</li>
+          <li><strong>Collapsed Coding Harnesses:</strong> Consolidated duplicate coding harnesses onto <code>InoNativeHarness</code> and <code>ExternalCliHarness</code>.</li>
         </ul>
       </div>
 
       <div class="card" style="border-color: rgba(74, 222, 128, 0.35);">
         <div class="card-header">
-          <span class="card-title" style="color:var(--green);">Wave 2B (Item #350): EngineerLiveVerifier &rarr; ICandidateHost &amp; Retire EngineerApp</span>
-          <span class="status-pill status-live">&#10003; Implemented on master</span>
+          <span class="card-title" style="color:var(--green);">Wave 2 Slice A3 (INT-2599): Paired PC Plane 2 Relay ($0) &amp; Concurrent Lanes</span>
+          <span class="status-pill status-live">&#10003; Merged (#555, #562, #565, #580, cloud#54)</span>
         </div>
         <ul class="check-list">
-          <li><strong><code>EngineerLiveVerifier</code> Wired to <code>ICandidateHost</code> (<code>#527</code>):</strong> Connected <code>src/Modules/Workspace/Flows/Verification/EngineerLiveVerifier.cs</code> via <code>src/Components/Aspire/Neurons/Candidates/CandidateHostLiveVerifier.cs</code> to <code>ProcessCandidateHost</code> and <code>AgentDevSlotsCandidateHost</code>, failing closed when unconfigured and isolating candidate slots from host custody keys and secrets.</li>
-          <li><strong>PR &amp; Task Runs Surfaced Inside Ino (<code>#525</code>, <code>#535</code>):</strong> Escalates multi-file repo changes into durable <code>ITasks</code> + interactive <code>JobCard</code> / <code>ChoiceCard</code> flows inside Ino.</li>
-          <li><strong>Retired Standalone <code>EngineerApp</code> (<code>#527</code>):</strong> Deleted standalone <code>EngineerApp</code> (along with its fake <code>eng-01</code> / <code>aaaa...</code> SHA / <code>pull/204</code> reducers).</li>
+          <li><strong>Tier 1 Paired PC Routing (<code>$0</code>):</strong> <code>ConnectedDeviceCandidateHost</code> + <code>ConnectedCandidateRelayBridge</code> + <code>DeviceEngineeringJobExecutor</code> route Plane 2 engineering &amp; candidate runs to an enrolled PC advertising <code>AllowConnectedEngineering == true</code>.</li>
+          <li><strong>Concurrent <code>DeviceWorker</code> Lanes &amp; NDJSON Streaming:</strong> Eliminated 25s sequential long-poll starvation with concurrent isolated lanes, revocation hardening (<code>#562</code>), and unified <code>NdjsonJobStreamer</code> streaming in <code>DeviceWorker</code> and <code>CloudClient</code> (<code>#580</code>).</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color: rgba(74, 222, 128, 0.35);">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--green);">Wave 2 Slice A4 (INT-2600): ACA Consumption Job Devslot, Policy Rule B &amp; Native Draft PRs</span>
+          <span class="status-pill status-live">&#10003; Merged (#564, cloud#53)</span>
+        </div>
+        <ul class="check-list">
+          <li><strong>Tier 3 <code>AcaJobCandidateHost</code> (<code>Microsoft.App/jobs</code>):</strong> Policy-compliant cloud candidate host with Managed Identity auth, strict ARM host/ID validation (SSRF prevention), and secret-scrubbed <code>CandidateGitWorkspace</code>.</li>
+          <li><strong>Azure Policy Rule B &amp; Cost-Breaker:</strong> <code>PulumiStackSynthesizer.CostGuardrails.cs</code> enforces <code>Consumption</code>, <code>Manual</code>, <code>parallelism &le; 2</code>, <code>replicaTimeout &le; 900</code>, <code>replicaRetryLimit == 0</code>, <code>cpu &le; 2.0</code>, <code>memory &le; 4Gi</code>, plus the <code>Stop-IntoChatCostBreaker</code> Automation Runbook &amp; webhook.</li>
+          <li><strong>Native <code>IRepository</code> Draft PRs:</strong> <code>CreateDraftPullRequestAsync</code> opens native Draft PRs directly through the GitHub module (<code>IRepository</code> / <code>IWorkTree</code>).</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color: rgba(74, 222, 128, 0.35);">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--green);">Wave 3 Slice A5 (INT-2603) &amp; Wave 4 E2E (INT-2606): Self-Review, Active Loop &amp; PR Drawer</span>
+          <span class="status-pill status-live">&#10003; Merged (#567, #578, #572)</span>
+        </div>
+        <ul class="check-list">
+          <li><strong><code>LocalSelfReview</code> &amp; Active <code>SelfImprovementLoop</code> (<code>#567</code>):</strong> Deterministic syntax (<code>IRoslyn.ReviewSyntax</code>), framework/host boundary (<code>ARCH-FrameworkIsolation</code>, <code>ARCH-HostBoundary</code>), empty-catch (<code>HR-Swallow</code>), and credential (<code>SEC-Secret</code>) self-review wired before the approval gate, with budgeted <code>SelfImprovementLoop</code> (<code>loop.self-improvement</code>) active.</li>
+          <li><strong>Ino Engineer PR Drawer (<code>#578</code>):</strong> Dedicated right-hand drawer (<code>Tournament | Diff | Logs</code>) with candidate tournament scoreboard and SHA-locked human approval wired to <code>IEngineerRuns</code>.</li>
+          <li><strong>Wave 4 Two-Cluster &amp; Paired PC E2E (<code>#572</code>):</strong> True two-cluster E2EE messenger and Paired PC Plane 2 relay E2E test suites verifying cross-plane reliability.</li>
         </ul>
       </div>
     </div>
@@ -1196,10 +1226,10 @@ await os.Notifications.NotifyAsync(
     <div class="decision-panel">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 style="margin:0; font-size:18px; color:var(--text);">&#9997; Owner Sign-Off Record: Two-Plane Architectural Decisions</h3>
-        <span class="badge badge-green">Implemented on master (RFC + Item #350)</span>
+        <span class="badge badge-green">Implemented on master (RFC + Item #350 + Track A Waves 1&ndash;3)</span>
       </div>
       <p style="margin:0 0 20px; font-size:13.5px; color:var(--muted);">
-        All four foundational Two-Plane decisions below (Slices RFC-1&ndash;RFC-4) and the Item #350 Wave 2A/2B product unification (<code>#525</code>, <code>#527</code>, <code>#535</code>) are confirmed and implemented on <code>master</code>.
+        All four foundational Two-Plane decisions below (Slices RFC-1&ndash;RFC-4), Item #350 Wave 2A/2B (<code>#525</code>, <code>#527</code>, <code>#535</code>), and Next Wave Track A Waves 1&ndash;3 (<code>INT-2595</code>, <code>INT-2596</code>, <code>INT-2599</code>, <code>INT-2600</code>, <code>INT-2603</code>) are confirmed and implemented on <code>master</code>.
       </p>
 
       <!-- Decision 1 -->
@@ -1260,12 +1290,12 @@ await os.Notifications.NotifyAsync(
       <div class="decision-item">
         <div class="decision-header">
           <span class="decision-title">4. Headless Cloud Fallback Provider</span>
-          <span class="badge badge-green">Recommended: ACA Sessions</span>
+          <span class="badge badge-green">Implemented: Paired PC ($0) + ACA Consumption Jobs</span>
         </div>
         <div class="decision-options">
           <label class="option-label recommended">
-            <input type="radio" name="d4" value="aca" checked />
-            <strong>(Recommended) Azure Container Apps Dynamic Sessions (Kata MicroVMs)</strong> &mdash; Scale-to-zero, microVM isolation.
+            <input type="radio" name="d4" value="aca-job" checked />
+            <strong>(Implemented) Paired PC Plane 2 Relay ($0) &rarr; Policy Rule B ACA Consumption Jobs (<code>Microsoft.App/jobs</code>, <code>AcaJobCandidateHost</code>)</strong> &mdash; Scale-to-zero, Cost-Breaker guarded; <code>Microsoft.App/sessionPools</code> permanently banned by Policy Rule A.
           </label>
           <label class="option-label">
             <input type="radio" name="d4" value="codespaces" />
@@ -1277,7 +1307,7 @@ await os.Notifications.NotifyAsync(
       <!-- Export / Copy Action -->
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; flex-wrap:wrap; gap:12px;">
         <div id="decision-status" style="font-size:13px; color:var(--green); font-weight:600;">
-          All 4 recommended options selected.
+          All 4 implemented options selected.
         </div>
         <button class="btn btn-accent" onclick="copyDecisions()">
           &#128203; Copy Approved Decision Config
@@ -1297,13 +1327,13 @@ await os.Notifications.NotifyAsync(
     const d4 = document.querySelector('input[name="d4"]:checked').value;
 
     const payload = {
-      rfc: "intochat-two-plane-architecture-v0.24.0",
+      rfc: "intochat-two-plane-architecture-v0.24.5",
       status: "IMPLEMENTED_ON_MASTER",
       two_plane_design: {
         plane_1_code_mode: "CodeOrchestrationSynapse + Client/Cloud Native Sandbox (/edge/sandbox/invoke)",
-        plane_2_dev_mode: "Leased Devcontainer Slots (agent-dev-slots + Aspire AppHost)",
+        plane_2_dev_mode: "3-Tier Candidate Hosts: Paired PC Relay ($0) -> AgentDevSlotsCandidateHost (.devcontainer) -> AcaJobCandidateHost (Microsoft.App/jobs, Policy Rule B)",
         desktop_hardening: "Microsoft.Mxc.Sdk (optional OS-level process containment)",
-        cloud_fallback: "Azure Container Apps Dynamic Sessions"
+        cloud_fallback: "Azure Container Apps Consumption Jobs (Microsoft.App/jobs, CostBreaker guarded; sessionPools banned by Policy Rule A)"
       },
       decisions: {
         plane_1_engine: d1,
@@ -1311,7 +1341,7 @@ await os.Notifications.NotifyAsync(
         client_compute_consent: d3,
         cloud_fallback_provider: d4
       },
-      delivered: "Slices RFC-1..RFC-4 + Item #350 Wave 2A (Ino CodeOrchestrationSynapse + SplitPaneNode Inline Live App Drawer + CrystallizeAsync) & Wave 2B (EngineerLiveVerifier -> ICandidateHost via CandidateHostLiveVerifier)"
+      delivered: "Slices RFC-1..RFC-4 + Item #350 Wave 2A/2B + Next Wave Track A Waves 1-3 (INT-2595..INT-2603): .devcontainer + AgentDevSlotsCandidateHost, unified CandidateLiveVerifier (MCP + Playwright + OTel), Paired PC Plane 2 relay ($0) + concurrent DeviceWorker lanes, AcaJobCandidateHost + Policy Rule B + CostBreaker + native IRepository Draft PRs, LocalSelfReview, active SelfImprovementLoop, and Ino Engineer PR Drawer (Tournament | Diff | Logs & SHA-locked approval)"
     };
 
     const text = JSON.stringify(payload, null, 2);
