@@ -708,7 +708,7 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("Microsoft Store", cell, StringComparison.OrdinalIgnoreCase);
     }
 
-    private const string ExpectedWindowsDevCertThumbprint = "3365BF08BBE6D23778CE1B61715C1AD6DDDDAD7E";
+    private const string ExpectedWindowsDevCertThumbprint = "8A52D9EC97CEBB40629C916C292C155A1F3292CB";
 
     [Fact]
     public void PublicWindowsDevCertExistsIsValidPublicOnlyAndMatchesPinnedIdentity()
